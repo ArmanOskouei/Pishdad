@@ -1,11 +1,12 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authed, authedForm } from "@/lib/auth";
+import { authed, authedForm, ApiError } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, EmptyState } from "@/components/ui/primitives";
 import { ConfirmDialog } from "@/components/ui/Overlays";
 import { DeveloperGuide } from "@/components/DeveloperGuide";
+import { PackageAnalyzer, type PackageAnalysis } from "@/components/PackageAnalyzer";
 import { faNum, jalali } from "@/lib/fa";
 import type { Paginator, PluginItem, ReviewStatus } from "@/lib/domain";
 import { REVIEW_FA } from "@/lib/domain";
@@ -19,6 +20,8 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
   const [uploading, setUploading] = useState(false);
   const [upgrading, setUpgrading] = useState<PluginItem | null>(null);
   const [uninstalling, setUninstalling] = useState<PluginItem | null>(null);
+  // نتیجهٔ تحلیل بسته پس از رد شدن آپلود — تا کاربر دلیل واقعی را ببیند.
+  const [analysis, setAnalysis] = useState<PackageAnalysis | null>(null);
   // دسته UIUX (افزودنی): جستجو + فیلتر وضعیت.
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "updates">("all");
@@ -58,9 +61,20 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
         await authedForm(`/v1/admin/plugins/upload`, form);
         toast("پلاگین آپلود شد و در انتظار تأیید است.", "ok");
       }
+      setAnalysis(null);
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "آپلود ناموفق بود (امضا نامعتبر؟).", "err");
+      // بک‌اند هنگام رد بسته، کل تحلیل را در بدنهٔ پاسخ می‌فرستد. آن را نشان
+      // می‌دهیم نه پیام عمومی — وگرنه کاربر می‌فهمد «خطا شد» ولی نمی‌فهمد چرا.
+      const analysis = e instanceof ApiError
+        ? (e.payload as { analysis?: PackageAnalysis } | undefined)?.analysis
+        : undefined;
+      if (analysis && !analysis.ok) {
+        setAnalysis(analysis);
+        toast("بسته معتبر نیست؛ نتیجهٔ بررسی ساختار را ببینید.", "err");
+      } else {
+        toast(e instanceof Error ? e.message : "آپلود ناموفق بود.", "err");
+      }
     } finally {
       setUploading(false);
       setUpgrading(null);
@@ -130,7 +144,12 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
         </button>
       </div>
 
-      <Alert tone="blue">آپلود بدون <span dir="ltr">manifest.json</span> دارای امضای معتبر، با خطای ۴۲۲ رد می‌شود و در لاگ امنیتی ثبت می‌گردد.</Alert>
+      <PackageAnalyzer initialAnalysis={analysis} />
+
+      <Alert tone="blue">
+        آپلود بدون <span dir="ltr">manifest.json</span> دارای امضای معتبر در ریشهٔ ZIP، یا با فایلی خارج از ساختار مجاز، رد می‌شود.
+        برای دیدن دلیل دقیق، از «بررسی ساختار بسته» استفاده کنید.
+      </Alert>
 
       {initial.data.some((p) => (p.review_status ?? "approved") === "pending") ? (
         <div style={{ marginBlockStart: 10 }}>

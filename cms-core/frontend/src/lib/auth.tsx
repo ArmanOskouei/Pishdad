@@ -95,12 +95,22 @@ export function useAuth(): Ctx {
   return c;
 }
 
+/** خطای API با بدنهٔ کامل پاسخ، تا UI بتواند جزئیات ساختاریافته را بخواند. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number, readonly payload: unknown) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 /** فراخوانی multipart احرازهویت‌شده (آپلود ZIP قالب/پلاگین) — boundary دست‌نخورده می‌ماند. */
 export async function authedForm<T>(path: string, form: FormData, method = "POST"): Promise<T> {
   const res = await fetch(`/api/proxy${path}`, { method, body: form, cache: "no-store" });
   const json = await res.json().catch(() => ({}));
   if (res.status === 401) { window.location.href = "/login"; throw new Error("نشست منقضی شد — دوباره وارد شوید."); }
-  if (!res.ok) throw new Error(json?.message ?? "خطایی رخ داد.");
+  // بدنهٔ کامل نگه داشته می‌شود: اعتبارسنجی پلاگین جزئیات ساختاریافته در
+  // بدنهٔ خطا برمی‌گرداند و UI باید بتواند آن را رندر کند، نه فقط پیام را.
+  if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
   return (json?.data ?? json) as T;
 }
 
