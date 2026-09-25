@@ -1,0 +1,124 @@
+/* ═══ Shell مشترک دو پنل: سایدبار + تاپ‌بار + ناوبری موبایل ═══ */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; font-family: var(--font); font-size: var(--fs-body);
+  background: var(--bg); color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+
+.app { display: flex; min-height: 100vh; }
+
+/* ── سایدبار (راست در RTL) ── */
+.sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--surface); border-inline-end: 1px solid var(--border);
+  position: sticky; top: 0; height: 100vh; z-index: 40;
+  display: flex; flex-direction: column; transition: width .2s ease, transform .25s ease;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 16px; border-bottom: 1px solid var(--border); }
+.brand-mark {
+  width: 36px; height: 36px; border-radius: var(--radius-md); flex-shrink: 0;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 55%, #7c3aed));
+  color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 17px;
+}
+.brand-name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; }
+.brand-sub { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+.nav { flex: 1; overflow-y: auto; padding: 10px 12px; }
+.nav-group { font-size: 11.5px; color: var(--text-muted); padding: 14px 10px 6px; white-space: nowrap; overflow: hidden; }
+.nav-group.central { color: #a78bfa; font-weight: 700; }
+.nav-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border-radius: var(--radius-md); color: var(--text-muted); font-size: 13.5px; font-weight: 500;
+  margin-bottom: 2px; min-height: 44px; position: relative; cursor: pointer; border: 0; background: none; width: 100%; text-align: start;
+}
+.nav-item svg { width: 20px; height: 20px; flex-shrink: 0; }
+.nav-item:hover { background: var(--surface-2); color: var(--text); }
+.nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.nav-item.active::before {
+  content: ""; position: absolute; inset-inline-start: -12px; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 3px; background: var(--primary);
+}
+.nav-item.locked { opacity: .45; cursor: not-allowed; }
+.nav-badge {
+  margin-inline-start: auto; background: var(--danger); color: #fff;
+  font-size: 11px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  display: grid; place-items: center; font-weight: 700;
+}
+.nav-badge.soft { background: var(--primary-soft); color: var(--primary); }
+.side-user { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
+
+/* حالت جمع‌شده (دسکتاپ) */
+.app.collapsed .sidebar { width: var(--sidebar-w-collapsed); }
+.app.collapsed .brand-name, .app.collapsed .brand-sub, .app.collapsed .nav-label,
+.app.collapsed .nav-group, .app.collapsed .nav-badge, .app.collapsed .side-user .u-info { display: none; }
+.app.collapsed .nav-item { justify-content: center; padding: 10px 0; }
+
+/* ── ستون اصلی ── */
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; padding: 0 20px;
+  position: sticky; top: 0; z-index: 30;
+}
+.icon-btn {
+  width: 40px; height: 40px; border-radius: var(--radius-md); border: 1px solid transparent;
+  background: none; color: var(--text-muted); display: grid; place-items: center; cursor: pointer; position: relative;
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn .dot { position: absolute; top: 9px; inset-inline-end: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); border: 2px solid var(--surface); }
+.crumbs { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px; white-space: nowrap; overflow: hidden; }
+.crumbs b { color: var(--text); }
+.top-search {
+  margin-inline-start: auto; display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2); border-radius: var(--radius-md); padding: 8px 12px; min-width: 200px; color: var(--text-muted); font-size: 13px;
+}
+.top-search input { border: 0; background: none; outline: none; color: var(--text); font-family: inherit; width: 100%; }
+.top-search svg { width: 18px; height: 18px; flex-shrink: 0; }
+.content { padding: 24px; max-width: 1280px; width: 100%; margin: 0 auto; }
+.page-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+.page-head h1 { font-size: 20px; margin: 0 0 4px; }
+.page-head p { margin: 0; color: var(--text-muted); font-size: 13px; }
+.page-head .spacer { flex: 1; }
+
+/* ── ناوبری پایین موبایل (حس اپلیکیشن) ── */
+.bottomnav {
+  display: none; position: fixed; bottom: 0; inset-inline: 0; z-index: 50;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(14px); border-top: 1px solid var(--border);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+.bottomnav .bn-row { display: flex; }
+.bn-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 7px 2px; color: var(--text-muted); font-size: 10.5px; border: 0; background: none; min-height: 52px; cursor: pointer;
+}
+.bn-item svg { width: 22px; height: 22px; }
+.bn-item.active { color: var(--primary); font-weight: 700; }
+
+/* ── اسکرین تاریک دراور موبایل ── */
+.scrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 39; }
+.scrim.show { display: block; }
+
+/* ── ریسپانسیو ── */
+@media (max-width: 1024px) {
+  .sidebar { position: fixed; inset-inline-end: 0; transform: translateX(-100%); box-shadow: var(--shadow-lg); }
+  [dir="rtl"] .sidebar { transform: translateX(-100%); }
+  .app.drawer-open .sidebar { transform: translateX(0); }
+  [dir="rtl"] .app.drawer-open .sidebar { transform: translateX(0); }
+  .app.collapsed .sidebar { width: var(--sidebar-w); }
+  .app.collapsed .brand-name, .app.collapsed .brand-sub, .app.collapsed .nav-label,
+  .app.collapsed .nav-group, .app.collapsed .nav-badge, .app.collapsed .side-user .u-info { display: block; }
+  .top-search { display: none; }
+}
+@media (max-width: 640px) {
+  .content { padding: 14px 14px 92px; }
+  .bottomnav { display: block; }
+  .sidebar { display: none; }
+  .crumbs .crumb-root { display: none; }
+  .topbar { padding: 0 14px; gap: 8px; }
+  .page-head h1 { font-size: 17px; }
+}

@@ -1,0 +1,755 @@
+﻿<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نمونه داشبورد — ۵ جهت بصری پنل مدیریت</title>
+<script>
+  // تنظیم تم قبل از render (ضد FOUC)
+  (function(){
+    var DIRS=['sahar','amaliyat','arya','narm','divan'], MODES=['light','dark'];
+    var u=new URLSearchParams(location.search);
+    var s=null; try{ s=JSON.parse(localStorage.getItem('cms-theme-demo')); }catch(e){}
+    if(!s||typeof s!=='object'||DIRS.indexOf(s.dir)<0||MODES.indexOf(s.mode)<0) s={dir:'sahar',mode:'light'};
+    var d=u.get('dir'), m=u.get('mode');
+    if(DIRS.indexOf(d)>=0) s.dir=d; if(MODES.indexOf(m)>=0) s.mode=m;
+    document.documentElement.setAttribute('data-direction', s.dir);
+    document.documentElement.setAttribute('data-mode', s.mode);
+    document.body && (document.body.dataset.direction=s.dir, document.body.dataset.mode=s.mode);
+  })();
+</script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color .3s, color .3s, border-color .3s, box-shadow .3s; }
+  /* ════════════════ BASE TOKENS (مشترک) ════════════════ */
+  :root {
+    --font: "Vazirmatn", "Segoe UI", Tahoma, sans-serif;
+    --fs-body: 14px; --lh-base: 1.75;
+    --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+    --sidebar-w: 240px; --topbar-h: 60px;
+    --shadow-sm: 0 1px 2px rgba(16,24,40,.06);
+    --shadow-md: 0 4px 12px rgba(16,24,40,.08);
+  }
+
+  /* ════════════════ حالت تیره برای هر جهت (full palette) ════════════════ */
+  /* سپیده — تیره */
+  [data-direction="sahar"][data-mode="dark"] {
+    --bg: #0E1114; --surface: #161A1F; --surface-2: #1E232A; --border: #262B31;
+    --text: #E7E9EC; --text-muted: #8B929B; --text-invert: #062E2B;
+    --primary: #2DD4BF; --primary-hover: #5EEAD4; --primary-soft: rgba(45,212,191,.14);
+    --accent: #FBBF24; --accent-soft: rgba(251,191,36,.12);
+    --success: #4ADE80; --success-soft: rgba(74,222,128,.14);
+    --warning: #FBBF24; --warning-soft: rgba(251,191,36,.14);
+    --danger: #F87171; --danger-soft: rgba(248,113,113,.15);
+    --shadow-card: none; --shadow-btn: none;
+    --sidebar-bg: var(--surface); --topbar-bg: var(--surface);
+    --sidebar-text: #E7E9EC; --sidebar-text-muted: #8B929B;
+    --sidebar-active-text: #5EEAD4;    --sidebar-active-bar: #5EEAD4;
+    --sidebar-hover-bg: rgba(255,255,255,.06);    color-scheme: dark;
+  }
+  /* عملیات — روشن (پایه دارک است) */
+  [data-direction="amaliyat"][data-mode="light"] {
+    --bg: #F4F5F7; --surface: #FFFFFF; --surface-2: #EAECEF; --border: #D8DCE3;
+    --text: #1F2430; --text-muted: #5B6472; --text-invert: #FFFFFF;
+    --primary: #4F46E5; --primary-hover: #4338CA; --primary-soft: rgba(79,70,229,.10);
+    --accent: #0891B2; --accent-soft: rgba(8,145,178,.12);
+    --success: #059669; --success-soft: rgba(5,150,105,.12);
+    --warning: #D97706; --warning-soft: rgba(217,119,6,.12);
+    --danger: #DC2626; --danger-soft: rgba(220,38,38,.12);
+    --shadow-card: 0 1px 3px rgba(15,23,42,.08); --shadow-btn: none;
+    --sidebar-bg: #1E293B; --topbar-bg: var(--surface);
+    --sidebar-text: #E2E8F0; --sidebar-text-muted: #94A3B8;
+    --sidebar-active-text: #A5B4FC;    --sidebar-active-bar: #A5B4FC;
+    --sidebar-hover-bg: rgba(255,255,255,.07);  }
+  /* آریا — تیره */
+  [data-direction="arya"][data-mode="dark"] {
+    --bg: #0F0B1E; --surface: #171229; --surface-2: #211A3A; --border: #2E2650;
+    --text: #F1EEFF; --text-muted: #9A94B8; --text-invert: #171229;
+    --primary: #8B5CF6; --primary-hover: #A78BFA; --primary-soft: rgba(139,92,246,.16);
+    --accent: #F472B6; --accent-soft: rgba(244,114,182,.14);
+    --success: #34D399; --success-soft: rgba(52,211,153,.16);
+    --warning: #FBBF24; --warning-soft: rgba(251,191,36,.15);
+    --danger: #F87171; --danger-soft: rgba(248,113,113,.16);
+    --shadow-card: none; --shadow-btn: 0 8px 24px rgba(139,92,246,.30);
+    --sidebar-bg: var(--surface); --topbar-bg: var(--surface);
+    --sidebar-text: #F1EEFF; --sidebar-text-muted: #9A94B8;
+    --sidebar-active-text: #C4B5FD;    --sidebar-active-bar: #C4B5FD;
+    --sidebar-hover-bg: rgba(255,255,255,.06);    color-scheme: dark;
+  }
+  /* نرم — تیره */
+  [data-direction="narm"][data-mode="dark"] {
+    --bg: #1B1715; --surface: #251F1C; --surface-2: #2E2723; --border: #3A322C;
+    --text: #F0EAE6; --text-muted: #A69B92; --text-invert: #251F1C;
+    --primary: #E8916F; --primary-hover: #EFA488; --primary-soft: rgba(232,145,111,.14);
+    --accent: #9CC5AC; --accent-soft: rgba(156,197,172,.14);
+    --success: #69DB7C; --success-soft: rgba(105,219,124,.14);
+    --warning: #FFC078; --warning-soft: rgba(255,192,120,.15);
+    --danger: #FF8787; --danger-soft: rgba(255,135,135,.15);
+    --shadow-card: none; --shadow-btn: 0 4px 14px rgba(232,145,111,.25);
+    --sidebar-bg: #1B1715; --topbar-bg: var(--surface);
+    --sidebar-text: #F0EAE6; --sidebar-text-muted: #A69B92;
+    --sidebar-active-text: #F4A261;    --sidebar-active-bar: #F4A261;
+    --sidebar-hover-bg: rgba(255,255,255,.06);    color-scheme: dark;
+  }
+  /* دیوان — تیره */
+  [data-direction="divan"][data-mode="dark"] {
+    --bg: #101418; --surface: #151A20; --surface-2: #1D242C; --border: #232B34;
+    --text: #E2E8F0; --text-muted: #8B98A9; --text-invert: #0B1016;
+    --primary: #3B82F6; --primary-hover: #60A5FA; --primary-soft: rgba(59,130,246,.15);
+    --accent: #22D3EE; --accent-soft: rgba(34,211,238,.13);
+    --success: #34D399; --success-soft: rgba(52,211,153,.15);
+    --warning: #FBBF24; --warning-soft: rgba(251,191,36,.13);
+    --danger: #F87171; --danger-soft: rgba(248,113,113,.15);
+    --shadow-card: none; --shadow-btn: none;
+    --sidebar-bg: #0B1016; --topbar-bg: var(--surface);
+    --sidebar-text: #E2E8F0; --sidebar-text-muted: #94A3B8;
+    --sidebar-active-text: #60A5FA;    --sidebar-active-bar: #60A5FA;
+    --sidebar-hover-bg: rgba(255,255,255,.06);    color-scheme: dark;
+  }
+
+  /* ════════════════ جهت ۱ — «سپیده» مینیمال روشن ════════════════ */
+  [data-direction="sahar"] {
+    --bg: #F7F7F8; --surface: #FFFFFF; --surface-2: #F0F1F3; --border: #E5E7EB;
+    --text: #1A1A1E; --text-muted: #6B7280; --text-invert: #FFFFFF;
+    --primary: #0D9488; --primary-hover: #0B7A70; --primary-soft: rgba(13,148,136,.10);
+    --accent: #F59E0B; --accent-soft: rgba(245,158,11,.12);
+    --success: #16A34A; --success-soft: #DCFCE7;
+    --warning: #D97706; --warning-soft: #FEF3C7;
+    --danger: #DC2626; --danger-soft: #FEE2E2;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+    --shadow-card: var(--shadow-sm); --shadow-btn: none;
+    --sidebar-bg: var(--surface); --topbar-bg: var(--surface);
+    --sidebar-text: var(--text); --sidebar-text-muted: var(--text-muted);
+    --sidebar-active-text: #0B7A70;
+    --active-bg: var(--primary-soft); --active-bar: 3px;
+    --font-display-w: 700;
+  }
+
+  /* ════════════════ جهت ۲ — «عملیات» دارک کنسول ════════════════ */
+  [data-direction="amaliyat"] {
+    --bg: #0A0B0F; --surface: #12141A; --surface-2: #1A1D26; --border: #23262F;
+    --text: #E6E9F0; --text-muted: #7C8494; --text-invert: #FFFFFF;
+    --primary: #6366F1; --primary-hover: #818CF8; --primary-soft: rgba(99,102,241,.15);
+    --accent: #22D3EE; --accent-soft: rgba(34,211,238,.12);
+    --success: #34D399; --success-soft: rgba(52,211,153,.15);
+    --warning: #FBBF24; --warning-soft: rgba(251,191,36,.12);
+    --danger: #F87171; --danger-soft: rgba(248,113,113,.15);
+    --radius-sm: 4px; --radius-md: 8px; --radius-lg: 10px;
+    --shadow-card: none; --shadow-btn: none;
+    --sidebar-bg: #0E1016; --topbar-bg: var(--surface);
+    --sidebar-text: #E6E9F0; --sidebar-text-muted: #8B949E;
+    --sidebar-active-text: #A5B4FC;    --sidebar-active-bar: #A5B4FC;
+    --sidebar-hover-bg: rgba(255,255,255,.07);    --active-bg: var(--primary-soft); --active-bar: 3px;
+    --font-display-w: 700;
+  }
+
+  /* ════════════════ جهت ۳ — «آریا» رنگارنگ مدرن ════════════════ */
+  [data-direction="arya"] {
+    --bg: #F5F6FB; --surface: #FFFFFF; --surface-2: #EDEFFA; --border: #E4E4F0;
+    --text: #1E1B2E; --text-muted: #6D6A85; --text-invert: #FFFFFF;
+    --primary: #7C3AED; --primary-hover: #6D28D9; --primary-soft: rgba(124,58,237,.12);
+    --accent: #EC4899; --accent-soft: rgba(236,72,153,.12);
+    --grad: linear-gradient(135deg, #7C3AED, #EC4899);
+    --success: #10B981; --success-soft: rgba(16,185,129,.12);
+    --warning: #F59E0B; --warning-soft: rgba(245,158,11,.12);
+    --danger: #EF4444; --danger-soft: rgba(239,68,68,.12);
+    --radius-sm: 8px; --radius-md: 14px; --radius-lg: 18px;
+    --shadow-card: 0 4px 16px rgba(30,27,46,.06); --shadow-btn: 0 8px 24px rgba(124,58,237,.35);
+    --sidebar-bg: var(--surface); --topbar-bg: var(--surface);
+    --sidebar-text: var(--text); --sidebar-text-muted: var(--text-muted);
+    --sidebar-active-text: #6D28D9;
+    --active-bg: var(--primary-soft); --active-bar: 0px;
+    --font-display-w: 900;
+  }
+
+  /* ════════════════ جهت ۴ — «نرم» سافت و دوستانه ════════════════ */
+  [data-direction="narm"] {
+    --bg: #FAF7F2; --surface: #FFFFFF; --surface-2: #F3EDE6; --border: #EFE6DF;
+    --text: #33302E; --text-muted: #8A7F77; --text-invert: #FFFFFF;
+    --primary: #E07A5F; --primary-hover: #C9664C; --primary-soft: rgba(224,122,95,.12);
+    --accent: #81B29A; --accent-soft: rgba(129,178,154,.15);
+    --success: #2F9E44; --success-soft: rgba(47,158,68,.12);
+    --warning: #E5A50A; --warning-soft: rgba(229,165,10,.12);
+    --danger: #D9796B; --danger-soft: rgba(217,121,107,.15);
+    --radius-sm: 12px; --radius-md: 16px; --radius-lg: 20px;
+    --shadow-card: 0 10px 30px rgba(90,60,30,.10); --shadow-btn: 0 4px 14px rgba(224,122,95,.25);
+    --sidebar-bg: var(--bg); --topbar-bg: var(--surface);
+    --sidebar-text: var(--text); --sidebar-text-muted: var(--text-muted);
+    --sidebar-active-text: #B3551F;
+    --active-bg: var(--primary-soft); --active-bar: 0px;
+    --font-display-w: 700;
+  }
+
+  /* ════════════════ جهت ۵ — «دیوان» کلاسیک ════════════════ */
+  [data-direction="divan"] {
+    --bg: #EEF1F5; --surface: #FFFFFF; --surface-2: #E2E8F0; --border: #D8DEE6;
+    --text: #1F2937; --text-muted: #64748B; --text-invert: #FFFFFF;
+    --primary: #1D4ED8; --primary-hover: #1E40AF; --primary-soft: rgba(29,78,216,.10);
+    --accent: #0E7490; --accent-soft: rgba(14,116,144,.10);
+    --success: #047857; --success-soft: rgba(4,120,87,.12);
+    --warning: #B45309; --warning-soft: rgba(180,83,9,.10);
+    --danger: #DC2626; --danger-soft: rgba(220,38,38,.10);
+    --radius-sm: 3px; --radius-md: 5px; --radius-lg: 7px;
+    --shadow-card: 0 1px 3px rgba(15,23,42,.10); --shadow-btn: none;
+    --sidebar-bg: #1E293B; --topbar-bg: var(--surface);
+    --sidebar-text: #E2E8F0; --sidebar-text-muted: #94A3B8;
+    --sidebar-active-text: #93C5FD;    --sidebar-active-bar: #93C5FD;
+    --sidebar-hover-bg: rgba(255,255,255,.08);    --active-bg: rgba(59,130,246,.15); --active-bar: 3px;
+    --font-display-w: 800;
+  }
+
+  /* ════════════════ LAYOUT ════════════════ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: var(--fs-body); line-height: var(--lh-base); transition: background .3s, color .3s; }
+
+  .app { display: flex; min-height: 100vh; }
+
+  /* سایدبار */
+  .sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; transition: background .3s, border-color .3s; flex-shrink: 0; color: var(--sidebar-text); }
+  .sb-logo { display: flex; align-items: center; gap: 10px; padding: 18px var(--space-5); border-bottom: 1px solid var(--border); font-weight: 800; font-size: 15px; color: var(--sidebar-text); }
+  .sb-logo .logo-badge { width: 30px; height: 30px; border-radius: 8px; background: var(--primary); color: var(--text-invert); display: grid; place-items: center; font-weight: 900; font-size: 14px; }
+  .sb-nav { flex: 1; padding: 12px var(--space-3); overflow-y: auto; }
+  .sb-group-label { font-size: 10.5px; color: var(--sidebar-text-muted); padding: 10px var(--space-3) 5px; font-weight: 600; letter-spacing: .3px; }
+  .sb-item { display: flex; align-items: center; gap: 10px; padding: 9px var(--space-3); border-radius: var(--radius-md); color: var(--sidebar-text); text-decoration: none; font-size: 13px; margin-bottom: 2px; position: relative; transition: background .2s; }
+  .sb-item:hover { background: var(--sidebar-hover-bg, var(--active-bg)); }
+  .sb-item.active { background: var(--active-bg); color: var(--sidebar-active-text, var(--primary)); font-weight: 600; }
+  .sb-item.active::before { content: ''; position: absolute; right: -12px; top: 20%; bottom: 20%; width: var(--active-bar); border-radius: 3px; background: var(--sidebar-active-bar, var(--primary)); }
+  .sb-item .ico { width: 18px; text-align: center; font-size: 15px; }
+  .sb-item .badge { margin-right: auto; background: var(--danger); color: var(--text-invert); font-size: 10px; min-width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; padding: 0 5px; font-weight: 700; }
+  .sb-item.plugin-group { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 14px; }
+  .sb-user { display: flex; align-items: center; gap: 10px; padding: 14px var(--space-5); border-top: 1px solid var(--border); }
+  .sb-user .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--primary); color: var(--text-invert); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  .sb-user .u-name { font-size: 13px; font-weight: 600; color: var(--sidebar-text); }
+  .sb-user .u-role { font-size: 11px; color: var(--sidebar-text-muted); }
+
+  /* محتوا */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .topbar { height: var(--topbar-h); background: var(--topbar-bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-6); position: sticky; top: 0; z-index: 10; transition: background .3s; }
+  .crumb { font-size: 13px; color: var(--text-muted); }
+  .crumb strong { color: var(--text); font-weight: 600; }
+  .tb-spacer { flex: 1; }
+  .tb-search { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px 12px; font-size: 12.5px; color: var(--text-muted); min-width: 200px; }
+  .tb-btn { background: none; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px 12px; font-size: 12.5px; color: var(--text); cursor: pointer; font-family: var(--font); transition: all .2s; }
+  .tb-btn:hover { background: var(--surface-2); }
+  .tb-icon-btn { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--radius-md); border: 1px solid var(--border); background: none; color: var(--text); cursor: pointer; font-size: 15px; position: relative; }
+  .tb-icon-btn .dot { position: absolute; top: 6px; left: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+
+  .content { padding: var(--space-6); max-width: 1300px; width: 100%; margin: 0 auto; }
+  .welcome-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5); }
+  .welcome-row h1 { font-size: 20px; font-weight: var(--font-display-w); }
+  .welcome-row p { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+  .quick-actions { display: flex; gap: var(--space-3); }
+  .qa-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: var(--radius-md); border: none; cursor: pointer; font-family: var(--font); font-size: 13px; font-weight: 600; transition: all .2s; }
+  .qa-btn.primary { background: var(--primary); color: var(--text-invert); box-shadow: var(--shadow-btn); }
+  .qa-btn.primary:hover { background: var(--primary-hover); }
+  .qa-btn.ghost { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+
+  /* کارت آمار */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-5); }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-card); transition: transform .2s, box-shadow .2s; }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-3); }
+  .stat-label { font-size: 12px; color: var(--text-muted); }
+  .stat-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 17px; }
+  .stat-icon.teal { background: var(--primary-soft); color: var(--primary); }
+  .stat-icon.amber { background: var(--warning-soft); color: var(--warning); }
+  .stat-icon.green { background: var(--success-soft); color: var(--success); }
+  .stat-icon.blue { background: var(--accent-soft); color: var(--accent); }
+  .stat-value { font-size: 26px; font-weight: var(--font-display-w); line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+  .stat-sub .trend-up { color: var(--success); font-weight: 700; }
+  .stat-sub .trend-down { color: var(--danger); font-weight: 700; }
+  .stat-manage { margin-top: var(--space-3); display: inline-flex; align-items: center; gap: 5px; color: var(--primary); font-size: 12.5px; font-weight: 600; cursor: pointer; text-decoration: none; }
+
+  /* هشدارها */
+  .alerts { margin-bottom: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
+  .alert { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--radius-md); font-size: 13px; border-right: 4px solid; }
+  .alert.warning { background: var(--warning-soft); border-color: var(--warning); color: var(--text); }
+  .alert.danger { background: var(--danger-soft); border-color: var(--danger); color: var(--text); }
+  .alert .a-ico { font-size: 16px; }
+  .alert .a-text { flex: 1; }
+  .alert .a-btn { background: none; border: 1px solid currentColor; border-radius: var(--radius-sm); padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: var(--font); color: var(--text); }
+  .alert.danger .a-btn { border-color: var(--danger); color: var(--danger); }
+
+  /* ویجت‌ها */
+  .widgets { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); }
+  .widget { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-card); }
+  .widget-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+  .widget-title { font-size: 14px; font-weight: 700; }
+  .widget-more { font-size: 12px; color: var(--primary); cursor: pointer; }
+  .widget .placeholder { border: 1.5px dashed var(--border); border-radius: var(--radius-md); padding: var(--space-6); text-align: center; color: var(--text-muted); font-size: 12.5px; }
+
+  /* جدول */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { text-align: right; padding: 10px 12px; background: var(--surface-2); font-size: 12px; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 11px 12px; border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: var(--primary-soft); }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 600; }
+  .tag.budget { background: var(--success-soft); color: var(--success); }
+  .tag.standard { background: var(--primary-soft); color: var(--primary); }
+  .tag.enterprise { background: var(--accent-soft); color: var(--accent); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-left: 5px; }
+  .status-dot.green { background: var(--success); }
+  .status-dot.yellow { background: var(--warning); }
+  .status-dot.red { background: var(--danger); }
+
+
+  /* ════════════════ صفحه «قالب پنل مدیریت» ════════════════ */
+  .view { display: none; }
+  .view.active { display: block; }
+  .theme-page-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-5); gap: var(--space-4); flex-wrap: wrap; }
+  .theme-page-head h1 { font-size: 20px; font-weight: var(--font-display-w); margin-bottom: 4px; }
+  .theme-page-head p { color: var(--text-muted); font-size: 13px; max-width: 560px; }
+  .theme-current-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--success-soft); color: var(--success); border-radius: var(--radius-md); padding: 8px 14px; font-size: 12.5px; font-weight: 600; }
+  .theme-current-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; }
+
+  .theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); }
+  .theme-card { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; cursor: pointer; transition: transform .2s, box-shadow .2s, border-color .2s; }
+  .theme-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+  .theme-card.selected { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .theme-card.active-now { border-color: var(--success); }
+  .tc-preview { height: 130px; position: relative; overflow: hidden; display: flex; }
+  .tc-preview .mini-sidebar { width: 34%; height: 100%; display: flex; flex-direction: column; padding: 8px; gap: 4px; }
+  .tc-preview .mini-sidebar .m-logo { height: 14px; border-radius: 4px; opacity: .85; }
+  .tc-preview .mini-sidebar .m-item { height: 10px; border-radius: 3px; opacity: .7; }
+  .tc-preview .mini-sidebar .m-item.on { opacity: 1; }
+  .tc-preview .mini-body { flex: 1; display: flex; flex-direction: column; padding: 10px; gap: 6px; }
+  .tc-preview .mini-body .m-stat { height: 28px; border-radius: 6px; opacity: .9; }
+  .tc-preview .mini-body .m-row { height: 9px; border-radius: 3px; opacity: .6; }
+  .tc-body { padding: 14px 16px; }
+  .tc-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .tc-title strong { font-size: 14px; }
+  .tc-title .tc-check { color: var(--success); font-weight: 700; font-size: 15px; }
+  .tc-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+  .tc-presets { display: flex; gap: 6px; }
+  .tc-presets .p-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); }
+  .tc-presets .p-label { font-size: 10.5px; color: var(--text-muted); align-self: center; }
+
+  .theme-savebar { position: sticky; bottom: 16px; margin-top: var(--space-6); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); box-shadow: var(--shadow-md); flex-wrap: wrap; }
+  .theme-savebar .sb-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+  .theme-savebar .sb-status strong { color: var(--text); }
+  .theme-savebar .sb-actions { display: flex; gap: var(--space-3); }
+  .theme-savebar .previewing-badge { background: var(--warning-soft); color: var(--warning); padding: 3px 10px; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 600; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: var(--radius-md); border: none; cursor: pointer; font-family: var(--font); font-size: 13px; font-weight: 600; transition: all .2s; }
+  .btn-primary { background: var(--primary); color: var(--text-invert); box-shadow: var(--shadow-btn); }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-ghost { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { background: var(--surface-2); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--success); color: var(--success); border-radius: var(--radius-md); padding: 12px 20px; font-size: 13px; font-weight: 600; box-shadow: var(--shadow-md); z-index: 2000; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .welcome-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ════════ سایدبار ════════ -->
+  <aside class="sidebar">
+    <div class="sb-logo"><div class="logo-badge">آ</div> پنل مدیریت</div>
+    <nav class="sb-nav">
+      <div class="sb-group-label">مدیریت</div>
+      <a class="sb-item" data-view="dashboard"><span class="ico">📊</span> داشبورد</a>
+      <a class="sb-item"><span class="ico">📄</span> صفحات</a>
+      <a class="sb-item"><span class="ico">🖼️</span> فایل‌ها</a>
+      <a class="sb-item"><span class="ico">🎫</span> تیکت‌ها <span class="badge">۳</span></a>
+      <a class="sb-item"><span class="ico">👥</span> مدیران</a>
+      <a class="sb-item plugin-group"><span class="ico">🧩</span> پلاگین‌ها <span class="badge" style="background:var(--primary)">۱</span></a>
+      <a class="sb-item"><span class="ico">🎨</span> قالب‌ها</a>
+      <a class="sb-item" data-view="theme-settings" id="nav-theme-settings"><span class="ico">🖌️</span> قالب پنل مدیریت</a>
+      <a class="sb-item"><span class="ico">⚙️</span> تنظیمات</a>
+      <div class="sb-group-label">⭐ اشتراک</div>
+      <a class="sb-item" style="border:1px solid var(--border);margin-top:6px"><span class="ico">💳</span> اشتراک من</a>
+    </nav>
+    <div class="sb-user">
+      <div class="avatar">آر</div>
+      <div><div class="u-name">آرمان اسکویی</div><div class="u-role">مدیر سایت</div></div>
+    </div>
+  </aside>
+
+  <!-- ════════ محتوا ════════ -->
+  <div class="main">
+    <header class="topbar">
+      <span class="crumb">پنل مدیریت <strong>› داشبورد</strong></span>
+      <div class="tb-spacer"></div>
+      <div class="tb-search">🔍 جستجو… <span style="margin-right:auto;font-size:10px;background:var(--surface-2);padding:1px 6px;border-radius:4px">Ctrl+K</span></div>
+      <button class="tb-btn">👁 مشاهده سایت</button>
+      <button class="tb-icon-btn" id="theme-toggle">🌙</button>
+      <button class="tb-icon-btn">🔔<span class="dot"></span></button>
+    </header>
+
+    <div class="content">
+      <!-- ════════ VIEW ۱: داشبورد ════════ -->
+      <div class="view active" id="view-dashboard">
+        <div>
+          <h1>سلام، آرمان 👋</h1>
+          <p>همه‌چیز تحت کنترل است. امروز چه می‌سازیم؟</p>
+        </div>
+        <div class="quick-actions">
+          <button class="qa-btn primary">＋ صفحه جدید</button>
+          <button class="qa-btn ghost">⬆ آپلود فایل</button>
+          <button class="qa-btn ghost">🎫 پاسخ تیکت</button>
+        </div>
+      </div>
+
+      <!-- کارت آمار -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-top"><span class="stat-label">صفحات</span><span class="stat-icon teal">📄</span></div>
+          <div class="stat-value">۴۸</div>
+          <div class="stat-sub"><span class="trend-up">▲ ۱۲٪</span> این ماه</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top"><span class="stat-label">فایل‌ها</span><span class="stat-icon blue">🖼️</span></div>
+          <div class="stat-value">۲۶۳</div>
+          <div class="stat-sub">۲.۴ گیگابایت از ۵ گیگ</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top"><span class="stat-label">تیکت‌های باز</span><span class="stat-icon amber">🎫</span></div>
+          <div class="stat-value">۳</div>
+          <div class="stat-sub">۱ تیکت نیاز به پاسخ دارد</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top"><span class="stat-label">اشتراک</span><span class="stat-icon green">💳</span></div>
+          <div class="stat-value">Budget</div>
+          <div class="stat-sub"><span class="trend-down">۵ روز</span> تا سررسید</div>
+          <a class="stat-manage">مدیریت اشتراک ←</a>
+        </div>
+      </div>
+
+      <!-- هشدارها -->
+      <div class="alerts">
+        <div class="alert warning">
+          <span class="a-ico">⏰</span>
+          <span class="a-text">اشتراک شما ۵ روز دیگر سررسید می‌شود. برای تمدید اقدام کنید.</span>
+          <button class="a-btn">تمدید</button>
+        </div>
+        <div class="alert danger">
+          <span class="a-ico">⚠️</span>
+          <span class="a-text">یک آپدیت امنیتی مهم برای پلاگین «بلاگ» موجود است.</span>
+          <button class="a-btn">آپدیت</button>
+        </div>
+      </div>
+
+      <!-- ویجت‌ها -->
+      <div class="widgets">
+        <div class="widget">
+          <div class="widget-head"><span class="widget-title">آخرین صفحات</span><span class="widget-more">همه ←</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>صفحه</th><th>وضعیت</th><th>تاریخ</th></tr></thead>
+              <tbody>
+                <tr><td>صفحه اصلی</td><td><span class="tag budget">منتشر</span></td><td>امروز</td></tr>
+                <tr><td>خدمات ما</td><td><span class="tag budget">منتشر</span></td><td>دیروز</td></tr>
+                <tr><td>تماس با ما</td><td><span class="tag standard">پیش‌نویس</span></td><td>۲ روز پیش</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-head"><span class="widget-title">ویجت پلاگین</span><span class="widget-more">تنظیمات</span></div>
+          <div class="placeholder">این اسلات برای ویجت‌های پلاگین است.<br>پلاگین‌ها می‌توانند اینجا ویجت اضافه کنند.</div>
+        </div>
+      </div>
+      </div><!-- /view-dashboard -->
+
+      <!-- ════════ VIEW ۲: قالب پنل مدیریت ════════ -->
+      <div class="view" id="view-theme-settings">
+        <div class="theme-page-head">
+          <div>
+            <h1>🖌️ قالب پنل مدیریت</h1>
+            <p>یکی از قالب‌ها را انتخاب کنید. با کلیک روی هر قالب، پیش‌نمایش زنده آن روی همین پنل اعمال می‌شود — سپس با دکمه «تأیید و ذخیره» قالب فعال می‌شود.</p>
+          </div>
+          <div class="theme-current-badge"><span class="dot"></span> قالب فعال: <span id="current-theme-name">سپیده</span></div>
+        </div>
+
+        <div class="theme-grid" id="theme-grid">
+          <div class="theme-card" data-dir="sahar">
+            <div class="tc-preview" style="background:#F7F7F8">
+              <div class="mini-sidebar" style="background:#FFFFFF;border-left:1px solid #E5E7EB">
+                <div class="m-logo" style="background:#0D9488"></div>
+                <div class="m-item on" style="background:#0D948822"></div>
+                <div class="m-item" style="background:#E5E7EB"></div>
+                <div class="m-item" style="background:#E5E7EB"></div>
+              </div>
+              <div class="mini-body" style="background:#F7F7F8">
+                <div class="m-stat" style="background:#FFFFFF;border:1px solid #E5E7EB"></div>
+                <div class="m-row" style="background:#E5E7EB"></div>
+                <div class="m-row" style="background:#E5E7EB"></div>
+              </div>
+            </div>
+            <div class="tc-body">
+              <div class="tc-title"><strong>سپیده</strong><span class="tc-check"></span></div>
+              <div class="tc-desc">مینیمال روشن — آرام و تمیز، پیش‌فرض پنل مشتری</div>
+              <div class="tc-presets">
+                <div class="p-swatch" style="background:#0D9488"></div>
+                <div class="p-swatch" style="background:#4F46E5"></div>
+                <div class="p-swatch" style="background:#E11D48"></div>
+                <span class="p-label">۳ رنگ‌بندی</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="theme-card" data-dir="amaliyat">
+            <div class="tc-preview" style="background:#0A0B0F">
+              <div class="mini-sidebar" style="background:#0E1016;border-left:1px solid #23262F">
+                <div class="m-logo" style="background:#6366F1"></div>
+                <div class="m-item on" style="background:#6366F126"></div>
+                <div class="m-item" style="background:#23262F"></div>
+                <div class="m-item" style="background:#23262F"></div>
+              </div>
+              <div class="mini-body" style="background:#0A0B0F">
+                <div class="m-stat" style="background:#12141A;border:1px solid #23262F"></div>
+                <div class="m-row" style="background:#23262F"></div>
+                <div class="m-row" style="background:#23262F"></div>
+              </div>
+            </div>
+            <div class="tc-body">
+              <div class="tc-title"><strong>عملیات</strong><span class="tc-check"></span></div>
+              <div class="tc-desc">دارک کنسول — فنی و متراکم، پیش‌فرض پنل مرکزی</div>
+              <div class="tc-presets">
+                <div class="p-swatch" style="background:#6366F1"></div>
+                <div class="p-swatch" style="background:#10B981"></div>
+                <div class="p-swatch" style="background:#F97316"></div>
+                <span class="p-label">۳ رنگ‌بندی</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="theme-card" data-dir="arya">
+            <div class="tc-preview" style="background:#F5F6FB">
+              <div class="mini-sidebar" style="background:#FFFFFF;border-left:1px solid #E4E4F0">
+                <div class="m-logo" style="background:linear-gradient(135deg,#7C3AED,#EC4899)"></div>
+                <div class="m-item on" style="background:#7C3AED22"></div>
+                <div class="m-item" style="background:#E4E4F0"></div>
+                <div class="m-item" style="background:#E4E4F0"></div>
+              </div>
+              <div class="mini-body" style="background:#F5F6FB">
+                <div class="m-stat" style="background:#FFFFFF;border:1px solid #E4E4F0"></div>
+                <div class="m-row" style="background:#E4E4F0"></div>
+                <div class="m-row" style="background:#E4E4F0"></div>
+              </div>
+            </div>
+            <div class="tc-body">
+              <div class="tc-title"><strong>آریا</strong><span class="tc-check"></span></div>
+              <div class="tc-desc">مدرن رنگارنگ — جسور و گرادیانی، برای آژانس‌ها</div>
+              <div class="tc-presets">
+                <div class="p-swatch" style="background:linear-gradient(135deg,#7C3AED,#EC4899)"></div>
+                <div class="p-swatch" style="background:linear-gradient(135deg,#0EA5E9,#22D3EE)"></div>
+                <div class="p-swatch" style="background:linear-gradient(135deg,#F97316,#F43F5E)"></div>
+                <span class="p-label">۳ رنگ‌بندی</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="theme-card" data-dir="narm">
+            <div class="tc-preview" style="background:#FAF7F2">
+              <div class="mini-sidebar" style="background:#FAF7F2;border-left:1px solid #EFE6DF">
+                <div class="m-logo" style="background:#E07A5F"></div>
+                <div class="m-item on" style="background:#E07A5F22"></div>
+                <div class="m-item" style="background:#EFE6DF"></div>
+                <div class="m-item" style="background:#EFE6DF"></div>
+              </div>
+              <div class="mini-body" style="background:#FAF7F2">
+                <div class="m-stat" style="background:#FFFFFF;border:1px solid #EFE6DF"></div>
+                <div class="m-row" style="background:#EFE6DF"></div>
+                <div class="m-row" style="background:#EFE6DF"></div>
+              </div>
+            </div>
+            <div class="tc-body">
+              <div class="tc-title"><strong>نرم</strong><span class="tc-check"></span></div>
+              <div class="tc-desc">سافت و دوستانه — گرم و گرد، برای مشتری غیرفنی</div>
+              <div class="tc-presets">
+                <div class="p-swatch" style="background:#E07A5F"></div>
+                <div class="p-swatch" style="background:#88A0B8"></div>
+                <div class="p-swatch" style="background:#A8C686"></div>
+                <span class="p-label">۳ رنگ‌بندی</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="theme-card" data-dir="divan">
+            <div class="tc-preview" style="background:#EEF1F5">
+              <div class="mini-sidebar" style="background:#1E293B;border-left:1px solid #334155">
+                <div class="m-logo" style="background:#3B82F6"></div>
+                <div class="m-item on" style="background:#3B82F633"></div>
+                <div class="m-item" style="background:#334155"></div>
+                <div class="m-item" style="background:#334155"></div>
+              </div>
+              <div class="mini-body" style="background:#EEF1F5">
+                <div class="m-stat" style="background:#FFFFFF;border:1px solid #D8DEE6"></div>
+                <div class="m-row" style="background:#D8DEE6"></div>
+                <div class="m-row" style="background:#D8DEE6"></div>
+              </div>
+            </div>
+            <div class="tc-body">
+              <div class="tc-title"><strong>دیوان</strong><span class="tc-check"></span></div>
+              <div class="tc-desc">کلاسیک مدیریتی — آشنا و رسمی، مثل وردپرس</div>
+              <div class="tc-presets">
+                <div class="p-swatch" style="background:#1D4ED8"></div>
+                <div class="p-swatch" style="background:#047857"></div>
+                <div class="p-swatch" style="background:#1E3A8A"></div>
+                <span class="p-label">۳ رنگ‌بندی</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="theme-savebar">
+          <div class="sb-status">
+            <span class="previewing-badge" id="previewing-badge" style="display:none">پیش‌نمایش</span>
+            <span id="savebar-text">برای تغییر قالب، یکی از کارت‌ها را انتخاب کنید.</span>
+          </div>
+          <div class="sb-actions">
+            <button class="btn btn-ghost" id="btn-cancel" disabled>انصراف از پیش‌نمایش</button>
+            <button class="btn btn-primary" id="btn-confirm" disabled>تأیید و ذخیره قالب</button>
+          </div>
+        </div>
+      </div><!-- /view-theme-settings -->
+    </div>
+  </div>
+
+
+<script>
+  // ─── اعتبارسنجی و خواندن تنظیمات ───
+  const DIRS = ['sahar', 'amaliyat', 'arya', 'narm', 'divan'];
+  const MODES = ['light', 'dark'];
+  const DIR_NAMES = { sahar: 'سپیده', amaliyat: 'عملیات', arya: 'آریا', narm: 'نرم', divan: 'دیوان' };
+  const urlParams = new URLSearchParams(window.location.search);
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('cms-theme-demo')); } catch (e) { saved = null; }
+  if (!saved || typeof saved !== 'object' || !DIRS.includes(saved.dir) || !MODES.includes(saved.mode)) {
+    saved = { dir: 'sahar', mode: 'light' };
+  }
+  if (urlParams.get('dir') && DIRS.includes(urlParams.get('dir'))) saved.dir = urlParams.get('dir');
+  if (urlParams.get('mode') && MODES.includes(urlParams.get('mode'))) saved.mode = urlParams.get('mode');
+
+  const safeSave = () => { try { localStorage.setItem('cms-theme-demo', JSON.stringify(saved)); } catch (e) { /* ignore */ } };
+
+  // قالب فعال (تأییدشده) جدا از پیش‌نمایش
+  let activeDir = saved.dir;
+  let previewDir = null;
+
+  const applyTheme = (dir, mode) => {
+    document.documentElement.dataset.direction = dir;
+    document.documentElement.dataset.mode = mode;
+    document.body.dataset.direction = dir;
+    document.body.dataset.mode = mode;
+  };
+  applyTheme(saved.dir, saved.mode);
+
+  // ─── مدیریت VIEW (داشبورد / قالب پنل) ───
+  const switchView = (viewName) => {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.sb-item[data-view]').forEach(i => i.classList.remove('active'));
+    const target = document.getElementById('view-' + viewName);
+    if (target) target.classList.add('active');
+    const nav = document.getElementById('nav-' + viewName);
+    if (nav) nav.classList.add('active');
+    // آپدیت breadcrumb
+    const crumbStrong = document.querySelector('.crumb strong');
+    if (crumbStrong) crumbStrong.textContent = viewName === 'dashboard' ? 'داشبورد' : 'قالب پنل مدیریت';
+    // هنگام ورود به صفحه قالب، state را با قالب فعال همگام کن
+    if (viewName === 'theme-settings') syncThemePage();
+  };
+  document.querySelectorAll('.sb-item[data-view]').forEach(item => {
+    item.addEventListener('click', () => switchView(item.dataset.view));
+  });
+
+  // ─── همگام‌سازی صفحه قالب با قالب فعال ───
+  function syncThemePage() {
+    previewDir = null;
+    document.querySelectorAll('.theme-card').forEach(card => {
+      const dir = card.dataset.dir;
+      card.classList.toggle('selected', dir === activeDir);
+      card.classList.toggle('active-now', dir === activeDir);
+      card.querySelector('.tc-check').textContent = dir === activeDir ? '✔ فعال' : '';
+    });
+    document.getElementById('current-theme-name').textContent = DIR_NAMES[activeDir];
+    document.getElementById('previewing-badge').style.display = 'none';
+    document.getElementById('savebar-text').textContent = 'برای تغییر قالب، یکی از کارت‌ها را انتخاب کنید.';
+    document.getElementById('btn-confirm').disabled = true;
+    document.getElementById('btn-cancel').disabled = true;
+  }
+
+  // ─── پیش‌نمایش زنده قالب (کلیک روی کارت) ───
+  document.querySelectorAll('.theme-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const dir = card.dataset.dir;
+      previewDir = dir;
+      // اعمال فوری پیش‌نمایش (بدون ذخیره)
+      applyTheme(dir, saved.mode);
+      // برجسته‌سازی کارت انتخاب‌شده
+      document.querySelectorAll('.theme-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.dir === dir);
+        c.classList.toggle('active-now', c.dataset.dir === dir);
+        c.querySelector('.tc-check').textContent = c.dataset.dir === dir ? '◉ پیش‌نمایش' : '';
+      });
+      document.getElementById('previewing-badge').style.display = 'inline-block';
+      document.getElementById('savebar-text').textContent = 'قالب «' + DIR_NAMES[dir] + '» در حال پیش‌نمایش است — برای فعال‌سازی آن را تأیید کنید.';
+      document.getElementById('btn-confirm').disabled = false;
+      document.getElementById('btn-cancel').disabled = false;
+    });
+  });
+
+  // ─── تأیید و ذخیره قالب ───
+  document.getElementById('btn-confirm').addEventListener('click', () => {
+    if (!previewDir) return;
+    activeDir = previewDir;
+    saved.dir = activeDir;
+    safeSave();
+    previewDir = null;
+    syncThemePage();
+    showToast('✅ قالب «' + DIR_NAMES[activeDir] + '» فعال شد');
+  });
+
+  // ─── انصراف از پیش‌نمایش ───
+  document.getElementById('btn-cancel').addEventListener('click', () => {
+    previewDir = null;
+    applyTheme(activeDir, saved.mode);
+    syncThemePage();
+    showToast('پیش‌نمایش لغو شد — قالب فعال بدون تغییر ماند');
+  });
+
+  // ─── حالت روشن/تیره (سمت راست دمو) ───
+  const applyMode = (mode) => {
+    saved.mode = mode;
+    safeSave();
+    applyTheme(activeDir, mode);
+    const t = document.getElementById('theme-toggle');
+    if (t) { t.textContent = mode === 'dark' ? '☀️' : '🌙'; t.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false'); }
+  };
+  applyMode(saved.mode);
+  const topThemeBtn = document.getElementById('theme-toggle');
+  if (topThemeBtn) {
+    topThemeBtn.addEventListener('click', () => applyMode(saved.mode === 'dark' ? 'light' : 'dark'));
+  }
+
+  // ─── توست ───
+  function showToast(msg) {
+    let toast = document.getElementById('toast-msg');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'toast-msg';
+      toast.className = 'toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  // شروع با داشبورد
+  switchView('dashboard');
+</script>
+
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مدیریت صفحات</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>.editor{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}@media(max-width:900px){.editor{grid-template-columns:1fr}}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "pages", title: "مدیریت صفحات", sub: "ساخت، ویرایش و انتشار صفحات سایت با ویرایشگر بلوکی" });
+actions(`<button class="btn btn-ghost btn-sm" onclick="showList()">${ic("back")} بازگشت به لیست</button><button class="btn btn-primary" onclick="toast('پیش‌نویس ذخیره شد ✓')">${ic("check")} ذخیره پیش‌نویس</button>`);
+const rows = M.pages.map((p, i) => `<tr><td><div class="row-main">${p.t}</div><div class="row-sub" dir="ltr" style="text-align:right">${p.p}</div></td><td>${badge(p.s)}</td><td>نسخه ${p.v}</td><td>${p.u}</td><td style="white-space:nowrap"><button class="btn btn-soft btn-sm" onclick="showEditor('${p.t}')">ویرایش</button> <button class="btn btn-ghost btn-sm" onclick="toast('پیش‌نمایش در تب جدید (دمو)')">پیش‌نمایش</button></td></tr>`).join("");
+const listHtml = `<div class="toolbar"><div class="search-box">${ic("search")}<input class="input" id="q" placeholder="جستجوی صفحه…"></div><select class="select"><option>همه وضعیت‌ها</option><option>منتشرشده</option><option>پیش‌نویس</option></select><div style="flex:1"></div><button class="btn btn-primary" onclick="showEditor('صفحه جدید')">${ic("plus")} صفحه جدید</button></div>
+<div class="table-wrap"><table class="data" id="tbl"><thead><tr><th>عنوان / مسیر</th><th>وضعیت</th><th>نسخه‌ها</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead><tbody>${rows}</tbody></table>
+<div class="pager">صفحه ۱ از ۱ — ۶ صفحه</div></div>`;
+
+const palette = ["تیتر", "متن", "تصویر", "دکمه", "گالری", "نقل‌قول", "ویدیو", "فرم تماس"].map(b => `<button class="palette-item" onclick="addBlock('${b}')">${b} ＋</button>`).join("");
+let blocks = [
+  { t: "تیتر", c: "<h2 style='margin:0'>به فروشگاه نمونه خوش آمدید</h2>" },
+  { t: "متن", c: "<p style='margin:0;color:var(--text-muted)'>این یک پاراگراف نمونه است. برای ویرایش روی بلوک کلیک کنید…</p>" },
+  { t: "تصویر", c: "<div style='height:120px;border-radius:var(--radius-md);background:linear-gradient(135deg,var(--primary-soft),var(--accent-soft));display:grid;place-items:center;font-size:34px'>🖼️</div>" },
+];
+function editorHtml(title) {
+  const bl = blocks.map((b, i) => `<div class="block" id="blk${i}" onclick="selBlock(${i})"><div class="block-head"><span>⋮⋮</span> بلوک ${b.t} <span style="margin-inline-start:auto;display:flex;gap:4px"><button class="icon-btn" style="width:30px;height:30px" onclick="event.stopPropagation();moveBlock(${i},-1)">↑</button><button class="icon-btn" style="width:30px;height:30px" onclick="event.stopPropagation();moveBlock(${i},1)">↓</button><button class="icon-btn" style="width:30px;height:30px" onclick="event.stopPropagation();delBlock(${i})">${ic("trash")}</button></span></div><div class="block-body">${b.c}</div></div>`).join("");
+  return `<div class="editor"><div>
+    <div class="card card-pad" style="margin-bottom:12px"><div class="field" style="margin:0"><label>عنوان صفحه</label><input class="input" value="${title}"></div></div>
+    <div class="card card-pad" style="margin-bottom:12px"><div class="card-title" style="margin-bottom:10px">＋ افزودن بلوک</div><div class="block-palette">${palette}</div></div>
+    <div id="canvas">${bl}</div>
+    <div class="card card-pad"><div class="card-title">سئو</div><div class="form-grid"><div class="field"><label>عنوان سئو</label><input class="input" value="${title} | فروشگاه نمونه"></div><div class="field"><label>نامک (slug)</label><input class="input" value="home" dir="ltr" style="text-align:left"></div><div class="field full"><label>توضیحات متا</label><textarea class="input">توضیح کوتاه صفحه برای موتورهای جستجو…</textarea></div></div></div>
+  </div><div>
+    <div class="card card-pad" style="margin-bottom:12px"><div class="card-title">انتشار</div>
+      <div class="kv"><span>وضعیت</span><span>${badge("draft")}</span></div>
+      <div class="kv"><span>نسخه فعلی</span><span>۱۲</span></div>
+      <div class="kv"><span>آخرین انتشار</span><span>۱۴۰۵/۰۷/۰۱</span></div>
+      <button class="btn btn-success btn-block" style="margin-top:12px" onclick="confirmDlg({title:'انتشار صفحه؟',text:'نسخه جدید ساخته و کش ISR بازسازی می‌شود.',onOk:()=>toast('صفحه منتشر شد ✓')})">انتشار</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="toast('پیش‌نمایش draft با توکن (دمو)')">پیش‌نمایش</button></div>
+    <div class="card card-pad"><div class="card-title">نسخه‌ها</div><div class="timeline">
+      <div class="tl-item"><b>نسخه ۱۲</b> — ویرایش بنر<div class="t">۱۴۰۵/۰۷/۰۱ — شما</div></div>
+      <div class="tl-item"><b>نسخه ۱۱</b> — افزودن سوالات<div class="t">۱۴۰۵/۰۶/۲۹ — شما</div></div>
+      <div class="tl-item"><b>نسخه ۱۰</b> — انتشار اولیه<div class="t">۱۴۰۵/۰۶/۲۵ — <a href="#" onclick="toast('به نسخه ۱۰ برگردانده شد');return false" style="color:var(--primary)">بازگردانی</a></div></div>
+    </div></div>
+  </div></div>`;
+}
+function showList() { page(listHtml); bindTable("q", "tbl"); }
+function showEditor(t) { page(editorHtml(t)); window.scrollTo({ top: 0 }); }
+function selBlock(i) { document.querySelectorAll(".block").forEach(b => b.classList.remove("selected")); document.getElementById("blk" + i)?.classList.add("selected"); }
+function addBlock(t) { blocks.push({ t, c: `<p style='margin:0;color:var(--text-muted)'>بلوک جدید «${t}» — برای تنظیم روی آن کلیک کنید</p>` }); refreshCanvas(); toast(`بلوک «${t}» اضافه شد`); }
+function delBlock(i) { blocks.splice(i, 1); refreshCanvas(); }
+function moveBlock(i, d) { const j = i + d; if (j < 0 || j >= blocks.length) return; [blocks[i], blocks[j]] = [blocks[j], blocks[i]]; refreshCanvas(); }
+function refreshCanvas() { const el = document.querySelector(".editor"); if (el) showEditor(document.querySelector(".editor input")?.value || "صفحه"); }
+showList();
+</script>
+</body></html>

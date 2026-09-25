@@ -1,0 +1,115 @@
+name: cms-core-backend
+
+# Single-command boot:  docker compose up -d --build
+# API: http://localhost:8080/api/v1/...   MinIO console: http://localhost:9101
+services:
+  app:
+    build: .
+    container_name: cms-app
+    restart: unless-stopped
+    # NOTE: no `env_file` on purpose. The bind-mounted `.env` FILE is the single
+    # source Laravel reads (via Dotenv). Injecting it into the process env too
+    # would shadow phpunit.xml `<env force>` in tests (PHP $_SERVER wins over
+    # putenv) and freeze values from container creation time. Only overrides
+    # the entrypoint/compose network needs are passed here.
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: cms
+      DB_PASSWORD: cmssecret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  web:
+    image: nginx:1.27-alpine
+    container_name: cms-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./public:/var/www/html/public:ro
+    depends_on:
+      - app
+
+  db:
+    build: ./docker/postgres
+    container_name: cms-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cms
+      POSTGRES_USER: cms
+      POSTGRES_PASSWORD: cmssecret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      # Host-side 5433 avoids clashing with a local Windows Postgres on 5432.
+      # Inside the compose network the app still uses db:5432 (see .env DB_PORT).
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms -d cms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: cms-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: cms-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      # Host 9000 is often taken on dev machines → 9100/9101 on the host.
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+    # NOTE: quay image's /usr/bin/docker-entrypoint.sh arrives zeroed through
+    # this network (exec format error); bypass it and run the server directly.
+    entrypoint: /usr/bin/minio
+    # No healthcheck: this image's helper binaries are unreliable on some
+    # hosts (zeroed layer), and nothing depends on minio health —
+    # minio-init waits with its own retry loop and creates the bucket.
+    # (Manual check: curl http://localhost:9100/minio/health/live → 200.)
+
+  # Auto-creates the `cms` bucket on first boot (idempotent).
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: cms-minio-init
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 minioadmin minioadmin123 >/dev/null 2>&1; do sleep 2; done
+        mc mb -p local/cms >/dev/null 2>&1 || true
+        mc anonymous set download local/cms >/dev/null 2>&1 || true
+        echo "minio bucket ready"
+    restart: "no"
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

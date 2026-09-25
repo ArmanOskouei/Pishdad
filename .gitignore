@@ -1,0 +1,24 @@
+# فایل‌های حجیم/باینری — هرگز در git
+docs/**/*.pdf
+docs/**/*.png
+docs/**/*.jpg
+docs/**/*.jpeg
+docs/**/*.webp
+
+# خروجی graphify (بسیار حجیم — ایندکس میلیون‌ها توکن)
+graphify-out/
+docs/**/graphify-out/
+
+# فایل‌های موقت و ابزار
+node_modules/
+vendor/
+dist/
+build/
+*.log
+*.tmp
+.env
+.env.local
+
+# سیستم
+.DS_Store
+Thumbs.db

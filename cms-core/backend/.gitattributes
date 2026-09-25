@@ -1,0 +1,4 @@
+# Force LF inside containers (Windows CRLF breaks entrypoint.sh / psql init files)
+docker/php/entrypoint.sh text eol=lf
+docker/postgres/init/** text eol=lf
+*.sh text eol=lf

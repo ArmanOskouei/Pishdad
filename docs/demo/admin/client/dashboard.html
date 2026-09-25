@@ -1,0 +1,42 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>داشبورد — پنل مشتری</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "dash", title: "داشبورد", sub: "نمای کلی سایت — امروز ۲ مهر ۱۴۰۵" });
+actions(`<button class="btn btn-ghost btn-sm" onclick="location.href='pages.html'">${ic("eye")} مشاهده سایت</button><button class="btn btn-primary" onclick="location.href='pages.html'">${ic("plus")} صفحه جدید</button>`);
+const stats = M.stats.map(s => { const [bg, fg] = s.c.split("|"); return `<div class="card stat"><div class="stat-ic" style="background:${bg};color:${fg}">${ic(s.ic)}</div><div><div class="stat-num">${s.v}</div><div class="stat-lbl">${s.t}</div><div class="stat-delta ${s.up ? "up" : "down"}">${s.d}</div></div></div>`; }).join("");
+page(`
+<div class="alert a-amber">${ic("alert")}<div><b>فاکتور ۱۰۴۲ پرداخت‌نشده — ۱۲ روز تا سررسید</b><a href="subscription.html" style="color:var(--primary);font-weight:700"> مشاهده و پرداخت ←</a></div></div>
+<div class="grid c4 m1" style="margin-bottom:16px">${stats}</div>
+<div class="grid c2" style="align-items:start">
+  <div class="card card-pad"><div class="card-title">میانبرها</div><p class="card-sub">کارهای پرتکرار امروز</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-soft" onclick="location.href='pages.html'">${ic("plus")} صفحه جدید</button>
+      <button class="btn btn-ghost" onclick="location.href='files.html'">${ic("media")} آپلود فایل</button>
+      <button class="btn btn-ghost" onclick="location.href='tickets.html'">${ic("ticket")} پاسخ تیکت (۳)</button>
+    </div>
+    <div style="margin-top:16px"><div class="card-title">آخرین فعالیت‌ها</div><div class="timeline" style="margin-top:10px">
+      <div class="tl-item"><b>انتشار صفحه «خدمات»</b><div class="t">امروز ۰۹:۱۲ — شما</div></div>
+      <div class="tl-item"><b>آپلود ۴ فایل جدید</b><div class="t">دیروز — مریم رضایی</div></div>
+      <div class="tl-item"><b>پاسخ تیکت #۱۲۴</b><div class="t">۲ روز پیش — شما</div></div>
+    </div></div>
+  </div>
+  <div>
+    <div class="card card-pad" style="margin-bottom:16px;border-inline-start:3px solid var(--success)"><div class="card-title">وضعیت اشتراک</div>
+      <div class="kv"><span>پلن</span><span>استاندارد</span></div>
+      <div class="kv"><span>سررسید</span><span>۱۰ مهر ۱۴۰۵ (۱۲ روز)</span></div>
+      <div class="progress" style="margin-top:10px"><i style="width:72%"></i></div>
+      <button class="btn btn-soft btn-sm btn-block" style="margin-top:10px" onclick="location.href='subscription.html'">مدیریت اشتراک</button></div>
+    <div class="card card-pad"><div class="card-title">ویجت‌های پلاگین <span class="badge b-gray">اسلات DashboardWidget</span></div><p class="card-sub">پلاگین‌ها اینجا ویجت اضافه می‌کنند</p>
+      <div class="grid c2">
+        <div class="card card-pad" style="background:var(--surface-2)"><b style="font-size:13px">📈 سئوی خودکار</b><div class="row-sub">امتیاز سئو: ۸۴/۱۰۰</div></div>
+        <div class="empty" style="padding:22px;border:1.5px dashed var(--border);border-radius:var(--radius-md)"><b>+ اسلات خالی</b>پلاگین بعدی اینجا می‌نشیند</div>
+      </div></div>
+  </div>
+</div>`);
+</script>
+</body></html>

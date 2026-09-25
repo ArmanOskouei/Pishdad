@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسک‌های پیاده‌سازی — UIUX → Backend → Frontend</title>
+<style>
+  :root { --bg:#0f1117; --surface:#171a23; --surface-2:#1e2230; --border:#2a3040; --text:#e6e9f0; --text-dim:#9aa3b5; --accent:#6366f1; --accent-2:#8b5cf6; --green:#34d399; --red:#f87171; --yellow:#fbbf24; --radius:12px; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Vazirmatn","Segoe UI",Tahoma,sans-serif; background:var(--bg); color:var(--text); line-height:1.8; }
+  .hero { background:linear-gradient(135deg,#1a1e2e,#23284a,#1e2230); border-bottom:1px solid var(--border); padding:44px 32px; text-align:center; }
+  .hero h1 { font-size:26px; margin-bottom:10px; }
+  .hero .sub { color:var(--text-dim); font-size:15px; }
+  .badge { display:inline-block; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:4px 14px; font-size:13px; color:var(--text-dim); margin-top:10px; margin-inline:3px; }
+  .container { max-width:1000px; margin:0 auto; padding:30px 20px 80px; }
+  section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:20px; }
+  h2 { font-size:20px; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid var(--accent); display:inline-block; color:#fff; }
+  h3 { font-size:16px; margin:16px 0 8px; color:var(--accent-2); }
+  p { color:var(--text-dim); margin-bottom:8px; }
+  ul,ol { padding-right:24px; color:var(--text-dim); margin-bottom:8px; }
+  li { margin-bottom:4px; }
+  table { width:100%; border-collapse:collapse; margin:8px 0; font-size:13.5px; }
+  th { background:var(--surface-2); color:#fff; text-align:right; padding:8px 12px; border:1px solid var(--border); }
+  td { padding:8px 12px; border:1px solid var(--border); color:var(--text-dim); vertical-align:top; }
+  code { background:var(--surface-2); border:1px solid var(--border); border-radius:5px; padding:1px 7px; font-size:12.5px; direction:ltr; display:inline-block; font-family:Consolas,monospace; color:#a5b4fc; }
+  pre { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:14px; direction:ltr; text-align:left; font-size:12px; font-family:Consolas,monospace; color:#c7d2fe; margin:10px 0; line-height:1.5; overflow-x:auto; }
+  .note { background:rgba(99,102,241,.08); border-right:3px solid var(--accent); border-radius:8px; padding:10px 14px; margin:10px 0; color:var(--text-dim); }
+  .footer { text-align:center; color:var(--text-dim); font-size:13px; padding:18px; border-top:1px solid var(--border); }
+  .stage-blue { border-right:4px solid var(--accent); }
+  .stage-green { border-right:4px solid var(--green); }
+  .stage-yellow { border-right:4px solid var(--yellow); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>📋 تسک‌های پیاده‌سازی — UIUX → Backend → Frontend</h1>
+  <div class="sub">ترتیب اولویت طراحی صفحات → ساخت API → پیاده‌سازی نهایی</div>
+  <div><span class="badge">شهریور ۱۴۰۵</span><span class="badge">MVP «حلقه پول»</span></div>
+</div>
+
+<div class="container">
+
+<section>
+  <h2>🎯 جریان کار و قوانین کلی</h2>
+  <p>هر تسک ۳ فاز دارد: <strong>UIUX</strong> (طراحی) → <strong>Backend</strong> (ساخت API مطابق طراحی) → <strong>Frontend</strong> (پیاده‌سازی نهایی).</p>
+  <pre>[شروع] → [UIUX طراحی] → [Backend ساخت API] → [Frontend پیاده‌سازی] → [DoD تأیید] → [تمام/بازگشت]</pre>
+  <ul>
+    <li><strong>کامپوننت‌های مشترک</strong> (DataTable, SchemaForm, MediaPicker, DragDropList, ThemeCard, AppearancePanel) در مرحله ۰ ساخته می‌شوند</li>
+    <li><strong>هسته UI مشترک</strong> — دو پنل (مشتری + مرکزی) از یک هسته</li>
+    <li><strong>Contract-first:</strong> OpenAPI واحد + تولید تایپ TypeScript برای Next.js</li>
+    <li>RTL + فونت Vazirmatn + دارک/لایت در همه صفحات</li>
+  </ul>
+</section>
+
+<section class="stage-blue">
+  <h2>🟦 مرحله ۰ — زیرساخت مشترک (پیش‌نیاز همه)</h2>
+  <h3>تسک ۰.۱ — هسته UI</h3>
+  <p><strong>UIUX:</strong> ۴ کامپوننت قراردادی (DataTable/SchemaForm/MediaPicker/DragDropList) + ThemeCard/AppearancePanel + SaveBar/Modal/Drawer/ConfirmDialog/EmptyState/SegmentedControl.</p>
+  <p><strong>Backend:</strong> OpenAPI هسته (auth, ui-settings). <strong>Frontend:</strong> پیاده‌سازی کامپوننت‌ها + RTL + فونت + توکن‌ها.</p>
+  <h3>تسک ۰.۲ — انتخاب جهت بصری</h3>
+  <p><strong>UIUX:</strong> انتخاب از DESIGN-DIRECTIONS (سپیده مشتری + عملیات مرکزی). <strong>Backend:</strong> جدول settings گروه ui + <code>GET/PUT /api/ui-settings</code>. <strong>Frontend:</strong> سیستم تم (CSS Variables + ضد FOUC).</p>
+</section>
+
+<section class="stage-green">
+  <h2>🟩 مرحله ۱ — هسته حلقه پول (اولین محصول قابل فروش)</h2>
+
+  <h3>تسک ۱.۱ — صفحه ۱.۵: مدیریت صفحات ⭐⭐</h3>
+  <p><strong>UIUX:</strong> لیست + ویرایشگر Immersive (بوم بلوک‌ها + Inspector + نسخه‌ها + سئو) — الگوی Canvas+Inspector.</p>
+  <p><strong>API:</strong> pages CRUD + publish + restore + revisions + <code>GET /api/v1/site/pages/{path}</code> + blocks/schema.</p>
+  <p><strong>Frontend:</strong> ویرایشگر بلوکی (DragDropList + SchemaForm + Jodit + MediaPicker) + پیش‌نمایش /preview + revalidate + cacheHandler Redis.</p>
+
+  <h3>تسک ۱.۲ — صفحه ۱.۱۵: اشتراک من</h3>
+  <p><strong>UIUX:</strong> وضعیت پلن + فاکتورها + تاریخچه + حالت تعلیق + جریان پرداخت Stepper.</p>
+  <p><strong>API:</strong> subscription + invoices + pay + <code>GET /api/subscription-status?site_id=</code>.</p>
+  <p><strong>Frontend:</strong> بخش اشتراک + پرداخت → درگاه مرکزی + suspension_mode.</p>
+
+  <h3>تسک ۱.۳ — صفحه ۲.۴: صورتحساب/Billing مرکزی</h3>
+  <p><strong>UIUX:</strong> Tab پنج‌گانه (پلن/فاکتور/پرداخت/کنترل تعلیق/درگاه).</p>
+  <p><strong>API:</strong> plans/invoices/payments/suspended + suspend|resume|delete + gateway + webhook + Cron (D-7..D+7).</p>
+  <p><strong>Frontend:</strong> ۵ تب + کنترل تعلیق (مهم‌ترین) + فاکتور قابل چاپ.</p>
+
+  <h3>تسک ۱.۴ — صفحه ۲.۲: مدیریت مشتریان مرکزی</h3>
+  <p><strong>UIUX:</strong> Master-Detail با Drawer عریض + تب‌ها + ارتقا تیر + توکن پشتیبانی.</p>
+  <p><strong>API:</strong> clients CRUD + upgrade-tier + support-token + suspend/resume/delete + backups/restore.</p>
+  <p><strong>Frontend:</strong> لیست + Drawer + ارتقا (ConfirmDialog دو مرحله‌ای) + توکن (کپی + TTL).</p>
+</section>
+
+<section class="stage-blue">
+  <h2>🟦 مرحله ۲ — چهارچوب UI</h2>
+  <h3>تسک ۲.۱ — ورود + 2FA</h3>
+  <p><strong>UIUX:</strong> کارت دو گام. <strong>API:</strong> login + 2fa/verify + logout/refresh + forgot/reset. <strong>Frontend:</strong> فرم + سشن httpOnly + rate limit.</p>
+  <h3>تسک ۲.۲ — داشبورد</h3>
+  <p><strong>UIUX:</strong> خوش‌آمد + ۴ کارت + هشدار + ویجت پلاگین. <strong>API:</strong> dashboard/stats + alerts + widgets. <strong>Frontend:</strong> اسلات ویجت داینامیک.</p>
+  <h3>تسک ۲.۳ — تنظیمات سایت + شبکه‌ها</h3>
+  <p><strong>UIUX:</strong> فرم کارتی + لیست شبکه‌ها. <strong>API:</strong> settings/site + settings/socials. <strong>Frontend:</strong> فرم + SaveBar + MediaPicker.</p>
+  <h3>تسک ۲.۴ — صفحه ۱.۱۴: قالب پنل مدیریت ⭐</h3>
+  <p><strong>UIUX:</strong> گرید ۵ کارت (مینیاتور Token-Driven) + پیش‌نمایش زنده + SaveBar + تنظیمات پیشرفته.</p>
+  <p><strong>API:</strong> <code>GET/PUT /api/v1/ui-settings</code> + <code>GET /api/v1/themes/panel</code>.</p>
+  <p><strong>Frontend:</strong> ThemeCard + AppearancePanel + State Machine + ۱۱ حالت مرزی.</p>
+</section>
+
+<section class="stage-green">
+  <h2>🟩 مرحله ۳ — وابستگی‌های فنی</h2>
+  <h3>تسک ۳.۱ — مدیریت فایل (Media Library)</h3>
+  <p><strong>UIUX:</strong> گرید/لیست + DropZone + Drawer + سطل زباله + MediaPicker. <strong>API:</strong> media CRUD + presign + restore + permanent. <strong>Frontend:</strong> گالری + MediaPicker + نشانگر مصرف.</p>
+  <h3>تسک ۳.۲ — داشبورد مرکزی</h3>
+  <p><strong>UIUX:</strong> ۴ کارت + هشدار اکشن‌دار + نمودار. <strong>API:</strong> dashboard/stats + charts. <strong>Frontend:</strong> داشبورد + Chart.js.</p>
+  <h3>تسک ۳.۳ — مدیریت چابکان (اسکلت)</h3>
+  <p><strong>UIUX:</strong> Ops Console. <strong>API:</strong> wallet + services + start/stop/restart/resize + deployments + reconciliation. <strong>Frontend:</strong> StatusBadge + ActionMatrix.</p>
+</section>
+
+<section class="stage-blue">
+  <h2>🟦 مرحله ۴ — تکمیل محصول</h2>
+  <h3>تسک ۴.۱ — هدر/فوتر + بلوک‌های سایت</h3>
+  <p><strong>UIUX:</strong> Widget Area + Tab نوع صفحه. <strong>API:</strong> layouts/header + footer + page-types + blocks. <strong>Frontend:</strong> DragDropList + SchemaForm.</p>
+  <h3>تسک ۴.۲ — قالب‌های سایت</h3>
+  <p><strong>UIUX:</strong> Theme Gallery. <strong>API:</strong> themes CRUD + upload + activate + preview. <strong>Frontend:</strong> گالری + revalidate + purge CDN.</p>
+  <h3>تسک ۴.۳ — تعلیق عمومی (سمت سایت)</h3>
+  <p><strong>UIUX:</strong> تمام‌صفحه با برند. <strong>API:</strong> <code>GET /api/v1/site/status</code> + polling. <strong>Frontend:</strong> صفحه تعلیق + suspension_mode.</p>
+</section>
+
+<section class="stage-yellow">
+  <h2>🟩 مرحله ۵ — عملیاتی (بعد از درآمد)</h2>
+  <table>
+    <tr><th>تسک</th><th>صفحه</th><th>خلاصه</th></tr>
+    <tr><td>۵.۱</td><td>۱.۳ مدیران + نقش‌ها</td><td>Tab دوگانه + RBAC + سوپرادمین مخفی</td></tr>
+    <tr><td>۵.۲</td><td>۱.۴ پروفایل + AppearancePanel</td><td>2FA داینامیک + Section Slot</td></tr>
+    <tr><td>۵.۳</td><td>۱.۷ تیکت‌ها</td><td>Master-Detail + پاسخ + اعلان</td></tr>
+    <tr><td>۵.۴</td><td>۱.۱۰ پلاگین‌ها</td><td>install/activate/upgrade + امضا + can(action)</td></tr>
+    <tr><td>۵.۵</td><td>۲.۵ مانیتورینگ</td><td>گرید سلامت + لاگ + آپتایم</td></tr>
+    <tr><td>۵.۶</td><td>۲.۶ آپدیت‌ها</td><td>رول‌اوت پلکانی + rollback (بدون canary)</td></tr>
+    <tr><td>۵.۷</td><td>۲.۷ پروفایل اپراتور</td><td>2FA سخت‌افزاری + Kill-Switch + لاگ</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>📊 خلاصه ترتیب + وابستگی‌ها</h2>
+  <table>
+    <tr><th>مرحله</th><th>تسک</th><th>نوع</th></tr>
+    <tr><td><strong>۰</strong></td><td>۰.۱ هسته UI + ۰.۲ جهت بصری</td><td>زیرساخت</td></tr>
+    <tr><td><strong>۱</strong></td><td>۱.۱ صفحات ⭐⭐ / ۱.۲ اشتراک / ۱.۳ Billing / ۱.۴ مشتریان</td><td>هسته حلقه پول</td></tr>
+    <tr><td><strong>۲</strong></td><td>۲.۱ ورود / ۲.۲ داشبورد / ۲.۳ تنظیمات / ۲.۴ قالب پنل ⭐</td><td>چهارچوب UI</td></tr>
+    <tr><td><strong>۳</strong></td><td>۳.۱ فایل / ۳.۲ داشبورد مرکزی / ۳.۳ چابکان</td><td>وابستگی فنی</td></tr>
+    <tr><td><strong>۴</strong></td><td>۴.۱ هدر/فوتر / ۴.۲ قالب‌ها / ۴.۳ تعلیق</td><td>تکمیل محصول</td></tr>
+    <tr><td><strong>۵</strong></td><td>۵.۱ تا ۵.۷</td><td>عملیاتی</td></tr>
+  </table>
+  <h3>⚡ وابستگی‌ها</h3>
+  <ul>
+    <li>۱.۵ (صفحات) ← به ۳.۱ (فایل/MediaPicker) وابسته → همزمان شروع</li>
+    <li>۱.۱۵ (اشتراک) ← به ۲.۴ (درگاه مرکزی) وابسته</li>
+    <li>۲.۲ (مشتریان) ← به ۳.۳ (چابکان اسکلت) وابسته</li>
+    <li>۱.۱۴ (قالب پنل) ← به ۰.۲ (جهت بصری) وابسته</li>
+    <li>همه ← به ۰.۱ (هسته UI) وابسته</li>
+  </ul>
+</section>
+
+</div>
+
+<div class="footer">
+  این سند مرجع ترتیب اجرای تسک‌هاست — هر تسک بعد از تکمیل قبلی (با رعایت وابستگی‌ها) شروع می‌شود.
+</div>
+
+</body>
+</html>

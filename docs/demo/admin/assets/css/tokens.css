@@ -1,0 +1,71 @@
+/* ═══ توکن‌های پایه + جهت‌ها + پریست‌ها ═══
+   قرارداد DESIGN-DIRECTIONS.md: هیچ رنگ هاردکدی در کامپوننت‌ها مجاز نیست */
+
+/* ── پیش‌فرض پیش‌نمایش: «عملیات» دارک (بدون نیاز به JS از اولین رنگ اعمال می‌شود) ── */
+:root {
+  --primary: #6366f1; --primary-hover: #5457e5; --primary-text: #ffffff;
+  --primary-soft: color-mix(in srgb, var(--primary) 16%, transparent);
+  --accent: #f59e0b;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --bg: #0b0f17; --surface: #121826; --surface-2: #1a2233;
+  --text: #e6eaf2; --text-muted: #8b94a7; --border: #232c40;
+  --success: #22c55e; --warning: #f59e0b; --danger: #f87171; --info: #60a5fa;
+  --success-soft: color-mix(in srgb, var(--success) 14%, transparent);
+  --warning-soft: color-mix(in srgb, var(--warning) 16%, transparent);
+  --danger-soft: color-mix(in srgb, var(--danger) 14%, transparent);
+  --info-soft: color-mix(in srgb, var(--info) 14%, transparent);
+  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 10px;
+  --font: "Vazirmatn", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fs-body: 14px; --fs-small: 12.5px; --fs-h: 18px;
+  --space-4: 16px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.45);
+  --shadow-lg: 0 12px 34px rgba(0,0,0,.5);
+  --sidebar-w: 260px; --sidebar-w-collapsed: 64px; --topbar-h: 64px; --bottomnav-h: 64px;
+  --density: 1;
+}
+
+/* ── جهت «سپیده»: مینیمال روشن (انتخاب از صفحه ۱.۱۴ / سوییچ تم) ── */
+[data-direction="sahar"] {
+  --primary: #0d9488; --primary-hover: #0b7a70;
+  --primary-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --bg: #f7f7f8; --surface: #ffffff; --surface-2: #f0f1f3;
+  --text: #1a1a1e; --text-muted: #6b7280; --border: #e5e7eb;
+  --success: #16a34a; --warning: #d97706; --danger: #dc2626; --info: #2563eb;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 18px;
+  --shadow-sm: 0 1px 2px rgba(16,24,40,.06);
+  --shadow-md: 0 4px 12px rgba(16,24,40,.08);
+  --shadow-lg: 0 12px 32px rgba(16,24,40,.14);
+}
+
+/* ── تم دارک برای سپیده / تم لایت برای عملیات ── */
+[data-direction="sahar"][data-theme="dark"] {
+  --bg: #101014; --surface: #18181c; --surface-2: #222228;
+  --text: #ececf1; --text-muted: #9ca3af; --border: #2a2a31;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.45);
+}
+[data-direction="amaliyat"][data-theme="light"] {
+  --bg: #f4f5f7; --surface: #ffffff; --surface-2: #eceef2;
+  --text: #1a1d26; --text-muted: #667085; --border: #e2e5ec;
+  --primary: #4f46e5; --primary-hover: #4338ca;
+  --shadow-sm: 0 1px 2px rgba(16,24,40,.06);
+  --shadow-md: 0 4px 12px rgba(16,24,40,.08);
+}
+
+/* ── پریست‌های رنگ اصلی ── */
+[data-accent="teal"]    { --primary: #0d9488; --primary-hover: #0b7a70; }
+[data-accent="indigo"]  { --primary: #4f46e5; --primary-hover: #4338ca; }
+[data-accent="violet"]  { --primary: #7c3aed; --primary-hover: #6d28d9; }
+[data-accent="blue"]    { --primary: #2563eb; --primary-hover: #1d4ed8; }
+[data-accent="amber"]   { --primary: #d97706; --primary-hover: #b45309; }
+[data-accent="rose"]    { --primary: #e11d48; --primary-hover: #be123c; }
+[data-accent="clay"]    { --primary: #c2703d; --primary-hover: #a85a2c; }
+
+/* ── شعاع / تراکم / اندازه فونت ── */
+[data-radius="sharp"]   { --radius-sm: 2px; --radius-md: 4px; --radius-lg: 6px; --radius-xl: 8px; }
+[data-radius="rounded"] { --radius-sm: 8px; --radius-md: 14px; --radius-lg: 20px; --radius-xl: 26px; }
+[data-density="compact"] { --space-4: 10px; --fs-body: 13px; --fs-small: 11.5px; --topbar-h: 56px; }
+[data-density="loose"]   { --space-4: 22px; --fs-body: 15px; }
+[data-font-size="sm"] { --fs-body: 13px; }
+[data-font-size="lg"] { --fs-body: 15.5px; --fs-small: 13.5px; }

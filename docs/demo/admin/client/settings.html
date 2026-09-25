@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>تنظیمات سایت</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "settings", title: "تنظیمات سایت", sub: "هویت، لوگو و اطلاعات تماس — ذخیره با SaveBar چسبان" });
+page(`<div class="grid c2" style="align-items:start"><div>
+<div class="card card-pad" style="margin-bottom:16px"><div class="card-title">هویت سایت</div><p class="card-sub">در تب مرورگر و سئو نمایش داده می‌شود</p>
+<div class="field"><label>عنوان سایت</label><input class="input" value="فروشگاه نمونه"></div>
+<div class="field"><label>توضیح کوتاه</label><textarea class="input">فروشگاه اینترنتی نمونه — ارسال به سراسر کشور</textarea></div>
+<div class="form-grid"><div class="field"><label>زبان پیش‌فرض</label><select class="select"><option>فارسی</option><option>انگلیسی</option></select></div><div class="field"><label>منطقه زمانی</label><select class="select"><option>تهران (UTC+3:30)</option></select></div></div></div>
+<div class="card card-pad"><div class="card-title">اطلاعات تماس</div><div class="form-grid"><div class="field"><label>تلفن</label><input class="input" dir="ltr" style="text-align:left" value="021 0000 0000"></div><div class="field"><label>ایمیل</label><input class="input" dir="ltr" style="text-align:left" value="info@example.com"></div><div class="field full"><label>نشانی</label><input class="input" value="تهران، خیابان نمونه، پلاک ۱"></div></div></div>
+</div><div>
+<div class="card card-pad" style="margin-bottom:16px"><div class="card-title">لوگو و فاوآیکون</div><p class="card-sub">انتخاب از کتابخانه رسانه (MediaPicker)</p>
+<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--primary-soft);display:grid;place-items:center;font-size:28px">🛍️</div><div><div class="row-main">logo.svg — ۱۸ KB</div><div class="row-sub">آپلود ۲۹ شهریور</div></div></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-soft btn-sm" onclick="toast('MediaPicker باز شد (دمو)')">تغییر لوگو</button><button class="btn btn-ghost btn-sm" onclick="toast('فاوآیکون انتخاب شد')">تغییر فاوآیکون</button></div></div>
+<div class="card card-pad"><div class="card-title">عمومی</div>
+<label class="perm" style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:13px"><input type="checkbox" checked style="width:20px;height:20px;accent-color:var(--primary)"> سایت در دسترس عموم است</label>
+<label class="perm" style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:13px"><input type="checkbox" checked style="width:20px;height:20px;accent-color:var(--primary)"> ایندکس در گوگل مجاز است</label>
+<div class="field" style="margin-top:10px"><label>اسلات پلاگین (Section Slot)</label><div class="alert a-blue" style="margin:0">${ic("plug")}<div>پلاگین «سئوی خودکار» اینجا ۳ فیلد اضافه کرده است.</div></div></div></div>
+</div></div>
+<div class="savebar"><span class="row-sub">تغییری ثبت نشده</span><div style="flex:1"></div><button class="btn btn-ghost" onclick="toast('تغییرات برگشت')">انصراف</button><button class="btn btn-primary" onclick="toast('تنظیمات ذخیره و در سایت اعمال شد ✓')">${ic("check")} ذخیره تنظیمات</button></div>`);
+document.body.classList.add("has-savebar");
+document.querySelectorAll(".input,.select,textarea").forEach(el => el.addEventListener("input", () => document.querySelector(".savebar .row-sub").textContent = "● تغییرات ذخیره‌نشده دارید"));
+</script>
+</body></html>

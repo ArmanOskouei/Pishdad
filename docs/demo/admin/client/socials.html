@@ -1,0 +1,28 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>شبکه‌های اجتماعی</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>.soc{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);margin-bottom:10px}.soc .si{width:44px;height:44px;border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;flex-shrink:0}.soc input{flex:1;min-width:0}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "socials", title: "شبکه‌های اجتماعی", sub: "لینک‌ها در فوتر و دکمه‌های اشتراک نمایش داده می‌شوند" });
+actions(`<button class="btn btn-primary" onclick="addSoc()">${ic("plus")} افزودن شبکه</button>`);
+let S = [
+  { n: "اینستاگرام", u: "https://instagram.com/shop", on: true, e: "📸", bg: "var(--danger-soft)" },
+  { n: "تلگرام", u: "https://t.me/shop", on: true, e: "✈️", bg: "var(--info-soft)" },
+  { n: "واتساپ", u: "", on: false, e: "💬", bg: "var(--success-soft)" },
+  { n: "لینکدین", u: "https://linkedin.com/company/shop", on: true, e: "💼", bg: "var(--primary-soft)" },
+];
+function render() {
+  const el = document.getElementById("list");
+  if (!S.length) { el.innerHTML = `<div class="empty">${ic("share")}<b>شبکه‌ای ثبت نشده</b>اولین شبکه را اضافه کنید تا در فوتر نمایش داده شود<div style="margin-top:12px"><button class="btn btn-primary" onclick="addSoc()">افزودن شبکه</button></div></div>`; return; }
+  el.innerHTML = S.map((s, i) => `<div class="soc"><div class="si" style="background:${s.bg}">${s.e}</div><div style="min-width:110px"><b style="font-size:13px">${s.n}</b><div class="row-sub">${s.on ? "نمایشی در سایت" : "مخفی"}</div></div><input class="input" dir="ltr" style="text-align:left" value="${s.u}" placeholder="https://…" oninput="S[${i}].u=this.value;dirty()"><label class="switch" title="نمایش"><input type="checkbox" ${s.on ? "checked" : ""} onchange="S[${i}].on=this.checked;render();dirty()"><span class="tr"></span></label><button class="icon-btn" onclick="S.splice(${i},1);render();dirty()" title="حذف">${ic("trash")}</button></div>`).join("");
+}
+function addSoc() { openModal(`<div class="modal-head">افزودن شبکه</div><div class="modal-body"><div class="form-grid"><div class="field"><label>نام شبکه</label><select class="select" id="nn"><option>اینستاگرام</option><option>تلگرام</option><option>واتساپ</option><option>لینکدین</option><option>ایکس</option><option>آپارات</option></select></div><div class="field"><label>آیکون سفارشی (اختیاری)</label><input class="input" placeholder="آپلود از کتابخانه…"></div><div class="field full"><label>نشانی</label><input class="input" dir="ltr" style="text-align:left" id="uu" placeholder="https://…"></div></div></div><div class="modal-foot"><button class="btn btn-primary" onclick="S.push({n:nn.value,u:uu.value,on:true,e:'🔗',bg:'var(--primary-soft)'});closeOver();render();dirty()">افزودن</button><button class="btn btn-ghost" onclick="closeOver()">انصراف</button></div>`); }
+function dirty() { document.querySelector(".savebar .row-sub").textContent = "● تغییرات ذخیره‌نشده دارید"; }
+page(`<div id="list"></div><div class="savebar"><span class="row-sub">همه تغییرات ذخیره است</span><div style="flex:1"></div><button class="btn btn-ghost" onclick="toast('تغییرات برگشت')">انصراف</button><button class="btn btn-primary" onclick="toast('شبکه‌ها ذخیره شد ✓');document.querySelector('.savebar .row-sub').textContent='همه تغییرات ذخیره است'">${ic("check")} ذخیره</button></div>`);
+render(); document.body.classList.add("has-savebar");
+</script>
+</body></html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مدیران + نقش‌ها</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>.roles{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start}@media(max-width:760px){.roles{grid-template-columns:1fr}}
+.role{padding:11px 14px;min-height:44px;border-radius:var(--radius-md);cursor:pointer;border:1px solid transparent;font-size:13px}
+.role:hover{background:var(--surface-2)}.role.on{background:var(--primary-soft);color:var(--primary);font-weight:700;border-color:transparent}
+.perm{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px dashed var(--border);font-size:13px;min-height:44px}
+@media(max-width:640px){table.data thead{display:none}table.data,table.data tbody,table.data tr,table.data td{display:block;width:100%}table.data tr{border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:10px;background:var(--surface)}table.data td{border:0;padding:8px 14px}}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "managers", title: "مدیران + نقش‌ها", sub: "دسترسی تیم تحریریه — سوپرادمین در هیچ لیستی نمایش داده نمی‌شود" });
+actions(`<button class="btn btn-primary" onclick="newMgr()">${ic("plus")} مدیر جدید</button>`);
+const rows = [
+  ["آرمان اسکوئی", "admin@example.com", "مدیر ارشد", "فعال", "امروز ۰۹:۰۰"],
+  ["مریم رضایی", "maryam@example.com", "ویراستار", "فعال", "دیروز"],
+  ["علی محمدی", "ali@example.com", "نویسنده", "غیرفعال", "۳ روز پیش"],
+].map((m, i) => `<tr><td><div style="display:flex;gap:10px;align-items:center"><div class="avatar">${m[0][0]}</div><div><div class="row-main">${m[0]}</div><div class="row-sub" dir="ltr" style="text-align:right">${m[1]}</div></div></div></td><td><span class="badge b-violet">${m[2]}</span></td><td>${m[3] === "فعال" ? badge("active") : badge("closed")}</td><td>${m[4]}</td><td style="white-space:nowrap"><button class="btn btn-soft btn-sm" onclick="newMgr('${m[0]}')">ویرایش</button> <button class="btn btn-ghost btn-sm" onclick="confirmDlg({title:'حذف مدیر؟',text:'${m[0]} دیگر به پنل دسترسی نخواهد داشت.',danger:true,ok:'حذف',onOk:()=>toast('مدیر حذف شد')})">حذف</button></td></tr>`).join("");
+const mods = [["صفحات", 3], ["فایل‌ها", 2], ["تیکت‌ها", 2], ["تنظیمات", 1], ["پلاگین‌ها", 1]];
+const perms = mods.map(([m, n], i) => `<div><b style="font-size:13px">${m}</b>${["مشاهده", "ویرایش", "حذف"].map((p, j) => `<label class="perm"><input type="checkbox" ${j < n ? "checked" : ""} style="width:20px;height:20px;accent-color:var(--primary)"> ${p}</label>`).join("")}</div>`).join("");
+page(`<div class="tabs"><button class="tab active" onclick="tTab(this,'t1')">مدیران (۳)</button><button class="tab" onclick="tTab(this,'t2')">نقش‌ها و دسترسی‌ها</button></div>
+<div class="tabpane active" id="t1">
+  <div class="toolbar"><div class="search-box">${ic("search")}<input class="input" id="q" placeholder="جستجوی مدیر…"></div><select class="select"><option>همه نقش‌ها</option><option>مدیر ارشد</option><option>ویراستار</option><option>نویسنده</option></select></div>
+  <div class="table-wrap"><table class="data" id="tbl"><thead><tr><th>مدیر</th><th>نقش</th><th>وضعیت</th><th>آخرین ورود</th><th>عملیات</th></tr></thead><tbody>${rows}</tbody></table><div class="pager">۳ مدیر — سوپرادمین مخفی است</div></div>
+</div>
+<div class="tabpane" id="t2"><div class="roles">
+  <div class="card card-pad"><div class="card-title">نقش‌ها</div>${["مدیر ارشد", "ویراستار", "نویسنده"].map((r, i) => `<div class="role${i === 0 ? " on" : ""}" onclick="document.querySelectorAll('.role').forEach(x=>x.classList.remove('on'));this.classList.add('on')">${r}</div>`).join("")}<button class="btn btn-ghost btn-sm btn-block" style="margin-top:8px" onclick="toast('نقش جدید ساخته شد (دمو)')">${ic("plus")} نقش جدید</button></div>
+  <div class="card card-pad"><div class="card-title">دسترسی‌های «مدیر ارشد»</div><p class="card-sub">گروه‌بندی بر اساس ماژول — ذخیره با SaveBar</p>${perms}
+  <div class="savebar"><span class="row-sub">تغییرات ذخیره‌نشده اعمال می‌شود…</span><div style="flex:1"></div><button class="btn btn-ghost" onclick="toast('تغییرات برگشت')">انصراف</button><button class="btn btn-primary" onclick="toast('دسترسی‌ها ذخیره شد ✓')">ذخیره دسترسی‌ها</button></div></div>
+</div></div>`);
+bindTable("q", "tbl");
+function tTab(b, id) { document.querySelectorAll(".tab").forEach(t => t.classList.remove("active")); document.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active")); b.classList.add("active"); document.getElementById(id).classList.add("active"); }
+function newMgr(n) { openModal(`<div class="modal-head">${n ? "ویرایش مدیر" : "مدیر جدید"}</div><div class="modal-body"><div class="form-grid"><div class="field"><label>نام</label><input class="input" value="${n || ""}" placeholder="نام کامل"></div><div class="field"><label>نقش</label><select class="select"><option>ویراستار</option><option>نویسنده</option><option>مدیر ارشد</option></select></div><div class="field full"><label>ایمیل</label><input class="input" dir="ltr" style="text-align:left" placeholder="name@example.com"></div></div><div class="alert a-blue">${ic("info")}<div>دعوت‌نامه با لینک تعیین رمز برای ایمیل ارسال می‌شود.</div></div></div><div class="modal-foot"><button class="btn btn-primary" onclick="closeOver();toast('دعوت‌نامه ارسال شد ✓')">ارسال دعوت</button><button class="btn btn-ghost" onclick="closeOver()">انصراف</button></div>`); }
+document.body.classList.add("has-savebar");
+</script>
+</body></html>

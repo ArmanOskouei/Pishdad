@@ -1,0 +1,78 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>نمونه اولیه پنل مدیریت CMS — ورودی</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="assets/css/tokens.css"><link rel="stylesheet" href="assets/css/shell.css"><link rel="stylesheet" href="assets/css/components.css">
+<style>
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)}
+.wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+.hero{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.hero h1{font-size:22px;margin:0 0 4px}.hero p{margin:0;color:var(--text-muted);font-size:13px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}
+@media(max-width:760px){.panels{grid-template-columns:1fr}}
+.plink{display:block;padding:20px;border-radius:var(--radius-lg);border:1.5px solid var(--border);background:var(--surface)}
+.plink:hover{border-color:var(--primary)}
+.plink b{font-size:16px}.plist{margin:14px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.plist a{display:flex;align-items:center;gap:8px;padding:9px 12px;min-height:44px;border-radius:var(--radius-md);font-size:13px;color:var(--text-muted)}
+.plist a:hover{background:var(--surface-2);color:var(--text)}
+.plist a .n{margin-inline-start:auto;font-size:11px;background:var(--surface-2);border-radius:99px;padding:2px 9px}
+.ok{color:var(--success);font-size:11px;font-weight:700}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+code.dir{direction:ltr;background:var(--surface-2);padding:3px 10px;border-radius:8px;font-size:12px}
+@media(max-width:640px){.wrap{padding:18px 14px 90px}}
+</style>
+</head><body data-direction="amaliyat" data-theme="dark" data-accent="indigo">
+<div class="wrap">
+  <div class="hero"><div class="brand-mark" style="width:48px;height:48px;font-size:22px">س</div>
+    <div><h1>نمونه اولیه تعاملی پنل مدیریت CMS</h1>
+    <p>استاتیک (HTML/CSS/JS) — بدون بیلد — پیش‌فرض پیش‌نمایش: عملیات دارک — <span class="ok">● ۲۲ صفحه کامل</span></p></div>
+    <div style="flex:1"></div>
+    <button class="btn btn-ghost btn-sm" onclick="tgl()">🌓 سوییچ لایت / دارک زنده</button>
+  </div>
+  <div class="alert a-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg><div><b>نحوه باز کردن:</b> همین فایل <code class="dir">docs/demo/admin/index.html</code> را در مرورگر باز کنید (دابل‌کلیک کافی است — نیاز به سرور نیست). اینترنت فقط برای فونت وزیرمتن لازم است؛ آفلاین هم با فونت سیستم کار می‌کند.</div></div>
+  <div class="panels">
+    <div class="plink"><b>🟢 پنل مشتری</b> <span class="badge b-violet">عملیات دارک</span>
+      <p class="card-sub" style="margin:6px 0 0">site.com/admin — ۱۵ صفحه + ۱ عمومی</p>
+      <div class="plist">
+        <a href="client/login.html">ورود + 2FA <span class="n">۱.۱</span></a>
+        <a href="client/dashboard.html">داشبورد <span class="n">۱.۲</span></a>
+        <a href="client/managers.html">مدیران + نقش‌ها <span class="n">۱.۳</span></a>
+        <a href="client/profile.html">پروفایل مدیر <span class="n">۱.۴</span></a>
+        <a href="client/pages.html">مدیریت صفحات ⭐⭐ <span class="n">۱.۵</span></a>
+        <a href="client/files.html">مدیریت فایل <span class="n">۱.۶</span></a>
+        <a href="client/tickets.html">تیکت‌ها <span class="n">۱.۷</span></a>
+        <a href="client/settings.html">تنظیمات سایت <span class="n">۱.۸</span></a>
+        <a href="client/socials.html">شبکه‌های اجتماعی <span class="n">۱.۹</span></a>
+        <a href="client/plugins.html">پلاگین‌ها <span class="n">۱.۱۰</span></a>
+        <a href="client/header-footer.html">هدر / فوتر ⭐ <span class="n">۱.۱۱</span></a>
+        <a href="client/blocks.html">بلوک‌های سایت ⭐ <span class="n">۱.۱۲</span></a>
+        <a href="client/themes.html">قالب‌های سایت <span class="n">۱.۱۳</span></a>
+        <a href="client/appearance.html">قالب پنل مدیریت ⭐ <span class="n">۱.۱۴</span></a>
+        <a href="client/subscription.html">اشتراک من ⭐ <span class="n">۱.۱۵</span></a>
+        <a href="client/suspended.html">صفحه تعلیق عمومی (سایت) <span class="n">۱.۱۶</span></a>
+        <a href="client/subscription.html?suspended=1" style="color:var(--danger)">دموی پنل معلق (سایدبار قفل) <span class="n">حالت</span></a>
+      </div>
+    </div>
+    <div class="plink"><b>🟣 پنل مرکزی</b> <span class="badge b-violet">عملیات دارک</span>
+      <p class="card-sub" style="margin:6px 0 0">armanoskouei.ir/admin — فقط کارفرما، ۷ صفحه</p>
+      <div class="plist">
+        <a href="central/dashboard.html">داشبورد مرکزی <span class="n">۲.۱</span></a>
+        <a href="central/clients.html">مدیریت مشتریان ⭐ <span class="n">۲.۲</span></a>
+        <a href="central/chabokan.html">مدیریت چابکان ⭐ <span class="n">۲.۳</span></a>
+        <a href="central/billing.html">صورتحساب / Billing ⭐ <span class="n">۲.۴</span></a>
+        <a href="central/monitoring.html">مانیتورینگ <span class="n">۲.۵</span></a>
+        <a href="central/updates.html">آپدیت‌ها <span class="n">۲.۶</span></a>
+        <a href="central/operator.html">پروفایل اپراتور <span class="n">۲.۷</span></a>
+      </div>
+    </div>
+  </div>
+  <div class="card card-pad"><div class="card-title">قراردادهای رعایت‌شده در همه صفحات</div>
+    <p class="card-sub">RTL + Vazirmatn + تاریخ شمسی mock + Shell مشترک (سایدبار رجیستری / تاپ‌بار / BottomNav موبایل / Drawer) + توکن‌محور (هیچ رنگ هاردکدی در کامپوننت‌ها) + تاچ‌تارگت ≥۴۴px + SaveBar چسبان در فرم‌ها</p>
+    <div class="bar"><span class="badge b-violet">پیش‌فرض: عملیات دارک</span><span class="badge b-gray">تغییر از ۱.۱۴ / دکمه 🌓</span><span class="badge b-gray">localStorage: ui-demo-v2</span></div>
+  </div>
+</div>
+<script>
+function tgl(){const h=document.documentElement;h.dataset.theme=h.dataset.theme==="dark"?"light":"dark";try{const s=JSON.parse(localStorage.getItem("ui-demo-v2")||"{}");s.theme=h.dataset.theme;localStorage.setItem("ui-demo-v2",JSON.stringify(s));}catch{}}
+try{const s=JSON.parse(localStorage.getItem("ui-demo-v2")||"{}");if(s.theme)document.documentElement.dataset.theme=s.theme;}catch{}
+</script>
+</body></html>

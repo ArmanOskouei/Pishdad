@@ -1,0 +1,35 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مدیریت فایل</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "media", title: "مدیریت فایل", sub: "کتابخانه رسانه — آپلود مستقیم به فضای ابری" });
+actions(`<button class="btn btn-primary" onclick="toast('انتخاب فایل (دمو)')">${ic("plus")} آپلود فایل</button>`);
+const grid = M.files.map((f, i) => `<div class="media-item" onclick="fileDetail(${i})"><div class="media-thumb" style="background:${f.bg}">${f.e}</div><div class="m"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.n}</div><div class="row-sub">${f.s} — ${f.d}</div></div></div>`).join("");
+page(`<div class="card card-pad" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:8px"><span>مصرف فضای پلن استاندارد</span><b>۲٫۴ از ۱۰ گیگ</b></div><div class="progress"><i style="width:24%"></i></div></div>
+<div class="tabs"><button class="tab active" onclick="swTab(this,'t1')">همه فایل‌ها</button><button class="tab" onclick="swTab(this,'t2')">سطل زباله (۲)</button></div>
+<div class="tabpane active" id="t1">
+  <div class="toolbar"><div class="search-box">${ic("search")}<input class="input" id="q" placeholder="جستجو…"></div><select class="select"><option>همه انواع</option><option>تصویر</option><option>ویدیو</option><option>سند</option></select></div>
+  <div class="dropzone" onclick="toast('فایل‌ها برای آپلود انتخاب شدند (دمو)')">${ic("plus")}<div style="margin-top:8px"><b>بکشید و رها کنید</b> یا کلیک برای انتخاب — حداکثر ۵۰ مگ</div></div>
+  <div class="media-grid" id="mg" style="margin-top:14px">${grid}</div>
+</div>
+<div class="tabpane" id="t2"><div class="empty">${ic("trash")}<b>۲ فایل در سطل زباله</b>فایل‌ها ۳۰ روز بعد حذف دائم می‌شوند<div style="margin-top:12px;display:flex;gap:8px;justify-content:center"><button class="btn btn-ghost btn-sm" onclick="toast('بازیابی شد')">بازیابی همه</button><button class="btn btn-danger-soft btn-sm" onclick="confirmDlg({title:'حذف دائم؟',text:'این عمل قابل بازگشت نیست.',danger:true,ok:'حذف دائم',onOk:()=>toast('حذف شد')})">حذف دائم</button></div></div></div>`);
+function swTab(btn, id) { document.querySelectorAll(".tab").forEach(t => t.classList.remove("active")); document.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active")); btn.classList.add("active"); document.getElementById(id).classList.add("active"); }
+function fileDetail(i) {
+  const f = M.files[i];
+  openModal(`<div class="modal-head">${f.n}</div><div class="modal-body">
+    <div class="media-thumb" style="background:${f.bg};border-radius:var(--radius-md);height:140px;font-size:52px">${f.e}</div>
+    <div style="margin-top:14px"><div class="kv"><span>حجم</span><span>${f.s}</span></div><div class="kv"><span>تاریخ آپلود</span><span>${f.d}</span></div><div class="kv"><span>نشانی مستقیم</span><span dir="ltr" style="font-size:11px">cdn.site.com/${f.n}</span></div></div>
+    <div class="field" style="margin-top:12px"><label>متن جایگزین (alt)</label><input class="input" placeholder="توضیح تصویر برای سئو…"></div></div>
+    <div class="modal-foot"><button class="btn btn-soft btn-sm" onclick="toast('نشانی کپی شد ✓')">${ic("copy")} کپی نشانی</button><button class="btn btn-ghost btn-sm" onclick="closeOver();toast('ذخیره شد')">ذخیره</button><button class="btn btn-danger-soft btn-sm" onclick="closeOver();toast('به سطل زباله منتقل شد')">حذف</button></div>`);
+}
+/* MediaPicker مشترک — قابل فراخوانی از ویرایشگر */
+function openMediaPicker() {
+  const g = M.files.map((f, i) => `<div class="media-item" onclick="this.classList.toggle('selected')"><div class="media-thumb" style="background:${f.bg}">${f.e}</div><div class="m">${f.n}</div></div>`).join("");
+  openModal(`<div class="modal-head">انتخاب از کتابخانه رسانه</div><div class="modal-body"><div class="media-grid">${g}</div></div><div class="modal-foot"><button class="btn btn-primary" onclick="closeOver();toast('فایل درج شد ✓')">درج در صفحه</button><button class="btn btn-ghost" onclick="closeOver()">انصراف</button></div>`, true);
+}
+</script>
+</body></html>

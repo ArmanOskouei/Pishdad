@@ -1,0 +1,18 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>پلاگین‌ها</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>@media(max-width:640px){table.data thead{display:none}table.data,table.data tbody,table.data tr,table.data td{display:block;width:100%}table.data tr{border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:10px}table.data td{border:0;padding:8px 14px}}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "plugins", title: "پلاگین‌ها", sub: "افزونه‌های نصب‌شده — امضای Ed25519 تأییدشده" });
+actions(`<button class="btn btn-ghost btn-sm" onclick="toast('فقط سوپرادمین (پشتیبانی) می‌تواند نصب/حذف کند')">${ic("lock")} نصب / حذف = پشتیبانی</button>`);
+const rows = M.plugins.map((p, i) => `<tr><td><div class="row-main">${p.n} <span class="row-sub" dir="ltr">v${p.v}</span> ${p.u ? '<span class="badge b-amber">آپدیت</span>' : ""}</div><div class="row-sub">${p.d}</div></td><td><label class="switch"><input type="checkbox" ${p.s ? "checked" : ""} onchange="toast('${p.n}: ${p.s ? "غیرفعال" : "فعال"} شد')"><span class="tr"></span></label></td><td>${p.s ? badge("active") : badge("closed")}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="toast('تنظیمات SchemaForm (دمو)')">تنظیمات</button> ${p.u ? `<button class="btn btn-soft btn-sm" onclick="confirmDlg({title:'آپدیت ${p.n}؟',text:'نسخه جدید نصب و در صورت خطا rollback می‌شود.',onOk:()=>toast('آپدیت شد ✓')})">آپدیت</button>` : ""}</td></tr>`).join("");
+page(`<div class="alert a-blue">${ic("info")}<div><b>رندر شرطی نقش <code style="direction:ltr">can(action)</code>:</b> شما فقط «فعال / غیرفعال» می‌کنید. برای نصب یا حذف پلاگین به پشتیبانی پیام دهید.</div></div>
+<div class="toolbar"><div class="search-box">${ic("search")}<input class="input" id="q" placeholder="جستجوی پلاگین…"></div><select class="select"><option>همه</option><option>فعال</option><option>غیرفعال</option><option>آپدیت‌دار</option></select></div>
+<div class="table-wrap"><table class="data" id="tbl"><thead><tr><th>پلاگین</th><th>وضعیت</th><th>سلامت</th><th>عملیات</th></tr></thead><tbody>${rows}</tbody></table><div class="pager">۴ پلاگین نصب‌شده — ۱ آپدیت موجود</div></div>`);
+bindTable("q", "tbl");
+</script>
+</body></html>

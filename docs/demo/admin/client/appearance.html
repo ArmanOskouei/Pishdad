@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>قالب پنل مدیریت</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-bottom:14px}
+.mini{height:130px;border-radius:var(--radius-md) var(--radius-md) 0 0;overflow:hidden;display:flex;position:relative;transition:transform .15s}
+.theme-card:hover .mini{transform:scale(1.03)}
+.mini .ms{width:58px;flex-shrink:0;background:var(--pv-side);display:flex;flex-direction:column;gap:5px;padding:10px 7px}
+.mini .ms i{display:block;height:7px;border-radius:99px;background:var(--pv-pri);opacity:.85}
+.mini .ms i:first-child{height:12px;background:var(--pv-pri)}
+.mini .mb{flex:1;background:var(--pv-bg);padding:9px;display:flex;flex-direction:column;gap:6px}
+.mini .mt{height:11px;border-radius:99px;background:var(--pv-side);opacity:.7}
+.mini .mr{display:flex;gap:5px}.mini .mr i{flex:1;height:26px;border-radius:6px;background:var(--pv-card);border:1px solid var(--pv-line)}
+.mini .mrow{height:9px;border-radius:99px;background:var(--pv-line)}
+.st-active{outline:2px solid var(--success)}.st-prev{outline:2px solid var(--warning)}
+.presets{display:flex;gap:8px;margin-top:8px}
+.sw{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border);min-width:28px;min-height:28px}
+.sw.on{box-shadow:0 0 0 2px var(--primary)}
+.seg{display:flex;background:var(--surface-2);border-radius:var(--radius-md);padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;padding:9px 6px;min-height:40px;border-radius:8px;font-family:inherit;font-size:12px;color:var(--text-muted);cursor:pointer}
+.seg button.on{background:var(--surface);color:var(--text);font-weight:700;box-shadow:var(--shadow-sm)}
+.acc{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);margin-bottom:14px}
+.acc>button{width:100%;background:none;border:0;font-family:inherit;font-size:13.5px;font-weight:700;color:var(--text);padding:14px 18px;min-height:48px;cursor:pointer;display:flex;gap:8px;align-items:center}
+#savebar{display:none}
+#savebar.show{display:flex}
+</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "appearance", title: "قالب پنل مدیریت", sub: "ظاهر خود پنل — انتخاب → پیش‌نمایش زنده → تأیید" });
+/* ── دیتای ۵ جهت + ۱۵ پریست (توکن نما برای مینیاتور؛ کامپوننت‌ها همچنان var-based) ── */
+const DIRS = [
+  { id: "sahar", n: "سپیده", d: "مینیمال روشن — پیش‌فرض مشتری", pv: { bg: "#f7f7f8", side: "#ffffff", card: "#ffffff", line: "#e5e7eb", pri: "#0d9488" }, pre: [["فیروزه‌ای", "#0d9488", "teal"], ["نیلی", "#4f46e5", "indigo"], ["یاقوتی", "#e11d48", "rose"]] },
+  { id: "amaliyat", n: "عملیات", d: "دارک کنسول — پیش‌فرض مرکزی", def: true, dark: true, pv: { bg: "#0b0f17", side: "#121826", card: "#1a2233", line: "#232c40", pri: "#6366f1" }, pre: [["ایندیگو", "#6366f1", "indigo"], ["ماتریس", "#10b981", "teal"], ["امنیت", "#f97316", "amber"]] },
+  { id: "arya", n: "آریا", d: "رنگارنگ گرادیانی", pv: { bg: "#faf5ff", side: "#7c3aed", card: "#ffffff", line: "#e9d5ff", pri: "#a855f7" }, pre: [["بنفش-صورتی", "#a855f7", "violet"], ["اقیانوس", "#2563eb", "blue"], ["غروب", "#e11d48", "rose"]] },
+  { id: "narm", n: "نرم", d: "سافت دوستانه", pv: { bg: "#fdf6ef", side: "#f5e6d5", card: "#ffffff", line: "#ecdcc8", pri: "#c2703d" }, pre: [["سفالی", "#c2703d", "clay"], ["آسمانی", "#0284c7", "blue"], ["لیمویی", "#65a30d", "teal"]] },
+  { id: "divan", n: "دیوان", d: "کلاسیک وردپرسی", pv: { bg: "#eef2f7", side: "#1e3a8a", card: "#ffffff", line: "#dbe3ef", pri: "#1d4ed8" }, pre: [["آبی کلاسیک", "#1d4ed8", "blue"], ["سبز دولتی", "#047857", "teal"], ["سرمه‌ای", "#1e3a8a", "indigo"]] },
+];
+/* ── State Machine: saved → previewing(dirty) → confirmed | canceled ── */
+const store = Theme.get();
+let saved = { dir: store.direction || store.apDir || "amaliyat", pi: store.apPi ?? 0, mode: store.theme || "dark", radius: store.radius || "default", density: store.density || "comfortable", font: store.fontSize || "md" };
+let draft = { ...saved };
+const dirty = () => JSON.stringify(draft) !== JSON.stringify(saved);
+function applyDraft() {
+  /* پیش‌نمایش زنده بدون هیچ ذخیره‌ای — ذخیره فقط با «تأیید و ذخیره قالب» */
+  const d = DIRS.find(x => x.id === draft.dir), h = document.documentElement;
+  h.dataset.direction = draft.dir;
+  h.dataset.theme = draft.mode;
+  h.dataset.accent = d.pre[draft.pi][2];
+  h.dataset.radius = draft.radius;
+  h.dataset.density = draft.density;
+  h.dataset.fontSize = draft.font;
+  render();
+}
+function mutate(p) { draft = { ...draft, ...p }; applyDraft(); }
+function confirmAll() { if (!dirty()) return; saved = { ...draft }; Theme.set({ direction: saved.dir, apDir: saved.dir, apPi: saved.pi, theme: saved.mode, radius: saved.radius, density: saved.density, fontSize: saved.font }); toast(`قالب «${DIRS.find(x => x.id === saved.dir).n}» ذخیره شد ✓`); render(); }
+function cancelAll() { draft = { ...saved }; applyDraft(); toast("پیش‌نمایش لغو شد"); }
+function resetDef() { mutate({ dir: "amaliyat", pi: 0, mode: "dark", radius: "default", density: "comfortable", font: "md" }); }
+function cards() {
+  return DIRS.map(d => {
+    const isA = saved.dir === d.id, isP = draft.dir === d.id && dirty();
+    const pv = `style="--pv-bg:${d.pv.bg};--pv-side:${d.pv.side};--pv-card:${d.pv.card};--pv-line:${d.pv.line};--pv-pri:${d.pv.pri}"`;
+    return `<div class="theme-card${isA ? " selected" : ""}${isP ? " st-prev" : ""}${isA && !dirty() ? " st-active" : ""}" role="radio" tabindex="0" aria-checked="${draft.dir === d.id}" onclick="mutate({dir:'${d.id}'})" onkeydown="if(event.key==='Enter')mutate({dir:'${d.id}'})">
+    <div class="mini" ${pv}><div class="ms"><i></i><i></i><i></i><i></i></div><div class="mb"><div class="mt" style="width:60%"></div><div class="mr"><i></i><i></i></div><div class="mrow"></div><div class="mrow" style="width:70%"></div></div>
+    ${isA ? '<span class="badge b-green" style="position:absolute;top:8px;inset-inline-start:8px">✔ فعال</span>' : ""}${isP ? '<span class="badge b-amber" style="position:absolute;top:8px;inset-inline-end:8px">◉ پیش‌نمایش</span>' : ""}${d.def ? '<span class="badge b-gray" style="position:absolute;bottom:8px;inset-inline-end:8px">پیش‌فرض</span>' : ""}</div>
+    <div class="theme-meta"><div><b>${d.n}</b><div class="row-sub">${d.d}</div><div class="presets" onclick="event.stopPropagation()">${d.pre.map((p, i) => `<span class="sw${draft.dir === d.id && draft.pi === i ? " on" : ""}" title="${p[0]}" style="background:${p[1]}" onclick="mutate({dir:'${d.id}',pi:${i}})"></span>`).join("")}</div></div></div></div>`;
+  }).join("");
+}
+function render() {
+  const d = DIRS.find(x => x.id === draft.dir);
+  page(`<div class="alert a-blue" style="margin-bottom:14px">${ic("info")}<div>قالب فعال: <b>${DIRS.find(x => x.id === saved.dir).n}</b> ✔ &nbsp;|&nbsp; این صفحه ظاهر <b>خود پنل</b> است، نه سایت. ${d.dark && draft.mode === "light" ? "توضیح: «عملیات» ذاتاً دارک است ولی در لایت هم مجاز است." : ""}</div></div>
+  <div class="tgrid">${cards()}</div>
+  <div class="acc"><button onclick="document.getElementById('adv').style.display=document.getElementById('adv').style.display==='none'?'block':'none'">▸ تنظیمات پیشرفته (اختیاری) — شعاع / تراکم / فونت</button>
+  <div id="adv" style="display:none;padding:0 18px 18px"><div class="grid c3">
+    <div class="field"><label>شعاع گوشه‌ها</label><div class="seg"><button class="${draft.radius === "sharp" ? "on" : ""}" onclick="mutate({radius:'sharp'})">تیز</button><button class="${draft.radius === "default" ? "on" : ""}" onclick="mutate({radius:'default'})">پیش‌فرض</button><button class="${draft.radius === "rounded" ? "on" : ""}" onclick="mutate({radius:'rounded'})">گرد</button></div></div>
+    <div class="field"><label>تراکم</label><div class="seg"><button class="${draft.density === "compact" ? "on" : ""}" onclick="mutate({density:'compact'})">فشرده</button><button class="${draft.density === "comfortable" ? "on" : ""}" onclick="mutate({density:'comfortable'})">متوسط</button><button class="${draft.density === "loose" ? "on" : ""}" onclick="mutate({density:'loose'})">باز</button></div></div>
+    <div class="field"><label>اندازه فونت</label><div class="seg"><button class="${draft.font === "sm" ? "on" : ""}" onclick="mutate({font:'sm'})">کوچک</button><button class="${draft.font === "md" ? "on" : ""}" onclick="mutate({font:'md'})">متوسط</button><button class="${draft.font === "lg" ? "on" : ""}" onclick="mutate({font:'lg'})">بزرگ</button></div></div>
+  </div></div></div>
+  <div class="savebar${dirty() ? " show" : ""}" id="savebar" style="display:${dirty() ? "flex" : "none"}"><span>◉ پیش‌نمایش: <b>${d.n} — ${d.pre[draft.pi][0]}</b></span>
+    <div class="seg" style="min-width:150px"><button class="${draft.mode === "light" ? "on" : ""}" onclick="mutate({mode:'light'})">روشن</button><button class="${draft.mode === "dark" ? "on" : ""}" onclick="mutate({mode:'dark'})">تیره</button></div>
+    <div style="flex:1"></div><button class="btn btn-ghost btn-sm" onclick="resetDef()">بازنشانی</button><button class="btn btn-ghost" onclick="cancelAll()">انصراف</button><button class="btn btn-primary" ${dirty() ? "" : "disabled"} onclick="confirmAll()">تأیید و ذخیره قالب</button></div>`);
+  document.body.classList.add("has-savebar");
+}
+window.addEventListener("beforeunload", e => { if (dirty()) e.preventDefault(); });
+/* ترک صفحه با پیش‌نمایش فعال → مودال */
+document.getElementById("shell").addEventListener("click", e => {
+  const a = e.target.closest(".nav-item[href],.bn-item");
+  if (a && dirty() && !confirm("تغییرات ذخیره‌نشده از بین می‌رود. ادامه می‌دهید؟")) e.preventDefault();
+}, true);
+applyDraft();
+</script>
+</body></html>

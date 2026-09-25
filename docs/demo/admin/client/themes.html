@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>قالب‌های سایت</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>.tg{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}.shot{height:150px;position:relative;overflow:hidden}.shot .bar{position:absolute;top:10px;inset-inline:10px;height:12px;border-radius:99px;background:rgba(255,255,255,.55)}.shot .c1{position:absolute;top:34px;inset-inline:10px;bottom:10px;display:flex;gap:8px}.shot .c1 i{flex:1;border-radius:8px;background:rgba(255,255,255,.5)}.shot .c1 i:first-child{flex:1.4;background:rgba(255,255,255,.75)}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "themes", title: "قالب‌های سایت", sub: "ظاهر سایت عمومی — جدا از «قالب پنل مدیریت»" });
+actions(`<button class="btn btn-primary" onclick="toast('آپلود فایل zip قالب (دمو)')">${ic("plus")} آپلود قالب</button>`);
+const T = [
+  { n: "قالب فروشگاهی سپید", v: "۳٫۲٫۰", cur: true, g: "linear-gradient(135deg,#0d9488,#14b8a6)" },
+  { n: "قالب شرکتی آریا", v: "۲٫۰٫۱", cur: false, g: "linear-gradient(135deg,#7c3aed,#ec4899)" },
+  { n: "قالب وبلاگی نرم", v: "۱٫۵٫۰", cur: false, g: "linear-gradient(135deg,#c2703d,#e0a370)" },
+];
+page(`<div class="alert a-blue">${ic("info")}<div>این صفحه = قالب <b>سایت</b>. برای قالب خود پنل به <a href="appearance.html" style="color:var(--primary);font-weight:700">قالب پنل مدیریت ←</a> بروید.</div></div>
+<div class="tg">${T.map((t, i) => `<div class="theme-card${t.cur ? " selected" : ""}"><div class="shot" style="background:${t.g}"><div class="bar"></div><div class="c1"><i></i><i></i><i></i></div>${t.cur ? '<span class="badge b-green" style="position:absolute;bottom:10px;inset-inline-start:10px">✔ فعال</span>' : ""}</div>
+<div class="theme-meta"><div><b>${t.n}</b><div class="row-sub">نسخه ${t.v}</div></div><div style="margin-inline-start:auto;display:flex;gap:6px">${t.cur ? `<button class="btn btn-ghost btn-sm" onclick="toast('پیش‌نمایش تصویر (دمو)')">پیش‌نمایش</button>` : `<button class="btn btn-soft btn-sm" onclick="confirmDlg({title:'فعال‌سازی ${t.n}؟',text:'ظاهر سایت با revalidate بازسازی و کش CDN purge می‌شود.',onOk:()=>toast('قالب فعال شد ✓')})">فعال‌سازی</button> <button class="btn btn-ghost btn-sm" onclick="toast('حذف شد')">حذف</button>`}</div></div></div>`).join("")}</div>
+<p class="hint" style="margin-top:12px">حذف قالب فعال مجاز نیست • پیش‌نمایش MVP = تصویر (نه iframe)</p>`);
+</script>
+</body></html>

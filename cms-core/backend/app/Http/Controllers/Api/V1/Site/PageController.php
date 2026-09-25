@@ -1,0 +1,221 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Site;
+
+use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\V1\Admin\SiteSettingsController;
+use App\Models\Media;
+use App\Models\Page;
+use App\Models\Setting;
+use App\Services\Subscription\ClientSubscriptionResolver;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+/**
+ * رندر عمومی برای ISR (تسک ۱.۱): فقط صفحات published.
+ * هدر کش عمومی تا لبه/CDN بتواند کش کند؛ draft هرگز از این مسیر درز نمی‌کند.
+ * ستون‌های کناری با ارجاع زنده resolve می‌شوند: بلوک‌ها همیشه از روی
+ * پریست خوانده می‌شوند (نه کپی) + toggle مستقل هر ستون.
+ */
+class PageController extends Controller
+{
+    /**
+     * فهرست سبک صفحات منتشرشده (برای sitemap.xml و llms.txt فرانت).
+     * فقط slug/title/تاریخ‌ها — بدون بلوک‌ها.
+     */
+    public function index(): JsonResponse
+    {
+        $pages = Page::query()
+            ->where('status', Page::STATUS_PUBLISHED)
+            ->whereNotNull('published_revision_id')
+            ->orderByDesc('updated_at')
+            ->limit(500)
+            ->get(['title', 'slug', 'is_single', 'published_at', 'updated_at']);
+
+        return response()->json([
+            'data' => $pages->map(fn (Page $p) => [
+                'title' => $p->title,
+                'slug' => $p->slug,
+                'is_single' => (bool) $p->is_single,
+                'published_at' => $p->published_at?->toIso8601String(),
+                'updated_at' => $p->updated_at?->toIso8601String(),
+            ])->all(),
+        ])->header('Cache-Control', 'public, max-age=60, s-maxage=300');
+    }
+
+    /**
+     * صفحه خانه عمومی (برای روت `/` فرانت): ترتیب حل —
+     * homepage_page_id تنظیمات مشترک → اسلاگ `home` → جدیدترین published → 404 خنثی.
+     * فقط published؛ draft هرگز درز نمی‌کند.
+     */
+    public function homepage(Request $request): JsonResponse
+    {
+        $siteId = $request->query('site_id');
+        $subscription = $siteId
+            ? ClientSubscriptionResolver::bySiteId((string) $siteId)
+            : ClientSubscriptionResolver::default();
+
+        $page = null;
+        if ($subscription?->client !== null) {
+            $site = array_merge(
+                SiteSettingsController::SITE_DEFAULTS,
+                Setting::get('site', 'global', []) ?? []
+            );
+            $homepageId = $site['homepage_page_id'] ?? null;
+            if (is_numeric($homepageId) && (int) $homepageId > 0) {
+                $page = Page::query()
+                    ->where('id', (int) $homepageId)
+                    ->where('status', Page::STATUS_PUBLISHED)
+                    ->whereNotNull('published_revision_id')
+                    ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
+                    ->first();
+            }
+            $page ??= Page::query()
+                ->where('slug', 'home')
+                ->where('status', Page::STATUS_PUBLISHED)
+                ->whereNotNull('published_revision_id')
+                ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
+                ->first();
+            $page ??= Page::query()
+                ->where('status', Page::STATUS_PUBLISHED)
+                ->whereNotNull('published_revision_id')
+                ->orderByDesc('published_at')
+                ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
+                ->first();
+        } else {
+            // نصب بدون مالک (تازه/تست): همان fallback سراسری.
+            $page = Page::query()
+                ->where('slug', 'home')
+                ->where('status', Page::STATUS_PUBLISHED)
+                ->whereNotNull('published_revision_id')
+                ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
+                ->first()
+                ?? Page::query()
+                    ->where('status', Page::STATUS_PUBLISHED)
+                    ->whereNotNull('published_revision_id')
+                    ->orderByDesc('published_at')
+                    ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
+                    ->first();
+        }
+
+        if (! $page) {
+            return response()->json(['message' => 'صفحه خانه‌ای تنظیم نشده است.'], 404);
+        }
+
+        return response()->json(['data' => $this->payload($page)])
+            ->header('Cache-Control', 'public, max-age=60, s-maxage=300');
+    }
+
+    public function show(Request $request, string $path): JsonResponse
+    {
+        $page = Page::query()
+            ->where('slug', $path)
+            ->where('status', Page::STATUS_PUBLISHED)
+            ->whereNotNull('published_revision_id')
+            ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
+            ->first();
+
+        if (! $page) {
+            return response()->json(['message' => 'صفحه یافت نشد.'], 404);
+        }
+
+        return response()->json(['data' => $this->payload($page)])
+            ->header('Cache-Control', 'public, max-age=60, s-maxage=300');
+    }
+
+    /** شکل یکسان خروجی صفحه برای show و homepage (تغییرشکل نده — قرارداد ISR). */
+    private function payload(Page $page): array
+    {
+        $revision = $page->publishedRevision;
+
+        return [
+            'title' => $page->title,
+            'slug' => $page->slug,
+            'is_single' => (bool) $page->is_single,
+            'blocks' => $this->withMediaUrls($revision?->blocks ?? []),
+            'meta' => $revision?->meta ?? $page->meta,
+            'published_at' => $page->published_at,
+            'updated_at' => $page->updated_at,
+            'version' => $revision?->version,
+            'sidebars' => [
+                'left' => [
+                    'enabled' => (bool) $page->left_enabled,
+                    'preset_id' => $page->left_preset_id,
+                    'blocks' => $this->withMediaUrls($page->leftPreset?->blocks ?? []),
+                ],
+                'right' => [
+                    'enabled' => (bool) $page->right_enabled,
+                    'preset_id' => $page->right_preset_id,
+                    'blocks' => $this->withMediaUrls($page->rightPreset?->blocks ?? []),
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * غنی‌سازی بلوک‌ها با نشانی عمومی فایل‌ها — در یک کوئری (بدون N+1).
+     * قرارداد فرانت (BlockRenderer/mediaSrc): image/hero ← کلید `url`،
+     * گالری ← `url_0..N`، پوستر ویدیو ← `poster_url`. فقط افزودنی است؛
+     * اگر مدیایی نباشد هیچ کلیدی اضافه نمی‌شود.
+     *
+     * @param array<int, mixed> $blocks
+     * @return array<int, mixed>
+     */
+    private function withMediaUrls(array $blocks): array
+    {
+        $ids = [];
+        foreach ($blocks as $b) {
+            $d = is_array($b) ? ($b['data'] ?? null) : null;
+            if (! is_array($d)) {
+                continue;
+            }
+            foreach (['media_id', 'image_id', 'poster_media_id'] as $k) {
+                if (isset($d[$k]) && is_numeric($d[$k])) {
+                    $ids[] = (int) $d[$k];
+                }
+            }
+            if (isset($d['media_ids']) && is_array($d['media_ids'])) {
+                foreach ($d['media_ids'] as $mid) {
+                    if (is_numeric($mid)) {
+                        $ids[] = (int) $mid;
+                    }
+                }
+            }
+        }
+
+        $map = [];
+        $ids = array_values(array_unique($ids));
+        $base = rtrim((string) config('filesystems.disks.s3.url', ''), '/');
+        if ($ids !== [] && $base !== '') {
+            $paths = Media::query()->whereIn('id', $ids)->pluck('path', 'id');
+            foreach ($paths as $id => $path) {
+                $map[(int) $id] = $base.'/'.ltrim((string) $path, '/');
+            }
+        }
+
+        foreach ($blocks as &$b) {
+            if (! is_array($b) || ! isset($b['data']) || ! is_array($b['data'])) {
+                continue;
+            }
+            $d = &$b['data'];
+            if (isset($d['media_id'], $map[(int) $d['media_id']])) {
+                $d['url'] = $map[(int) $d['media_id']];
+            } elseif (isset($d['image_id'], $map[(int) $d['image_id']])) {
+                $d['url'] = $map[(int) $d['image_id']];
+            }
+            if (isset($d['poster_media_id'], $map[(int) $d['poster_media_id']])) {
+                $d['poster_url'] = $map[(int) $d['poster_media_id']];
+            }
+            if (isset($d['media_ids']) && is_array($d['media_ids'])) {
+                foreach (array_values($d['media_ids']) as $idx => $mid) {
+                    if (isset($map[(int) $mid])) {
+                        $d["url_{$idx}"] = $map[(int) $mid];
+                    }
+                }
+            }
+        }
+        unset($d, $b);
+
+        return $blocks;
+    }
+}

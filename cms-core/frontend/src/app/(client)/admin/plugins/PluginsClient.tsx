@@ -1,0 +1,221 @@
+"use client";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { authed, authedForm } from "@/lib/auth";
+import { useToast } from "@/components/ui/Toast";
+import { Alert, Badge, EmptyState } from "@/components/ui/primitives";
+import { ConfirmDialog } from "@/components/ui/Overlays";
+import { DeveloperGuide } from "@/components/DeveloperGuide";
+import { faNum, jalali } from "@/lib/fa";
+import type { Paginator, PluginItem, ReviewStatus } from "@/lib/domain";
+import { REVIEW_FA } from "@/lib/domain";
+
+/** لیست پلاگین + آپلود + سوییچ فعال + ارتقا + حذف (پلاگین سیستمی محافظت‌شده). */
+export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
+  const toast = useToast();
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const upgradeRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [upgrading, setUpgrading] = useState<PluginItem | null>(null);
+  const [uninstalling, setUninstalling] = useState<PluginItem | null>(null);
+  // دسته UIUX (افزودنی): جستجو + فیلتر وضعیت.
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "inactive" | "updates">("all");
+
+  const refresh = () => router.refresh();
+
+  const toggle = async (p: PluginItem) => {
+    if ((p.review_status ?? "approved") !== "approved") {
+      toast(
+        p.review_status === "rejected"
+          ? "این پلاگین رد شده است. دلیل رد را ببینید و نسخه اصلاح‌شده آپلود کنید."
+          : "این پلاگین هنوز تأیید نشده است. پس از تأیید طراح و معمار CMS فعال‌سازی ممکن می‌شود.",
+        "err",
+      );
+      return;
+    }
+    try {
+      await authed(`/v1/admin/plugins/${p.id}/${p.active ? "deactivate" : "activate"}`, { method: "POST" });
+      toast(p.active ? "پلاگین غیرفعال شد." : "پلاگین فعال شد — هوک‌ها ثبت شدند.", "ok");
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "تغییر وضعیت ناموفق بود.", "err");
+    }
+  };
+
+  const upload = async (file: File | undefined, plugin?: PluginItem) => {
+    if (!file) return;
+    if (!file.name.endsWith(".zip")) { toast("پلاگین باید فایل ZIP باشد.", "err"); return; }
+    const form = new FormData();
+    form.append("file", file);
+    setUploading(true);
+    try {
+      if (plugin) {
+        await authedForm(`/v1/admin/plugins/${plugin.id}/upgrade`, form);
+        toast("پلاگین به‌روزرسانی شد.", "ok");
+      } else {
+        await authedForm(`/v1/admin/plugins/upload`, form);
+        toast("پلاگین آپلود شد و در انتظار تأیید است.", "ok");
+      }
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "آپلود ناموفق بود (امضا نامعتبر؟).", "err");
+    } finally {
+      setUploading(false);
+      setUpgrading(null);
+    }
+  };
+
+  const uninstall = async () => {
+    if (!uninstalling) return;
+    try {
+      await authed(`/v1/admin/plugins/${uninstalling.id}/uninstall`, { method: "POST" });
+      toast("پلاگین حذف شد.", "ok");
+      setUninstalling(null);
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "حذف ناموفق بود.", "err");
+    }
+  };
+
+  const hasUpdate = (p: PluginItem) => {
+    const manifest = p.manifest as { latest_version?: string } | null | undefined;
+    const latest = typeof manifest?.latest_version === "string" ? manifest.latest_version : null;
+    if (!latest) return false;
+    try {
+      return latest.localeCompare(p.version, undefined, { numeric: true }) > 0;
+    } catch { return latest !== p.version; }
+  };
+
+  const reviewTone = (s: ReviewStatus | undefined): "amber" | "green" | "red" =>
+    s === "rejected" ? "red" : s === "pending" ? "amber" : "green";
+
+  /** دسته UIUX (افزودنی): سلامت جدا از وضعیت فعال‌بودن. */
+  const health = (p: PluginItem): { tone: "green" | "amber" | "red"; label: string } => {
+    if (!p.signature_valid) return { tone: "red", label: "ناسالم (امضا)" };
+    if ((p.review_status ?? "approved") === "rejected") return { tone: "red", label: "ردشده" };
+    if ((p.review_status ?? "approved") === "pending") return { tone: "amber", label: "در انتظار بازبینی" };
+    return { tone: "green", label: "سالم" };
+  };
+
+  const norm = (s: string) => s.replace(/[\u200c\s]+/g, " ").trim();
+  const visible = initial.data.filter((p) => {
+    if (filter === "active" && !p.active) return false;
+    if (filter === "inactive" && p.active) return false;
+    if (filter === "updates" && !hasUpdate(p)) return false;
+    const needle = norm(q);
+    if (!needle) return true;
+    return norm(`${p.name} ${p.slug}`).includes(needle);
+  });
+
+  return (
+    <div>
+      <div style={{ display: "flex", marginBlockEnd: 12, alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{faNum(initial.total)} پلاگین</span>
+        <div style={{ flex: 1 }} />
+        <input
+          className="input" style={{ maxInlineSize: 220 }} placeholder="جستجوی نام پلاگین…"
+          value={q} onChange={(e) => setQ(e.target.value)} aria-label="جستجوی پلاگین"
+        />
+        <select className="select" style={{ maxInlineSize: 170 }} value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} aria-label="فیلتر وضعیت">
+          <option value="all">همه</option>
+          <option value="active">فعال</option>
+          <option value="inactive">غیرفعال</option>
+          <option value="updates">آپدیت‌دار</option>
+        </select>
+        <input ref={fileRef} type="file" accept=".zip" hidden onChange={(e) => void upload(e.target.files?.[0])} />
+        <button className="btn btn-primary" disabled={uploading} onClick={() => fileRef.current?.click()}>
+          {uploading ? "در حال آپلود…" : "＋ نصب پلاگین (ZIP امضاشده)"}
+        </button>
+      </div>
+
+      <Alert tone="blue">آپلود بدون <span dir="ltr">manifest.json</span> دارای امضای معتبر، با خطای ۴۲۲ رد می‌شود و در لاگ امنیتی ثبت می‌گردد.</Alert>
+
+      {initial.data.some((p) => (p.review_status ?? "approved") === "pending") ? (
+        <div style={{ marginBlockStart: 10 }}>
+          <Alert tone="amber">
+            پلاگین شما آپلود شد و در انتظار تأیید طراح و معمار CMS است — این بررسی دقیقاً برای امنیت سایت شماست:
+            هر پلاگین پیش از فعال‌سازی از نظر امضا، دسترسی‌ها و سلامت کد بازبینی می‌شود تا سایت شما همیشه امن و پایدار بماند.
+            نتیجه بررسی (تأیید یا دلیل رد) همین‌جا روی کارت نمایش داده می‌شود، معمولاً حداکثر ظرف ۳ روز کاری.
+            اگر بررسی بیش از ۳ روز کاری طول کشید، از بخش تیکت‌ها با پشتیبانی در تماس باشید.
+          </Alert>
+        </div>
+      ) : null}
+
+      {initial.data.length === 0 ? (
+        <div className="card card-pad"><EmptyState title="پلاگینی نصب نشده" hint="فایل ZIP امضاشده را آپلود کنید." /></div>
+      ) : visible.length === 0 ? (
+        <div className="card card-pad"><EmptyState title="موردی با این فیلتر نیست" hint="جستجو یا فیلتر را عوض کنید." /></div>
+      ) : (
+        <div className="table-wrap">
+          <table className="tbl tbl-cards">
+            <thead><tr><th>نام</th><th>نسخه</th><th>وضعیت</th><th>بازبینی</th><th>سلامت</th><th>امضا</th><th>هوک‌ها</th><th>اکشن</th></tr></thead>
+            <tbody>
+              {visible.map((p) => (
+                <tr key={p.id}>
+                  <td data-label="نام">
+                    <b>{p.name}</b> <small dir="ltr" style={{ color: "var(--text-muted)" }}>{p.slug}</small>
+                    {hasUpdate(p) ? <Badge tone="amber">آپدیت موجود</Badge> : null}
+                    {p.system ? <Badge tone="gray">سیستمی</Badge> : null}
+                    {p.review_status === "rejected" && p.review_note ? (
+                      <div style={{ marginBlockStart: 6, fontSize: 12, color: "var(--danger)" }}>
+                        دلیل رد: {p.review_note}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td data-label="نسخه"><span dir="ltr">{p.version}</span></td>
+                  <td data-label="وضعیت">
+                    <label style={{ display: "inline-flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
+                      <input type="checkbox" checked={p.active} onChange={() => void toggle(p)} aria-label={`فعال‌بودن ${p.name}`} />
+                      <Badge tone={p.active ? "green" : "gray"}>{p.active ? "فعال" : "غیرفعال"}</Badge>
+                    </label>
+                  </td>
+                  <td data-label="بازبینی">
+                    <Badge tone={reviewTone(p.review_status)}>{REVIEW_FA[p.review_status ?? "approved"]}</Badge>
+                  </td>
+                  <td data-label="سلامت">
+                    <Badge tone={health(p).tone}>{health(p).label}</Badge>
+                  </td>
+                  <td data-label="امضا">
+                    <Badge tone={p.signature_valid ? "green" : "red"}>{p.signature_valid ? "معتبر" : "نامعتبر"}</Badge>
+                  </td>
+                  <td data-label="هوک‌ها">{faNum(p.hooks_count ?? 0)}</td>
+                  <td data-label="اکشن">
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setUpgrading(p)}>ارتقا…</button>
+                      {!p.system ? <button className="btn btn-ghost btn-sm" onClick={() => setUninstalling(p)} title="حذف برای آزادسازی فضا">حذف</button> : null}
+                    </div>
+                    <small style={{ color: "var(--text-muted)" }}>{jalali(p.created_at)}</small>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <DeveloperGuide kind="plugin" />
+
+      <input ref={upgradeRef} type="file" accept=".zip" hidden onChange={(e) => void upload(e.target.files?.[0], upgrading ?? undefined)} />
+      {upgrading ? (
+        <ConfirmDialog
+          title={`ارتقا: ${upgrading.name}`}
+          text={`نسخه ZIP جدید «${upgrading.slug}» را انتخاب کنید. نسخه باید بالاتر از ${upgrading.version} و امضا معتبر باشد.`}
+          confirmLabel="انتخاب فایل…"
+          onConfirm={() => { upgradeRef.current?.click(); }}
+          onCancel={() => setUpgrading(null)}
+        />
+      ) : null}
+      {uninstalling ? (
+        <ConfirmDialog
+          title="حذف پلاگین"
+          text={`«${uninstalling.name}» حذف شود؟ پلاگین سیستمی قابل حذف نیست.`}
+          confirmLabel="حذف"
+          onConfirm={() => void uninstall()}
+          onCancel={() => setUninstalling(null)}
+        />
+      ) : null}
+    </div>
+  );
+}

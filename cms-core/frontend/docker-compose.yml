@@ -1,0 +1,25 @@
+name: cms-core-frontend
+
+# اجرای dev: docker compose up (پورت هاست 3100 → کانتینر 3000، با volume mount)
+# تصمیم: compose جدا — ساده‌ترین راه قابل اجرا. به شبکه بک‌اند وصل نمی‌شود
+# چون ارتباط فقط HTTP از مرورگر/کانتینر به http://localhost:8080 است.
+# روی ویندوز host.docker.internal به هاست می‌رسد؛ روی لینوکس در صورت نیاز
+# extra_hosts را فعال کنید (خط کامنت زیر).
+services:
+  web-front:
+    build: .
+    container_name: cms-web-front
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api
+      INTERNAL_API_URL: http://host.docker.internal:8080/api
+      PORT: 3000
+    command: npm run dev
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"

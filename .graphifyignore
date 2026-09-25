@@ -1,0 +1,28 @@
+# فایل‌های غیرضروری برای گراف دانش — ایندکس نشوند (جلوگیری از مصرف توکن)
+demo/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.html
+*.lock
+*.log
+*.svg
+
+# وابستگی‌ها و بیلد — حیاتی برای کاهش توکن (node_modules هزاران فایل دارد)
+node_modules/
+.next/
+dist/
+build/
+out/
+vendor/
+storage/
+graphify-out/
+.env
+coverage/
+__pycache__/
+.pytest_cache/
+
+# فقط اسناد MD ایندکس شوند (کم‌حجم)
+!*.md

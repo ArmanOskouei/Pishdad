@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>پروفایل مدیر</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>.two{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}@media(max-width:900px){.two{grid-template-columns:1fr}}
+.seg{display:flex;background:var(--surface-2);border-radius:var(--radius-md);padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;padding:9px;min-height:40px;border-radius:8px;font-family:inherit;font-size:12.5px;color:var(--text-muted);cursor:pointer}
+.seg button.on{background:var(--surface);color:var(--text);font-weight:700;box-shadow:var(--shadow-sm)}
+.slot{border:1.5px dashed var(--border);border-radius:var(--radius-md);padding:12px;margin-bottom:10px}
+.dots{display:flex;gap:6px}.dots i{width:26px;height:26px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border);cursor:pointer}.dots i.on{box-shadow:0 0 0 2px var(--primary)}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "profile", title: "پروفایل مدیر", sub: "اطلاعات پایه + امنیت + ظاهر دلخواه پنل شما" });
+const s = Theme.get();
+page(`<div class="two"><div>
+  <div class="card card-pad" style="margin-bottom:16px"><div class="card-title">اطلاعات پایه</div><p class="card-sub">نمایشی در سایدبار و لاگ‌ها</p>
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px"><div class="avatar lg">آ</div><div><button class="btn btn-ghost btn-sm" onclick="toast('انتخاب تصویر (دمو)')">تغییر عکس</button> <button class="btn btn-ghost btn-sm" onclick="toast('عکس حذف شد')">حذف</button></div></div>
+    <div class="form-grid"><div class="field"><label>نام کامل</label><input class="input" value="آرمان اسکوئی"></div><div class="field"><label>تلفن</label><input class="input" dir="ltr" style="text-align:left" value="0912 000 0000"></div><div class="field full"><label>ایمیل</label><input class="input" dir="ltr" style="text-align:left" value="admin@example.com"></div><div class="field full"><label>رمز عبور جدید</label><input class="input" type="password" placeholder="خالی = بدون تغییر" dir="ltr" style="text-align:left"></div></div></div>
+  <div class="card card-pad"><div class="card-title">ظاهر پنل من <span class="badge b-gray">AppearancePanel مشترک با ۱.۱۴</span></div><p class="card-sub">فقط برای شما ذخیره می‌شود (per-user)</p>
+    <div class="field"><label>حالت</label><div class="seg" id="sgMode"><button data-v="light" onclick="setP('theme',this)">روشن</button><button data-v="dark" onclick="setP('theme',this)">تیره</button></div></div>
+    <div class="field"><label>رنگ اصلی</label><div class="dots">${["teal", "indigo", "violet", "blue", "amber", "rose"].map(a => `<i data-v="${a}" title="${a}" onclick="setP('accent',this)" style="background:var(--primary)"></i>`).join("")}</div><div class="hint">پیش‌نمایش زنده — با «ذخیره پروفایل» نهایی می‌شود</div></div>
+    <div class="form-grid"><div class="field"><label>گوشه‌ها</label><div class="seg"><button onclick="setP('radius','sharp',this)">تیز</button><button class="on" onclick="setP('radius','default',this)">پیش‌فرض</button><button onclick="setP('radius','rounded',this)">گرد</button></div></div>
+    <div class="field"><label>تراکم</label><div class="seg"><button onclick="setP('density','compact',this)">فشرده</button><button class="on" onclick="setP('density','comfortable',this)">متوسط</button><button onclick="setP('density','loose',this)">باز</button></div></div></div>
+    <a href="appearance.html" style="color:var(--primary);font-size:12.5px;font-weight:700">انتخاب از گالری ۵ قالب پنل ←</a></div>
+</div><div>
+  <div class="card card-pad" style="margin-bottom:16px"><div class="card-title">امنیت ورود</div><p class="card-sub">اسلات داینامیک — هر پلاگین یک بخش</p>
+    <div class="slot"><b style="font-size:13px">📱 تأیید پیامکی</b><div class="row-sub">فعال — 0912•••00</div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="toast('کد تست ارسال شد')">تست</button><button class="btn btn-ghost btn-sm" onclick="toast('غیرفعال شد')">قطع</button></div></div>
+    <div class="slot"><b style="font-size:13px">🔐 اپ احراز هویت</b><div class="row-sub">غیرفعال</div><button class="btn btn-soft btn-sm" style="margin-top:8px" onclick="qr()">فعال‌سازی با QR</button></div>
+    <div class="slot"><b style="font-size:13px">🧾 کدهای بازیابی</b><div class="row-sub">۸ کد استفاده‌نشده</div><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="toast('کدها دانلود شدند')">دانلود مجدد</button></div>
+    <div class="slot" style="border-style:solid"><b style="font-size:13px">🔌 اسلات پلاگین</b><div class="row-sub">مثال: کلید سخت‌افزاری / ورود با پیام‌رسان</div></div>
+  </div>
+  <div class="card card-pad"><div class="card-title">نشست‌های فعال</div><div class="kv"><span>کروم — تهران</span><span>${badge("active")}</span></div><div class="kv"><span>موبایل — تهران</span><span class="row-sub">دیروز</span></div><button class="btn btn-danger-soft btn-sm btn-block" style="margin-top:10px" onclick="confirmDlg({title:'خروج همه دستگاه‌ها؟',text:'همه نشست‌ها به‌جز همین دستگاه بسته می‌شود.',danger:true,ok:'خروج همه',onOk:()=>toast('همه نشست‌ها بسته شد')})">خروج از همه دستگاه‌ها</button></div>
+</div></div>
+<div class="savebar"><span class="row-sub">آخرین ذخیره: امروز ۰۸:۳۰</span><div style="flex:1"></div><button class="btn btn-ghost" onclick="toast('تغییرات برگشت')">انصراف</button><button class="btn btn-primary" onclick="toast('پروفایل ذخیره شد ✓')">${ic("check")} ذخیره پروفایل</button></div>`);
+document.body.classList.add("has-savebar");
+function setP(k, el, v) {
+  v = typeof el === "string" ? el : (el.dataset ? el.dataset.v : v);
+  const btn = typeof el === "object" && el.tagName === "BUTTON" ? el : null;
+  if (btn && btn.parentElement.classList.contains("seg")) { btn.parentElement.querySelectorAll("button").forEach(b => b.classList.remove("on")); btn.classList.add("on"); }
+  if (btn && btn.parentElement.classList.contains("dots")) { btn.parentElement.querySelectorAll("i").forEach(b => b.classList.remove("on")); btn.classList.add("on"); }
+  Theme.set({ [k]: typeof el === "string" ? el : v }); Theme.apply("client");
+  toast("پیش‌نمایش ظاهر اعمال شد");
+}
+function qr() { openModal(`<div class="modal-head">فعال‌سازی اپ احراز هویت</div><div class="modal-body" style="text-align:center"><div style="width:150px;height:150px;margin:0 auto;background:repeating-conic-gradient(var(--text) 0 25%,var(--surface) 0 50%) 0 0/18px 18px;border-radius:8px;border:1px solid var(--border)"></div><p class="card-sub" style="margin:10px 0">با Google Authenticator اسکن کنید، سپس کد ۶ رقمی را وارد کنید</p><input class="input" dir="ltr" style="text-align:center;letter-spacing:8px" placeholder="••••••" maxlength="6"></div><div class="modal-foot"><button class="btn btn-primary" onclick="closeOver();toast('احراز دوعاملی فعال شد ✓')">تأیید</button><button class="btn btn-ghost" onclick="closeOver()">انصراف</button></div>`); }
+(function mark() { const g = Theme.get(); document.querySelectorAll("#sgMode button").forEach(b => b.classList.toggle("on", b.dataset.v === (g.theme || "light"))); })();
+</script>
+</body></html>

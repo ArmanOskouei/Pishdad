@@ -1,0 +1,31 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>بلوک‌های سایت</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "blocks", title: "بلوک‌های سایت", sub: "بلوک‌های پیش‌فرض هر نوع صفحه — تب به‌ازای نوع صفحه" });
+const TYPES = { products: "صفحات محصول", blog: "بلاگ", home: "خانه" };
+let B = {
+  products: [{ t: "گالری محصول", on: true }, { t: "قیمت و خرید", on: true }, { t: "نظرات", on: false }],
+  blog: [{ t: "کاور مقاله", on: true }, { t: "متن مقاله", on: true }, { t: "مطالب مرتبط", on: true }],
+  home: [{ t: "هیرو", on: true }, { t: "ویژگی‌ها", on: true }, { t: "سوالات متداول", on: false }],
+};
+let cur = "products";
+function render() {
+  const tabs = Object.entries(TYPES).map(([k, v]) => `<button class="tab${k === cur ? " active" : ""}" onclick="cur='${k}';render()">${v}</button>`).join("");
+  const list = B[cur].map((b, i) => `<div class="block"><div class="block-head"><span>⋮⋮</span> ${b.t}<span style="margin-inline-start:auto;display:flex;gap:6px;align-items:center"><label class="switch"><input type="checkbox" ${b.on ? "checked" : ""} onchange="B['${cur}'][${i}].on=this.checked;toast('${b.t}: '+(this.checked?'فعال':'غیرفعال'))"><span class="tr"></span></label><button class="icon-btn" style="width:32px;height:32px" onclick="mv(${i},-1)">↑</button><button class="icon-btn" style="width:32px;height:32px" onclick="mv(${i},1)">↓</button><button class="icon-btn" style="width:32px;height:32px" onclick="cfg('${b.t}')">${ic("gear")}</button></span></div><div class="block-body row-sub">پیکربندی پیش‌فرض «${b.t}» برای همه صفحات «${TYPES[cur]}» — ${b.on ? "فعال" : "غیرفعال"}</div></div>`).join("");
+  page(`<div class="tabs">${tabs}</div>
+  <div class="card card-pad" style="margin-bottom:12px"><div class="card-title">＋ افزودن بلوک به «${TYPES[cur]}»</div><div class="block-palette" style="margin-top:8px">${["فیلتر محصولات", "اسلایدر", "بنر تخفیف", "فرم مشاوره", "نقشه", "آکاردئون"].map(p => `<button class="palette-item" onclick="addB('${p}')">${p} ＋</button>`).join("")}</div></div>
+  ${list}
+  <div class="savebar"><span class="row-sub">بوم «${TYPES[cur]}» — ${B[cur].filter(b => b.on).length} بلوک فعال</span><div style="flex:1"></div><button class="btn btn-ghost" onclick="toast('تغییرات برگشت')">انصراف</button><button class="btn btn-primary" onclick="toast('بلوک‌های ${TYPES[cur]} ذخیره شد ✓')">${ic("check")} ذخیره</button></div>`);
+  document.body.classList.add("has-savebar");
+}
+function mv(i, d) { const A = B[cur]; const j = i + d; if (j < 0 || j >= A.length) return; [A[i], A[j]] = [A[j], A[i]]; render(); }
+function addB(t) { B[cur].push({ t, on: true }); render(); toast(`«${t}» اضافه شد`); }
+function cfg(t) { openModal(`<div class="modal-head">تنظیمات بلوک «${t}»</div><div class="modal-body"><div class="field"><label>عنوان بلوک</label><input class="input" value="${t}"></div><div class="form-grid"><div class="field"><label>تعداد آیتم</label><input class="input" dir="ltr" style="text-align:left" value="4"></div><div class="field"><label>چیدمان</label><select class="select"><option>گرید</option><option>اسلایدر</option><option>لیست</option></select></div></div></div><div class="modal-foot"><button class="btn btn-primary" onclick="closeOver();toast('ذخیره شد')">ذخیره</button><button class="btn btn-ghost" onclick="closeOver()">بستن</button></div>`); }
+render();
+</script>
+</body></html>

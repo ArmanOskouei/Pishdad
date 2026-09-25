@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>هدر / فوتر</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>.hf{display:grid;grid-template-columns:250px 1fr;gap:16px;align-items:start}@media(max-width:900px){.hf{grid-template-columns:1fr}}.zone{border:2px dashed var(--border);border-radius:var(--radius-md);padding:12px;min-height:90px;background:var(--surface)}.zone h4{margin:0 0 8px;font-size:12px;color:var(--text-muted)}.wchip{display:flex;gap:8px;align-items:center;background:var(--surface-2);border-radius:var(--radius-md);padding:9px 12px;margin-bottom:8px;font-size:13px;min-height:44px}.wchip .h{cursor:grab;color:var(--text-muted)}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "header", title: "هدر / فوتر", sub: "چیدمان ویجت‌ها با درگ‌اندروپ — الگوی Widget Area" });
+actions(`<div style="display:flex;gap:8px;align-items:center"><span class="row-sub">پیش‌نمایش:</span><button class="btn btn-ghost btn-sm" id="pvB" onclick="pv('d')">دسکتاپ</button><button class="btn btn-ghost btn-sm" onclick="pv('m')">موبایل</button></div>`);
+let H = [{ t: "لوگو" }, { t: "منوی اصلی" }, { t: "دکمه ورود" }];
+let F = [{ t: "متن کپی‌رایت" }, { t: "لینک صفحات" }, { t: "شبکه‌های اجتماعی" }];
+const PAL = ["لوگو", "منوی اصلی", "دکمه ورود", "جستجو", "متن", "لینک صفحات", "شبکه‌های اجتماعی", "فرم عضویت", "کپی‌رایت"];
+function chips(arr, zone) { return arr.map((w, i) => `<div class="wchip"><span class="h">⋮⋮</span> ${w.t}<span style="margin-inline-start:auto;display:flex;gap:2px"><button class="icon-btn" style="width:32px;height:32px" onclick="mv('${zone}',${i},-1)">↑</button><button class="icon-btn" style="width:32px;height:32px" onclick="mv('${zone}',${i},1)">↓</button><button class="icon-btn" style="width:32px;height:32px" onclick="cfg('${w.t}')">${ic("gear")}</button><button class="icon-btn" style="width:32px;height:32px" onclick="rm('${zone}',${i})">${ic("trash")}</button></span></div>`).join(""); }
+function render() {
+  page(`<div class="hf"><div class="card card-pad"><div class="card-title">پالت ویجت‌ها</div><p class="card-sub">کلیک = افزودن به ناحیه انتخاب‌شده</p><div class="block-palette">${PAL.map(p => `<button class="palette-item" onclick="addW('${p}')">${p} ＋</button>`).join("")}</div>
+  <div class="field" style="margin-top:12px;margin-bottom:0"><label>افزودن به</label><select class="select" id="dst"><option value="H">هدر</option><option value="F">فوتر</option></select></div></div>
+  <div><div class="card card-pad" style="margin-bottom:12px"><div class="card-title">بوم صفحه <span class="badge b-gray" id="pvTag">دسکتاپ</span></div>
+    <div class="zone" style="margin-bottom:12px"><h4>▣ ناحیه هدر</h4><div id="zh">${chips(H, "H") || '<div class="row-sub">خالی — از پالت اضافه کنید</div>'}</div></div>
+    <div class="card" style="padding:26px;text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:12px">— محتوای صفحات سایت —</div>
+    <div class="zone"><h4>▣ ناحیه فوتر</h4><div id="zf">${chips(F, "F") || '<div class="row-sub">خالی</div>'}</div></div></div>
+  <div class="savebar"><span class="row-sub">پیش‌نمایش زنده فعال</span><div style="flex:1"></div><button class="btn btn-ghost" onclick="toast('تغییرات برگشت')">انصراف</button><button class="btn btn-primary" onclick="toast('هدر/فوتر منتشر شد ✓')">${ic("check")} ذخیره و انتشار</button></div></div></div>`);
+  document.body.classList.add("has-savebar");
+}
+function mv(z, i, d) { const A = z === "H" ? H : F; const j = i + d; if (j < 0 || j >= A.length) return; [A[i], A[j]] = [A[j], A[i]]; render(); }
+function rm(z, i) { (z === "H" ? H : F).splice(i, 1); render(); }
+function addW(t) { const dst = document.getElementById("dst").value; (dst === "H" ? H : F).push({ t }); render(); toast(`«${t}» اضافه شد`); }
+function cfg(t) { openDrawer(`<div class="modal-head">تنظیمات ویجت «${t}» <span class="badge b-gray" style="margin-inline-start:auto">SchemaForm</span></div><div class="modal-body"><div class="field"><label>عنوان نمایشی</label><input class="input" value="${t}"></div><div class="field"><label>نحوه نمایش</label><select class="select"><option>همیشه</option><option>فقط دسکتاپ</option><option>فقط موبایل</option></select></div><div class="field"><label>فاصله (px)</label><input class="input" dir="ltr" style="text-align:left" value="16"></div><label class="perm" style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" checked style="width:18px;height:18px;accent-color:var(--primary)"> نمایش به مهمان‌ها</label></div><div class="modal-foot" style="margin-top:auto;border-top:1px solid var(--border);padding:14px 20px;display:flex;gap:10px"><button class="btn btn-primary" onclick="closeOver();toast('تنظیمات ویجت ذخیره شد')">ذخیره</button><button class="btn btn-ghost" onclick="closeOver()">بستن</button></div>`); }
+function pv(m) { pvTag.textContent = m === "m" ? "موبایل ۳۹۰px" : "دسکتاپ"; toast(m === "m" ? "پیش‌نمایش موبایل" : "پیش‌نمایش دسکتاپ"); }
+render();
+</script>
+</body></html>

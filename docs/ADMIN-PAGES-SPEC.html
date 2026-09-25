@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مشخصات و وایرفریم صفحات پنل مدیریت — CMS اختصاصی</title>
+<style>
+  :root { --bg:#0f1117; --surface:#171a23; --surface-2:#1e2230; --border:#2a3040; --text:#e6e9f0; --text-dim:#9aa3b5; --accent:#6366f1; --accent-2:#8b5cf6; --green:#34d399; --red:#f87171; --yellow:#fbbf24; --radius:12px; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Vazirmatn","Segoe UI",Tahoma,sans-serif; background:var(--bg); color:var(--text); line-height:1.8; }
+  .hero { background:linear-gradient(135deg,#1a1e2e,#23284a,#1e2230); border-bottom:1px solid var(--border); padding:48px 32px; text-align:center; }
+  .hero h1 { font-size:28px; margin-bottom:10px; }
+  .hero .sub { color:var(--text-dim); font-size:15px; }
+  .badge { display:inline-block; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:4px 14px; font-size:13px; color:var(--text-dim); margin-top:10px; margin-inline:3px; }
+  .container { max-width:1000px; margin:0 auto; padding:32px 20px 80px; }
+  section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:20px; }
+  h2 { font-size:20px; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid var(--accent); display:inline-block; color:#fff; }
+  h3 { font-size:16px; margin:16px 0 8px; color:var(--accent-2); }
+  p { color:var(--text-dim); margin-bottom:8px; }
+  ul,ol { padding-right:24px; color:var(--text-dim); margin-bottom:8px; }
+  li { margin-bottom:4px; }
+  table { width:100%; border-collapse:collapse; margin:8px 0; font-size:13.5px; }
+  th { background:var(--surface-2); color:#fff; text-align:right; padding:8px 12px; border:1px solid var(--border); }
+  td { padding:8px 12px; border:1px solid var(--border); color:var(--text-dim); vertical-align:top; }
+  code { background:var(--surface-2); border:1px solid var(--border); border-radius:5px; padding:1px 7px; font-size:12.5px; direction:ltr; display:inline-block; font-family:Consolas,monospace; color:#a5b4fc; }
+  pre { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:14px; direction:ltr; text-align:left; font-size:12px; font-family:Consolas,monospace; color:#c7d2fe; margin:10px 0; line-height:1.5; overflow-x:auto; }
+  .star { color:var(--yellow); font-weight:bold; }
+  .warn { color:var(--yellow); font-weight:bold; }
+  .danger { color:var(--red); font-weight:bold; }
+  .pill { display:inline-block; border-radius:5px; padding:1px 9px; font-size:11.5px; font-weight:600; }
+  .pill-green { background:rgba(52,211,153,.15); color:var(--green); }
+  .pill-blue { background:rgba(99,102,241,.15); color:#a5b4fc; }
+  .pill-red { background:rgba(248,113,113,.15); color:var(--red); }
+  .note { background:rgba(99,102,241,.08); border-right:3px solid var(--accent); border-radius:8px; padding:10px 14px; margin:10px 0; color:var(--text-dim); }
+  .footer { text-align:center; color:var(--text-dim); font-size:13px; padding:18px; border-top:1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🖥️ مشخصات و وایرفریم صفحات پنل مدیریت — CMS اختصاصی</h1>
+  <div class="sub">تعیین هر صفحه + امکانات دقیق + پیشنهاد وایرفریم — برای تحویل به متخصص UI/UX</div>
+  <div><span class="badge">ادغام ADMIN-PAGES-SPEC + WIREFRAME-SPEC</span><span class="badge">شهریور ۱۴۰۵</span></div>
+</div>
+
+<div class="container">
+
+<section>
+  <h2>🧭 نمای کلی دو پنل</h2>
+  <table>
+    <tr><th>پنل</th><th>کاربر</th><th>جایی که اجرا می‌شود</th></tr>
+    <tr><td><strong>پنل مشتری (Client Admin)</strong></td><td>مشتری + کارفرما</td><td>روی هر نصب — <code>site.com/admin</code></td></tr>
+    <tr><td><strong>پنل مرکزی (Central Panel)</strong></td><td>فقط کارفرما</td><td>فقط روی armanoskouei.ir</td></tr>
+  </table>
+  <div class="note">⚠️ هر دو پنل از «همان هسته UI» ساخته می‌شوند — کامپوننت‌های مشترک یک‌بار طراحی می‌شوند. ⚠️ صفحه ۱.۱۶ سمت <strong>سایت عمومی</strong> است → پنل مشتری = <strong>۱۵ صفحه + ۱ عمومی</strong></div>
+  <p><strong>دستورالعمل کلی:</strong> RTL فارسی + فونت Vazirmatn + دارک/لایت + لیست‌های داده‌محور + Empty states + <strong>⭐ شخصی‌سازی ظاهر پنل توسط کاربر</strong> (رنگ/فونت/شعاع/تراکم + Preset Themes — جزئیات در DESIGN-DIRECTIONS)</p>
+</section>
+
+<section>
+  <h2>📐 قرارداد چیدمان کلی (Shell مشترک)</h2>
+  <pre>┌─────────────────────────────────────────────────┐
+│  سایدبار (۲۶۰px، جمع‌شونده ۶۴px)  │  تاپ‌بار    │
+│  ├── لوگو + نام پنل                │  Breadcrumb │
+│  ├── آیتم‌های منو                  │  جستجو      │
+│  │   (هسته + پلاگین جدا)          │  مشاهده سایت│
+│  │   (مرکزی با رنگ اکسنت جدا)     │  تم + اعلان │
+│  ├── [بج‌های پویا]                │  منوی کاربر │
+│  └── کاربر فعلی + خروج             │            │
+├─────────────────────────────────────────────────┤
+│                    منطقه محتوا                    │
+└─────────────────────────────────────────────────┘</pre>
+  <ul>
+    <li>سایدبار از رجیستری منو رندر می‌شود (هاک <code>AdminMenu</code>)</li>
+    <li>پنل مرکزی = منوی مشتری + گروه «مرکزی» با رنگ بنفش</li>
+    <li>حالت تعلیق: فقط «اشتراک» فعال، بقیه قفل</li>
+    <li>موبایل: سایدبار → Drawer؛ زیر sm → Bottom nav</li>
+  </ul>
+</section>
+
+<section>
+  <h2>بخش ۱ — پنل مشتری (۱۴ صفحه + ۱ عمومی)</h2>
+
+  <h3>۱.۱ — ورود + 2FA <span class="pill pill-green">کم</span></h3>
+  <p><strong>مشخصات:</strong> ایمیل/نام کاربری + رمز + گام دوم کد 2FA + فراموشی رمز. اگر معلق → مستقیم به اشتراک. پیام خطای یکسان.</p>
+  <p><strong>وایرفریم:</strong> کارت وسط (~۴۰۰px) + لوگو. <strong>دو گام در یک کارت</strong> (انیمیشن). ⭐ حالت معلق → بعد از گام ۱ به «اشتراک من» + بنر زرد.</p>
+
+  <h3>۱.۲ — داشبورد <span class="pill pill-blue">متوسط</span></h3>
+  <p><strong>مشخصات:</strong> کارت آمار + ویجت پلاگین (با حالت خالی) + هشدارها + میانبرها.</p>
+  <p><strong>وایرفریم:</strong> ردیف ۱ خوش‌آمد+۳ میانبر | ردیف ۲ چهار کارت (اشتراک معلق → قرمز) | ردیف ۳ بنر هشدار | ردیف ۴ گرید ویجت ۲×۲ با حالت خالی.</p>
+
+  <h3>۱.۳ — مدیران + نقش‌ها <span class="pill pill-blue">متوسط</span></h3>
+  <p><strong>مشخصات:</strong> لیست مدیران + نقش/دسترسی. ⚠️ سوپرادمین <strong>در هیچ‌جا لیست نمی‌شود</strong>.</p>
+  <p><strong>وایرفریم:</strong> Tab دوگانه (مدیران/نقش‌ها). جدول + مودال + پنل چک‌باکس گروه‌بندی.</p>
+
+  <h3>۱.۴ — پروفایل <span class="pill pill-blue">متوسط</span> ⭐ «Section Slot»</h3>
+  <p><strong>مشخصات:</strong> اطلاعات پایه + رمز + بخش‌های 2FA داینامیک (پلاگینی).</p>
+  <p><strong>وایرفریم:</strong> دو ستونه. چپ = Container با <strong>اسلات رندر داینامیک پلاگینی</strong>. ⚠️ این الگو کلید سیستم است — در داشبورد/تنظیمات/سایدبار هم لازم.</p>
+
+  <h3>۱.۵ — مدیریت صفحات <span class="pill pill-red">زیاد ⭐⭐</span> (مهم‌ترین)</h3>
+  <p><strong>مشخصات:</strong> لیست + ویرایشگر بلوکی (Jodit + درگ‌اندروپ) + تاریخچه نسخه + سئو + پیش‌نمایش + انتشار.</p>
+  <p><strong>وایرفریم — دو حالت:</strong></p>
+  <ul>
+    <li><strong>لیست:</strong> نوار ابزار + جدول (عنوان/اسلاگ/وضعیت Badge/اکشن)</li>
+    <li><strong>ویرایشگر (Immersive بدون سایدبار):</strong> تاپ‌بار (ذخیره پیش‌نویس/پیش‌نمایش/انتشار) + بوم بلوک‌ها (درگ + drop zone + Drawer کتابخانه بلوک + Jodit داخل بلوک) + سایدبار Inspector (عمومی/سئو/نسخه‌ها)</li>
+  </ul>
+  <p>⭐ الگو: <strong>«Canvas + Inspector»</strong> (مثل Webflow). «انتخاب تصویر» → MediaPicker. بنر «ادمین دیگری در حال ویرایش».</p>
+
+  <h3>۱.۶ — مدیریت فایل <span class="pill pill-blue">متوسط</span></h3>
+  <p><strong>مشخصات:</strong> گالری/لیست + آپلود + سطل زباله + alt/URL.</p>
+  <p><strong>وایرفریم:</strong> گرید/لیست + آپلود DropZone + Drawer جزئیات. ⚠️ <strong>MediaPicker = اولین کامپوننت</strong> (۵ صفحه وابسته). نشانگر مصرف تیر.</p>
+
+  <h3>۱.۷ — تیکت‌ها <span class="pill pill-blue">متوسط</span></h3>
+  <p><strong>مشخصات:</strong> لیست + گفتگو + پاسخ + وضعیت + اعلان.</p>
+  <p><strong>وایرفریم:</strong> Master-Detail اسپلیت (RTL: لیست راست/گفتگو چپ). حباب چت + نوار پاسخ + چک‌باکس اطلاع‌رسانی.</p>
+
+  <h3>۱.۸ — تنظیمات سایت <span class="pill pill-green">کم</span></h3>
+  <p><strong>مشخصات:</strong> عنوان/لوگو/فاوآیکون/تلفن/ایمیل. <strong>وایرفریم:</strong> فرم کارتی + <strong>Sticky SaveBar</strong>.</p>
+
+  <h3>۱.۹ — شبکه‌های اجتماعی <span class="pill pill-green">کم</span></h3>
+  <p><strong>مشخصات:</strong> لینک + آیکون. <strong>وایرفریم:</strong> لیست ردیفی + آیکون پیش‌فرض + سوییچ + Empty state.</p>
+
+  <h3>۱.۱۰ — پلاگین‌ها <span class="pill pill-blue">متوسط</span></h3>
+  <p><strong>مشخصات:</strong> لیست + آپلود + فعال/غیرفعال + هشدار آپدیت. ⚠️ نصب/حذف فقط سوپرادمین.</p>
+  <p><strong>وایرفریم:</strong> جدول/کارت + سوییچ + Badge آپدیت. ⚠️ <strong>رندر شرطی نقش</strong> (<code>can(action)</code>).</p>
+
+  <h3>۱.۱۱ — هدر/فوتر <span class="pill pill-red">زیاد ⭐</span> — «Widget Area»</h3>
+  <p><strong>مشخصات:</strong> درگ‌اندروپ ویجت‌ها (لینک/لاگین/منو/لوگو) در هدر/فوتر.</p>
+  <p><strong>وایرفریم:</strong> پالت ویجت (راست) + بوم دو ناحیه (چپ) + Drawer تنظیمات (SchemaForm) + پیش‌نمایش زنده. ⚠️ با ۱.۱۲ یک طراحی مشترک.</p>
+
+  <h3>۱.۱۲ — بلوک‌های سایت <span class="pill pill-red">زیاد ⭐</span></h3>
+  <p><strong>مشخصات:</strong> درگ‌اندروپ بلوک‌های هر نوع صفحه. <strong>وایرفریم:</strong> Tab به‌ازای نوع صفحه + درگ + سوییچ + Drawer تنظیمات. ⚠️ فهرست انواع صفحه تعریف نشده.</p>
+
+  <h3>۱.۱۳ — قالب‌ها <span class="pill pill-blue">متوسط</span></h3>
+  <p><strong>مشخصات:</strong> گالری + فعال‌سازی + پیش‌نمایش + آپلود. <strong>وایرفریم:</strong> Theme Gallery (وردپرس). ⚠️ پیش‌نمایش iframe یا تصویر؟ (MVP: تصویر).</p>
+
+  <h3>۱.۱۴ — قالب پنل مدیریت <span class="pill pill-red">زیاد ⭐</span> (ظاهر پنل ادمین)</h3>
+  <p><strong>مشخصات:</strong> این صفحه برای <strong>شخصی‌سازی ظاهر خود پنل</strong> است (جدا از ۱.۱۳ که قالب سایت را مدیریت می‌کند). قالب پنل با CSS Variables (تغییر پویا بدون رندر مجدد) و ذخیره per-user.</p>
+  <ul>
+    <li>گرید ۵ کارت قالب (سپیده/عملیات/آریا/نرم/دیوان) با <strong>پیش‌نمایش مینیاتوری</strong></li>
+    <li>⭐ <strong>پیش‌نمایش زنده:</strong> کلیک روی کارت = اعمال فوری روی همان پنل (بدون ذخیره)</li>
+    <li>نشان «✔ فعال» برای قالب فعلی + نشان «پیش‌نمایش» هنگام انتخاب</li>
+    <li>نوار ذخیره چسبان: «انصراف از پیش‌نمایش» + «تأیید و ذخیره قالب»</li>
+    <li>سوییچ لایت/دارک + ۲-۳ رنگ‌بندی پیشنهادی (Preset) هر قالب (۱۵ ترکیب)</li>
+    <li>تنظیمات پیشرفته (اختیاری): شعاع/تراکم/فونت</li>
+  </ul>
+  <p><strong>وایرفریم:</strong> هدر (عنوان + نشان «قالب فعال») + گرید کارت‌های قالب (پیش‌نمایش مینیاتوری) + نوار ذخیره چسبان پایین.</p>
+
+  <p><strong>طراحی نهایی UIUX (قابل اجرا):</strong></p>
+  <ul>
+    <li><strong>State Machine:</strong> یک شیء <code>AppearanceState</code> = {dir, preset, mode, radius, density, fontSize}. فازها: <code>saved → previewing(dirty) → confirmed|canceled</code>. هر ورودی → mutate() (پیش‌نمایش)، confirm فقط با isDirty، cancel کل draft را دور می‌ریزد، reset از مسیر mutate.</li>
+    <li><strong>کامپوننت ThemeCard:</strong> کارت <code>role="radio"</code> + کیبورد. وضعیت‌ها: is-active (سبز ✔) / is-previewing (کهربایی ◉ — غلبه بر سبز) / is-default (چیپ پیش‌فرض) / is-disabled.</li>
+    <li><strong>مینیاتور Token-Driven:</strong> روی <code>.tc-preview</code> شش اتریبیوت (direction/mode/preset/radius/density/font) — بدون رنگ هاردکد، همه از <code>var(--bg)</code>, <code>var(--sidebar-bg)</code>, <code>var(--primary)</code>, <code>var(--grad)</code>. ساختار: مینی-سایدبار (راست RTL) + مینی-تاپ‌بار + مینی-بادی. هاور scale(1.04). امضای بصری از توکن‌ها (دیوان = سایدبار سرمه‌ای، آریا = گرادیان لوگو).</li>
+    <li><strong>پریست‌ها داخل کارت</strong> (radiogroup + swatch با --swatch + تیک). <strong>لایت/دارک در SaveBar</strong> (قطاعی).</li>
+    <li><strong>کامپوننت AppearancePanel</strong> (مشترک با پروفایل ۱.۴): mode/radius/density/font با SegmentedControl. در ۱.۱۴ آکاردئونی بسته.</li>
+    <li><strong>۱۱ حالت مرزی:</strong> ترک صفحه → مودال + beforeunload | لایت/دارک و پریست جزو draft | کلیک روی قالب فعال → پیش‌نمایش مجدد | تأیید بدون تغییر → disabled | شکست شبکه → خطا + تلاش مجدد | اولین ورود → پیش‌فرض نقش (سپیده مشتری/عملیات مرکزی) | ریلود → برگشت به saved + توست | قالب دارک در لایت → hint.</li>
+    <li><strong>۱۵ ترکیب پریست:</strong> سپیده (فیروزه‌ای/نیلی/یاقوتی) • عملیات (ایندیگو/ماتریس/امنیت) • آریا (بنفش-صورتی/اقیانوس/غروب گرادیانی) • نرم (سفالی/آسمانی/لیمویی) • دیوان (آبی/سبز دولتی/سرمه‌ای). <code>--primary-soft</code> با color-mix مشتق شود.</li>
+    <li><strong>DoD:</strong> ماشین حالت کامل | مینیاتور بدون هاردکد | پریست در کارت + مود در SaveBar | آکاردئون | ۱۱ حالت مرزی | بازنشانی + تمایز کهربایی/سبز | ThemeCard/AppearancePanel مستقل | RTL logical + اسکلتون | ضد FOUC.</li>
+  </ul>
+
+  <h3>۱.۱۵ — اشتراک من <span class="pill pill-red">زیاد ⭐</span> (قلب حلقه پول)</h3>
+  <p><strong>مشخصات:</strong> وضعیت پلن + دوره (۲۰٪ تخفیف سالانه) + فاکتور + پرداخت (درگاه در مرکزی) + تاریخچه + حالت تعلیق.</p>
+  <p><strong>وایرفریم:</strong> کارت وضعیت + فاکتورها (دکمه پرداخت سبز) + ⭐ <strong>جریان پرداخت = Stepper</strong> جدا.</p>
+
+  <h3>۱.۱۶ — تعلیق عمومی <span class="pill pill-green">کم</span> (سمت سایت)</h3>
+  <p><strong>مشخصات:</strong> پیام «اشتراک تمام شده» بدون لینک پنل. <strong>وایرفریم:</strong> تمام‌صفحه با برند سایت + دکمه تماس پشتیبانی.</p>
+</section>
+
+<section>
+  <h2>بخش ۲ — پنل مرکزی (۷ صفحه — فقط کارفرما)</h2>
+
+  <h3>۲.۱ — داشبورد مرکزی <span class="pill pill-blue">متوسط</span></h3>
+  <p>۴ کارت + هشدارهای اکشن‌دار (کیف پول قرمز/استخر زرد/تعلیق زرد/دیپلوی قرمز) + نمودارها. «نگاه اول صبح» کارفرما.</p>
+
+  <h3>۲.۲ — مدیریت مشتریان <span class="pill pill-red">زیاد ⭐</span> — Master-Detail با Drawer</h3>
+  <p>جدول غنی (نام/دامنه/تیر Tag/اشتراک Badge/سلامت دایره‌ای) + <strong>Drawer عریض (~۶۴۰px) با تب‌ها</strong> (اطلاعات/سرویس‌ها/بکاپ‌ها/فاکتورها) + «ارتقا تیر» (ConfirmDialog دومرحله‌ای) + «دسترسی پشتیبانی» (توکن یکبارمصرف + TTL).</p>
+
+  <h3>۲.۳ — مدیریت چابکان <span class="pill pill-red">زیاد ⭐</span> — Ops Console</h3>
+  <p>ردیف‌ها: کیف پول + استخر سرویس / سرویس مشتریان (start/stop/restart با ConfirmDialog) / دیپلوی‌ها / Reconciliation. ⭐ <strong>StatusBadge + ActionMatrix</strong>.</p>
+
+  <h3>۲.۴ — صورتحساب/Billing <span class="pill pill-red">زیاد ⭐</span> — Tab پنج‌گانه</h3>
+  <p>۱) پلن‌ها ۲) فاکتورها (قابل چاپ/PDF) ۳) پرداخت‌ها ۴) ⭐ <strong>کنترل تعلیق</strong> (مشتریان معلق + روز باقی‌مانده از ۷ روز) ۵) تنظیمات درگاه (ماسک + تست).</p>
+
+  <h3>۲.۵ — مانیتورینگ <span class="pill pill-blue">متوسط</span></h3>
+  <p>تب‌ها: گرید سلامت / لاگ متمرکز / آپتایم ۳۰ روز. ⚠️ منبع داده heartbeat تعریف نشده.</p>
+
+  <h3>۲.۶ — آپدیت‌ها <span class="pill pill-blue">متوسط</span></h3>
+  <p>جدول نصب‌ها + Badge آپدیت + رول‌اوت پلکانی (پایلوت→بچّه→همه) + Rollback برجسته. ⚠️ بدون مفهوم canary.</p>
+
+  <h3>۲.۷ — پروفایل اپراتور <span class="pill pill-green">کم</span></h3>
+  <p>2FA سخت‌افزاری + مدیریت توکن (بازتولید → step-up auth) + <strong>Kill-Switch</strong> (قرمز + تأیید دومرحله‌ای) + لاگ فعالیت.</p>
+</section>
+
+<section>
+  <h2>🧩 کامپوننت‌های مشترک (کلید سرعت)</h2>
+  <table>
+    <tr><th>کامپوننت</th><th>صفحات استفاده‌کننده</th></tr>
+    <tr><td><strong>DataTable</strong> (جستجو/فیلتر/مرتب/صفحه‌بندی/<code>can()</code>/Empty/Error)</td><td>۱۰ صفحه!</td></tr>
+    <tr><td><strong>⭐ MediaPicker مودال</strong></td><td>۱.۵، ۱.۶، ۱.۸، ۱.۱۱، ۱.۱۲</td></tr>
+    <tr><td><strong>⭐ DragDropList</strong> (dnd-kit)</td><td>۱.۵، ۱.۱۱، ۱.۱۲</td></tr>
+    <tr><td><strong>⭐ SchemaForm</strong> (فرم از JSON Schema)</td><td>تنظیمات بلوک/ویجت/پلاگین</td></tr>
+    <tr><td><strong>StatusBadge + ActionMatrix</strong></td><td>۲.۲، ۲.۳، ۲.۴، ۲.۶</td></tr>
+    <tr><td>Modal/Drawer + ConfirmDialog / SaveBar / EmptyState / StatCard / Alert / Stepper / EntityPicker / JalaliDatePicker / ConfirmStepper</td><td>همه‌جا</td></tr>
+  </table>
+  <div class="note">⭐ <strong>قرارداد معماری:</strong> سه کامپوننت «SchemaForm»، «MediaPicker»، «DragDropList» هسته سیستم هستند — بقیه حول آن‌ها طراحی شود.</div>
+</section>
+
+<section>
+  <h2>⚠️ شکاف‌های سند (قبل از وایرفریم)</h2>
+  <ol>
+    <li>ماتریس RBAC (ماژول‌ها + view/edit/delete)</li>
+    <li>اسکیمای بلوک/ویجت (فهرست + فیلد تنظیمات)</li>
+    <li>ناوبری کارفرما (سایدبار ترکیبی با گروه مرکزی جدا)</li>
+    <li>منبع داده مانیتورینگ (heartbeat)</li>
+    <li>صفحه بکاپ/بازیابی (پیشنهاد: داخل Drawer مشتری ۲.۲)</li>
+    <li>جریان Onboarding مشتری جدید</li>
+    <li>سقف منابع هر تیر (صفحه/فایل/گیگ Budget)</li>
+    <li>سیاست مالی (ارتقا/کاهش تیر، prorate، وضعیت منقضی)</li>
+    <li>تناقض تعداد صفحات (۱.۱۶ سمت سایته → پنل مشتری = ۱۵)</li>
+    <li>پیش‌نمایش قالب (iframe یا تصویر؟ MVP: تصویر)</li>
+    <li>تضاد ویرایش همزمان (۱.۵)</li>
+    <li>موبایل/ریسپانسیو پنل مشتری</li>
+    <li>بازیابی 2FA گم‌شده</li>
+  </ol>
+</section>
+
+<section>
+  <h2>🎯 اولویت‌بندی طراحی (MVP «حلقه پول»)</h2>
+  <table>
+    <tr><th>مرحله</th><th>صفحات</th><th>چرا</th></tr>
+    <tr><td><strong>۱ — هسته حلقه پول</strong></td><td><strong>۱.۵</strong> ویرایشگر، <strong>۱.۱۵</strong> اشتراک، <strong>۲.۴</strong> Billing، <strong>۲.۲</strong> مشتریان</td><td>محصول + درآمد + مشتری</td></tr>
+    <tr><td><strong>۲ — چهارچوب UI</strong></td><td><strong>۱.۱</strong> ورود+2FA، <strong>۱.۲</strong> داشبورد، <strong>۱.۸</strong> تنظیمات، <strong>۱.۹</strong> شبکه‌ها، <strong>۱.۱۴ قالب پنل</strong> + ۴ کامپوننت قراردادی</td><td>گیت ورود + اسکلت + شخصی‌سازی ظاهر</td></tr>
+    <tr><td><strong>۳ — وابستگی فنی</strong></td><td><strong>۱.۶</strong> فایل، <strong>۲.۱</strong> داشبورد مرکزی (+ اسکلت ۲.۳)</td><td>فایل برای بلوک تصویر لازم است</td></tr>
+    <tr><td><strong>۴ — تکمیل محصول</strong></td><td><strong>۱.۱۱</strong> هدر/فوتر، <strong>۱.۱۲</strong> بلوک‌ها، <strong>۱.۱۳</strong> قالب‌ها، <strong>۱.۱۶</strong> تعلیق</td><td>در MVP با یک قالب می‌شود</td></tr>
+    <tr><td><strong>۵ — عملیاتی</strong></td><td>۱.۳، ۱.۴، ۱.۷، ۱.۱۰، ۲.۳، ۲.۵، ۲.۶، ۲.۷</td><td>برای مشتری اول ضروری نیست</td></tr>
+  </table>
+  <p><strong>اصلاحات:</strong> ⬆️ ۱.۱ (ورود) در فاز ۱ | ⬆️ ۱.۶ (فایل) با ۱.۵ همزمان | ⬇️ ۱.۱۱/۱.۱۲ اولویت پایین در MVP | ⬆️ ۲.۳ (چابکان) اسکلت زود</p>
+</section>
+
+<section>
+  <h2>🎨 جهت‌های بصری (جزئیات در DESIGN-DIRECTIONS)</h2>
+  <table>
+    <tr><th>جهت</th><th>شخصیت</th><th>پیش‌فرض برای</th></tr>
+    <tr><td><strong>۱. سپیده</strong></td><td>مینیمال روشن، آرام</td><td>پنل مشتری</td></tr>
+    <tr><td><strong>۲. عملیات</strong></td><td>دارک DevOps، کنسول</td><td>پنل مرکزی</td></tr>
+    <tr><td><strong>۳. آریا</strong></td><td>رنگارنگ، گرادیانی</td><td>آژانس برندمحور</td></tr>
+    <tr><td><strong>۴. نرم</strong></td><td>سافت، دوستانه</td><td>مشتری غیرفنی</td></tr>
+    <tr><td><strong>۵. دیوان</strong></td><td>کلاسیک، وردپرسی</td><td>مهاجران وردپرس</td></tr>
+  </table>
+</section>
+
+</div>
+
+<div class="footer">
+  این سند مرجع تحویل به متخصص UI/UX است — بعد از طراحی اولیه، بازخورد به این سند برمی‌گردد.
+</div>
+
+</body>
+</html>

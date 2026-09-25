@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>اشتراک من</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+const suspended = new URLSearchParams(location.search).get("suspended") === "1";
+shell({ panel: "client", active: "subs", title: "اشتراک من", sub: "وضعیت پلن، فاکتورها و پرداخت", suspended });
+const banner = suspended ? `<div class="alert a-red">${ic("lock")}<div><b>حساب شما معلق است</b>سایت مسدود شده و فقط همین صفحه فعال است. با پرداخت فاکتور، اشتراک خودکار فعال می‌شود.</div></div>` : "";
+const inv = M.invoices.map(v => `<tr><td><div class="row-main">${v.n}</div><div class="row-sub">${v.p}</div></td><td>${v.a}</td><td>${v.d}</td><td>${badge(v.s)}</td><td>${v.s === "unpaid" ? `<button class="btn btn-primary btn-sm" onclick="payFlow()">پرداخت</button>` : `<button class="btn btn-ghost btn-sm" onclick="toast('چاپ فاکتور (دمو)')">چاپ</button>`}</td></tr>`).join("");
+page(`${banner}<div class="grid c3" style="margin-bottom:16px">
+  <div class="card card-pad"><div class="card-sub">پلن فعلی</div><div style="font-size:20px;font-weight:800">استاندارد</div><div style="margin-top:6px">${badge(suspended ? "suspended" : "active")}</div></div>
+  <div class="card card-pad"><div class="card-sub">سررسید بعدی</div><div style="font-size:20px;font-weight:800">۱۰ مهر ۱۴۰۵</div><div class="row-sub" style="margin-top:6px">${suspended ? "۷ روز گذشته" : "۱۲ روز مانده"}</div></div>
+  <div class="card card-pad"><div class="card-sub">مبلغ دوره</div><div style="font-size:20px;font-weight:800">۸۹۰٬۰۰۰ <small style="font-size:12px;font-weight:400">تومان/ماه</small></div><button class="btn btn-soft btn-sm" style="margin-top:8px" onclick="toast('مقایسه پلن‌ها (دمو)')">ارتقا به سازمانی</button></div>
+</div>
+<div class="card card-pad"><div class="card-title">فاکتورها</div><p class="card-sub">تاریخچه صورتحساب‌ها و پرداخت‌ها</p>
+<div class="table-wrap" style="border:0"><table class="data"><thead><tr><th>فاکتور</th><th>مبلغ</th><th>سررسید</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${inv}</tbody></table></div></div>`);
+let step = 1;
+function payFlow() {
+  step = 1; payRender();
+}
+function payRender() {
+  const steps = `<div class="stepper"><div class="step ${step > 1 ? "done" : "now"}"><span class="n">${step > 1 ? "✓" : "۱"}</span> فاکتور</div><div class="step-line"></div><div class="step ${step > 2 ? "done" : step === 2 ? "now" : ""}"><span class="n">${step > 2 ? "✓" : "۲"}</span> درگاه مرکزی</div><div class="step-line"></div><div class="step ${step === 3 ? "now" : ""}"><span class="n">۳</span> نتیجه</div></div>`;
+  let body = "";
+  if (step === 1) body = `<div class="kv"><span>فاکتور</span><span>۱۰۴۲ — مهر</span></div><div class="kv"><span>مبلغ قابل پرداخت</span><span>۸۹۰٬۰۰۰ تومان</span></div><button class="btn btn-primary btn-block" style="margin-top:12px" onclick="step=2;payRender()">انتقال به درگاه مرکزی</button>`;
+  if (step === 2) body = `<div class="alert a-blue">${ic("info")}<div>به درگاه پرداخت مرکزی (زرین‌پال) منتقل می‌شوید. این دموی نمایشی است.</div></div><div class="field"><label>شماره کارت (نمایشی)</label><input class="input" dir="ltr" style="text-align:left" value="6037 •••• •••• 1234"></div><button class="btn btn-success btn-block" onclick="step=3;payRender()">پرداخت ۸۹۰٬۰۰۰ تومان</button>`;
+  if (step === 3) body = `<div class="empty">${ic("check")}<b style="color:var(--success)">پرداخت موفق بود ✓</b>فاکتور ۱۰۴۲ تسویه شد${suspended ? " و تعلیق حساب <b>خودکار رفع شد</b>" : ""}.<div style="margin-top:12px"><button class="btn btn-primary" onclick="closeOver();${suspended ? "location.href='subscription.html'" : "toast('رسید چاپ شد')"}">${suspended ? "بازگشت به پنل فعال" : "مشاهده رسید"}</button></div></div>`;
+  openModal(`<div class="modal-head">پرداخت فاکتور ۱۰۴۲</div><div class="modal-body">${steps}${body}</div>`);
+}
+</script>
+</body></html>

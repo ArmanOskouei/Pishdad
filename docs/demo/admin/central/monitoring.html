@@ -1,0 +1,20 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مانیتورینگ</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}.hcell{display:flex;gap:10px;align-items:center;padding:14px}.dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}.g{background:var(--success)}.y{background:var(--warning)}.r{background:var(--danger)}.up{display:flex;gap:3px;margin-top:8px}.up i{flex:1;height:22px;border-radius:4px;background:var(--success-soft)}.up i.ok{background:var(--success)}.up i.bad{background:var(--danger)}.log{font-family:Consolas,monospace;font-size:12px;direction:ltr;text-align:left}.log div{padding:7px 10px;border-bottom:1px dashed var(--border)}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "central", active: "monitoring", title: "مانیتورینگ", sub: "سلامت نصب‌ها + لاگ متمرکز + آپتایم ۳۰ روزه" });
+page(`<div class="tabs"><button class="tab active" onclick="mTab(this,'m1')">سلامت</button><button class="tab" onclick="mTab(this,'m2')">لاگ متمرکز</button><button class="tab" onclick="mTab(this,'m3')">آپتایم ۳۰ روز</button></div>
+<div class="tabpane active" id="m1"><div class="hgrid">
+${[["فروشگاه نمونه","g","آنلاین — ۱۲ ثانیه پیش"],["شرکت آریا","g","آنلاین — ۱ دقیقه پیش"],["رستوران دیوان","y","کندی پاسخ — ۳ دقیقه پیش"],["کلینیک سپید","r","معلق — بدون heartbeat"]].map(h => `<div class="card hcell"><span class="dot ${h[1]}"></span><div><b style="font-size:13px">${h[0]}</b><div class="row-sub">${h[2]}</div></div></div>`).join("")}
+</div><p class="hint">منبع: heartbeat هر ۱ دقیقه از هر نصب (فرض MVP)</p></div>
+<div class="tabpane" id="m2"><div class="toolbar"><select class="select"><option>همه مشتریان</option><option>فروشگاه نمونه</option><option>رستوران دیوان</option></select><select class="select"><option>همه سطوح</option><option>error</option><option>warn</option><option>info</option></select><div class="search-box">${ic("search")}<input class="input" placeholder="جستجو در لاگ…"></div></div>
+<div class="card"><div class="log"><div>[ERROR] divan/next — deploy failed (exit 1) — 23:12</div><div>[WARN] divan/next — slow response 2.1s — 23:10</div><div>[INFO] shop/api — revalidate /services OK — 06:00</div><div>[INFO] shop/next — deploy v2.4.1 success — 05:58</div><div>[WARN] wallet — balance below 2 months — 05:00</div></div><div class="pager"><button class="btn btn-ghost btn-sm" onclick="toast('۵۰ خط بعدی بارگذاری شد')">بارگذاری بیشتر</button></div></div></div>
+<div class="tabpane" id="m3">${[["فروشگاه نمونه", 99.9, 0], ["شرکت آریا", 100, 0], ["رستوران دیوان", 97.2, 2]].map(u => `<div class="card card-pad" style="margin-bottom:12px"><div style="display:flex;gap:10px;align-items:center"><b>${u[0]}</b><span style="margin-inline-start:auto" class="badge ${u[1] > 99 ? "b-green" : "b-amber"}">${u[1]}٪</span></div><div class="up">${Array.from({ length: 30 }, (_, i) => `<i class="${i >= 30 - u[2] ? "bad" : "ok"}" title="روز ${i + 1}"></i>`).join("")}</div><div class="row-sub" style="margin-top:6px">۳۰ روز گذشته — ${u[2]} روز اختلال</div></div>`).join("")}</div>`);
+function mTab(b, id) { document.querySelectorAll(".tab").forEach(t => t.classList.remove("active")); document.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active")); b.classList.add("active"); document.getElementById(id).classList.add("active"); }
+</script>
+</body></html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>صورتحساب مرکزی</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "central", active: "billing", title: "صورتحساب / Billing", sub: "پلن‌ها، فاکتورها، پرداخت‌ها، تعلیق و درگاه" });
+actions(`<button class="btn btn-primary" onclick="toast('فاکتور جدید (دمو)')">${ic("plus")} فاکتور جدید</button>`);
+const inv = [...M.invoices, { n: "فاکتور ۱۰۴۱", p: "کلینیک سپید — تیر Standard", a: "۱٬۴۹۰٬۰۰۰ تومان", d: "۱۴۰۵/۰۶/۲۸", s: "unpaid" }].map(v => `<tr><td><div class="row-main">${v.n}</div><div class="row-sub">${v.p}</div></td><td>${v.a}</td><td>${v.d}</td><td>${badge(v.s)}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="printInv('${v.n}')">چاپ</button> ${v.s === "unpaid" ? `<button class="btn btn-soft btn-sm" onclick="toast('یادآوری پیامکی ارسال شد')">یادآوری</button>` : ""}</td></tr>`).join("");
+page(`<div class="tabs">
+<button class="tab active" onclick="bTab(this,'b1')">فاکتورها</button><button class="tab" onclick="bTab(this,'b2')">پلن‌ها</button><button class="tab" onclick="bTab(this,'b3')">پرداخت‌ها</button><button class="tab" onclick="bTab(this,'b4')">کنترل تعلیق</button><button class="tab" onclick="bTab(this,'b5')">تنظیمات درگاه</button></div>
+<div class="tabpane active" id="b1"><div class="table-wrap"><table class="data"><thead><tr><th>فاکتور</th><th>مبلغ</th><th>سررسید</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${inv}</tbody></table></div></div>
+<div class="tabpane" id="b2"><div class="grid c3">
+${[["Budget", "۴۹۰٬۰۰۰", "سایت شرکتی کوچک، ۱۰ صفحه، ۲ گیگ"], ["Standard", "۸۹۰٬۰۰۰", "فروشگاهی، ۵۰ صفحه، ۱۰ گیگ"], ["Enterprise", "۱٬۹۹۰٬۰۰۰", "اختصاصی کامل + SLA"]].map(p => `<div class="card card-pad"><div class="card-title">${p[0]}</div><div style="font-size:19px;font-weight:800;margin:6px 0">${p[1]} <small style="font-size:11.5px;font-weight:400">تومان/ماه</small></div><p class="card-sub">${p[2]}</p><button class="btn btn-ghost btn-sm btn-block" onclick="toast('ویرایش پلن (دمو)')">ویرایش</button></div>`).join("")}
+</div></div>
+<div class="tabpane" id="b3"><div class="table-wrap"><table class="data"><thead><tr><th>پرداخت</th><th>مبلغ</th><th>درگاه</th><th>وضعیت</th><th>زمان</th></tr></thead><tbody>
+<tr><td><div class="row-main">TRX-88121</div><div class="row-sub">فاکتور ۱۰۳۱</div></td><td>۸۹۰٬۰۰۰</td><td>زرین‌پال</td><td>${badge("paid")}</td><td>۱۴۰۵/۰۶/۱۰</td></tr>
+<tr><td><div class="row-main">TRX-88004</div><div class="row-sub">فاکتور ۱۰۲۰</div></td><td>۸۹۰٬۰۰۰</td><td>زرین‌پال</td><td>${badge("paid")}</td><td>۱۴۰۵/۰۵/۱۰</td></tr>
+</tbody></table></div></div>
+<div class="tabpane" id="b4"><div class="alert a-amber">${ic("alert")}<div><b>طیف تعلیق:</b> یادآوری D-7 تا D-0 ← تعلیق در سررسید ← هشدار D+5 ← حذف خودکار D+7</div></div>
+<div class="table-wrap"><table class="data"><thead><tr><th>مشتری</th><th>وضعیت</th><th>روز باقی‌مانده</th><th>عملیات</th></tr></thead><tbody>
+<tr><td><div class="row-main">کلینیک سپید</div><div class="row-sub">معلق از ۱۴۰۵/۰۶/۲۸</div></td><td>${badge("suspended")}</td><td>۳ روز تا حذف</td><td style="white-space:nowrap"><button class="btn btn-success btn-sm" onclick="toast('اشتراک فعال شد ✓')">رفع تعلیق</button> <button class="btn btn-danger-soft btn-sm" onclick="confirmDlg({title:'حذف نصب؟',text:'کل دیتا و سرویس‌های کلینیک سپید حذف دائم می‌شود.',danger:true,ok:'حذف دائم',onOk:()=>toast('نصب حذف شد')})">حذف</button></td></tr>
+<tr><td><div class="row-main">فروشگاه نمونه</div><div class="row-sub">یادآوری فعال</div></td><td>${badge("pending")}</td><td>۱۲ روز تا سررسید</td><td><button class="btn btn-ghost btn-sm" onclick="toast('یادآوری ارسال شد')">ارسال یادآوری</button></td></tr>
+</tbody></table></div></div>
+<div class="tabpane" id="b5"><div class="card card-pad" style="max-width:560px"><div class="card-title">درگاه پرداخت مرکزی</div><p class="card-sub">تنها درگاه فعال سیستم — پرداخت همه مشتریان از اینجا می‌گذرد</p>
+<div class="field"><label>درگاه فعال</label><select class="select"><option>زرین‌پال</option><option>آیدی‌پی</option></select></div>
+<div class="field"><label>کلید اتصال (ماسک‌شده)</label><input class="input" dir="ltr" style="text-align:left" value="zp_••••••••••3f9a" readonly></div>
+<div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="toast('اتصال موفق ✓ (۱٬۰۰۰ تومان تست)')">تست اتصال</button><button class="btn btn-primary" onclick="toast('تنظیمات ذخیره شد')">ذخیره</button></div></div></div>`);
+function bTab(btn, id) { document.querySelectorAll(".tab").forEach(t => t.classList.remove("active")); document.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active")); btn.classList.add("active"); document.getElementById(id).classList.add("active"); }
+function printInv(n) {
+  openModal(`<div class="modal-body" id="printArea"><div style="text-align:center;margin-bottom:14px"><b style="font-size:17px">فاکتور رسمی — ${n}</b><div class="row-sub">آرمان اسکوئی — خدمات میزبانی CMS</div></div><div class="kv"><span>مشتری</span><span>فروشگاه نمونه</span></div><div class="kv"><span>شرح</span><span>پلن استاندارد — مهر ۱۴۰۵</span></div><div class="kv"><span>مبلغ</span><span>۸۹۰٬۰۰۰ تومان</span></div><div class="kv"><span>وضعیت</span><span>پرداخت‌نشده</span></div></div><div class="modal-foot"><button class="btn btn-primary btn-sm" onclick="window.print()">چاپ</button><button class="btn btn-ghost btn-sm" onclick="closeOver()">بستن</button></div>`);
+}
+</script>
+</body></html>

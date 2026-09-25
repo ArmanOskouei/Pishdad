@@ -1,0 +1,22 @@
+#!/bin/sh
+# Container entrypoint: wait for Postgres, ensure vendor/, fix perms, run php-fpm.
+set -e
+
+DB_HOST="${DB_HOST:-db}"
+
+echo "Waiting for Postgres at ${DB_HOST}:${DB_PORT:-5432}..."
+until php -r '$h=getenv("DB_HOST");$p=getenv("DB_PORT");$u=getenv("DB_USERNAME");$w=getenv("DB_PASSWORD");try{new PDO("pgsql:host=$h;port=$p;connect_timeout=2",$u,$w);exit(0);}catch(Throwable $e){exit(1);}' >/dev/null 2>&1; do
+  sleep 2
+done
+echo "Postgres is up."
+
+# Fresh clone (no vendor/ on host): install inside the container.
+if [ ! -f vendor/autoload.php ]; then
+  echo "vendor/ missing — running composer install..."
+  composer install --no-interaction --prefer-dist
+fi
+
+mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
+
+# -R: dev image runs FPM as root (see zz-docker.conf); production must use non-root.
+exec php-fpm83 -F -R

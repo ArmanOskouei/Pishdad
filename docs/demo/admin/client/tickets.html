@@ -1,0 +1,37 @@
+<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>تیکت‌ها</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="../assets/css/tokens.css"><link rel="stylesheet" href="../assets/css/shell.css"><link rel="stylesheet" href="../assets/css/components.css">
+<style>.split{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}.tk{padding:12px 14px;border-radius:var(--radius-md);cursor:pointer;border:1px solid transparent;min-height:44px}.tk:hover{background:var(--surface-2)}.tk.on{background:var(--primary-soft);border-color:transparent}.backbtn{display:none}@media(max-width:820px){.split{grid-template-columns:1fr}.split.list-mode .conv{display:none}.split.conv-mode .tlist{display:none}.backbtn{display:inline-flex}}</style>
+</head><body><div id="shell"></div>
+<script src="../assets/js/mock.js"></script><script src="../assets/js/layout.js"></script>
+<script>
+shell({ panel: "client", active: "tickets", title: "تیکت‌ها", sub: "گفتگو با بازدیدکنندگان — اعلان پیامکی خودکار" });
+const T = [
+  { t: "خطا در درگاه پرداخت", u: "مریم رضایی", s: "open", p: "فوری", d: "۲ ساعت پیش", n: 3 },
+  { t: "تغییر لوگوی سایت", u: "علی محمدی", s: "pending", p: "عادی", d: "دیروز", n: 1 },
+  { t: "آموزش ویرایشگر بلوکی", u: "سارا کریمی", s: "closed", p: "عادی", d: "۳ روز پیش", n: 5 },
+];
+const list = T.map((t, i) => `<div class="tk${i === 0 ? " on" : ""}" onclick="openT(${i},this)"><div style="display:flex;gap:8px;align-items:center"><b style="font-size:13px">${t.t}</b><span style="margin-inline-start:auto">${badge(t.s)}</span></div><div class="row-sub" style="margin-top:4px">${t.u} — ${t.d} — ${t.n} پیام ${t.p === "فوری" ? "— <b style='color:var(--danger)'>فوری</b>" : ""}</div></div>`).join("");
+page(`<div class="split list-mode" id="split">
+<div class="card card-pad tlist"><div class="toolbar"><div class="search-box">${ic("search")}<input class="input" placeholder="جستجو…"></div></div><select class="select" style="width:100%;margin-bottom:12px"><option>همه وضعیت‌ها</option><option>باز</option><option>در انتظار</option><option>بسته‌شده</option></select><div style="display:flex;flex-direction:column;gap:4px">${list}</div></div>
+<div class="card card-pad conv"><div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><button class="btn btn-ghost btn-sm backbtn" onclick="goList()">${ic("back")} لیست</button><div><b id="ct">خطا در درگاه پرداخت</b><div class="row-sub" id="cs">مریم رضایی — باز — فوری</div></div><div style="flex:1"></div><span id="cb">${badge("open")}</span></div>
+<div class="chat" id="chat">
+  <div class="msg in">سلام، موقع پرداخت خطا می‌گیرم. لطفاً بررسی کنید.<span class="t">۱۰:۰۲ — مریم</span></div>
+  <div class="msg out">سلام! بررسی شد؛ درگاه به‌روزرسانی می‌خواهد. تا یک ساعت دیگر درست می‌شود.<span class="t">۱۰:۴۰ — شما ✓✓</span></div>
+  <div class="msg in">ممنون، منتظرم 🙏<span class="t">۱۰:۴۵ — مریم</span></div>
+</div>
+<div class="field" style="margin-top:14px"><label>پاسخ شما</label><textarea class="input" id="reply" placeholder="بنویسید… (Enter = ارسال)"></textarea></div>
+<label class="perm" style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--text-muted)"><input type="checkbox" checked style="width:18px;height:18px;accent-color:var(--primary)"> اطلاع‌رسانی پیامکی به فرستنده</label>
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary" onclick="send()">ارسال پاسخ</button><button class="btn btn-ghost" onclick="closeT()">بستن تیکت</button></div>
+</div></div>`);
+const sp = document.getElementById("split");
+function openT(i, el) { document.querySelectorAll(".tk").forEach(x => x.classList.remove("on")); el.classList.add("on"); const t = T[i]; ct.textContent = t.t; cs.textContent = `${t.u} — ${t.d}`; cb.innerHTML = badge(t.s); sp.classList.remove("list-mode"); sp.classList.add("conv-mode"); }
+function goList() { sp.classList.add("list-mode"); sp.classList.remove("conv-mode"); }
+function send() { const v = reply.value.trim(); if (!v) { toast("متن پاسخ خالی است"); return; } chat.insertAdjacentHTML("beforeend", `<div class="msg out">${v}<span class="t">الان — شما ✓</span></div>`); reply.value = ""; toast("پاسخ ارسال و پیامک شد ✓"); }
+reply.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+function closeT() { confirmDlg({ title: "بستن تیکت؟", text: "تیکت بسته می‌شود ولی تاریخچه می‌ماند.", onOk: () => { cb.innerHTML = badge("closed"); toast("تیکت بسته شد"); } }); }
+if (window.innerWidth <= 820) sp.classList.add("list-mode");
+</script>
+</body></html>

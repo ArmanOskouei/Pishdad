@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>۵ جهت بصری پنل مدیریت — CMS اختصاصی</title>
+<style>
+  :root { --bg:#0f1117; --surface:#171a23; --surface-2:#1e2230; --border:#2a3040; --text:#e6e9f0; --text-dim:#9aa3b5; --accent:#6366f1; --accent-2:#8b5cf6; --green:#34d399; --red:#f87171; --yellow:#fbbf24; --radius:12px; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Vazirmatn","Segoe UI",Tahoma,sans-serif; background:var(--bg); color:var(--text); line-height:1.8; }
+  .hero { background:linear-gradient(135deg,#1a1e2e,#23284a,#1e2230); border-bottom:1px solid var(--border); padding:48px 32px; text-align:center; }
+  .hero h1 { font-size:26px; margin-bottom:10px; }
+  .hero .sub { color:var(--text-dim); font-size:15px; }
+  .badge { display:inline-block; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:4px 14px; font-size:13px; color:var(--text-dim); margin-top:10px; }
+  .container { max-width:1000px; margin:0 auto; padding:32px 20px 80px; }
+  section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:20px; }
+  h2 { font-size:20px; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid var(--accent); display:inline-block; color:#fff; }
+  h3 { font-size:16px; margin:16px 0 8px; color:var(--accent-2); }
+  p { color:var(--text-dim); margin-bottom:8px; }
+  ul,ol { padding-right:24px; color:var(--text-dim); margin-bottom:8px; }
+  li { margin-bottom:4px; }
+  table { width:100%; border-collapse:collapse; margin:8px 0; font-size:13.5px; }
+  th { background:var(--surface-2); color:#fff; text-align:right; padding:8px 12px; border:1px solid var(--border); }
+  td { padding:8px 12px; border:1px solid var(--border); color:var(--text-dim); vertical-align:top; }
+  code { background:var(--surface-2); border:1px solid var(--border); border-radius:5px; padding:1px 7px; font-size:12.5px; direction:ltr; display:inline-block; font-family:Consolas,monospace; color:#a5b4fc; }
+  pre { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:14px; direction:ltr; text-align:left; font-size:12px; font-family:Consolas,monospace; color:#c7d2fe; margin:10px 0; line-height:1.5; overflow-x:auto; }
+  .note { background:rgba(99,102,241,.08); border-right:3px solid var(--accent); border-radius:8px; padding:10px 14px; margin:10px 0; color:var(--text-dim); }
+  .footer { text-align:center; color:var(--text-dim); font-size:13px; padding:18px; border-top:1px solid var(--border); }
+  .d1 { border-right:4px solid #0D9488; }
+  .d2 { border-right:4px solid #6366F1; }
+  .d3 { border-right:4px solid #EC4899; }
+  .d4 { border-right:4px solid #E07A5F; }
+  .d5 { border-right:4px solid #1D4ED8; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🎨 ۵ جهت بصری (Design Direction) — پنل مدیریت CMS</h1>
+  <div class="sub">برای انتخاب جهت بصری پنل ادمین — سپس اعمال در کل ۲۱ صفحه</div>
+  <div><span class="badge">DeepSeek V4 Flash</span><span class="badge">۱۵ ترکیب رنگی (۵ جهت × ۳ پریست)</span></div>
+</div>
+
+<div class="container">
+
+<section>
+  <h2>⭐ معماری سفارشی‌سازی ظاهر (الزام جدید)</h2>
+  <p>پنل ادمین <strong>خودش قابل شخصی‌سازی توسط هر کاربر</strong> است:</p>
+  <ul>
+    <li>تنظیم <strong>رنگ پس‌زمینه، فونت، شعاع گوشه‌ها، تراکم چیدمان</strong></li>
+    <li><strong>چند رنگ‌بندی پیشنهادی (Preset Themes)</strong> — ۵ جهت × ۳ پریست = ۱۵ ترکیب</li>
+    <li>دارک/لایت + ذخیره <strong>per-user</strong></li>
+    <li>پیاده‌سازی با <strong>CSS Variables</strong> (تغییر پویا بدون رندر مجدد)</li>
+  </ul>
+  <pre>:root {
+  --primary:#0D9488; --accent:#F59E0B;
+  --bg:#F7F7F8; --surface:#FFFFFF; --text:#1A1A1E;
+  --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
+  --font:"Vazirmatn", system-ui, sans-serif;
+  --sidebar-w:260px; --topbar-h:64px; --density:1;
+}
+[data-theme="dark"] { /* بازتعریف */ }
+[data-radius="sharp"] { --radius-sm:2px; --radius-md:4px; }
+[data-radius="rounded"] { --radius-sm:8px; --radius-md:14px; }</pre>
+</section>
+
+<section class="d1">
+  <h2>جهت ۱ — «سپیده» (Sahar): مینیمال روشن</h2>
+  <p><strong>شخصیت:</strong> روشن، خنثی، White Space زیاد. حس سایت‌های مدرن فارسی. <strong>پیش‌فرض پنل مشتری.</strong></p>
+  <table>
+    <tr><th>توکن</th><th>لایت</th><th>دارک</th></tr>
+    <tr><td>--bg</td><td>#F7F7F8</td><td>#0E1114</td></tr>
+    <tr><td>--surface</td><td>#FFFFFF</td><td>#161A1F</td></tr>
+    <tr><td>--primary</td><td>#0D9488 فیروزه‌ای</td><td>#2DD4BF</td></tr>
+    <tr><td>--accent</td><td>#F59E0B کهربایی</td><td>#FBBF24</td></tr>
+  </table>
+  <ul>
+    <li><strong>تایپو:</strong> وزن ۳۰۰-۷۰۰، ارتفاع خط 1.8، اعداد tabular</li>
+    <li><strong>شعاع:</strong> کارت 12px، دکمه 8px — تراکم loose</li>
+    <li><strong>سبک:</strong> دکمه تخت، کارت سفید + بوردر، سایدبار سفید با نوار 3px</li>
+  </ul>
+  <p><strong>Presets:</strong> فیروزه‌ای (پیش‌فرض) / نیلی #4F46E5 / یاقوتی #E11D48</p>
+</section>
+
+<section class="d2">
+  <h2>جهت ۲ — «عملیات» (Amaliyat): دارک حرفه‌ای — کنسول اپراتور</h2>
+  <p><strong>شخصیت:</strong> حس DevOps. تیره، متراکم، StatusBadge نئونی. <strong>پیش‌فرض پنل مرکزی.</strong></p>
+  <table>
+    <tr><th>توکن</th><th>لایت (فرعی)</th><th>دارک (پایه)</th></tr>
+    <tr><td>--bg</td><td>#F4F5F7</td><td>#0A0B0F</td></tr>
+    <tr><td>--surface</td><td>#FFFFFF</td><td>#12141A</td></tr>
+    <tr><td>--primary</td><td>#4F46E5 ایندیگو</td><td>#6366F1</td></tr>
+    <tr><td>--accent</td><td>#0891B2</td><td>#22D3EE سایان</td></tr>
+  </table>
+  <ul>
+    <li><strong>تایپو:</strong> وزن تا 900، ارتفاع 1.5، اعداد لاگ monospace</li>
+    <li><strong>شعاع:</strong> کارت 8px، دکمه 6px — تراکم compact</li>
+    <li><strong>سبک:</strong> کارت تیره + بوردر، جدول متراکم + StatusBadge، سایدبار مشکی‌تر</li>
+  </ul>
+  <p><strong>Presets:</strong> ایندیگو (پیش‌فرض) / ماتریس #10B981 / امنیت #F97316</p>
+</section>
+
+<section class="d3">
+  <h2>جهت ۳ — «آریا» (Arya): مدرن رنگارنگ</h2>
+  <p><strong>شخصیت:</strong> جسور، جوان، گرادیانی. حس آژانس دیجیتال / SaaS. برای آژانس‌های برندمحور.</p>
+  <table>
+    <tr><th>توکن</th><th>لایت</th><th>دارک</th></tr>
+    <tr><td>--bg</td><td>#F5F6FB</td><td>#0F0B1E</td></tr>
+    <tr><td>--surface</td><td>#FFFFFF</td><td>#171229</td></tr>
+    <tr><td>--primary</td><td>#7C3AED بنفش</td><td>#8B5CF6</td></tr>
+    <tr><td>--accent</td><td>#EC4899 صورتی</td><td>#F472B6</td></tr>
+  </table>
+  <ul>
+    <li><strong>تایپو:</strong> وزن تا 900، اعداد آمار وزن 900</li>
+    <li><strong>شعاع:</strong> کارت 16px، دکمه 12px — سایه رنگی</li>
+    <li><strong>سبک:</strong> دکمه گرادیان بنفش→صورتی، آیکون در مربع رنگی، کارت ویژه با گرادیان</li>
+  </ul>
+  <p><strong>Presets:</strong> بنفش-صورتی (پیش‌فرض) / اقیانوس #0EA5E9 / غروب #F97316</p>
+</section>
+
+<section class="d4">
+  <h2>جهت ۴ — «نرم» (Narm): سافت و دوستانه</h2>
+  <p><strong>شخصیت:</strong> گرم، گرد، ملایم. کاهش اضطراب مشتری غیرفنی. عالی برای حالت تعلیق/هشدار.</p>
+  <table>
+    <tr><th>توکن</th><th>لایت</th><th>دارک</th></tr>
+    <tr><td>--bg</td><td>#FAF7F2 کرم</td><td>#1B1715</td></tr>
+    <tr><td>--surface</td><td>#FFFFFF</td><td>#251F1C</td></tr>
+    <tr><td>--primary</td><td>#E07A5F سفالی</td><td>#E8916F</td></tr>
+    <tr><td>--accent</td><td>#81B29A سبز مریم‌گلی</td><td>#9CC5AC</td></tr>
+  </table>
+  <ul>
+    <li><strong>تایپو:</strong> وزن 300-700، ارتفاع خط 1.9 — خوانایی ماکسیمم</li>
+    <li><strong>شعاع:</strong> کارت 20px، دکمه pill، فیلد 14px — تراکم loose</li>
+    <li><strong>سبک:</strong> متن‌های دوستانه («چند روز تا سررسید مونده»)، خطرناک = قرمز گرم</li>
+  </ul>
+  <p><strong>Presets:</strong> سفالی (پیش‌فرض) / آسمانی #88A0B8 / لیمویی #A8C686</p>
+</section>
+
+<section class="d5">
+  <h2>جهت ۵ — «دیوان» (Divan): کلاسیک مدیریتی</h2>
+  <p><strong>شخصیت:</strong> سنتی، اداری. حس وردپرس و cPanel — آشنا برای ایرانی‌ها. برای مهاجران وردپرس + برندهای رسمی.</p>
+  <table>
+    <tr><th>توکن</th><th>لایت</th><th>دارک</th></tr>
+    <tr><td>--bg</td><td>#EEF1F5</td><td>#101418</td></tr>
+    <tr><td>--surface</td><td>#FFFFFF</td><td>#151A20</td></tr>
+    <tr><td>--primary</td><td>#1D4ED8 آبی کبالت</td><td>#3B82F6</td></tr>
+    <tr><td>--accent</td><td>#0E7490</td><td>#22D3EE</td></tr>
+  </table>
+  <ul>
+    <li><strong>تایپو:</strong> بدنه 13.5px فشرده، ارتفاع 1.6</li>
+    <li><strong>شعاع:</strong> کارت 6px، دکمه 4px — تراکم compact</li>
+    <li><strong>سبک:</strong> سایدبار آبی تیره #1E293B، جدول zebra (الگوی wp-admin)، دکمه انتشار سبز</li>
+  </ul>
+  <p><strong>Presets:</strong> آبی کلاسیک (پیش‌فرض) / سبز دولتی #047857 / سرمه‌ای #1E3A8A</p>
+</section>
+
+<section>
+  <h2>🎯 جدول مقایسه ۵ جهت</h2>
+  <table>
+    <tr><th>معیار</th><th>سپیده</th><th>عملیات</th><th>آریا</th><th>نرم</th><th>دیوان</th></tr>
+    <tr><td><strong>بهترین برای</strong></td><td>پنل مشتری (پیش‌فرض)</td><td>پنل مرکزی</td><td>آژانس برندمحور</td><td>مشتری غیرفنی</td><td>مهاجران وردپرس</td></tr>
+    <tr><td><strong>شخصیت</strong></td><td>تمیزی و تنفس</td><td>سرعت و تراکم</td><td>جذابیت</td><td>آرامش</td><td>آشنایی</td></tr>
+    <tr><td><strong>تراکم</strong></td><td>راحت</td><td>فشرده</td><td>متوسط</td><td>خیلی راحت</td><td>فشرده</td></tr>
+    <tr><td><strong>شعاع</strong></td><td>10px</td><td>4-6px</td><td>14-16px</td><td>18-20px</td><td>4-6px</td></tr>
+    <tr><td><strong>دارک/لایت</strong></td><td>هر دو</td><td>دارک اصلی</td><td>هر دو پرانرژی</td><td>لایت اصلی</td><td>لایت اصلی</td></tr>
+    <tr><td><strong>حس هشدار</strong></td><td>ملایم</td><td>فنی/فوری</td><td>برجسته</td><td>دوستانه</td><td>رسمی</td></tr>
+    <tr><td><strong>ریسک</strong></td><td>کم</td><td>کم</td><td>زیاد (شلوغی)</td><td>متوسط</td><td>کم (قدیمی)</td></tr>
+  </table>
+  <div class="note">
+    ✅ <strong>توصیه استراتژیک:</strong> «سپیده» پیش‌فرض پنل مشتری + «عملیات» پیش‌فرض پنل مرکزی. بقیه جهت‌ها به‌صورت Preset Theme کامل در تنظیمات ظاهر — هر کاربر از هر ۵ جهت × ۳ رنگ‌بندی استفاده کند (۱۵ ترکیب).
+  </div>
+</section>
+
+</div>
+
+<div class="footer">
+  این سند برای انتخاب جهت بصری پنل ادمین است — بعد از انتخاب، به WIREFRAME-SPEC و ADMIN-PAGES-SPEC برمی‌گردد.
+</div>
+
+</body>
+</html>
