@@ -264,3 +264,293 @@
 - ارسال خودکار کد ۲FA بعد از ۶ رقم (debounce ۳۰۰ms) ✅
 - نوار پایین موبایل قابل تنظیم با پیش‌فرض صفحات روزانه و ذخیره سراسری `ui/global` ✅
 - ممیزی ریسپانسیو با ۲۹ اسکرین‌شات ✅
+
+---
+
+# 🔴 بخش K2 — نتیجهٔ ممیزی متخصص (۱۴۰۵/۰۶/۰۴)
+
+## ⛔ سه کشفی که ترتیب کار را عوض می‌کند
+
+### کشف ۱ — هیچ‌کدام از ۸ نقطهٔ اتصال در runtime کار نمی‌کند
+
+`PluginPackageContract::EXTENSION_POINTS` فقط **سه** مصرف‌کننده دارد و هر سه «اعتبارسنجی/نمایش»‌اند نه «اجرا»:
+`PluginPackageValidator.php:245-270` · `:356-371` · `PackageAnalyzer.tsx:251-270`.
+
+یعنی پلاگینی که دقیقاً طبق قرارداد بنویسد `panel.extensions: [{point:"admin.menu"}]`، بسته‌اش سبز می‌گیرد و **هیچ اتفاقی نمی‌افتد.**
+
+| نقطه | وضعیت واقعی | شاهد |
+|---|---|---|
+| `site.page_type` | ✅ **تنها نقطهٔ واقعی** | `ManifestRegistry.php:136-165` · `LayoutController.php:21` · `LayoutsTest.php:149` |
+| `site.header_widget` | ⚠️ بک‌اند merge، فرانت `return null` | `ManifestRegistry.php:86-117` · `Chrome.tsx:83-85` |
+| `site.footer_widget` | ⚠️ همان | همان |
+| `site.block_type` | ⚠️ بک‌اند merge، فرانت `default: return null` | `BlockRenderer.tsx:195-199` |
+| `admin.menu` | ❌ منو یک `const` هاردکد است | `lib/menu.ts:6-48` (static) · `Shell.tsx:22,30` |
+| `admin.dashboard_slot` | ❌ بک‌اند `[]`، فرانت فقط عنوان‌ها را در `<ul>` | `DashboardController.php:106-115` · `dashboard/page.tsx:155-163` |
+| `admin.settings_schema` | ❌ صفحهٔ schema-driven وجود ندارد؛ ۱۴ `useState` دستی | `SettingsClient.tsx:11-25` |
+| `admin.data_collection` | ❌ `DataTable` ستون‌اش **تابع** می‌خواهد ⇒ غیرقابل توصیف | `DataTable.tsx:5` |
+
+### کشف ۲ — دو جهان موازی و ناسازگار
+
+| کلید واقعی در مانیفست | خوانندهٔ امروز | معادل ادعاشده در قرارداد |
+|---|---|---|
+| `manifest.widgets.header/footer` | `ManifestRegistry.php:86-117` | `site.header_widget` / `site.footer_widget` |
+| `manifest.page_types` | `ManifestRegistry.php:146-160` | `site.page_type` |
+| `manifest.permissions` | `ManifestRegistry.php:271-305` | **در فهرست نیست** |
+| `manifest.hooks` | `PluginController.php:380-397` | **در فهرست نیست** |
+
+**این ریشهٔ همهٔ گیجی‌هاست.** گران‌ترین تصمیم پروژه: کدام یک مرجع شود. → I1 در K3.
+
+### کشف ۳ — K1.6.4 «تمام» اعلام شد ولی مسیر اصلی کاربر خراب است
+
+`PackageAnalyzer.tsx:152` — `useState(initialAnalysis)`. مقدار اولیه فقط بار اول خوانده می‌شود.
+`PluginsClient.tsx:73` مقدار را `setAnalysis` می‌کند، `:147` به‌صورت prop می‌دهد، و **هیچ اتفاقی نمی‌افتد.** کاربر toast می‌بیند که می‌گوید «نتیجهٔ بررسی ساختار را ببینید» و چیزی نمایش داده نمی‌شود.
+
+**تست من فقط مسیر «انتخاب فایل در تحلیلگر» را پوشش داد، نه مسیر «آپلود رد شد».** ادعای DoD نادرست بود. → B6.
+
+---
+
+# 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز)
+
+> هیچ فاز دیگری نباید قبل از این شروع شود. B4 و B5 امنیتی‌اند و B2 با پایهٔ کاربر ایرانی محتمل است.
+
+| # | باگ | ارجاع | کار | وضعیت |
+|---|-----|--------|-----|--------|
+| **B1** | 🔴 تشخیص نشت کلید فقط سطح‌بالا را می‌گیرد. مانیفست تودرتو است، پس `{"publisher":{"private_key":"…"}}` رد می‌شود. تناقض با خود کد: `PluginTrustStore.php:107` کلید را از `$manifest['publisher']['key_id']` می‌خواند. regex فعلی `api_key`/`token`/`password`/`salt`/`webhook_secret` را هم نمی‌گیرد | `PluginPackageValidator.php:233-240` | اسکن **بازگشتی** + فهرست کامل | ⏳ |
+| **B2** | 🔴 `slug` فارسی → رشتهٔ خالی. `Str::slug('پنل')` → `''` ⇒ ردیف با `slug=''` و prefix بی‌نام | `PluginController.php:103` · `Validator.php:210-217` | `^[a-z0-9][a-z0-9._-]{1,39}$` با **خطا** | ⏳ |
+| **B3** | 🔴 `dev_mode` اصلاً وجود ندارد. `upload()` و `upgrade()` هیچ بررسی سمت سرور ندارند | `PluginController.php:64,175` | middleware روی هر دو route | ⏳ |
+| **B4** | 🔴 `/api/proxy` فهرست مسیر مجاز ندارد. `$target = ${UPSTREAM}/${path.join("/")}` بدون بررسی ⇒ از مرورگر مدیر با کوکی، **هر `/api/*`** قابل فراخوانی است — از جمله `central/*` و `internal/heartbeat`. **همین مسیر دلیل رد کامپوننت پلاگین است (K1.5.8) و مرز امنیتی‌اش allowlist ندارد** | `api/proxy/[...path]/route.ts:9` · `lib/server-api.ts:23` | `if (path[0] !== 'v1') return 403` + فهرست بستهٔ prefix | ⏳ |
+| **B5** | 🔴 رجیستری جستجوی کلاینت دقیقاً K1.5.8 را دور می‌زند: `registerSearchSource({fetchItems})` روی `window.__ADMIN_SEARCH__` و نمونه‌اش `fetch('/api/proxy/v1/admin/blog/posts')` | `lib/search-registry.ts:111,336-361` · `docs/SEARCH-PLUGIN-CONTRACT.md` | حذف + انتقال به بک‌اند | ⏳ |
+| **B6** | 🔴 `PackageAnalyzer` مقدار اولیهٔ prop را دوباره نمی‌خواند ⇒ مسیر «آپلود رد شد» بی‌اثر است | `PackageAnalyzer.tsx:152` · `PluginsClient.tsx:73,147` | `useEffect` sync یا `key` | ⏳ |
+| **B7** | 🟠 `ApiError` فقط از FormData. `authed` هنوز `Error` ساده می‌دهد و هر دو در ۴۰۱ خطای ساده ⇒ تمیز دادن «نشست منقضی» از «خطای اعتبارسنجی» ممکن نیست | `auth.tsx:110,113,126,127` | `authed` هم `ApiError` | ⏳ |
+| **B8** | 🟠 `suggestLocation` اولویت‌ها را برعکس زده: نام کلاس قبل از پسوند ⇒ `Model.png` → پیشنهاد `Laravel/src/Models/Model.png`. **نکتهٔ امنیتی:** پسوندهای `.ts/.tsx/.js/.jsx` به `Next.js/panel/` پیشنهاد می‌شوند ولی آن پوشه هرگز اجرا نمی‌شود — اگر روزی به `public/` سرو شود، اسکریپت same-origin روی origin ادمین است | `PluginPackageContract.php:296-324` | پسوند قبل از نام + **حذف** `.ts/.tsx/.js/.jsx` از پیشنهاد | ⏳ |
+| **B9** | 🟠 `readManifest` هر `manifest.json` را پیدا می‌کند نه فقط ریشه را. نقض مستقیم K1.5.2. امروز تصادفی امن است چون `manifest.misplaced` جلویش را می‌گیرد — ولی در `upload()` همین خروجی `slug` و امضا و کل ردیف DB را تعیین می‌کند | `Validator.php:422` · `PluginController.php:434` | `getFromName('manifest.json')` | ⏳ |
+| **B10** | 🟠 دو شکل برای یک مفهوم: `manifestChecks` رشتهٔ ساده می‌پذیرد ولی `extensionPointsOf` فقط آبجکت ⇒ مانیفست با رشتهٔ ساده از اعتبارسنجی رد می‌شود ولی در مقایسه با `panel.json` نامرئی است ⇒ اختلاف کاذب | `Validator.php:248,380-384` | فقط آبجکت، در هر دو جا | ⏳ |
+| **B11** | 🟠 `upgrade()` فایل قدیمی را **قبل** از موفقیت جدید پاک می‌کند. دیسک پر ⇒ پلاگین فعال با `path` ناموجود | `PluginController.php:207-212` | ذخیرهٔ جدید → ردیف → حذف قدیم | ⏳ |
+| **B12** | 🟠 سه درخواست سریالی در layout هر صفحهٔ پنل | `admin/layout.tsx:12,19,26` | `Promise.allSettled` با حفظ سه `catch` جدا | ⏳ |
+| **B13** | 🟡 زنگ اعلان `<button>` بدون `onClick`؛ `alertCount` هرگز پاس داده نمی‌شود. جدول `notifications` + `TicketNotification` بی‌خواننده | `Topbar.tsx:48-50` · `Shell.tsx:13` | K5.8 | ⏳ |
+| **B14** | 🟡 breadcrumb روی همهٔ صفحات «پنل › مدیریت» است. ریشه‌اش یک باگ است نه یک نقطهٔ اتصال | `admin/layout.tsx:36` | از page descriptor | ⏳ |
+| **B15** | 🟡 `SaveBar` برچسب «تأیید و ذفیره **قالب**» را هاردکد کرده — کامپوننت عمومی با واژهٔ دامنهٔ قالب | `primitives.tsx:66` | پارامتری کردن | ⏳ |
+| **B16** | 🟡 پرمیشن‌ها namespaced نیستند ⇒ دو پلاگین با ماژول هم‌نام پرمیشن مشترک می‌گیرند | `ManifestRegistry.php:51-58` · `PluginController.php:409-412` | I6 | ⏳ |
+| **B17** | 🟡 روی ZIP باز‌نشدنی، `result()` به `$summary['slug']` دست می‌زند که وجود ندارد | `Validator.php:43-45,462` | تست بستهٔ خراب | ⏳ |
+| **B18** | 🟡 ثابت‌های مرده: `MAX_TABLE_COUNT`، `MAX_INDEXES_PER_TABLE`، `MAX_ACTIVE_PLUGINS` بی‌استفاده. `ensureSealKey()` هیچ caller ندارد ⇒ **K0.4 پیاده نشده**. `PackageAnalysis::items()` بی‌caller | `Contract.php:41,43,45` · `TrustStore.php:90` | مصرف یا حذف | ⏳ |
+| **B19** | 🟡 `ensureSealKey` از `Cache::forever` ⇒ یک flush ریدایس، کلید را بی‌صدا بی‌اعتبار می‌کند | `TrustStore.php:100` | جدول settings | ⏳ |
+| **B20** | 🟡 `hooks.not_yet_dispatched` هشدار است ولی `syncHooks` ردیف می‌نویسد و فرانت toast می‌دهد «هوک‌ها ثبت شدند». هوک‌ها **اجرا نمی‌شوند** | `Validator.php:293` · `PluginsClient.tsx:43` | متن صادقانه تا K5.5 | ⏳ |
+| **B21** | 🟡 عدد جادویی ۲۰۰۰ کنار `MAX_FILES`=۵۰۰۰ | `Validator.php:191` | ثابت | ⏳ |
+| **B22** | 🟡 تورفتگی شکسته در گروه `admin` | `routes/api.php:174-181` | تمیز | ⏳ |
+| **B23** | 🟡 `api.d.ts` (۲۰۸KB) نوع دستی `PackageAnalysis` دارد که با `PackageAnalyzer.tsx:27` تکراری است | — | I8 | ⏳ |
+
+### کاستی تست
+
+| مورد | وضعیت |
+|---|---|
+| `isAllowedPath` هرگز برای **سمت مجاز** تست نمی‌شود. `describeAllowedPaths()` ۸ مقصد وعده می‌دهد و **۴ تایش بی‌تست‌اند**: `manifest.json`، `Next.js/panel`، `Next.js/blocks`، `Next.js/panel.json` | ⏳ |
+| هیچ تستی تضمین نمی‌کند `isAllowedPath($suggest['path']) === true` — همان invariantی که کارفرما پرسید | ⏳ |
+| نشت کلید فقط سطح‌بالا تست شده، نه تودرتو | ⏳ |
+| مسیر ZIP باز‌نشدنی تست نشده | ⏳ |
+| collision حروف بزرگ/کوچک بین مسیر مجاز و غیرمجاز تست نشده | ⏳ |
+
+---
+
+# 🟠 K3 — یکپارچه‌سازی قرارداد نقاط اتصال (I1)
+
+> **گران‌ترین تصمیم پروژه:** کدام شکل مرجع شود. تا این حل نشود، هر نقطهٔ اتصالی روی دو جهان موازی ساخته می‌شود.
+
+| # | تسک | توضیح | وضعیت |
+|---|------|-------|--------|
+| **I1** | ⭐ `panel.extensions` را تنها شکل کن | `widgets` / `page_types` / `permissions` / `hooks` مهاجرت کنند. `ManifestRegistry` از `panel.extensions` بخواند. مهاجرت تدریجی با dual-read | ⏳ |
+| **I1.1** | `manifest.widgets.*` → `site.header_widget` / `site.footer_widget` | `ManifestRegistry.php:86-117` | ⏳ |
+| **I1.2** | `manifest.page_types` → `site.page_type` | `ManifestRegistry.php:146-160` | ⏳ |
+| **I1.3** | `manifest.permissions` → نقطهٔ مستقل یا فیلد مجزا | `ManifestRegistry.php:271-305` | ⏳ |
+| **I1.4** | تصمیم `manifest.hooks`: یا dispatcher بساز (K5.5) یا از مانیفست حذف کن | `PluginController.php:380-397` | ⏳ |
+| **I2** | رجیستری نقاط اتصال از **یک منبع** | `PackageAnalyzer.tsx` نباید فهرست را hardcode کند. الان دو منبعِ جدا داریم که قطعاً drift می‌کنند | ⏳ |
+| **I3** | `example` هر نقطهٔ اتصال در UI رندر شود | `Contract.php:87,93` دارد ولی `PackageAnalyzer.tsx:42` آن را `unknown` می‌گیرد | ⏳ |
+| **I4** | ⛔ `next/dynamic` برای افزونهٔ عمومی رد شد | بازی با شانس build. فقط `SystemPlugin` می‌تواند از catch-all استفاده کند ⇒ دقیقاً خلاف K1.5.8 | ⏳ |
+| **I5** | سازگاری نسخه برای نقاط اتصال | وقتی `requires.core` به سازگاری می‌رسد، **نقاط اتصال هم باید نسخه بگیرند** | ⏳ |
+| **I6** | namespacing پرمیشن با slug | B16 | ⏳ |
+| **I7** | رجیستری جستجوی سمت بک‌اند | `SearchableProvider` + `SearchManager` از `config('search.providers')` استاتیک به رجیستری داینامیک | ⏳ |
+| **I8** | `api.d.ts` از تولید | حذف نوع دستی، تولید از OpenAPI | ⏳ |
+
+## فهرست نهایی نقاط اتصال (نسخهٔ متخصص)
+
+| key | چه می‌کند | اولویت | برآورد | سطح ۰ کافی؟ |
+|---|---|---|---|---|
+| `admin.menu` | آیتم منوی کناری + `BottomNav` خودکار | **بحرانی** | ۱ روز | ✅ |
+| `site.block_type` | شاخهٔ `default` در `BlockRenderer` از روی schema | **بحرانی** | ۱–۱.۵ | ✅ |
+| `site.footer_widget` | شاخهٔ `default` در `ChromeWidget` | **بالا** | ۰.۵ | ✅ |
+| `site.header_widget` | همان | **بالا** | ۰.۵ | ✅ |
+| `admin.page_registry` | 🆕 صفحهٔ اختصاصی — `admin/[...slug]/page.tsx` | **بالا** | ۲ | ✅ |
+| `admin.settings_schema` | `SchemaForm` عمومی + ذخیره در گروه `plugin:{slug}` | متوسط | ۱.۵ | ✅ |
+| `admin.topbar` | 🆕 **افزودنی** — هدر پنل (یادآوری کارفرما) | متوسط | ۱.۵–۲ | ✅ با sanitize سخت‌گیرانه |
+| `site.page_type` | کار می‌کند؛ فقط به `panel.extensions` وصل شود | متوسط | ۰.۵ | ✅ |
+| `admin.data_collection` | جدول + CRUD اعلانی | **پایین (v1.1)** | ۳–۴ | ⚠️ `DataTable` باید اعلانی شود |
+| `admin.dashboard_slot` | ویجت داشبورد | ⛔ **تعویق به `DEFERRED_EXTENSION_POINTS`** | ۳–۴ | ❌ |
+
+### سه چیزی که متخصص صریحاً پیشنهاد نکرد
+
+1. **`admin.dashboard_slot` در v1.** تنها نقطه‌ای که به primitive تازه نیاز دارد و هیچ مصرف‌کنندهٔ واقعی ندارد. نگه‌داشتنش در فهرست بسته = «قولی که پیاده نشده» — و `PackageAnalyzer.tsx:264` دقیقاً همین را به کاربر قول می‌دهد.
+2. **افزودن هر نقطهٔ تازه قبل از واقعی کردن ۵ نقطهٔ موجود.** الان ۸ نقطه اعلام شده و ۱ کار می‌کند؛ ساختن دهمی بدهی را دو برابر می‌کند بی‌آنکه نیازی را حل کند.
+3. **باز نگه‌داشتن فهرست برای «شاید بعداً».** مکانیزم `DEFERRED_EXTENSION_POINTS` + تست + برچسب فارسی دلیل از قبل وجود دارد. هر «نه» باید **نوشته‌شده** باشد، نه غایب.
+
+### سطوحی که بررسی شد و پیشنهاد **نشد**
+
+| نقطهٔ فرضی | چرا نه |
+|---|---|
+| `admin.bottom_nav` | نقطهٔ مستقل نیست. `BottomNav.tsx:44-46` از `groups` می‌گیرد ⇒ با merge منو خودکار کار می‌کند (۰.۲۵ روز، داخل `admin.menu`) |
+| `admin.command_palette` | میانبرهای `dashboard/page.tsx:117-124` هاردکد و کم‌ارزش |
+| `site.seo_meta` | ستون `meta` از قبل JSON آزاد است. زیرساخت هست |
+| `admin.email_template` | **v2.** سطح pre-compiled (PHP). ارزش واقعی دارد ولی الان کسی نیازش ندارد |
+| `admin.export/import`، `admin.media_library`، `admin.user_form` | هیچ‌کدام زیرساخت موجودی ندارند |
+| `admin.component` | ⛔⛔ رد قطعی (K1.5.8). تنها استثنا: رجیستری جستجوی کلاینت که **الان** این را دور می‌زند (B5) |
+
+---
+
+# 🟠 K4 — حالت توسعه‌دهنده (بند ۱ و ۲ مشخصات)
+
+> `dev_mode` طبق B3 **صفر پیاده‌سازی** دارد. تصمیم‌ها قبلاً گرفته شده: per-install، لاگ کامل، re-auth با رمز، انقضای خودکار.
+
+| # | تسک | توضیح | وضعیت |
+|---|------|-------|--------|
+| K4.1 | شمارندهٔ کلیک در cache با کلید `devmode:taps:{user_id}\|{ip}` | شمارنده per-user+ip ولی وضعیت per-install. بدون per-user یک POST ساده در می‌زند | ⏳ |
+| K4.2 | قاعده‌های reset: ۲ ثانیه بین کلیک، ۱۰ ثانیه از اولین، درخواست غیر POST، خروج از حساب، ۵ دقیقه بی‌فعالیتی | — | ⏳ |
+| K4.3 | مودال تأیید **با رمز عبور** (نه checkbox) + re-auth سمت سرور | چون gesture سمت کلاینت است و در برابر CSRF ضعیف | ⏳ |
+| K4.4 | وضعیت `dev_mode` در `settings` گروه `system` + `expires_at` (۸ ساعت) + `unlock_token` | انقضای خودکار غیرقابل مذاکره است | ⏳ |
+| K4.5 | ثبت در `operator_activities` | بعد از نصب یک پلاگین بد، همین ردپا تفاوت «می‌توانیم عیب‌یابی کنیم» و «کور هستیم» است | ⏳ |
+| K4.6 | ⛔ **enforce سمت سرور** روی `upload()` و `upgrade()` | B3. middleware، نه gate سمت کلاینت | ⏳ |
+| K4.7 | فرانت: ۵ کلیک + مودال در تنظیمات | — | ⏳ |
+| K4.8 | فرانت: گیت کردن دکمهٔ آپلود + نمایش راهنما | بند ۲ | ⏳ |
+| K4.9 | نمایش زمان باقی‌مانده در UI | — | ⏳ |
+
+---
+
+# 🟠 K5 — هستهٔ اجرایی پلاگین (K1.1)
+
+> تا این فاز، هیچ پلاگینی اجرا نمی‌شود و بازار و ۳۰٪ معنا ندارد.
+
+| # | تسک | توضیح | وضعیت |
+|---|------|-------|--------|
+| **K5.0** | ⭐ **نقطهٔ `core.service_provider`** (bootstrap/binding) | **کوچک‌ترین کار با بیشترین بازگشت کل پروژه.** فقط کلاس‌هایی که interface مشخصِ هسته را پیاده کنند. بدون آن: `SubscriptionSource` قابل ثبت نیست ⇒ گزینهٔ الفِ K7.2 شکست می‌خورد؛ `SearchableProvider` قابل ثبت نیست ⇒ B5/I7 بسته نمی‌شود؛ `PaymentGatewayInterface` و `ChabokanClientInterface` (هر دو singleton هاردکد در `AppServiceProvider.php:20-39`) قابل تعویض نیستند | ⏳ |
+| K5.1 | `PluginExtractor` — ۱۱ کنترل استخراج امن | گام ۱ (فهرست ZIP) **در K1.6.3 انجام شد**. گام‌های ۲ تا ۱۱ باقی است | 🟡 ۱ از ۱۱ |
+| K5.2 | ساختار `releases/{version}-{hash}/` + `current` + استخراج atomic | staging → verify → rename. هرگز مستقیم روی مسیر زنده | ⏳ |
+| K5.3 | PSR-4 loader با prefix اجباری `Pishdad\Plugins\{Studly}\` | با `ClassLoader::addPsr4()` روی نمونه. **رد هر namespace خارج از prefix** — تنها جایی که امنیت بارگذاری واقعاً enforce می‌شود | ⏳ |
+| K5.4 | `PluginRouter` catch-all — تنها route واقعی مالک هسته باشد | تداخل ساختاری ناممکن، `route:cache` معتبر، غیرفعال‌سازی = یک فلگ | ⏳ |
+| K5.5 | dispatcher هوک **یا** حذف `hooks` از مانیفست | B20. فعلاً هیچ‌کدام | ⏳ |
+| K5.6 | migration runner با prefix `{slug}_` + سقف ۲۰ جدول / ۱۰ ایندکس | + بررسی تداخل با جدول‌های هسته | ⏳ |
+| K5.7 | ⭐ نقش دوم PostgreSQL (K1.5.3) | نقش `pishdad_owner` برای `migrate`، نقش `pishdad_app` برای runtime با DDL فقط روی `{slug}_*`. تا وقتی این enforce نشده، prefix فقط **انتخاب** است نه **محدودیت**. ⚠️ متخصص نامطمئن است که مکانیزم migration لاراول ۱۱ زیر این تفکیک بدون تغییر کار کند ⇒ spike دو-روزه | ⏳ |
+| K5.8 | سرویس اعلان (`POST /v1/admin/notifications` با namespacing بر slug) + drawer + نشانگر | B13. **بیرون از فهرست نقاط اتصال** — سرویسی است که پلاگین صدایش می‌زند نه چیزی که اعلام می‌کند | ⏳ |
+| K5.9 | مهر یکپارچگی per-install (K0.4) | `ensureSealKey` الان بی‌caller است (B18/B19). کلید در `settings` نه cache | ⏳ |
+| K5.10 | سقف `file_count` و سرپوش opcache | ۵۰ پلاگین × ۲۰۰ فایل = ۱۰هزار فایل | ⏳ |
+| K5.11 | rollback واقعی | `upgrade()` الان فایل قبلی را حذف می‌کند ⇒ rollback فقط یک رشتهٔ `previous_version` بدون آرتیفکت است | ⏳ |
+
+---
+
+# 🟠 K6 — UI پلاگین در فرانت (سطح ۰)
+
+> ⛔ رد‌شده در v1: کامپوننت React از سمت پلاگین (B5) · build در زمان اجرا · `next/dynamic` برای افزونهٔ عمومی (I4).
+
+| # | تسک | ارجاح | وضعیت |
+|---|------|--------|--------|
+| K6.1 | `admin.menu` — merge روی props سرور | `lib/menu.ts:6` ثابت → `core + mergePluginMenu()`. `admin/layout.tsx:33` همه‌چیز را props می‌گیرد ⇒ `Sidebar.tsx` بدون تغییر bundle | ⏳ |
+| K6.2 | `admin.topbar` — 🆕 نقطهٔ هدر پنل با sanitize سخت‌گیرانه | `Topbar.tsx:20-73` خطی و کاملاً هاردکد. **`href` نباید آزاد باشد** — اگر پلاگین بتواند `javascript:` بدهد، K1.5.8 دور خورده. فقط آیکون از فهرست بسته | ⏳ |
+| K6.3 | `site.block_type` — شاخهٔ `default` در `BlockRenderer` | `BlockRenderer.tsx:195` الان `null` برمی‌گرداند و فقط `console.warn` می‌کند. **بدترین نوع نیمه‌کاری: بی‌صدا** | ⏳ |
+| K6.4 | `site.header_widget` + `site.footer_widget` | `Chrome.tsx:83-85` همان مشکل | ⏳ |
+| K6.5 | `admin.page_registry` — catch-all داخل گروه admin | ⚠️ **تصحیح برنامه:** K1.6.5 اشتباه گفت `[...path]/page.tsx`. آن رندرکنندهٔ **سایت عمومی** است (`:119` `SiteHeader`، `:137` `SiteFooter`) — مسیر `/admin/xyz` با کروم سایت عمومی رندر می‌شد. درست: `app/(client)/admin/[...slug]/page.tsx` | ⏳ |
+| K6.6 | ⛔ قید: مسیرهای پلاگین **باید** زیر `/admin/` باشند | `src/middleware.ts:14` فقط `/admin/:path*` و `/central/:path*` را محافظت می‌کند و آن هم فقط **وجود کوکی** را می‌سنجد نه اعتبارش. مثال قرارداد رعایت می‌کند ولی هیچ‌جا **اجبار** نشده | ⏳ |
+| K6.7 | `admin.settings_schema` | `SchemaForm.tsx` همین حالا وجود دارد | ⏳ |
+| K6.8 | `site.page_type` → وصل به `panel.extensions` | تنها نقطهٔ کارکن | ⏳ |
+| K6.9 | merge crumbs از page descriptor | B14. یک باگ واقعی را هم درست می‌کند | ⏳ |
+| K6.10 | پاک کردن یا واقعی کردن کارت ویجت داشبورد | `dashboard/page.tsx:155-163` با `admin.dashboard_slot` تعویق بخورد، این کارت یا حذف یا واقعی شود | ⏳ |
+| K6.11 | راهنمای برنامه‌نویس از قرارداد تولید شود | K1.6.2. سه خطای محتوایی فعلی: ساختار ZIP، فیلد `system`، کلید مرکزی | ⏳ |
+
+---
+
+# 🔵 K7 — تبدیل پنل مرکزی به پلاگین (درخواست کارفرما)
+
+> **۱۱ فایل هسته** به جداول مرکزی چسبیده‌اند. تا این ۱۱ تا جدا نشوند، «پنل مرکزی = پلاگین» فقط روی کاغذ است.
+
+## واقعیت‌های کلیدی
+
+| واقعیت | عدد |
+|---|---|
+| فایل‌های هستهٔ وابسته به جداول مرکزی | **۱۱** |
+| جدول‌ها | **۱۹** — ولی **۱۱ تایش اصلاً `central_` ندارند!** یک `grep central_` فقط ۱۰ جدول پیدا می‌کند و **نیمی از blast radius از دست می‌رود**: `install_heartbeats`, `central_logs`, `core_versions`, `update_rollouts`, `update_rollout_items`, `operator_hardware_keys`, `operator_setup_tokens`, `operator_activities`, `kill_switches` |
+| routeهای مرکزی | ۶۱ (`routes/api.php:210-288`) |
+| TSX پنل مرکزی | ۲۰۶۰ خط در ۹ کامپوننت |
+| ارجاع رشته‌ای به نام جدول | ۴۰+ مورد — با `rename` نمی‌شکنند ولی **هیچ ابزار refactor خودکاری هم پیدایشان نمی‌کند** |
+
+## ۱۱ فایل هسته — حساسیت هرکدام
+
+| فایل | اگر پلاگین مرکزی حذف شود |
+|---|---|
+| `Services/Subscription/ClientSubscriptionResolver.php:22-39` | 💥 **کل پنل مشتری ۵۰۰ می‌دهد.** `admin/layout.tsx:12` روی هر صفحه صدایش می‌زند |
+| `Api/Webhooks/PaymentWebhookController.php:6` | 💥💥 **callback درگاه.** زرین‌پال ۵۰۰ ⇒ پرداخت ضریب می‌شود |
+| `Console/Commands/BillingSuspend.php:5-7` | 💥 **تعلیق خودکار از کار می‌افتد ⇒ هیچ‌کس هرگز تعلیق نمی‌شود** |
+| `Api/V1/Admin/DashboardController.php:6` | 💥 داشبورد + بنر تعلیق |
+| `Api/V1/Admin/SubscriptionController.php:6-9` | 💥 صفحهٔ اشتراک (`exists:central_plans,id`) |
+| `Api/V1/SubscriptionStatusController.php:6` | 💥 polling عمومی |
+| `Services/Billing/InvoiceService.php:5-8` | 💥 صدور فاکتور |
+| `Console/Commands/BillingRemind.php` · `BillingPurge.php` | یادآوری/نشت رکورد |
+| `Api/Internal/HeartbeatController.php:6-7` | مانیتورینگ مرکزی |
+| `Api/V1/Admin/ProfileController.php:6` | ⚠️ نمایش کلید سخت‌افزاری 2FA |
+
+## گام‌ها
+
+| # | تسک | توضیح | وضعیت |
+|---|------|-------|--------|
+| **K7.1** | ⭐ اصلاح نقشهٔ وابستگی — تست grep | **پیش‌نیاز همه‌چیز.** تستی که بگیرد هیچ فایل هسته‌ای به `Central\*` یا `central_`/`chabokan_`/`install_heartbeats`/`operator_*`/`core_versions`/`update_roll*`/`kill_switches` ارجاع ندارد | ⏳ |
+| **K7.2** | ⭐ رابط `SubscriptionSource` + `NullSubscriptionSource` پیش‌فرض | **گزینهٔ الف.** هسته یک interface؛ پیش‌فرض همیشه `active` برمی‌گرداند و هیچ جدولی نمی‌خواند ⇒ **پنل مشتری دیگر به نصب پلاگین وابسته نیست.** نبودِ پلاگین = سایت کار می‌کند، فقط بی‌اشتراک (برای نصب عمومی دقیقاً درست است) | ⏳ |
+| **K7.3** | ثبت پیاده‌سازی از سمت پلاگین | ⚠️ **نیازمند `core.service_provider` (K5.0)**. بدون آن این گام غیرممکن است | ⏳ |
+| **K7.4** | تصمیم محصول دربارهٔ `now()->addDays(30)` | `ClientSubscriptionResolver.php:37` هنگام autoprovision **۳۰ روز اشتراک رایگان می‌سازد**. اگر داخل پلاگین برود رفتار عوض می‌کند و `SubscriptionTest.php` می‌شکند | ⏳ منتظر تصمیم |
+| **K7.5** | ۱۹ `ALTER TABLE ... RENAME` با prefix | ⚠️ **۱۱ جدول بی‌پیشند را دستی نام‌گذاری کن** — وگرنه از قلم می‌افتند | ⏳ |
+| **K7.6** | مهاجرت داده برای نصب‌های موجود | ترتیب FKها مهم است (`central_subscriptions.client_id → central_clients.id`) | ⏳ |
+| **K7.7** | تست grep برای ۴۰+ ارجاع رشته‌ای | `InvoiceController.php:31,67` · `UpdateController.php:55` · `ClientController.php:73` · `PlanController.php:60` | ⏳ |
+| K7.8 | انتقال ۱۳ کنترلر `Api/Central/*` + ۱۲ مدل + `InvoiceService` + ۳ کامند | کار مکانیکی | ⏳ |
+| K7.9 | انتقال ۶۱ route با **همان prefix** `/api/central/*` | ⇒ **صفر تغییر فرانت.** بزرگ‌ترین بازدهی کار | ⏳ |
+| **K7.10** | ⛔ `EnsureCentralOperator` **در هسته بماند** | `app/Http/Middleware/EnsureCentralOperator.php:13-27`. **نگهبانِ نگهبان در هسته می‌ماند** — اگر داخل پلاگین باشد، یک پلاگین بد می‌تواند خودش را operator کند | ⏳ |
+| **K7.11** | ⛔ `tickets` + `operatorReply` **در هسته بماند** | `routes/api.php:260` مسیر مرکزی به کنترلر **مشتری** اشاره می‌کند. سیستم تیکت دادهٔ هسته است — این یک الگوی درست است: پلاگین روی دادهٔ هسته کار می‌کند | ⏳ |
+| **K7.12** | ⛔ `PaymentWebhookController` **در هسته بماند** | **عمدی.** callback درگاه باید همیشه زنده باشد. پلاگین مالک *invoice* است نه *مسیر callback*. باید fail-closed با پیام فارسی و retry باشد | ⏳ |
+| **K7.13** | تصمیم فرانت — ⭐ **گزینهٔ ۱ الان، گزینهٔ ۲ به‌عنوان هدف** | استثنای `SystemPlugin` **فقط سمت بک‌اند جواب می‌دهد.** فرانت: ⛔ هیچ `next/dynamic`، هیچ registry، هیچ catch-all. ۲۰۶۰ خط TSX بدون سازوکار.<br>**۱) پوستهٔ نازک در هسته** — ۳ روز، ۸۰٪ ارزش، هدف K1.0 کامل نیست<br>**۲) پوشهٔ vendorشده** `frontend/src/plugins-vendor/{slug}/` — ۲ روز + هزیز مستمر، ۱۰۰٪<br>**۳) بازسازی اعلانی** — ۶–۱۰ روز، ۶۰٪. ❌ **پیشنهاد نمی‌کنم**: ۲۰۰۰ خط UI خوب را دور می‌ریزید | ⏳ منتظر تصمیم |
+| **K7.14** | اگر گزینهٔ ۲: ۴ شرط تست‌شدنی استثنا | ۱) دامنهٔ slug: CI fail شود اگر `plugins-vendor/` چیزی غیر از `system_plugins` داشته باشد. ۲) فقط `frontend/src/plugins-vendor/{slug}/`. ۳) قاعدهٔ هم‌commit در `AGENTS.md`. ۴) تست کامپایل. **بدون ۳ و ۴، استثنا یک کانال جانبی بدون نگهدارنده است** | ⏳ |
+| **K7.15** | داده‌محور کردن `lib/menu.ts:44-47` و `Topbar.tsx:34-37` | سوییچ مشتری/مرکزی الان هاردکد است. حذف پلاگین باید این دو را بردارد ⇒ باید داده‌محور شوند | ⏳ |
+| **K7.16** | نمایش `dev_mode`/قفل‌های مرکزی به‌صورت داده‌محور | `kill_switches` و `AppServiceProvider`/`routes/api.php:284-288` دستی هاردکد شده‌اند | ⏳ |
+
+## قاعدهٔ کلی خط هسته/پلاگین
+
+> **اگر حذف پلاگین، توانایی استفاده از سایت عمومی را از کار بیندازد، آن فایل در هسته است.** امروز **۱۱ فایل نقض می‌کنند.**
+
+---
+
+# ⚪ K8 — بازار و فروش (بعد از K5)
+
+| # | تسک | وضعیت |
+|---|------|--------|
+| K8.1 | ثبت ناشر + trust store عمومی | pending |
+| K8.2 | آپلود به بازبینی + تأیید/رد | pending |
+| K8.3 | `yanked` — **غیرقابل حذف**، برای incident امنیتی | pending |
+| K8.4 | نصب از بازار (بدون پول) | pending |
+| K8.5 | سفارش + لایسنس + ledger تسویه + payout دستی | pending |
+| K8.6 | درگاه | ⏸️ milestone جدا، فقط اگر از مشتری پول گرفته شود |
+
+---
+
+# 📋 ترتیب اجرای قطعی
+
+> هر گام بدون گام قبلش معنا ندارد یا بی‌فایده است.
+
+| ترتیب | گام | چرا اینجا |
+|---|---|---|
+| ۱ | **K2** — باگ‌های امنیتی | B4 و B5 امنیتی‌اند؛ B6 یعنی مسیر اصلی کاربر خراب است؛ B2 با پایهٔ کاربر ایرانی محتمل است |
+| ۲ | **K3 / I1** — `panel.extensions` مرجع شود | تا این حل نشود، هر نقطهٔ اتصالی روی دو جهان موازی ساخته می‌شود |
+| ۳ | **K5.0** — `core.service_provider` | کوچک‌ترین کار، بیشترین بازگشت. بازکنندهٔ `SearchableProvider`، `SubscriptionSource`، `PaymentGatewayInterface` |
+| ۴ | **K4** — حالت توسعه‌دهنده | با enforce سمت سرور. on-ramp توسعه‌دهنده، پیش‌نیاز بازار |
+| ۵ | **K6.1 + K6.2 + K6.3** — منو، هدر پنل، block_type | نقطه‌هایی که واقعاً مصرف‌کننده دارند. **اول ۵ تای موجود را واقعی کن، بعد دهمی** |
+| ۶ | **K6.5** — بستر صفحهٔ ادمین | `admin.page_registry` |
+| ۷ | **K5.1–5.6** — هستهٔ اجرایی | زیرساخت اجرا. بدون این، بازار و ۳۰٪ بی‌معنا |
+| ۸ | **K5.7** — نقش دوم PostgreSQL | بستن واقعی مرز دیتابیس |
+| ۹ | **K7** — تبدیل پنل مرکزی | اول `K7.1` + `K7.2` که مستقل‌اند |
+| ۱۰ | **K8** — بازار و فروش | بعد از اجرا |
+
+## سه چیزی که باید صریح گفته شود
+
+1. **«۸ نقطهٔ اتصال داریم» جملهٔ گمراه‌کننده‌ای بود.** فقط ۱ نقطه کار می‌کند، ۲ نیمه، و ۵ فقط اعلام‌شده‌اند. صادقانه‌تر: «قرارداد ۸ نقطه داریم، یکی‌اش زنده است.»
+2. **فرانت پنل مرکزی** برای تبدیل به پلاگین ۲ روز کار می‌برد ولی **هزینهٔ مستمر** دارد و هر تغییر UI هسته را می‌شکند. گزینهٔ جایگزین (پوستهٔ نازک، ۳ روز) ۸۰٪ ارزش را با یک‌سوم ریسک می‌دهد.
+3. **بزرگ‌ترین خطر پروژه ساختن بازار نیست؛ جذب اولین ۱۰ توسعه‌دهنده است.** اگر توسعه‌دهنده نتواند در ۳۰ دقیقه اولین پلاگینش را بسازد، بازار خالی می‌ماند و ۳۰٪ هرگز اتفاق نمی‌افتد.
