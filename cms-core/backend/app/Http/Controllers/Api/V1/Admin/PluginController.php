@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Plugin;
 use App\Models\SystemPlugin;
 use App\Services\Plugins\ManifestRegistry;
+use App\Services\Plugins\PluginPackageContract;
+use App\Services\Plugins\PluginPackageValidator;
 use App\Services\Plugins\PluginSignatureVerifier;
 use App\Services\Plugins\PluginTrustStore;
+use App\Support\Plugins\PackageAnalysis;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -60,6 +63,16 @@ class PluginController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
+        // فاز ۱.۵: بسته قبل از نصب تحلیل می‌شود تا کاربر دقیقاً بداند کدام فایل
+        // کجاست و کدام جا نیست. این کار هیچ چیزی استخراج یا نمی‌نویسد.
+        $analysis = $this->analyzePackage($request);
+        if ($analysis->isError()) {
+            return response()->json([
+                'message' => $analysis->headline(),
+                'analysis' => $analysis,
+            ], 422);
+        }
+
         $validated = $request->validate([
             'file' => 'required|file|mimes:zip|max:20480',
         ], [
@@ -243,6 +256,74 @@ class PluginController extends Controller
         return response()->json(['message' => 'پلاگین حذف شد.']);
     }
 
+    /**
+     * فاز ۱.۵ — تحلیل بسته بدون نصب.
+     *
+     * کاربر می‌تواند ZIP را بدهد و ساختارش را ببیند **بدون اینکه چیزی نصب شود یا
+     * یک خط کد پلاگینی اجرا شود**. همین مسیر است که به کاربر می‌گوید کدام فایل در
+     * جای اشتباه است و باید کجا باشد، و به بخش مربوط راهنما لینک می‌دهد.
+     */
+    public function validatePackage(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:zip|max:20480',
+        ], [
+            'file.required' => 'فایل پلاگین الزامی است.',
+            'file.mimes' => 'پلاگین باید فایل ZIP باشد.',
+            'file.max' => 'حجم پلاگین بیش از حد مجاز است (۲۰ مگابایت).',
+        ]);
+
+        /** @var UploadedFile $file */
+        $file = $validated['file'];
+        $analysis = $this->analyzePackage($request, $file);
+
+        // endpoint تحلیل هیچ‌وقت 4xx نمی‌دهد: کاربر باید بتواند نتیجه را ببیند
+        // حتی وقتی بسته خراب است — وگرنه پیام خطای قابل‌نمایش را از دست می‌دهد.
+        return response()->json(['analysis' => $analysis], 200);
+    }
+
+    /** تحلیل و تبدیل به شیء نتیجه. در صورت خطای بوت/خواندن، شیء خالی می‌سازد. */
+    private function analyzePackage(Request $request, ?UploadedFile $file = null): PackageAnalysis
+    {
+        $file ??= $request->file('file');
+
+        if (! $file instanceof UploadedFile || ! $file->isValid()) {
+            return PackageAnalysis::fromValidator([
+                'ok' => false,
+                'severity' => 'error',
+                'errors' => [['code' => 'file.invalid', 'message' => 'فایل قابل خواندن نیست.']],
+                'warnings' => [],
+                'manifest' => null,
+                'summary' => ['errors' => 1, 'warnings' => 0, 'slug' => null, 'version' => null, 'extension_points' => []],
+                'contract' => [
+                    'allowed' => PluginPackageContract::describeAllowedPaths(),
+                    'extension_points' => PluginPackageContract::extensionPoints(),
+                ],
+            ]);
+        }
+
+        try {
+            return PackageAnalysis::fromValidator(
+                $this->validator()->analyze($file->getRealPath())
+            );
+        } catch (\Throwable $e) {
+            Log::error('plugin.analysis_exception', ['error' => $e->getMessage()]);
+
+            return PackageAnalysis::fromValidator([
+                'ok' => false,
+                'severity' => 'error',
+                'errors' => [['code' => 'analysis.exception', 'message' => 'بسته قابل تحلیل نبود: '.$e->getMessage()]],
+                'warnings' => [],
+                'manifest' => null,
+                'summary' => ['errors' => 1, 'warnings' => 0, 'slug' => null, 'version' => null, 'extension_points' => []],
+                'contract' => [
+                    'allowed' => PluginPackageContract::describeAllowedPaths(),
+                    'extension_points' => PluginPackageContract::extensionPoints(),
+                ],
+            ]);
+        }
+    }
+
     /** سوپرادمین/اپراتور از قفل بازبینی مستثناست (سیدر/داخلی‌ها approved). */
     private function isReviewExempt(Request $request): bool
     {
@@ -254,6 +335,11 @@ class PluginController extends Controller
     private function trustStore(): PluginTrustStore
     {
         return app(PluginTrustStore::class);
+    }
+
+    private function validator(): PluginPackageValidator
+    {
+        return app(PluginPackageValidator::class);
     }
 
     private function mayActivate(Request $request, Plugin $plugin): bool

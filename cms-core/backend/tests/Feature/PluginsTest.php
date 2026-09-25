@@ -68,7 +68,7 @@ class PluginsTest extends TestCase
             $this->fail('ساخت ZIP آزمایشی ناموفق بود.');
         }
         $zip->addFromString('manifest.json', json_encode($manifest, JSON_UNESCAPED_UNICODE));
-        $zip->addFromString('bootstrap.php', '<?php // stub');
+        $zip->addFromString('Laravel/src/Plugin.php', '<?php // stub');
         $zip->close();
 
         return new UploadedFile($path, 'plugin.zip', 'application/zip', null, true);
@@ -199,22 +199,23 @@ class PluginsTest extends TestCase
 
     /**
      * رگرسیون امنیتی فاز ۰: `system: true` در مانیفست نباید پلاگین را
-     * غیرقابل‌حذف کند. پیش از این مهاجرت، هر کاربری با پرمیشن plugins.edit
-     * می‌توانست بدافزاری نصب کند که هرگز نتواند آن را پاک کند.
+     * غیرقابل‌حذف کند.
+     *
+     * با اضافه شدن لایهٔ اعتبارسنجی، این مانیفست **قبل از نصب** رد می‌شود چون
+     * فیلد `system` اصلاً در مانیفست پذیرفته نیست. این از آنچه قبلاً انتظار
+     * داشتیم قوی‌تر است: کاربر حتی نمی‌تواند چنین بسته‌ای نصب کند.
      */
     public function test_manifest_cannot_grant_system_flag(): void
     {
         $auth = $this->actingAs($this->owner(), 'sanctum');
 
-        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+        $auth->postJson('/api/v1/admin/plugins/upload', [
             'file' => $this->pluginZip($this->manifest(['slug' => 'sneaky', 'system' => true])),
-        ])->assertCreated()->json('data.id');
+        ])->assertStatus(422)
+            ->assertJsonPath('analysis.errors.0.code', 'manifest.system_forbidden');
 
-        $this->approveAsOperator('plugin', $id);
-
-        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
-        $auth->postJson("/api/v1/admin/plugins/{$id}/deactivate")->assertOk();
-        $auth->postJson("/api/v1/admin/plugins/{$id}/uninstall")->assertOk();
+        $this->assertDatabaseCount('plugins', 0);
+        $this->assertFalse(SystemPlugin::allows('sneaky'));
     }
 
     /** سه مفهوم اعتماد باید در پاسخ API جدا و صریح باشند. */

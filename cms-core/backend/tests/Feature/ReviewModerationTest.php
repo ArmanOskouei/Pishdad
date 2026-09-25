@@ -60,7 +60,7 @@ class ReviewModerationTest extends TestCase
         $zip = new ZipArchive;
         $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         $zip->addFromString('manifest.json', json_encode($manifest, JSON_UNESCAPED_UNICODE));
-        $zip->addFromString('bootstrap.php', '<?php // stub');
+        $zip->addFromString('Laravel/src/Plugin.php', '<?php // stub');
         $zip->close();
 
         return new UploadedFile($path, 'plugin.zip', 'application/zip', null, true);

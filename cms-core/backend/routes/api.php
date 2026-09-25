@@ -171,8 +171,9 @@ Route::prefix('v1')->group(function () {
             Route::post('tickets/{ticket}/messages', [TicketController::class, 'reply'])->middleware('perm:tickets.edit');
 
             // تسک ۵.۴ — پلاگین‌ها (امضای Ed25519 اجباری).
-            Route::get('plugins', [PluginController::class, 'index'])->middleware('perm:plugins.view');
-            Route::post('plugins/upload', [PluginController::class, 'upload'])->middleware('perm:plugins.edit');
+Route::get('plugins', [PluginController::class, 'index'])->middleware('perm:plugins.view');
+Route::post('plugins/validate', [PluginController::class, 'validatePackage'])->middleware('perm:plugins.edit');
+Route::post('plugins/upload', [PluginController::class, 'upload'])->middleware('perm:plugins.edit');
             Route::get('plugins/{plugin}', [PluginController::class, 'show'])->middleware('perm:plugins.view');
             Route::post('plugins/{plugin}/activate', [PluginController::class, 'activate'])->middleware('perm:plugins.edit');
             Route::post('plugins/{plugin}/deactivate', [PluginController::class, 'deactivate'])->middleware('perm:plugins.edit');
