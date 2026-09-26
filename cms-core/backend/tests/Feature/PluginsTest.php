@@ -2,15 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\V1\Admin\PluginController;
+use App\Models\Plugin;
 use App\Models\PublisherKey;
 use App\Models\SystemPlugin;
 use App\Models\User;
+use App\Services\Plugins\CoreRequirementChecker;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Plugins\PluginSignatureVerifier;
 use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -354,5 +358,247 @@ class PluginsTest extends TestCase
         $auth->postJson('/api/v1/admin/themes/upload', [
             'file' => new UploadedFile($path, 'theme.zip', 'application/zip', null, true),
         ])->assertStatus(422);
+    }
+
+    // ── K3.0 / B25 — اجباری کردن `requires.core` ─────────────────────────────
+
+    /** ادعای ناسازگار ⇒ نصب اصلاً انجام نمی‌شود: نه ردیف، نه فایل. */
+    public function test_upload_rejects_plugin_requiring_a_newer_core(): void
+    {
+        Storage::fake('local');
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest([
+                'slug' => 'future-plugin',
+                'requires' => ['core' => '>=99.0.0'],
+            ])),
+        ])->assertStatus(422)
+            ->assertJsonPath('requires.code', 'requires.core.unsatisfied')
+            ->assertJsonPath('requires.required', '>=99.0.0')
+            ->assertJsonPath('requires.current', CoreRequirementChecker::coreVersion());
+
+        $this->assertDatabaseCount('plugins', 0);
+        $this->assertSame([], Storage::disk('local')->files('plugins/shared') ?: []);
+    }
+
+    /**
+     * اعلامِ ناخوانا هم باید رد شود. سکوت کردن یعنی «سازگار فرض شد» و دقیقاً همان
+     * باگی است که `readManifest` (B9) به آن وابسته بود.
+     */
+    public function test_upload_rejects_unreadable_core_requirement(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        foreach (['totally-bogus', '1.4.0 || 2.0.0', ''] as $core) {
+            $auth->postJson('/api/v1/admin/plugins/upload', [
+                'file' => $this->pluginZip($this->manifest([
+                    'slug' => 'garbled-requirement',
+                    'requires' => ['core' => $core],
+                ])),
+            ])->assertStatus(422)->assertJsonPath('requires.code', 'requires.core.invalid');
+        }
+
+        $this->assertDatabaseCount('plugins', 0);
+    }
+
+    public function test_upload_accepts_plugin_whose_core_requirement_matches(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest([
+                'slug' => 'compatible-plugin',
+                'requires' => ['core' => '*'],
+            ])),
+        ])->assertCreated();
+    }
+
+    /** ارتقا به نسخه‌ای که با هسته نمی‌خواند ⇒ 422 و رکورد دست‌نخورده. */
+    public function test_upgrade_rejects_incompatible_core_requirement(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'upgrade-core'])),
+        ])->assertCreated()->json('data.id');
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+            'file' => $this->pluginZip($this->manifest([
+                'slug' => 'upgrade-core',
+                'version' => '2.0.0',
+                'requires' => ['core' => '>=99.0.0'],
+            ])),
+        ])->assertStatus(422)->assertJsonPath('requires.code', 'requires.core.unsatisfied');
+
+        $this->assertDatabaseHas('plugins', ['id' => $id, 'version' => '1.0.0']);
+    }
+
+    // ── B9 — فقط مانیفست ریشهٔ ZIP ───────────────────────────────────────────
+
+    /**
+     * رگرسیون B9: `locateName('manifest.json', FL_NODIR)` روی **نام پایه** تطابق
+     * می‌دهد، نه مسیر کامل — پس اولین `manifest.json` هر جای ZIP برنده می‌شود.
+     *
+     * اینجا تودرتو عمداً اول اضافه می‌شود تا فرق دو روش خواندن قابل تشخیص باشد.
+     * مانیفست تودرتو همان چیزی است که `slug` و امضا و کل ردیف DB را تعیین می‌کند.
+     */
+    public function test_read_manifest_ignores_nested_manifest(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'plg').'.zip';
+        $zip = new ZipArchive;
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFromString('Laravel/manifest.json', json_encode(
+            ['name' => 'جاسوس', 'slug' => 'nested-imposter', 'version' => '9.9.9'],
+            JSON_UNESCAPED_UNICODE
+        ));
+        $zip->addFromString('manifest.json', json_encode(
+            ['name' => 'ریشه', 'slug' => 'root-one', 'version' => '1.0.0'],
+            JSON_UNESCAPED_UNICODE
+        ));
+        $zip->close();
+
+        // اطمینان از غیربنیان بودن تست: روش قدیمی واقعاً مانیفست تودرتو را
+        // برمی‌گرداند، پس تست فقط با تغییر رفتار معنادار می‌شود.
+        $probe = new ZipArchive;
+        $probe->open($path);
+        $this->assertSame(0, $probe->locateName('manifest.json', ZipArchive::FL_NODIR));
+        $probe->close();
+
+        $controller = app(PluginController::class);
+        $method = new \ReflectionMethod($controller, 'readManifest');
+        $method->setAccessible(true);
+
+        $this->assertSame('root-one', $method->invoke($controller, $path)['slug'] ?? null);
+    }
+
+    /** لایهٔ دفاعی اول: validator بستهٔ دومنیفستی را اصلاً نصب نمی‌کند. */
+    public function test_upload_rejects_package_with_nested_manifest(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $path = tempnam(sys_get_temp_dir(), 'plg').'.zip';
+        $zip = new ZipArchive;
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFromString('Laravel/manifest.json', json_encode(
+            ['name' => 'جاسوس', 'slug' => 'nested-imposter'], JSON_UNESCAPED_UNICODE
+        ));
+        $zip->addFromString('manifest.json', json_encode(
+            $this->manifest(['slug' => 'root-one']), JSON_UNESCAPED_UNICODE
+        ));
+        $zip->close();
+
+        $response = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => new UploadedFile($path, 'plugin.zip', 'application/zip', null, true),
+        ])->assertStatus(422);
+
+        $codes = array_column($response->json('analysis.errors') ?? [], 'code');
+        $this->assertContains('manifest.misplaced', $codes);
+
+        $this->assertDatabaseCount('plugins', 0);
+    }
+
+    // ── B11 — ترتیب ذخیره/به‌روزرسانی/حذف ────────────────────────────────────
+
+    /**
+     * رگرسیون B11: حذفِ زودهنگام + نوشتنِ ناموفق = پلاگین فعال با `path` که به
+     * فایل ناموجود اشاره می‌کند.
+     *
+     * شکستِ نوشتن با یک دیسکِ ریشه‌ file-به‌جای-پوشه شبیه‌سازی می‌شود، چون
+     * Flysystem برای «نشدن ساخت پوشه» exception می‌دهد نه `false`.
+     */
+    public function test_failed_upgrade_store_keeps_the_installed_version_intact(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'brick-me'])),
+        ])->assertCreated()->json('data.id');
+
+        $installed = Plugin::query()->findOrFail($id);
+        $oldPath = $installed->path;
+        $oldAbsolute = Storage::disk('local')->path($oldPath);
+        $this->assertFileExists($oldAbsolute);
+
+        $blocker = tempnam(sys_get_temp_dir(), 'blk');
+        config(['filesystems.disks.local' => ['driver' => 'local', 'root' => $blocker]]);
+        Storage::forgetDisk('local');
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'brick-me', 'version' => '2.0.0'])),
+        ])->assertStatus(422);
+
+        $after = $installed->fresh();
+        $this->assertSame('1.0.0', $after->version);
+        $this->assertNull($after->previous_version);
+        $this->assertSame($oldPath, $after->path);
+        $this->assertFileExists($oldAbsolute, 'فایل قبلی نباید پیش از نوشتن موفق حذف می‌شد.');
+
+        @unlink($blocker);
+    }
+
+    /** مسیر سالم: فایل جدید هست، فایل قبلی پاک شده. */
+    public function test_successful_upgrade_replaces_the_stored_file(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'swap-me'])),
+        ])->assertCreated()->json('data.id');
+
+        $oldPath = Plugin::query()->findOrFail($id)->path;
+        $oldAbsolute = Storage::disk('local')->path($oldPath);
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'swap-me', 'version' => '2.0.0'])),
+        ])->assertOk()->assertJsonPath('data.version', '2.0.0');
+
+        $newPath = Plugin::query()->findOrFail($id)->path;
+        $this->assertNotSame($oldPath, $newPath);
+        $this->assertFileExists(Storage::disk('local')->path($newPath));
+        $this->assertFileDoesNotExist($oldAbsolute, 'فایل نسخهٔ قبلی باید بعد از ثبت ردیف حذف شود.');
+    }
+
+    // ── B20 — پاسخ صادقانهٔ فعال‌سازی ────────────────────────────────────────
+
+    /**
+     * `hooks.not_yet_dispatched` هشدار است چون هوک‌ها dispatch نمی‌شوند؛ پس پاسخ
+     * فعال‌سازی نباید طوری باشد که UI فکر کند هوک‌ها ثبت و اجرا شدند.
+     */
+    public function test_activate_response_is_honest_about_hooks(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'hook-claimer'])),
+        ])->assertCreated()->json('data.id');
+
+        $this->approveAsOperator('plugin', (int) $id);
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
+            ->assertJsonPath('data.active', true)
+            ->assertJsonPath('hooks_dispatched', false);
+
+        $warning = $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
+            ->json('warning');
+
+        $this->assertIsString($warning);
+        $this->assertStringContainsString('هنوز اجرا نمی‌شوند', $warning);
+    }
+
+    /** پلاگین بی‌هوک هشدار نمی‌گیرد — ولی `hooks_dispatched` همچنان صادقانه `false` است. */
+    public function test_activate_without_hooks_has_no_warning(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'hookless', 'hooks' => []])),
+        ])->assertCreated()->json('data.id');
+
+        $this->approveAsOperator('plugin', (int) $id);
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
+            ->assertJsonPath('hooks_dispatched', false)
+            ->assertJsonPath('warning', null);
     }
 }

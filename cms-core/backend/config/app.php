@@ -17,6 +17,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Core Version
+    |--------------------------------------------------------------------------
+    |
+    | The authoritative version of the Pishdad core. Plugin manifests declare
+    | `requires.core` and this value decides whether they are installable, so
+    | it must be bumped in exactly one place. `CoreRequirementChecker` falls back
+    | to a constant only when this key is absent, which keeps a missing config
+    | from silently disabling compatibility checks.
+    |
+    */
+
+    'core_version' => env('APP_CORE_VERSION', '1.5.0'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

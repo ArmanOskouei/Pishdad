@@ -107,11 +107,42 @@ export class ApiError extends Error {
 export async function authedForm<T>(path: string, form: FormData, method = "POST"): Promise<T> {
   const res = await fetch(`/api/proxy${path}`, { method, body: form, cache: "no-store" });
   const json = await res.json().catch(() => ({}));
-  if (res.status === 401) { window.location.href = "/login"; throw new Error("نشست منقضی شد — دوباره وارد شوید."); }
+  if (res.status === 401) { window.location.href = "/login"; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
   // بدنهٔ کامل نگه داشته می‌شود: اعتبارسنجی پلاگین جزئیات ساختاریافته در
   // بدنهٔ خطا برمی‌گرداند و UI باید بتواند آن را رندر کند، نه فقط پیام را.
   if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
   return (json?.data ?? json) as T;
+}
+
+/**
+ * پوشش کامل پاسخ، وقتی `data` کافی نیست.
+ *
+ * `authed` فقط `data` را برمی‌گرداند و هر چیزی که بک‌اند کنارش گذاشته — مثل
+ * `warning` صادقانهٔ `activate()` دربارهٔ هوک‌ها — بی‌صدا دور می‌ریزد.
+ */
+export type ApiEnvelope<T> = {
+  data: T;
+  message?: string;
+  warning?: string | null;
+  hooks_dispatched?: boolean;
+};
+
+export async function authedEnvelope<T>(path: string, init?: { method?: string; body?: unknown }): Promise<ApiEnvelope<T>> {
+  const res = await fetch(`/api/proxy${path}`, {
+    method: init?.method ?? "GET",
+    headers: { "Content-Type": "application/json" },
+    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+    cache: "no-store",
+  });
+  const json = await res.json().catch(() => ({}));
+  if (res.status === 401) { window.location.href = "/login"; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
+  if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
+  return {
+    data: (json?.data ?? json) as T,
+    message: typeof json?.message === "string" ? json.message : undefined,
+    warning: typeof json?.warning === "string" ? json.warning : null,
+    hooks_dispatched: typeof json?.hooks_dispatched === "boolean" ? json.hooks_dispatched : undefined,
+  };
 }
 
 /** فراخوانی API احرازهویت‌شده از کلاینت (توکن داخل کوکی httpOnly است — Route Handler پروکسی می‌کند). */
@@ -123,7 +154,10 @@ export async function authed<T>(path: string, init?: { method?: string; body?: u
     cache: "no-store",
   });
   const json = await res.json().catch(() => ({}));
-  if (res.status === 401) { window.location.href = "/login"; throw new Error("نشست منقضی شد — دوباره وارد شوید."); }
-  if (!res.ok) throw new Error(json?.message ?? "خطایی رخ داد.");
+  // B7: هر دو مسیر `ApiError` می‌دهند و هر دو ۴۰۱ را `ApiError` با status 401.
+  // پیام و `instanceof Error` تغییر نمی‌کند ⇒ هیچ مصرف‌کننده‌ای نمی‌شکند،
+  // ولی UI می‌تواند «نشست منقضی» را از «خطای اعتبارسنجی» جدا کند.
+  if (res.status === 401) { window.location.href = "/login"; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
+  if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
   return (json?.data ?? json) as T;
 }

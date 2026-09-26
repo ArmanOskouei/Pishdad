@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authed, authedForm, ApiError } from "@/lib/auth";
+import { authed, authedEnvelope, authedForm, ApiError } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, EmptyState } from "@/components/ui/primitives";
 import { ConfirmDialog } from "@/components/ui/Overlays";
@@ -25,6 +25,10 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
   // دسته UIUX (افزودنی): جستجو + فیلتر وضعیت.
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "updates">("all");
+  // B20: «فعال شد» بدون این یعنی UI کاری را تأیید می‌کند که انجام نشده. هشدار
+  // مربوط به هوک‌ها فقط وقتی پیش می‌آید که بک‌اند واقعاً اعلام کرده، پس پایدار
+  // نگه داشته می‌شود نه فقط در toastی که ۳٫۵ ثانیه بعد گم می‌شود.
+  const [hooksNotice, setHooksNotice] = useState<string | null>(null);
 
   const refresh = () => router.refresh();
 
@@ -39,8 +43,29 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
       return;
     }
     try {
-      await authed(`/v1/admin/plugins/${p.id}/${p.active ? "deactivate" : "activate"}`, { method: "POST" });
-      toast(p.active ? "پلاگین غیرفعال شد." : "پلاگین فعال شد — هوک‌ها ثبت شدند.", "ok");
+      if (p.active) {
+        await authed(`/v1/admin/plugins/${p.id}/deactivate`, { method: "POST" });
+        setHooksNotice(null);
+        toast("پلاگین غیرفعال شد.", "ok");
+        refresh();
+        return;
+      }
+
+      // `authed` فقط `data` را برمی‌گرداند و `warning`/`hooks_dispatched` را
+      // بی‌صدا دور می‌ریزد — پس برای مسیر فعال‌سازی باید پوشش کامل بخوانیم.
+      const res = await authedEnvelope<PluginItem>(`/v1/admin/plugins/${p.id}/activate`, { method: "POST" });
+      setHooksNotice(null);
+
+      if (res.hooks_dispatched === false) {
+        // بک‌اند فقط وقتی warning می‌دهد که مانیفست واقعاً هوک اعلام کرده باشد.
+        const notice =
+          res.warning ??
+          "پلاگین فعال شد، ولی موتور dispatch هنوز ساخته نشده؛ اگر بخشی از افزونه به هوک تکیه کند کار نخواهد کرد.";
+        setHooksNotice(notice);
+        toast("پلاگین فعال شد — ولی هوک‌هایش هنوز اجرا نمی‌شوند.", "info");
+      } else {
+        toast("پلاگین فعال شد.", "ok");
+      }
       refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : "تغییر وضعیت ناموفق بود.", "err");
@@ -160,6 +185,15 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
             اگر بررسی بیش از ۳ روز کاری طول کشید، از بخش تیکت‌ها با پشتیبانی در تماس باشید.
           </Alert>
         </div>
+      ) : null}
+
+      {hooksNotice ? (
+        <Alert tone="amber">
+          <span dir="ltr" style={{ fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", fontSize: 11.5, marginInlineEnd: 6 }}>
+            hooks_dispatched: false
+          </span>
+          — {hooksNotice}
+        </Alert>
       ) : null}
 
       {initial.data.length === 0 ? (

@@ -315,38 +315,38 @@
 
 | # | باگ | ارجاع | کار | وضعیت |
 |---|-----|--------|-----|--------|
-| **B1** | 🔴 تشخیص نشت کلید فقط سطح‌بالا را می‌گیرد. مانیفست تودرتو است، پس `{"publisher":{"private_key":"…"}}` رد می‌شود. تناقض با خود کد: `PluginTrustStore.php:107` کلید را از `$manifest['publisher']['key_id']` می‌خواند. regex فعلی `api_key`/`token`/`password`/`salt`/`webhook_secret` را هم نمی‌گیرد | `PluginPackageValidator.php:233-240` | اسکن **بازگشتی** + فهرست کامل | ⏳ |
-| **B2** | 🔴 `slug` فارسی → رشتهٔ خالی. `Str::slug('پنل')` → `''` ⇒ ردیف با `slug=''` و prefix بی‌نام | `PluginController.php:103` · `Validator.php:210-217` | `^[a-z0-9][a-z0-9._-]{1,39}$` با **خطا** | ⏳ |
+| **B1** | 🔴 تشخیص نشت کلید فقط سطح‌بالا را می‌گیرد. مانیفست تودرتو است، پس `{"publisher":{"private_key":"…"}}` رد می‌شود. تناقض با خود کد: `PluginTrustStore.php:107` کلید را از `$manifest['publisher']['key_id']` می‌خواند. regex فعلی `api_key`/`token`/`password`/`salt`/`webhook_secret` را هم نمی‌گیرد | `PluginPackageValidator.php:233-240` | اسکن **بازگشتی** + فهرست کامل | done |
+| **B2** | 🔴 `slug` فارسی → رشتهٔ خالی. `Str::slug('پنل')` → `''` ⇒ ردیف با `slug=''` و prefix بی‌نام | `PluginController.php:103` · `Validator.php:210-217` | `^[a-z0-9][a-z0-9._-]{1,39}$` با **خطا** | done |
 | **B3** | 🔴 `dev_mode` اصلاً وجود ندارد. `upload()` و `upgrade()` هیچ بررسی سمت سرور ندارند | `PluginController.php:64,175` | middleware روی هر دو route | ⏳ |
 | **B4** | 🔴 `/api/proxy` فهرست مسیر مجاز ندارد. `$target = ${UPSTREAM}/${path.join("/")}` بدون بررسی ⇒ از مرورگر مدیر با کوکی، **هر `/api/*`** قابل فراخوانی است — از جمله `central/*` و `internal/heartbeat`. **همین مسیر دلیل رد کامپوننت پلاگین است (K1.5.8) و مرز امنیتی‌اش allowlist ندارد** | `api/proxy/[...path]/route.ts:9` · `lib/server-api.ts:23` | `if (path[0] !== 'v1') return 403` + فهرست بستهٔ prefix | ⏳ |
 | **B5** | 🔴 رجیستری جستجوی کلاینت دقیقاً K1.5.8 را دور می‌زند: `registerSearchSource({fetchItems})` روی `window.__ADMIN_SEARCH__` و نمونه‌اش `fetch('/api/proxy/v1/admin/blog/posts')` | `lib/search-registry.ts:111,336-361` · `docs/SEARCH-PLUGIN-CONTRACT.md` | حذف + انتقال به بک‌اند | ⏳ |
-| **B6** | 🔴 `PackageAnalyzer` مقدار اولیهٔ prop را دوباره نمی‌خواند ⇒ مسیر «آپلود رد شد» بی‌اثر است | `PackageAnalyzer.tsx:152` · `PluginsClient.tsx:73,147` | `useEffect` sync یا `key` | ⏳ |
-| **B7** | 🟠 `ApiError` فقط از FormData. `authed` هنوز `Error` ساده می‌دهد و هر دو در ۴۰۱ خطای ساده ⇒ تمیز دادن «نشست منقضی» از «خطای اعتبارسنجی» ممکن نیست | `auth.tsx:110,113,126,127` | `authed` هم `ApiError` | ⏳ |
-| **B8** | 🟠 `suggestLocation` اولویت‌ها را برعکس زده: نام کلاس قبل از پسوند ⇒ `Model.png` → پیشنهاد `Laravel/src/Models/Model.png`. **نکتهٔ امنیتی:** پسوندهای `.ts/.tsx/.js/.jsx` به `Next.js/panel/` پیشنهاد می‌شوند ولی آن پوشه هرگز اجرا نمی‌شود — اگر روزی به `public/` سرو شود، اسکریپت same-origin روی origin ادمین است | `PluginPackageContract.php:296-324` | پسوند قبل از نام + **حذف** `.ts/.tsx/.js/.jsx` از پیشنهاد | ⏳ |
+| **B6** | 🔴 `PackageAnalyzer` مقدار اولیهٔ prop را دوباره نمی‌خواند ⇒ مسیر «آپلود رد شد» بی‌اثر است | `PackageAnalyzer.tsx:152` · `PluginsClient.tsx:73,147` | `useEffect` sync یا `key` | done |
+| **B7** | 🟠 `ApiError` فقط از FormData. `authed` هنوز `Error` ساده می‌دهد و هر دو در ۴۰۱ خطای ساده ⇒ تمیز دادن «نشست منقضی» از «خطای اعتبارسنجی» ممکن نیست | `auth.tsx:110,113,126,127` | `authed` هم `ApiError` | done |
+| **B8** | 🟠 `suggestLocation` اولویت‌ها را برعکس زده: نام کلاس قبل از پسوند ⇒ `Model.png` → پیشنهاد `Laravel/src/Models/Model.png`. **نکتهٔ امنیتی:** پسوندهای `.ts/.tsx/.js/.jsx` به `Next.js/panel/` پیشنهاد می‌شوند ولی آن پوشه هرگز اجرا نمی‌شود — اگر روزی به `public/` سرو شود، اسکریپت same-origin روی origin ادمین است | `PluginPackageContract.php:296-324` | پسوند قبل از نام + **حذف** `.ts/.tsx/.js/.jsx` از پیشنهاد | done |
 | **B9** | 🟠 `readManifest` هر `manifest.json` را پیدا می‌کند نه فقط ریشه را. نقض مستقیم K1.5.2. امروز تصادفی امن است چون `manifest.misplaced` جلویش را می‌گیرد — ولی در `upload()` همین خروجی `slug` و امضا و کل ردیف DB را تعیین می‌کند | `Validator.php:422` · `PluginController.php:434` | `getFromName('manifest.json')` | ⏳ |
-| **B10** | 🟠 دو شکل برای یک مفهوم: `manifestChecks` رشتهٔ ساده می‌پذیرد ولی `extensionPointsOf` فقط آبجکت ⇒ مانیفست با رشتهٔ ساده از اعتبارسنجی رد می‌شود ولی در مقایسه با `panel.json` نامرئی است ⇒ اختلاف کاذب | `Validator.php:248,380-384` | فقط آبجکت، در هر دو جا | ⏳ |
-| **B11** | 🟠 `upgrade()` فایل قدیمی را **قبل** از موفقیت جدید پاک می‌کند. دیسک پر ⇒ پلاگین فعال با `path` ناموجود | `PluginController.php:207-212` | ذخیرهٔ جدید → ردیف → حذف قدیم | ⏳ |
+| **B10** | 🟠 دو شکل برای یک مفهوم: `manifestChecks` رشتهٔ ساده می‌پذیرد ولی `extensionPointsOf` فقط آبجکت ⇒ مانیفست با رشتهٔ ساده از اعتبارسنجی رد می‌شود ولی در مقایسه با `panel.json` نامرئی است ⇒ اختلاف کاذب | `Validator.php:248,380-384` | فقط آبجکت، در هر دو جا | done |
+| **B11** | 🟠 `upgrade()` فایل قدیمی را **قبل** از موفقیت جدید پاک می‌کند. دیسک پر ⇒ پلاگین فعال با `path` ناموجود | `PluginController.php:207-212` | ذخیرهٔ جدید → ردیف → حذف قدیم | done |
 | **B12** | 🟠 سه درخواست سریالی در layout هر صفحهٔ پنل | `admin/layout.tsx:12,19,26` | `Promise.allSettled` با حفظ سه `catch` جدا | ⏳ |
 | **B13** | 🟡 زنگ اعلان `<button>` بدون `onClick`؛ `alertCount` هرگز پاس داده نمی‌شود. جدول `notifications` + `TicketNotification` بی‌خواننده | `Topbar.tsx:48-50` · `Shell.tsx:13` | K5.8 | ⏳ |
 | **B14** | 🟡 breadcrumb روی همهٔ صفحات «پنل › مدیریت» است. ریشه‌اش یک باگ است نه یک نقطهٔ اتصال | `admin/layout.tsx:36` | از page descriptor | ⏳ |
-| **B15** | 🟡 `SaveBar` برچسب «تأیید و ذفیره **قالب**» را هاردکد کرده — کامپوننت عمومی با واژهٔ دامنهٔ قالب | `primitives.tsx:66` | پارامتری کردن | ⏳ |
+| **B15** | 🟡 `SaveBar` برچسب «تأیید و ذفیره **قالب**» را هاردکد کرده — کامپوننت عمومی با واژهٔ دامنهٔ قالب | `primitives.tsx:66` | پارامتری کردن | done |
 | **B16** | 🟡 پرمیشن‌ها namespaced نیستند ⇒ دو پلاگین با ماژول هم‌نام پرمیشن مشترک می‌گیرند | `ManifestRegistry.php:51-58` · `PluginController.php:409-412` | I6 | ⏳ |
 | **B17** | 🟡 روی ZIP باز‌نشدنی، `result()` به `$summary['slug']` دست می‌زند که وجود ندارد | `Validator.php:43-45,462` | تست بستهٔ خراب | ⏳ |
 | **B18** | 🟡 ثابت‌های مرده: `MAX_TABLE_COUNT`، `MAX_INDEXES_PER_TABLE`، `MAX_ACTIVE_PLUGINS` بی‌استفاده. `ensureSealKey()` هیچ caller ندارد ⇒ **K0.4 پیاده نشده**. `PackageAnalysis::items()` بی‌caller | `Contract.php:41,43,45` · `TrustStore.php:90` | مصرف یا حذف | ⏳ |
 | **B19** | 🟡 `ensureSealKey` از `Cache::forever` ⇒ یک flush ریدایس، کلید را بی‌صدا بی‌اعتبار می‌کند | `TrustStore.php:100` | جدول settings | ⏳ |
-| **B20** | 🟡 `hooks.not_yet_dispatched` هشدار است ولی `syncHooks` ردیف می‌نویسد و فرانت toast می‌دهد «هوک‌ها ثبت شدند». هوک‌ها **اجرا نمی‌شوند** | `Validator.php:293` · `PluginsClient.tsx:43` | متن صادقانه تا K5.5 | ⏳ |
+| **B20** | 🟡 `hooks.not_yet_dispatched` هشدار است ولی `syncHooks` ردیف می‌نویسد و فرانت toast می‌دهد «هوک‌ها ثبت شدند». هوک‌ها **اجرا نمی‌شوند** | `Validator.php:293` · `PluginsClient.tsx:43` | متن صادقانه تا K5.5 | done |
 | **B21** | 🟡 عدد جادویی ۲۰۰۰ کنار `MAX_FILES`=۵۰۰۰ | `Validator.php:191` | ثابت | ⏳ |
 | **B22** | 🟡 تورفتگی شکسته در گروه `admin` | `routes/api.php:174-181` | تمیز | ⏳ |
 | **B23** | 🟡 `api.d.ts` (۲۰۸KB) نوع دستی `PackageAnalysis` دارد که با `PackageAnalyzer.tsx:27` تکراری است | — | I8 | ⏳ |
-| **B24** | 🔴 **XSS در بلوک CTA — تأییدشده.** `href` بدون هیچ sanitize مستقیم در `<a>` می‌رود. `safeHtml` (`:12`) فقط روی متن ریچ‌تکست کار می‌کند و خط `:19` پاک‌سازی‌اش فقط داخل `safeHtml` است. یعنی `javascript:alert(1)` در بلوک CTA زنده است. **قبل از باز کردن `site.block_type` باید درست شود** | `components/site/BlockRenderer.tsx:109` | رد `href` از `safeHtml` | ⏳ |
-| **B25** | 🔴 **`requires.core` هرگز بررسی نمی‌شود** — تأییدشده با جست‌وجوی کامل. فقط در یک کامنت ذکر شده. یعنی کل لایهٔ سازگاری نسخه (`since`/`schema_version`) روی کاغذ است | `PluginPackageContract.php:18` | K3.0 | ⏳ |
-| **B26** | 🔴 `example` نقطهٔ `admin.menu` ۳ از ۴ فیلدش غلط است — تأییدشده با مقایسهٔ واقعی. `Contract.php:87` می‌گوید `title`/`path` ولی `menu.ts:3` می‌خواهد `{ href, label, icon, key }`. عملاً داریم به برنامه‌نویس **فیلد غلط** یاد می‌دهیم | `Contract.php:87` × `menu.ts:3` | K3.1 | ⏳ |
-| **B27** | 🔴 `extensionPoints()` فیلدهای تازهٔ قرارداد را **بی‌صدا drop** می‌کند. هر فیلدی که دستی به این map اضافه نشود از پاسخ API حذف می‌شود و UI نشانش نمی‌دهد | `Contract.php:137` | K3.2 | ⏳ |
-| **B28** | 🔴 فلگ `json` سیگنال **ضدّهمبسته با واقعیت** است: تنها نقطهٔ زنده (`site.page_type`) آن را ندارد ولی ۵ نقطهٔ مرده دارند. اگر `openness` اضافه شود و `json` بماند، دو سیگنال رقیب داریم | `Contract.php:80,88-123,145` | K3.6 | ⏳ |
+| **B24** | 🔴 **XSS در بلوک CTA — تأییدشده.** `href` بدون هیچ sanitize مستقیم در `<a>` می‌رود. `safeHtml` (`:12`) فقط روی متن ریچ‌تکست کار می‌کند و خط `:19` پاک‌سازی‌اش فقط داخل `safeHtml` است. یعنی `javascript:alert(1)` در بلوک CTA زنده است. **قبل از باز کردن `site.block_type` باید درست شود** | `components/site/BlockRenderer.tsx:109` | رد `href` از `safeHtml` | done |
+| **B25** | 🔴 **`requires.core` هرگز بررسی نمی‌شود** — تأییدشده با جست‌وجوی کامل. فقط در یک کامنت ذکر شده. یعنی کل لایهٔ سازگاری نسخه (`since`/`schema_version`) روی کاغذ است | `PluginPackageContract.php:18` | K3.0 | done |
+| **B26** | 🔴 `example` نقطهٔ `admin.menu` ۳ از ۴ فیلدش غلط است — تأییدشده با مقایسهٔ واقعی. `Contract.php:87` می‌گوید `title`/`path` ولی `menu.ts:3` می‌خواهد `{ href, label, icon, key }`. عملاً داریم به برنامه‌نویس **فیلد غلط** یاد می‌دهیم | `Contract.php:87` × `menu.ts:3` | K3.1 | done |
+| **B27** | 🔴 `extensionPoints()` فیلدهای تازهٔ قرارداد را **بی‌صدا drop** می‌کند. هر فیلدی که دستی به این map اضافه نشود از پاسخ API حذف می‌شود و UI نشانش نمی‌دهد | `Contract.php:137` | K3.2 | done |
+| **B28** | 🔴 فلگ `json` سیگنال **ضدّهمبسته با واقعیت** است: تنها نقطهٔ زنده (`site.page_type`) آن را ندارد ولی ۵ نقطهٔ مرده دارند. اگر `openness` اضافه شود و `json` بماند، دو سیگنال رقیب داریم | `Contract.php:80,88-123,145` | K3.6 | done |
 | **B29** | 🟠 کامنت `Contract.php:81` دربارهٔ کلید `builder` نوشته ولی هیچ نقطه‌ای `builder` ندارد. مستندات مرده | `Contract.php:81` | تمیز | ⏳ |
 | **B30** | 🟠 `ManifestRegistry` برخورد `type` را بی‌صدا `continue` می‌کند. پلاگینی که `type` تکراری اعلام کند نصب می‌شود و **اصلاً دیده نمی‌شود** — بدترین حالت بی‌صدا | `ManifestRegistry.php:99-105,152-154` | قاعدهٔ مقطعی «عدم برخورد» ⇒ خطا | ⏳ |
 | **B31** | 🟠 ۴ نقطه از ۶ `example` ندارند و `example` هیچ‌کدام رندر نمی‌شود | `Contract.php:95-123` · `PackageAnalyzer.tsx:264-267` | K3.7 | ⏳ |
-| **B32** | 🟡 تصحیح اولویت B17: در `Validator.php:43-45` مقدار `$manifest` برابر `null` است پس `result()` شاخهٔ `:444` را رد می‌کند. مواجههٔ واقعی فقط undefined-index روی `Log::info` در `:457/459` است — warning نه crash. **اولویتش پایین‌تر از آن است که TASKS نشان می‌داد** | `Validator.php:41-46,457-463` | پایین | ⏳ |
+| **B32** | 🟡 تصحیح اولویت B17: در `Validator.php:43-45` مقدار `$manifest` برابر `null` است پس `result()` شاخهٔ `:444` را رد می‌کند. مواجههٔ واقعی فقط undefined-index روی `Log::info` در `:457/459` است — warning نه crash. **اولویتش پایین‌تر از آن است که TASKS نشان می‌داد** | `Validator.php:41-46,457-463` | پایین | done |
 
 ### کاستی تست
 
@@ -501,17 +501,17 @@
 
 | # | تسک | وضعیت |
 |---|------|--------|
-| **K3.0** | ⭐ **enforce کردن `requires.core`** | `requires` **الان هیچ‌جا بررسی نمی‌شود** — فقط در کامنت `PluginPackageContract.php:18`. یعنی کل لایهٔ سازگاری روی کاغذ است. **پیش‌شرط I5** | ⏳ |
-| **K3.1** | ⭐ اصلاح `example` غلط `admin.menu` | 🔴 `Contract.php:87` می‌گوید `title`/`path`/`icon`/`permission` ولی واقعیت `lib/menu.ts:3` است: `{ href, label, icon, key }`. **۳ از ۴ فیلد اشتباه** — عملاً داریم به برنامه‌نویس فیلد غلط یاد می‌دهیم. `permission: 'posts.view'` هم بدون prefix اسلاگ است | ⏳ |
-| **K3.2** | اصلاح `extensionPoints()` که فیلدها را drop می‌کند | 🔴 `Contract.php:137` یک map **دستی** است. هر فیلد تازهٔ قرارداد که دستی اضافه نشود **بی‌صدا از پاسخ API حذف می‌شود** و UI نشانش نمی‌دهد | ⏳ |
+| **K3.0** | ⭐ **enforce کردن `requires.core`** | `requires` **الان هیچ‌جا بررسی نمی‌شود** — فقط در کامنت `PluginPackageContract.php:18`. یعنی کل لایهٔ سازگاری روی کاغذ است. **پیش‌شرط I5** | done |
+| **K3.1** | ⭐ اصلاح `example` غلط `admin.menu` | 🔴 `Contract.php:87` می‌گوید `title`/`path`/`icon`/`permission` ولی واقعیت `lib/menu.ts:3` است: `{ href, label, icon, key }`. **۳ از ۴ فیلد اشتباه** — عملاً داریم به برنامه‌نویس فیلد غلط یاد می‌دهیم. `permission: 'posts.view'` هم بدون prefix اسلاگ است | done |
+| **K3.2** | اصلاح `extensionPoints()` که فیلدها را drop می‌کند | 🔴 `Contract.php:137` یک map **دستی** است. هر فیلد تازهٔ قرارداد که دستی اضافه نشود **بی‌صدا از پاسخ API حذف می‌شود** و UI نشانش نمی‌دهد | done |
 | **K3.3** | ⭐ `openness` + `status` + `since` + `schema_version` + `forbidden` + `max` | ساختار دادهٔ بالا | ⏳ |
-| **K3.4** | `validateDeclaration()` — متد خالص، دستی، fail-closed | | ⏳ |
-| **K3.5** | 🔴 حذف `Next.js/panel.json` از `ALLOWED_PATHS` + حذف `panelFileChecks` + رفع وابستگی تست | تصمیم C2 | ⏳ |
-| **K3.6** | ⛔ حذف فلگ `json` | سیگنال **ضدّهمبسته با واقعیت**: تنها نقطهٔ زنده (`site.page_type`) این فلگ را ندارد ولی ۵ نقطهٔ مرده دارند | ⏳ |
-| **K3.7** | `example_ok` + `example_bad` برای هر نقطه | تست و راهنما هر دو از آن استفاده می‌کنند | ⏳ |
-| **K3.8** | ⭐ schema فقط برای `admin.menu` (بسته) + `site.page_type` (باز) | **این دو همهٔ چهار درجه را با دو نمونه ثابت می‌کنند.** نوشتن ۱۰ schema برای ۱۰ renderer غایب = ۱۰ منبع حقیقت که در سه ماه دروغ می‌گویند | ⏳ |
+| **K3.4** | `validateDeclaration()` — متد خالص، دستی، fail-closed | | done |
+| **K3.5** | 🔴 حذف `Next.js/panel.json` از `ALLOWED_PATHS` + حذف `panelFileChecks` + رفع وابستگی تست | تصمیم C2 | done |
+| **K3.6** | ⛔ حذف فلگ `json` | سیگنال **ضدّهمبسته با واقعیت**: تنها نقطهٔ زنده (`site.page_type`) این فلگ را ندارد ولی ۵ نقطهٔ مرده دارند | done |
+| **K3.7** | `example_ok` + `example_bad` برای هر نقطه | تست و راهنما هر دو از آن استفاده می‌کنند | done |
+| **K3.8** | ⭐ schema فقط برای `admin.menu` (بسته) + `site.page_type` (باز) | **این دو همهٔ چهار درجه را با دو نمونه ثابت می‌کنند.** نوشتن ۱۰ schema برای ۱۰ renderer غایب = ۱۰ منبع حقیقت که در سه ماه دروغ می‌گویند | done |
 | **K3.9** | schema بقیهٔ نقاط — **فقط بعد از ساخت renderer هرکدام** | | ⏳ |
-| **K3.10** | کدهای خطای schema تولیدشده از خود قرارداد | `CODE_FA` در `PackageAnalyzer.tsx:46` دستی است ⇒ ۱۰ کد تازه بدون ترجمه، `issue.code` خام در UI می‌افتد | ⏳ |
+| **K3.10** | کدهای خطای schema تولیدشده از خود قرارداد | `CODE_FA` در `PackageAnalyzer.tsx:46` دستی است ⇒ ۱۰ کد تازه بدون ترجمه، `issue.code` خام در UI می‌افتد | done |
 | **K3.11** | `admin.plugin_tools` — نقطهٔ drawer هدر پنل (تصمیم C1) | | ⏳ |
 
 ## چیزهایی که با خواستهٔ کارفرما مخالف شد
@@ -710,9 +710,61 @@
 
 ---
 
+# 🆕 L — قابلیت‌های جدید (فاز ۱ ممیزی ۲۰۲۶-۰۹-۲۶)
+
+> **ثبت‌شده در فاز ۱ تحلیل.** همه `⏸️ منتظر تأیید` — هیچ‌کدام بدون تأیید کارفرما شروع نمی‌شود.
+> کدگذاری `L` برای جلوگیری از تداخل با `K`/`J`/`I`/`B`/`E` پیشنهاد و تأیید شد.
+> خروجی: `docs/L-FEASIBILITY.md`
+
+## وضعیت گروه‌ها
+
+| گروه | موضوع | حکم ممیزی | حجم | ردیف |
+|---|---|---|---|---|
+| **L1** | باگ‌های امنیتی حیاتی (B24/B4/B25) | ✅ تایید — با اصلاح | S | ⏸️ |
+| **L2** | جداسازی مرکزی از هسته | ⚠️ **نیاز به تغییر** — گزینهٔ ۳ توصیه شد، نه پلاگین runtime | S-M | ⏸️ |
+| **L3** | هستهٔ اجرای پلاگین (K5) | ✅ تایید با اصلاحات — ۴ اصلاح ترتیب | L | ⏸️ |
+| **L4** | اجرای قالب در runtime | ✅ تایید — اما `themeVars()` امروز بی‌مصرف است | M | ⏸️ |
+| **L5** | نوتیفیکیشن | ✅ پنل تایید · ⚠️ سایت عمومی **تعویق** | M | ⏸️ |
+| **L6** | PWA پنل | ⚠️ **نیاز به بازبینی** — ساب‌ایجنت تقلیل/حذف را پیشنهاد کرد | S→M-L | ⏸️ |
+| **L7** | PWA سایت عمومی | ✅ تایید · ⛔ Web Push رد شد | M | ⏸️ |
+| **L8** | سه‌قالبه + رنگ کامل | ✅ تایید — **نیاز به بازطراحی مدل داده** | M | ⏸️ |
+| **L9** | زیرساخت (installer/SMTP/داک/دایرکتوری) | ✅ تایید — installer بالاتر از همهٔ K3+ | L | ⏸️ |
+
+## باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید)
+
+| # | موضوع | محل | شدت | حالت |
+|---|---|---|---|---|
+| **L-B1** | 🔴 XSS ذخیره‌شده در JSON-LD — `JSON.stringify` اسلش را escape نمی‌کند | `app/[...path]/page.tsx:118` | 🔴 عمومی، بی‌احرازهویت | ⏸️ |
+| **L-B2** | 🔴 XSS ویجت CTA هدر/فوتر — بدون `safeHref` و بدون اعتبارسنجی سرور | `components/site/Chrome.tsx:53` | 🔴 عمومی | ⏸️ |
+| **L-B3** | 🔴 `upgrade()` پلاگین سیستمی را با کلید هر ناشر تأییدشده‌ای تصاحب می‌کند (publish-confusion) | `PluginController.php:226-233,266` | 🔴 | ⏸️ |
+| **L-B4** | 🔴 مسیر عمومی سایت بدون جداول مرکزی ۵۰۰ می‌دهد ⇒ صفحهٔ خانه ۴۰۴ | `Site/PageController.php:59` + ۲ کنترلر دیگر | 🔴 تولید فعال | ⏸️ |
+| **L-B5** | 🔴 `vendor/` از allowlist پلاگین دور می‌زند (`Laravel/src/vendor/**` مجاز است) | `PluginPackageContract.php:471-474` | 🔴 زنجیرهٔ تأمین | ⏸️ |
+| **L-B6** | 🔴 `sms/request` به کاربر می‌گوید پیامک ارسال شد، در حالی که هیچ‌چیز ارسال نمی‌شود | `ProfileController.php:381-402` | 🔴 دروغ به کاربر | ⏸️ |
+| **L-B7** | 🟠 `themeVars()` هیچ مصرف‌کننده‌ای ندارد — سایت ۱۰۰٪ از توکن‌های **پنل** استایل می‌گیرد | `Chrome.tsx:12` + `globals.css:594` | 🟠 نشت تم | ⏸️ |
+| **L-B8** | 🟠 `site-chrome` در allowlist محلی revalidate نیست ⇒ فعال‌سازی قالب کروم را پاک نمی‌کند | `api/revalidate/route.ts:18` | 🟠 کهنگی ۳۰۰ث | ⏸️ |
+| **L-B9** | 🟠 `site-status`/`site-homepage` هرگز dispatch نمی‌شوند ⇒ تعلیق فقط با انقضای ISR | `RevalidateDispatcher` call-sites | 🟠 | ⏸️ |
+| **L-B10** | 🟠 کنترل symlink فقط `S_IFLNK` را می‌گیرد؛ char/block/FIFO/socket رد نمی‌شوند | `PluginPackageValidator.php:516` | 🟠 | ⏸️ |
+| **L-B11** | 🟡 `HREF_OK`/`SRC_OK`/`LinkItems` با `/\evil.com` دور زده می‌شوند (open-redirect) | `BlockRenderer.tsx:21,27` | 🟡 | ⏸️ |
+
+## ردیف‌های موجود که ممیزی فاز ۱ **کهنه** تشخیص داد
+
+| ردیف | ادعای فعلی TASKS.md | واقعیت کد | اقدام |
+|---|---|---|---|
+| B24 (`:341`) | 🔴 XSS CTA تأییدشده | ✅ **رفع شده** — `safeHref`/`HREF_OK` در `BlockRenderer.tsx:21,39-41,145` | ⏸️ بسته شود |
+| B25 (`:342`) | «هرگز بررسی نمی‌شود» | 🟡 **نیمه‌رفع** — ۲ caller در `PluginController.php:107,236`؛ `activate()`/`validatePackage()` هنوز نه | ⏸️ بازنویسی |
+| B26 (`:343`) | 🔴 | ✅ رفع شده | ⏸️ بسته شود |
+| B27 (`:344`) | 🔴 | ✅ رفع شده | ⏸️ بسته شود |
+| «۱۱ فایل هسته» (`:652,696`) | ۱۱ | **۱۵** (۱۲ در مسیر درخواست + ۳ کامند)؛ ۴ فایل جا افتاده | ⏸️ اصلاح |
+| «۸ نقطهٔ اتصال» (`:733`) | ۸ | **۱۰** نقطه در `EXTENSION_POINTS` | ⏸️ اصلاح |
+| «۱۱ کنترل validator» | ۱۱ | ۱۰ ساختاری + کنترل‌های مانیفست | ⏸️ اصلاح |
+| J1 (`:222`) | «❌ ممکن نیست» | صورت‌بندی غلط: «از نظر اقتصادی توجیه ندارد» ≠ «فنی ناممکن» | ⏸️ بازنویسی |
+
+---
+
 # 📋 ترتیب اجرای قطعی
 
 > هر گام بدون گام قبلش معنا ندارد یا بی‌فایده است.
+> ردیف‌های L بعد از تأیید کارفرما به این جدول اضافه می‌شوند (فعلاً در `docs/L-FEASIBILITY.md` است).
 
 | ترتیب | گام | چرا اینجا |
 |---|---|---|

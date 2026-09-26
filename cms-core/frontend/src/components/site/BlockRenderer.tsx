@@ -8,6 +8,42 @@ import { ContactForm } from "./ContactForm";
  * بلوک `_enabled === false` رد می‌شود (تغییر فعال/غیرفعال صفحه ۱.۱۲).
  */
 
+/**
+ * نشانی امن برای `href` — B24.
+ *
+ * `data.href` بلوک CTA دادهٔ کاربر است و `safeHtml` فقط متن ریچ‌تکست را می‌شوید،
+ * پس `javascript:alert(1)` بدون این تابع مستقیم به `<a>` می‌رسد و زنده است.
+ *
+ * فقط مسیر داخلی، لنگر، `http(s)` و `mailto` پذیرفته می‌شود. `//evil.com`
+ * protocol-relative است و regexِ سادهٔ `^/` آن را نمی‌گیرد — lookahead منفی
+ * `(?!\/)` دقیقاً برای همان است. بقیه ⇒ `null` و تصمیم fallback با کامپوننت است.
+ */
+const HREF_OK = /^(?:\/(?!\/)|#|https?:\/\/|mailto:)/i;
+
+/**
+ * `src` امن — همان allowlist بدون `mailto:`/`#` که برای منبع فایل بی‌معنی‌اند.
+ * `data:` عمداً نیست: `data:image/svg+xml` می‌تواند `<script>` در خود داشته باشد.
+ */
+const SRC_OK = /^(?:\/(?!\/)|https?:\/\/)/i;
+
+function safeUrl(raw: unknown, ok: RegExp): string | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim();
+  if (!v) return null;
+  // مرورگر TAB/LF/CR را از URL حذف می‌کند ⇒ `java\tscript:` بدون این هم زنده است.
+  // فقط برای آزمون پاک می‌کنیم؛ خودِ نشانی دست‌نخورده برمی‌گردد.
+  if (!ok.test(v.replace(/[\u0000-\u001f\u007f]/g, ""))) return null;
+  return v;
+}
+
+export function safeHref(raw: unknown): string | null {
+  return safeUrl(raw, HREF_OK);
+}
+
+export function safeSrc(raw: unknown): string | null {
+  return safeUrl(raw, SRC_OK);
+}
+
 /** متن ریچ‌تکست Jodit با allowlist ساده sanitize می‌شود (بدون lib سنگین). */
 export function safeHtml(html: string): string {
   const ALLOWED = new Set(["p", "br", "b", "strong", "i", "em", "u", "s", "a", "ul", "ol", "li", "h1", "h2", "h3", "h4", "blockquote", "code", "pre", "hr", "span", "div"]);
@@ -22,8 +58,7 @@ export function safeHtml(html: string): string {
       if (!ALLOWED.has(t)) return "";
       if (t === "a") {
         const href = /href\s*=\s*"([^"]*)"/i.exec(m)?.[1] ?? "#";
-        const safe = /^(\/|#|https?:\/\/|mailto:)/i.test(href) ? href : "#";
-        return `<a href="${safe}">`;
+        return `<a href="${(safeHref(href) ?? "#").replace(/"/g, "&quot;")}">`;
       }
       return t === "br" || t === "hr" ? `<${t}>` : m.startsWith("</") ? `</${t}>` : `<${t}>`;
     });
@@ -35,13 +70,14 @@ function str(v: unknown): string {
 
 function mediaSrc(d: Record<string, unknown>): string | null {
   for (const k of ["url", "src", "image_url"]) {
-    const v = d[k];
-    if (typeof v === "string" && v) return v;
+    // `src` هم دادهٔ کاربر است (بلوک سازندهٔ صفحه) ⇒ همان allowlist، بدون استثنا.
+    const v = safeSrc(d[k]);
+    if (v) return v;
   }
   // media_id بدون endpoint عمومی قابل resolve نیست (TODO بک‌اند: URL آماده در payload صفحه).
   // اگر path مستقیم داده شده بود، از بیس MinIO بساز:
   const path = d.path;
-  if (typeof path === "string" && path) return mediaUrl({ path });
+  if (typeof path === "string" && path) return safeSrc(mediaUrl({ path }));
   return null;
 }
 
@@ -106,14 +142,17 @@ function Block({ type, data }: { type: string; data: Record<string, unknown> }) 
       const style = data.style === "secondary" ? "btn-ghost" : data.style === "ghost" ? "btn-ghost" : "btn-primary";
       return (
         <div>
-          <a className={`btn ${style}`} href={str(data.href) || "#"}>{str(data.label) || "ادامه"}</a>
+          <a className={`btn ${style}`} href={safeHref(data.href) ?? "#"}>{str(data.label) || "ادامه"}</a>
         </div>
       );
     }
     case "gallery": {
       const ids = Array.isArray(data.media_ids) ? data.media_ids : [];
       const cols = Math.min(6, Math.max(1, Number(data.columns) || 3));
-      const urls = ids.map((_, idx) => (data[`url_${idx}`] ?? null) as string | null).filter(Boolean) as string[];
+      const urls = ids
+        .map((_, idx) => (data[`url_${idx}`] ?? null) as string | null)
+        .map((u) => safeSrc(u))
+        .filter((u): u is string => Boolean(u));
       if (urls.length === 0) {
         return <p style={{ color: "var(--text-muted)", fontSize: 13 }}>گالری {ids.length} تصویر دارد — resolve عمومی مدیا در بک‌اند نیست (TODO).</p>;
       }
@@ -137,10 +176,12 @@ function Block({ type, data }: { type: string; data: Record<string, unknown> }) 
       );
     }
     case "video": {
-      const src = str(data.url ?? data.src);
+      const raw = str(data.url ?? data.src);
       const caption = str(data.caption);
-      if (!src) return null;
-      if (/\.mp4($|\?|#)/i.test(src)) {
+      if (!raw) return null;
+      if (/\.mp4($|\?|#)/i.test(raw)) {
+        const src = safeSrc(raw);
+        if (!src) return null;
         return (
           <figure style={{ margin: 0 }}>
             <video src={src} controls style={{ inlineSize: "100%", borderRadius: 12 }} />
@@ -148,9 +189,12 @@ function Block({ type, data }: { type: string; data: Record<string, unknown> }) 
           </figure>
         );
       }
+      // لینک بیرونی هم دادهٔ کاربر است ⇒ `javascript:` اینجا هم باید بمیرد (B24).
+      const href = safeHref(raw);
+      if (!href) return null;
       return (
         <a
-          href={src}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
           className="card card-pad"
@@ -159,7 +203,7 @@ function Block({ type, data }: { type: string; data: Record<string, unknown> }) 
           <span aria-hidden style={{ fontSize: 22 }}>▶</span>
           <span>
             <b style={{ display: "block", fontSize: 14 }}>{caption || "مشاهده ویدیو"}</b>
-            <small dir="ltr" style={{ display: "block", textAlign: "end", color: "var(--text-muted)", fontSize: 11.5 }}>{src.slice(0, 80)}</small>
+            <small dir="ltr" style={{ display: "block", textAlign: "end", color: "var(--text-muted)", fontSize: 11.5 }}>{href.slice(0, 80)}</small>
           </span>
         </a>
       );

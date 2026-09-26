@@ -20,6 +20,14 @@ use ZipArchive;
  */
 class PluginPackageValidator
 {
+    /**
+     * نام کلیدهایی که هرگز نباید در آرتیفکت توزیع‌شده باشند.
+     *
+     * `key_id` عمداً نیست: شناسهٔ عمومی ناشر است و `PluginTrustStore` دقیقاً از
+     * `$manifest['publisher']['key_id']` می‌خواندش.
+     */
+    private const SECRET_KEY_PATTERN = '/(^|_)(public_key|private_key|secret_key|seed|mnemonic|api_key|token|password|salt|passphrase|webhook_secret)$/i';
+
     public function __construct(private PluginTrustStore $trustStore) {}
 
     /**
@@ -42,7 +50,7 @@ class PluginPackageValidator
         if ($zip->open($zipPath) !== true) {
             return $this->result(false, [
                 ['code' => 'zip.unreadable', 'message' => 'فایل ZIP قابل باز کردن نیست.'],
-            ], [], null, []);
+            ], [], null, $this->emptySummary());
         }
 
         try {
@@ -59,7 +67,7 @@ class PluginPackageValidator
                     'message' => 'فایل manifest.json در ریشهٔ ZIP پیدا نشد. این فایل باید دقیقاً در ریشه باشد، نه داخل پوشهٔ Laravel/ یا Next.js/.',
                 ];
             } else {
-                foreach ($this->manifestChecks($manifest, $zipPath, $entries) as $issue) {
+                foreach ($this->manifestChecks($manifest) as $issue) {
                     $issue['severity'] === 'error' ? $errors[] = $issue : $warnings[] = $issue;
                 }
             }
@@ -122,6 +130,7 @@ class PluginPackageValidator
                     'message' => 'مسیر ناامن در بسته: «'.$e['raw'].'». مسیر مطلق، «..» و نام‌های رزروشدهٔ سیستم‌عامل رد می‌شوند.',
                     'path' => $e['raw'],
                 ];
+
                 continue;
             }
 
@@ -132,6 +141,7 @@ class PluginPackageValidator
                     'message' => 'این بسته شامل symlink است: «'.$rel.'». برای جلوگیری از حملهٔ symlink-to-/etc/passwd رد می‌شود.',
                     'path' => $rel,
                 ];
+
                 continue;
             }
 
@@ -203,7 +213,7 @@ class PluginPackageValidator
      *
      * @return list<array{severity: string, code: string, message: string, path?: string, suggest?: array}>
      */
-    private function manifestChecks(array $manifest, ?string $zipPath = null, array $entries = []): array
+    private function manifestChecks(array $manifest): array
     {
         $issues = [];
 
@@ -216,6 +226,20 @@ class PluginPackageValidator
             }
         }
 
+        $slug = is_string($manifest['slug'] ?? null) ? $manifest['slug'] : null;
+
+        // اسلاگ باید انگلیسی باشد. پایهٔ کاربر ایرانی است، پس «پنل» محتمل است نه
+        // نظری — و `Str::slug('پنل')` رشتهٔ خالی می‌دهد که در فاز ۱ به prefix
+        // بی‌نام تبدیل می‌شود. خطا است نه هشدار، چون نتیجه‌اش نصب شکسته است.
+        if ($slug !== null && $slug !== '' && preg_match('/^[a-z0-9][a-z0-9._-]{1,39}$/', $slug) !== 1) {
+            $issues[] = [
+                'severity' => 'error', 'code' => 'manifest.bad_slug',
+                'message' => 'اسلاگ «'.$slug.'» معتبر نیست. slug باید انگلیسی (لاتین) نوشته شود: با حرف یا رقم کوچک انگلیسی شروع شود و بعد فقط a-z، 0-9، نقطه، خط تیره و زیرخل بماند (۲ تا ۴۰ نویسه).',
+                'pattern' => '^[a-z0-9][a-z0-9._-]{1,39}$',
+                'guide' => 'plugins.contract',
+            ];
+        }
+
         // `system` از فاز ۰ حذف شد — اگر هنوز در مانیفست باشد، نویسنده راهنمای
         // قدیمی را دنبال کرده و انتظار دارد پلاگینش غیرقابل حذف شود.
         if (array_key_exists('system', $manifest)) {
@@ -226,48 +250,22 @@ class PluginPackageValidator
             ];
         }
 
-        // نشت کلید — هم کلید خصوصی و هم کلید عمومی.
+        // نشت کلید — بازگشتی. مانیفست تودرتو است، پس `{"publisher":{"private_key":…}}`
+        // هم باید گرفته شود؛ بررسی سطح‌بالا این را رد می‌کرد.
         //
         // کلید عمومی هم نباید داخل آرتیفکت باشد: هسته باید آن را از trust store
         // بگیرد نه از محموله‌ای که خودِ پلاگین کنترلش می‌کند.
-        foreach (array_keys($manifest) as $key) {
-            $k = (string) $key;
-            if (preg_match('/(^|_)(public_key|private_key|secret_key|seed|mnemonic)$/i', $k) === 1) {
-                $issues[] = [
-                    'severity' => 'error', 'code' => 'manifest.leaks_key',
-                    'message' => 'کلید رمزنگاری («'.$k.'») داخل بسته است. کلید خصوصی هرگز نباید در آرتیفکت توزیع‌شده قرار بگیرد، و کلید عمومی باید از trust store خوانده شود نه از مانیفست.',
-                    'guide' => 'plugins.signature',
-                ];
-            }
+        foreach ($this->findSecretKeys($manifest) as $leaked) {
+            $issues[] = [
+                'severity' => 'error', 'code' => 'manifest.leaks_key',
+                'message' => 'کلید رمزنگاری در «'.$leaked.'» داخل بسته است. کلید خصوصی هرگز نباید در آرتیفکت توزیع‌شده قرار بگیرد، و کلید عمومی باید از trust store خوانده شود نه از مانیفست.',
+                'path' => $leaked,
+                'guide' => 'plugins.signature',
+            ];
         }
 
-        // نقاط اتصال افزونه — فهرست بسته (K1.5.6)
-        $panel = $manifest['panel']['extensions'] ?? [];
-        if (is_array($panel)) {
-            foreach ($panel as $point) {
-                $key = is_array($point) ? ($point['point'] ?? null) : $point;
-                if (! is_string($key) || $key === '') {
-                    $issues[] = [
-                        'severity' => 'error', 'code' => 'panel.bad_point',
-                        'message' => 'هر نقطهٔ اتصال باید شکل {"point": "..."} داشته باشد.',
-                    ];
-                    continue;
-                }
-                if (isset(PluginPackageContract::DEFERRED_EXTENSION_POINTS[$key])) {
-                    $issues[] = [
-                        'severity' => 'error', 'code' => 'panel.deferred_point',
-                        'message' => 'نقطهٔ اتصال «'.$key.'» در نسخهٔ ۱ پشتیبانی نمی‌شود: '.PluginPackageContract::DEFERRED_EXTENSION_POINTS[$key],
-                        'guide' => 'plugins.extension-points',
-                    ];
-                } elseif (! PluginPackageContract::isKnownExtensionPoint($key)) {
-                    $issues[] = [
-                        'severity' => 'error', 'code' => 'panel.unknown_point',
-                        'message' => 'نقطهٔ اتصال ناشناخته: «'.$key.'». فهرست معتبر: '.implode('، ', array_keys(PluginPackageContract::EXTENSION_POINTS)),
-                        'guide' => 'plugins.extension-points',
-                    ];
-                }
-            }
-        }
+        // نقاط اتصال افزونه — فهرست بسته (K1.5.6) + اعتبارسنجی هر اعلان
+        $issues = array_merge($issues, $this->extensionPointChecks($manifest, $slug));
 
         // امضا — جدا از تأیید.
         //
@@ -297,89 +295,195 @@ class PluginPackageValidator
             ];
         }
 
-        return array_merge($issues, $this->panelFileChecks($manifest, $zipPath ?? null, $entries ?? []));
+        return $issues;
     }
 
     /**
-     * سازگاری `Next.js/panel.json` با مانیفست امضاشده.
+     * نقاط اتصال: وجود، شکل، و اعتبارسنجی محتوای هر اعلان.
      *
-     * مانیفست مرجع است چون امضا دارد. اگر `panel.json` نقطهٔ اتصالی اعلام کند که
-     * در مانیفست نیست، یعنی یکی از این دو امضا نشده است — و هسته نمی‌داند کدام را
-     * باور کند. این همان driftای است که باعث می‌شود راهنما بعداً دروغ بگوید.
+     * کلاسِ اعلان‌ها **فقط آبجکت** پذیرفته می‌شود — همین‌جا و در همان شکلی که
+     * `extensionPointsOf()` می‌خواند. نسخهٔ قبلی رشتهٔ ساده را اینجا می‌پذیرفت ولی
+     * آنجا نامرئی بود، یعنی اختلاف کاذب می‌ساخت.
+     *
+     * @return list<array<string, mixed>>
      */
-    private function panelFileChecks(array $manifest, ?string $zipPath, array $entries): array
+    private function extensionPointChecks(array $manifest, ?string $slug): array
     {
         $issues = [];
-        $hasPanelFile = false;
+        $extensions = $manifest['panel']['extensions'] ?? [];
+        if (! is_array($extensions)) {
+            return [[
+                'severity' => 'error', 'code' => 'panel.bad_point',
+                'message' => '«panel.extensions» باید آرایه‌ای از اعلان‌ها باشد.',
+                'guide' => 'plugins.extension-points',
+            ]];
+        }
 
-        foreach ($entries as $e) {
-            if (PluginPackageContract::normalizePath($e['raw']) === PluginPackageContract::FRONTEND_ROOT.'/panel.json') {
-                $hasPanelFile = true;
-                break;
+        $perPoint = [];
+
+        foreach ($extensions as $i => $entry) {
+            if (! is_array($entry)) {
+                $issues[] = [
+                    'severity' => 'error', 'code' => 'panel.bad_point',
+                    'message' => 'هر نقطهٔ اتصال باید آبجکت باشد: {"point": "...", …}. رشتهٔ ساده پذیرفته نمی‌شود.',
+                    'path' => 'panel.extensions['.$i.']',
+                    'guide' => 'plugins.extension-points',
+                ];
+
+                continue;
+            }
+
+            $key = $entry['point'] ?? null;
+            if (! is_string($key) || $key === '') {
+                $issues[] = [
+                    'severity' => 'error', 'code' => 'panel.bad_point',
+                    'message' => 'هر نقطهٔ اتصال باید شکل {"point": "..."} داشته باشد.',
+                    'path' => 'panel.extensions['.$i.']',
+                    'guide' => 'plugins.extension-points',
+                ];
+
+                continue;
+            }
+
+            if (isset(PluginPackageContract::DEFERRED_EXTENSION_POINTS[$key])) {
+                $issues[] = [
+                    'severity' => 'error', 'code' => 'panel.deferred_point',
+                    'message' => 'نقطهٔ اتصال «'.$key.'» در نسخهٔ ۱ پشتیبانی نمی‌شود: '.PluginPackageContract::DEFERRED_EXTENSION_POINTS[$key],
+                    'path' => 'panel.extensions['.$i.']',
+                    'guide' => 'plugins.extension-points',
+                ];
+
+                continue;
+            }
+
+            if (! PluginPackageContract::isKnownExtensionPoint($key)) {
+                $issues[] = [
+                    'severity' => 'error', 'code' => 'panel.unknown_point',
+                    'message' => 'نقطهٔ اتصال ناشناخته: «'.$key.'». فهرست معتبر: '.implode('، ', array_keys(PluginPackageContract::EXTENSION_POINTS)),
+                    'path' => 'panel.extensions['.$i.']',
+                    'guide' => 'plugins.extension-points',
+                ];
+
+                continue;
+            }
+
+            if ((PluginPackageContract::EXTENSION_POINTS[$key]['status'] ?? '') === 'deferred') {
+                $issues[] = [
+                    'severity' => 'error', 'code' => 'panel.deferred_point',
+                    'message' => 'نقطهٔ اتصال «'.$key.'» هنوز deferred است: در runtime چیزی را رندر نمی‌کند. اعلامش فقط بسته را سبز می‌کند بدون هیچ اثری.',
+                    'path' => 'panel.extensions['.$i.']',
+                    'guide' => 'plugins.extension-points',
+                ];
+
+                continue;
+            }
+
+            $perPoint[$key] = ($perPoint[$key] ?? 0) + 1;
+
+            $decl = $entry;
+            unset($decl['point']);
+
+            foreach (PluginPackageContract::validateDeclaration($key, $decl) as $issue) {
+                $issues[] = array_merge($issue, ['path' => 'panel.extensions['.$i.'].'.$issue['path']]);
+            }
+
+            // تطبیق prefix با اسلاگ واقعی — `validateDeclaration` خالص است و
+            // مانیفست را نمی‌بیند، پس فقط شکل prefix را می‌سنجد.
+            if ($slug !== null && $slug !== '') {
+                $issues = array_merge($issues, $this->slugBoundChecks($key, $i, $decl, $slug));
             }
         }
 
-        if (! $hasPanelFile || $zipPath === null) {
-            return $issues;
-        }
-
-        $zip = new ZipArchive;
-        if ($zip->open($zipPath) !== true) {
-            return $issues;
-        }
-        // `getFromName` بهتر از `locateName(..., FL_NODIR)` است: `FL_NODIR` روی
-        // نام‌های دارای نقطه (`Next.js/panel.json`) قابل اتکا نیست.
-        $raw = $zip->getFromName(PluginPackageContract::FRONTEND_ROOT.'/panel.json');
-        $zip->close();
-
-        if ($raw === false) {
-            $issues[] = [
-                'severity' => 'error', 'code' => 'panel.unreadable',
-                'message' => 'فایل '.PluginPackageContract::FRONTEND_ROOT.'/panel.json خوانده نشد یا JSON معتبر نیست.',
-                'path' => PluginPackageContract::FRONTEND_ROOT.'/panel.json',
-            ];
-
-            return $issues;
-        }
-
-        $decoded = json_decode($raw, true);
-        if (! is_array($decoded)) {
-            $issues[] = [
-                'severity' => 'error', 'code' => 'panel.unreadable',
-                'message' => 'فایل '.PluginPackageContract::FRONTEND_ROOT.'/panel.json خوانده نشد یا JSON معتبر نیست.',
-                'path' => PluginPackageContract::FRONTEND_ROOT.'/panel.json',
-            ];
-
-            return $issues;
-        }
-
-        $manifestPoints = $this->extensionPointsOf($manifest);
-        $panelPoints = $this->extensionPointsOf($decoded);
-
-        sort($manifestPoints);
-        sort($panelPoints);
-
-        if ($manifestPoints !== $panelPoints) {
-            $issues[] = [
-                'severity' => 'error', 'code' => 'panel.diverges_from_manifest',
-                'message' => 'نقاط اتصال در '.PluginPackageContract::FRONTEND_ROOT.'/panel.json با مانیفست یکسان نیستند. مانیفست امضا شده و مرجع است؛ یا panel.json را مطابق آن اصلاح کنید یا حذفش کنید.'
-                    .' (مانیفست: '.(count($manifestPoints) ? implode('، ', $manifestPoints) : '—')
-                    .' / panel.json: '.(count($panelPoints) ? implode('، ', $panelPoints) : '—').')',
-                'path' => PluginPackageContract::FRONTEND_ROOT.'/panel.json',
-                'guide' => 'plugins.extension-points',
-            ];
+        // سقف تعداد اعلان هر نقطه — این شمارش بین‌اعلانی است، پس کارِ همین‌جاست
+        // نه `validateDeclaration`.
+        foreach ($perPoint as $key => $count) {
+            $max = (int) (PluginPackageContract::EXTENSION_POINTS[$key]['max']['declarations'] ?? 10);
+            if ($count > $max) {
+                $issues[] = [
+                    'severity' => 'error', 'code' => $key.'.too_many_declarations',
+                    'path' => 'panel.extensions',
+                    'message' => 'نقطهٔ «'.$key.'» '.$count.' بار اعلام شده و سقف '.$max.' اعلان است.',
+                    'guide' => 'plugins.extension-points',
+                ];
+            }
         }
 
         return $issues;
     }
 
-    /** @return list<string> */
+    /**
+     * قواعدی که به اسلاگ واقعی نیاز دارند و از `validateDeclaration` بیرون‌اند.
+     *
+     * @param  array<string, mixed>  $decl
+     * @return list<array<string, mixed>>
+     */
+    private function slugBoundChecks(string $point, int $index, array $decl, string $slug): array
+    {
+        $out = [];
+
+        if (isset($decl['permission']) && is_string($decl['permission'])
+            && ! str_starts_with($decl['permission'], 'plugin:'.$slug.':')) {
+            $out[] = [
+                'severity' => 'error', 'code' => $point.'.bad_permission',
+                'path' => 'panel.extensions['.$index.'].permission',
+                'message' => 'پرمیشن «'.$decl['permission'].'» باید با «plugin:'.$slug.':» شروع شود، وگرنه دو پلاگین با ماژول هم‌نام پرمیشن مشترک می‌گیرند.',
+                'pattern' => 'plugin:'.$slug.':…',
+                'guide' => 'plugins.extension-points',
+            ];
+        }
+
+        if (isset($decl['entity']) && is_string($decl['entity'])
+            && ! str_starts_with($decl['entity'], $slug.'_')) {
+            $out[] = [
+                'severity' => 'error', 'code' => $point.'.bad_entity',
+                'path' => 'panel.extensions['.$index.'].entity',
+                'message' => 'نام موجودیت «'.$decl['entity'].'» باید دقیقاً با «'.$slug.'_» شروع شود.',
+                'pattern' => $slug.'_{x}',
+                'guide' => 'plugins.extension-points',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * اسکن بازگشتی نشت کلید در کل مانیفست.
+     *
+     * @return list<string> مسیر نقطه‌دار کلیدهای لو رفته
+     */
+    private function findSecretKeys(mixed $node, string $path = ''): array
+    {
+        if (! is_array($node)) {
+            return [];
+        }
+
+        $found = [];
+        foreach ($node as $key => $value) {
+            $key = (string) $key;
+            $here = $path === '' ? $key : $path.'.'.$key;
+
+            if (preg_match(self::SECRET_KEY_PATTERN, $key) === 1) {
+                $found[] = $here;
+            }
+
+            foreach ($this->findSecretKeys($value, $here) as $nested) {
+                $found[] = $nested;
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * @return list<string>
+     */
     private function extensionPointsOf(array $arr): array
     {
         $points = [];
-        foreach ((array) ($arr['panel']['extensions'] ?? $arr['extensions'] ?? []) as $p) {
-            if (is_array($p) && isset($p['point'])) {
-                $points[] = (string) $p['point'];
+        foreach ((array) ($arr['panel']['extensions'] ?? []) as $p) {
+            // فقط آبجکت — همین شکلی که `extensionPointChecks()` می‌پذیرد.
+            if (is_array($p) && is_string($p['point'] ?? null) && $p['point'] !== '') {
+                $points[] = $p['point'];
             }
         }
         $points = array_values(array_unique($points));
@@ -419,7 +523,17 @@ class PluginPackageValidator
     /** مانیفست فقط از ریشه خوانده می‌شود (K1.5.2). */
     private function readManifest(ZipArchive $zip): ?array
     {
-        $index = $zip->locateName(PluginPackageContract::MANIFEST, ZipArchive::FL_NODIR);
+        // `locateName` حتی با `FL_NODIR` بر اساس basename جست‌وجو می‌کند، پس
+        // `evil/manifest.json` هم پیدا می‌شود و یک بسته می‌تواند دو مانیفست
+        // همسان در ریشه و اعماق داشته باشد. تطبیق دقیق نام یعنی فقط ریشه.
+        $index = false;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            if ($zip->getNameIndex($i) === PluginPackageContract::MANIFEST) {
+                $index = $i;
+                break;
+            }
+        }
+
         if ($index === false) {
             return null;
         }
@@ -428,29 +542,36 @@ class PluginPackageValidator
         return is_array($decoded) ? $decoded : null;
     }
 
-    private function summary(array $errors, array $warnings): array
+    /** @return array{errors: int, warnings: int, slug: ?string, version: ?string, extension_points: list<string>} */
+    private function emptySummary(): array
     {
         return [
-            'errors' => count($errors),
-            'warnings' => count($warnings),
+            'errors' => 0,
+            'warnings' => 0,
             'slug' => null,
             'version' => null,
             'extension_points' => [],
         ];
     }
 
+    private function summary(array $errors, array $warnings): array
+    {
+        return array_merge($this->emptySummary(), [
+            'errors' => count($errors),
+            'warnings' => count($warnings),
+        ]);
+    }
+
     private function result(bool $ok, array $errors, array $warnings, ?array $manifest, array $summary): array
     {
+        // روی ZIP باز‌نشدنی این مسیر با `summary` خالی می‌آید؛ بدون این merge
+        // هر `$summary['slug']` یک undefined-index بود.
+        $summary = array_merge($this->emptySummary(), $summary);
+
         if ($manifest !== null) {
-            $summary['slug'] = $manifest['slug'] ?? null;
-            $summary['version'] = $manifest['version'] ?? null;
-            $points = [];
-            foreach ((array) ($manifest['panel']['extensions'] ?? []) as $p) {
-                if (is_array($p) && isset($p['point'])) {
-                    $points[] = $p['point'];
-                }
-            }
-            $summary['extension_points'] = $points;
+            $summary['slug'] = is_string($manifest['slug'] ?? null) ? $manifest['slug'] : null;
+            $summary['version'] = is_string($manifest['version'] ?? null) ? $manifest['version'] : null;
+            $summary['extension_points'] = $this->extensionPointsOf($manifest);
         }
 
         if ($ok) {

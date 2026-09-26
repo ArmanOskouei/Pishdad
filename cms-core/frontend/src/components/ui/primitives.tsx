@@ -56,14 +56,19 @@ export function Skeleton({ lines = 3 }: { lines?: number }) {
   );
 }
 
-export function SaveBar({ dirtyText, onCancel, onSave, onReset }: { dirtyText: string; onCancel: () => void; onSave: () => void; onReset?: () => void }) {
+/**
+ * `saveLabel` پارامتری است چون این کامپوننت عمومی است: «ذخیره قالب» روی صفحهٔ
+ * نقش‌ها یعنی مسخره. پیش‌فرض عمداً عمومی است؛ هر صفحه‌ای که واقعاً قالب
+ * ذخیره می‌کند خودش `saveLabel="ذخیره قالب"` می‌دهد.
+ */
+export function SaveBar({ dirtyText, onCancel, onSave, onReset, saveLabel = "تأیید و ذخیره" }: { dirtyText: string; onCancel: () => void; onSave: () => void; onReset?: () => void; saveLabel?: string }) {
   return (
     <div className="savebar" role="toolbar" aria-label="نوار ذخیره">
       <span>◉ پیش‌نمایش: <b>{dirtyText}</b></span>
       <div style={{ flex: 1 }} />
       {onReset ? <button className="btn btn-ghost btn-sm" onClick={onReset}>بازنشانی</button> : null}
       <button className="btn btn-ghost" onClick={onCancel}>انصراف</button>
-      <button className="btn btn-primary" onClick={onSave}>تأیید و ذخیره قالب</button>
+      <button className="btn btn-primary" onClick={onSave}>{saveLabel}</button>
     </div>
   );
 }

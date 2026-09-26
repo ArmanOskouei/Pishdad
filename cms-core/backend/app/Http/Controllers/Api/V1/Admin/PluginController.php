@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Plugin;
 use App\Models\SystemPlugin;
+use App\Services\Plugins\CoreRequirementChecker;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\PluginPackageValidator;
@@ -100,14 +101,34 @@ class PluginController extends Controller
             return response()->json(['message' => $check['reason']], 422);
         }
 
+        // K3.0/B25: `requires.core` بعد از تأیید امضا سنجیده می‌شود، نه قبلش.
+        // این رشته ادعای ناشر است؛ تا ندانیم فرستنده کیست، ارزیابی‌اش فقط به
+        // بستهٔ جعلی اجازه می‌دهد پیام دلخواه به کاربر واقعی بدهد.
+        $incompatible = CoreRequirementChecker::check($manifest, CoreRequirementChecker::coreVersion());
+        if ($incompatible !== null) {
+            Log::warning('plugin.upload_rejected', [
+                'user_id' => $request->user()->id,
+                'slug' => $manifest['slug'] ?? null,
+                'reason' => $incompatible['code'],
+            ]);
+
+            return response()->json([
+                'message' => $incompatible['message'],
+                'requires' => $incompatible,
+            ], 422);
+        }
+
         $slug = substr(Str::slug($manifest['slug']), 0, 100);
         if (Plugin::query()->where('slug', $slug)->exists()) {
             return response()->json(['message' => 'پلاگینی با این شناسه قبلاً نصب شده است.'], 422);
         }
 
-        $path = Storage::disk('local')->putFileAs(
-            'plugins/shared', $file, $slug.'_'.Str::random(8).'.zip'
-        );
+        $path = $this->storePackage($file, $slug.'_'.Str::random(8).'.zip');
+        if ($path === false) {
+            return response()->json([
+                'message' => 'بستهٔ پلاگین روی دیسک ذخیره نشد، پس نصب انجام نشد. فضای دیسک و دسترسی پوشهٔ ذخیره‌سازی را بررسی کنید.',
+            ], 422);
+        }
 
         $exempt = $this->isReviewExempt($request);
         $plugin = Plugin::query()->create([
@@ -152,9 +173,16 @@ class PluginController extends Controller
         $plugin->forceFill(['active' => true])->save();
         $this->syncHooks($plugin);
 
+        $fresh = $plugin->fresh();
+
+        // «فعال شد» بدون این فیلد دروغ می‌گوید: رجیستری هوک‌ها پر می‌شود ولی
+        // dispatcher هنوز وجود ندارد (K5.5)، پس هیچ هوکی اجرا نمی‌شود. پاسخ باید
+        // این را صریح بگوید تا UI بتواند به‌جای toast خوش‌بینانه، هشدار بدهد.
         return response()->json([
             'message' => 'پلاگین فعال شد.',
-            'data' => $this->present($plugin->fresh()),
+            'hooks_dispatched' => false,
+            'warning' => $this->hooksDispatchWarning($fresh),
+            'data' => $this->present($fresh),
         ]);
     }
 
@@ -204,12 +232,31 @@ class PluginController extends Controller
             return response()->json(['message' => $check['reason']], 422);
         }
 
-        if ($plugin->path) {
-            Storage::disk('local')->delete($plugin->path);
+        // K3.0/B25 — دلیل ترتیب مثل upload(): اول اصالت، بعد ادعای سازگاری.
+        $incompatible = CoreRequirementChecker::check($manifest, CoreRequirementChecker::coreVersion());
+        if ($incompatible !== null) {
+            Log::warning('plugin.upgrade_rejected', [
+                'user_id' => $request->user()->id,
+                'slug' => $plugin->slug,
+                'reason' => $incompatible['code'],
+            ]);
+
+            return response()->json([
+                'message' => $incompatible['message'],
+                'requires' => $incompatible,
+            ], 422);
         }
-        $path = Storage::disk('local')->putFileAs(
-            'plugins/shared', $file, $plugin->slug.'_'.Str::random(8).'.zip'
-        );
+
+        // B11: ترتیب «جدید → ردیف → حذف قدیم» عمدی است. حذف زودهنگام یعنی اگر
+        // نوشتن شکست بخورد (دیسک پر)، رکوردی می‌ماند که `path`اش به فایل
+        // ناموجود اشاره می‌کند و پلاگین فعال برای همیشه آجر می‌شود.
+        $oldPath = $plugin->path;
+        $path = $this->storePackage($file, $plugin->slug.'_'.Str::random(8).'.zip');
+        if ($path === false) {
+            return response()->json([
+                'message' => 'نسخهٔ جدید روی دیسک ذخیره نشد، پس هیچ تغییری اعمال نشد و نسخهٔ فعلی دست‌نخورده ماند.',
+            ], 422);
+        }
 
         $plugin->forceFill([
             'previous_version' => $plugin->version,
@@ -231,6 +278,10 @@ class PluginController extends Controller
             'manifest' => $manifest,
             'path' => $path,
         ])->save();
+
+        if ($oldPath && $oldPath !== $path) {
+            Storage::disk('local')->delete($oldPath);
+        }
 
         if ($plugin->active) {
             $this->syncHooks($plugin->fresh());
@@ -337,6 +388,24 @@ class PluginController extends Controller
         return app(PluginTrustStore::class);
     }
 
+    /**
+     * نوشتن بسته روی دیسک، با تبدیل هر شکست به `false`.
+     *
+     * Flysystem برای «نشدن ساخت پوشه» exception می‌دهد و برای «نشدن نوشتن» `false`.
+     * هر دو باید یکی باشند، وگرنه یکی از این دو حالت به ۵۰۰ می‌رسد و کاربر فقط
+     * یک صفحهٔ خطای بی‌پیام می‌بیند.
+     */
+    private function storePackage(UploadedFile $file, string $filename): string|false
+    {
+        try {
+            return Storage::disk('local')->putFileAs('plugins/shared', $file, $filename);
+        } catch (\Throwable $e) {
+            Log::error('plugin.store_failed', ['error' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
     private function validator(): PluginPackageValidator
     {
         return app(PluginPackageValidator::class);
@@ -423,6 +492,15 @@ class PluginController extends Controller
         }
     }
 
+    /**
+     * فقط مانیفست **ریشهٔ** ZIP.
+     *
+     * B9: `locateName('manifest.json', FL_NODIR)` هر `manifest.json` را پیدا می‌کرد،
+     * حتی داخل پوشه. الان بی‌خطر است چون validator قبلش `manifest.misplaced` می‌دهد،
+     * ولی این یک وابستگی ظریف است: همین مانیفست تودرتو `slug` و امضا و کل ردیف DB
+     * را تعیین می‌کند، پس با جابه‌جا شدن ترتیب، یک بستهٔ امضاشدهٔ کاملاً متفاوت
+     * نصب می‌شد. `getFromName` تطابق دقیق نام می‌دهد و این وابستگی را حذف می‌کند.
+     */
     private function readManifest(string $zipPath): ?array
     {
         $zip = new ZipArchive;
@@ -431,15 +509,34 @@ class PluginController extends Controller
         }
 
         try {
-            $index = $zip->locateName('manifest.json', ZipArchive::FL_NODIR);
-            if ($index === false) {
+            $raw = $zip->getFromName(PluginPackageContract::MANIFEST);
+            if ($raw === false) {
                 return null;
             }
-            $decoded = json_decode((string) $zip->getFromIndex($index), true);
+            $decoded = json_decode($raw, true);
 
             return is_array($decoded) ? $decoded : null;
         } finally {
             $zip->close();
         }
+    }
+
+    /**
+     * هشدار صادقانهٔ فعال‌سازی، یا `null` وقتی مانیفست هوکی اعلام نکرده.
+     *
+     * `syncHooks()` رجیستری را پر می‌کند ولی dispatcher هنوز نیست (K5.5)، پس
+     * «هوک‌ها ثبت شدند» با «هوک‌ها اجرا می‌شوند» فرق دارد و پاسخ باید دومی را
+     * نگوید.
+     */
+    private function hooksDispatchWarning(Plugin $plugin): ?string
+    {
+        $hooks = is_array($plugin->manifest) ? ($plugin->manifest['hooks'] ?? null) : null;
+        if (! is_array($hooks) || $hooks === []) {
+            return null;
+        }
+
+        return 'هوک‌های این پلاگین فقط در رجیستری ثبت شدند و هنوز اجرا نمی‌شوند؛ '
+            .'موتور dispatch در فاز K5.5 ساخته می‌شود. تا آن زمان، هر بخشی از پلاگین که '
+            .'به هوک تکیه کند کار نخواهد کرد.';
     }
 }

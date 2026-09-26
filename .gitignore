@@ -19,6 +19,9 @@ build/
 .env
 .env.local
 
+# پیکربندی تست موقت ایجنت‌های موازی؛ هر کدام دیتابیس محلی خودشان را دارند.
+cms-core/backend/phpunit.agent*.xml
+
 # سیستم
 .DS_Store
 Thumbs.db
