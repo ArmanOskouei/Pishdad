@@ -606,7 +606,7 @@
 
 | # | تسک | توضیح | وضعیت |
 |---|------|-------|--------|
-| **K5.0** | ⭐ **نقطهٔ `core.service_provider`** (bootstrap/binding) | **کوچک‌ترین کار با بیشترین بازگشت کل پروژه.** فقط کلاس‌هایی که interface مشخصِ هسته را پیاده کنند. بدون آن: `SubscriptionSource` قابل ثبت نیست ⇒ گزینهٔ الفِ K7.2 شکست می‌خورد؛ `SearchableProvider` قابل ثبت نیست ⇒ B5/I7 بسته نمی‌شود؛ `PaymentGatewayInterface` و `ChabokanClientInterface` (هر دو singleton هاردکد در `AppServiceProvider.php:20-39`) قابل تعویض نیستند | ⏳ |
+| **K5.0** | ⭐ **نقطهٔ `core.service_provider`** (bootstrap/binding) | **کوچک‌ترین کار با بیشترین بازگشت کل پروژه.** فقط کلاس‌هایی که interface مشخصِ هسته را پیاده کنند. بدون آن: `SubscriptionSource` قابل ثبت نیست ⇒ گزینهٔ الفِ K7.2 شکست می‌خورد؛ `SearchableProvider` قابل ثبت نیست ⇒ B5/I7 بسته نمی‌شود؛ `PaymentGatewayInterface` و `ChabokanClientInterface` (هر دو singleton هاردکد در `AppServiceProvider.php:20-39`) قابل تعویض نیستند | done |
 | K5.1 | `PluginExtractor` — ۱۱ کنترل استخراج امن | گام ۱ (فهرست ZIP) **در K1.6.3 انجام شد**. گام‌های ۲ تا ۱۱ باقی است | 🟡 ۱ از ۱۱ |
 | K5.2 | ساختار `releases/{version}-{hash}/` + `current` + استخراج atomic | staging → verify → rename. هرگز مستقیم روی مسیر زنده | ⏳ |
 | K5.3 | PSR-4 loader با prefix اجباری `Pishdad\Plugins\{Studly}\` | با `ClassLoader::addPsr4()` روی نمونه. **رد هر namespace خارج از prefix** — تنها جایی که امنیت بارگذاری واقعاً enforce می‌شود | ⏳ |

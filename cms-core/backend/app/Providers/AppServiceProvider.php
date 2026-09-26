@@ -6,6 +6,7 @@ use App\Services\Billing\PaymentGatewayInterface;
 use App\Services\Billing\ZarinpalStubDriver;
 use App\Services\Chabokan\ChabokanClientInterface;
 use App\Services\Chabokan\StubChabokanDriver;
+use App\Services\Plugins\ServiceProviderRegistry;
 use App\Services\RevalidateSigner;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -25,15 +26,22 @@ class AppServiceProvider extends ServiceProvider
             )
         );
 
+        // K5.0 — این سه binding دیگر مستقیم به درایور وصل نمی‌شوند. رجیستری
+        // نقطهٔ `core.service_provider` است: اگر افزونهٔ فعال و تأییدشده‌ای
+        // پیاده‌سازی معتبری اعلام کرده باشد، همان بارگذاری می‌شود؛ وگرنه
+        // درایور پیش‌فرض هسته. یعنی هسته دیگر نام درایور را انتخاب نمی‌کند و
+        // افزونه می‌تواند بدون دست‌زدن به هسته تعویضش کند.
+        $registry = $this->app->make(ServiceProviderRegistry::class);
+
         // درگاه پرداخت مرکزی: در MVP درایور Stub زرین‌پال (بدون شارژ واقعی).
-        $this->app->singleton(
+        $registry->bind(
             PaymentGatewayInterface::class,
             fn () => new ZarinpalStubDriver
         );
 
         // چابکان مرکزی (تسک ۳.۳): در MVP درایور Stub (خواندن از کانفیگ).
         // TODO مرحله ۵: ApiChabokanDriver (اتصال واقعی با CHABOKAN_API_TOKEN).
-        $this->app->singleton(
+        $registry->bind(
             ChabokanClientInterface::class,
             fn () => new StubChabokanDriver
         );

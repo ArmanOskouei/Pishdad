@@ -810,7 +810,8 @@ class PluginPackageValidatorTest extends TestCase
         $this->assertSame([
             'admin.menu', 'admin.dashboard_slot', 'admin.settings_schema',
             'admin.data_collection', 'site.header_widget', 'site.footer_widget',
-            'site.page_type', 'site.block_type', 'admin.plugin_tools', 'admin.page_registry',
+            'site.page_type', 'site.block_type', 'core.service_provider',
+            'admin.plugin_tools', 'admin.page_registry',
         ], $points);
     }
 
@@ -890,6 +891,7 @@ class PluginPackageValidatorTest extends TestCase
             'admin.dashboard_slot' => ['deferred', 'closed'],
             'admin.plugin_tools' => ['deferred', 'closed'],
             'admin.page_registry' => ['deferred', 'schema_defined'],
+            'core.service_provider' => ['declared_only', 'schema_defined'],
         ];
 
         foreach (PluginPackageContract::extensionPoints() as $point) {
@@ -897,9 +899,16 @@ class PluginPackageValidatorTest extends TestCase
             $this->assertSame($status, $point['status'] ?? null, 'وضعیت «'.$point['key'].'»');
             $this->assertSame($openness, $point['openness'] ?? null, 'درجهٔ باز بودن «'.$point['key'].'»');
             $this->assertNotEmpty($point['openness_why'] ?? null, '«'.$point['key'].'» باید دلیلش را توضیح دهد.');
-            $this->assertSame('1.2.0', $point['since'] ?? null);
+            $this->assertNotEmpty($point['since'] ?? null, '«'.$point['key'].'» باید نسخهٔ معرفی‌اش را داشته باشد.');
             $this->assertSame(1, $point['schema_version'] ?? null);
         }
+
+        // `core.service_provider` در ۱.۵.۰ اضافه شد، نه ۱.۲.0. این تست قبلاً
+        // نسخهٔ ثابت ۱.۲.0 را برای همه فرض می‌کرد که با نقطهٔ تازه نمی‌خواند.
+        $this->assertSame(
+            '1.5.0',
+            PluginPackageContract::EXTENSION_POINTS['core.service_provider']['since'] ?? null
+        );
 
         $this->assertCount(count($expected), $expected);
     }
@@ -929,10 +938,11 @@ class PluginPackageValidatorTest extends TestCase
     }
 
     /**
-     * K3.8: فقط دو نقطه schema دارند — یکی بسته، یکی باز. schema برای نقطهٔ
-     * بدون renderer یعنی «دروغ ساختاریافته».
+     * K3.8: schema فقط برای نقاطی که **مصرف‌کنندهٔ واقعی** دارند — یکی بسته، یکی
+     * باز، و `core.service_provider` که اعتبارسنج و رجیستری واقعی دارد.
+     * schema برای نقطهٔ بدون مصرف‌کننده یعنی «دروغ ساختاریافته».
      */
-    public function test_only_two_points_carry_a_schema(): void
+    public function test_only_points_with_a_real_consumer_carry_a_schema(): void
     {
         $withSchema = [];
         foreach (PluginPackageContract::EXTENSION_POINTS as $key => $meta) {
@@ -941,9 +951,10 @@ class PluginPackageValidatorTest extends TestCase
             }
         }
 
-        $this->assertSame(['admin.menu', 'site.page_type'], $withSchema);
+        $this->assertSame(['admin.menu', 'site.page_type', 'core.service_provider'], $withSchema);
         $this->assertTrue(PluginPackageContract::EXTENSION_POINTS['site.page_type']['open_schema']);
         $this->assertFalse(PluginPackageContract::EXTENSION_POINTS['admin.menu']['open_schema']);
+        $this->assertFalse(PluginPackageContract::EXTENSION_POINTS['core.service_provider']['open_schema']);
     }
 
     /**

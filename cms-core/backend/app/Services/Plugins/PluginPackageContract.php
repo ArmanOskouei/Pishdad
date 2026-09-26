@@ -2,6 +2,9 @@
 
 namespace App\Services\Plugins;
 
+use App\Search\SearchableProvider;
+use App\Services\Billing\PaymentGatewayInterface;
+use App\Services\Chabokan\ChabokanClientInterface;
 use Illuminate\Support\Str;
 
 /**
@@ -104,6 +107,26 @@ final class PluginPackageContract
     /**
      * سقف‌های گرامر micro-schema. بیرون از این‌ها خطاست، نه هشدار.
      */
+    /**
+     * interface هایی که افزونه مجاز است پیاده‌سازی‌اش را جایگزین کند.
+     *
+     * ⚠️ این فهرست با `ServiceProviderRegistry::OVERRIDABLE` **باید یکی باشد.**
+     * عمداً در هر دو جا تکرار نشده: تست `test_registry_and_contract_agree_on_overridable_interfaces`
+     * این را نگه می‌دارد، چون فهرست دوتایی یعنی جایی هست که افزونه
+     * تأیید می‌شود ولی رجیستری ردش می‌کند، و این دقیقاً همان باگی است که
+     * B30 دربارهٔ برخورد بی‌صدا هشدار می‌دهد.
+     *
+     * @var list<class-string>
+     */
+    public const OVERRIDABLE_INTERFACES = [
+        PaymentGatewayInterface::class,
+        ChabokanClientInterface::class,
+        SearchableProvider::class,
+    ];
+
+    /** ریشهٔ اجباری namespace کلاس افزونه — هم‌ریشه با قاعدهٔ K5.3. */
+    public const PLUGIN_NAMESPACE_PREFIX = 'Pishdad\\Plugins\\';
+
     public const GRAMMAR_LIMITS = [
         'max_depth' => 1,
         'max_total_bytes' => 65536,
@@ -361,6 +384,51 @@ final class PluginPackageContract
                     'why' => 'BlockRenderer برخورد `type` را بی‌صدا `continue` می‌کند؛ باید خطا بدهد.',
                     'decl' => ['type' => 'hero', 'title_fa' => 'هیروی من'],
                 ],
+            ],
+        ],
+
+        'core.service_provider' => [
+            'label_fa' => 'پیاده‌سازی رابط هسته',
+            'desc_fa' => 'جایگزینی پیاده‌سازی یک interface هسته (درگاه پرداخت، چابکان، جستجو). فهرست interface‌ها بسته است و کلاس باید در ریشهٔ Pishdad\\Plugins\\ باشد. توجه: اینکه کلاس واقعاً آن رابط را پیاده می‌کند در لحظهٔ اعتبارسنجی بررسی نمی‌شود (کد افزونه هنوز بارگذاری نشده)؛ رجیستری آن را می‌سنجد و بی‌صدا نادیده نمی‌گیرد بلکه لاگ می‌کند.',
+            // binding زنده و مؤثر است، ولی تا K5.3 (بارگذار PSR-4) کلاس افزونه
+            // بارگذاری نمی‌شود. یعنی اعلان معتبر است ولی هنوز اثر ندارد —
+            // و همین باید صریح گفته شود.
+            'status' => 'declared_only',
+            'openness' => 'schema_defined',
+            'openness_why' => 'فهرست interface‌های قابل‌جایگزینی بسته و کوچک است (سه مورد)، ولی نام کلاس پیاده‌سازی باز است تا افزونه بتواند کلاس خودش را بنویسد.',
+            'since' => '1.5.0',
+            'schema_version' => 1,
+            'max' => ['declarations' => 3, 'bytes' => 1024, 'depth' => 1, 'properties' => 4],
+            'schema' => ['fields' => [
+                'interface' => ['type' => 'string', 'required' => true, 'maxLength' => 200],
+                'class' => ['type' => 'string', 'required' => true, 'maxLength' => 200],
+            ], 'cross' => ['title_fa']],
+            'open_schema' => false,
+            'example_ok' => [
+                [
+                    'interface' => 'App\\Services\\Billing\\PaymentGatewayInterface',
+                    'class' => 'Pishdad\\Plugins\\Zarinpal\\Gateway',
+                ],
+            ],
+            'example_bad' => [
+                [
+                    'why' => 'کلاس باید داخل ریشهٔ اجباری افزونه باشد. کلاسی که در ریشهٔ `App\\` بنشیند مال هسته است و رجیستری آن را رد می‌کند.',
+                    'decl' => [
+                        'interface' => 'App\\Services\\Billing\\PaymentGatewayInterface',
+                        'class' => 'App\\Services\\Billing\\ZarinpalStubDriver',
+                    ],
+                ],
+                [
+                    'why' => 'فقط سه interface قابل جایگزینی وجود دارد. هر چیز دیگری — از جمله کلاس‌های داخلی لاراول — قابل override نیست.',
+                    'decl' => [
+                        'interface' => 'Illuminate\\Contracts\\Container\\Container',
+                        'class' => 'Pishdad\\Plugins\\Evil\\Container',
+                    ],
+                ],
+                // عمداً نمونه‌ای برای «کلاس رابط را پیاده نمی‌کند» نیست: این
+                // قاعده در مرحلهٔ اعتبارسنجی **قابل بررسی نیست** چون کد افزونه
+                // هنوز بارگذاری نمی‌شود (K5.3). رجیستری آن را می‌گیرد و لاگ
+                // می‌کند. نوشتنش اینجا یعنی وعدهٔ اعتبارسنجیِ که وجود ندارد.
             ],
         ],
 
@@ -832,6 +900,29 @@ final class PluginPackageContract
     private static function applyCrossRule(string $point, string $rule, array $decl): array
     {
         $out = [];
+
+        // K5.0 — دو قاعده‌ای که رجیستری هم بررسی‌شان می‌کند و بدون آن‌ها
+        // اعلان «معتبر» اعلام می‌شد ولی بی‌صدا نادیده گرفته می‌شد.
+        if ($rule === 'title_fa' && $point === 'core.service_provider') {
+            $interface = $decl['interface'] ?? null;
+            $class = $decl['class'] ?? null;
+
+            if (is_string($interface) && ! in_array($interface, self::OVERRIDABLE_INTERFACES, true)) {
+                $out[] = self::issue(
+                    $point, 'interface_not_overridable', 'interface',
+                    'رابط «'.$interface.'» در فهرست قابل‌جایگزینی هسته نیست. فقط این‌ها قابل override هستند: '.implode('، ', self::OVERRIDABLE_INTERFACES),
+                    ['allowed' => self::OVERRIDABLE_INTERFACES, 'guide' => 'plugins.extension-points'],
+                );
+            }
+
+            if (is_string($class) && ! str_starts_with($class, self::PLUGIN_NAMESPACE_PREFIX)) {
+                $out[] = self::issue(
+                    $point, 'bad_plugin_namespace', 'class',
+                    'کلاس «'.$class.'» باید داخل ریشهٔ «'.self::PLUGIN_NAMESPACE_PREFIX.'» باشد. کلاسی که در ریشهٔ «App\» بنشیند مال هسته است، نه افزونه.',
+                    ['pattern' => self::PLUGIN_NAMESPACE_PREFIX.'…', 'guide' => 'plugins.extension-points'],
+                );
+            }
+        }
 
         if ($rule === 'no_core_name') {
             foreach (['type', 'key'] as $field) {
