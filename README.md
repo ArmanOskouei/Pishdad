@@ -24,15 +24,15 @@
 </p>
 
 <h1 align="center">The first free, open-source Persian CMS on your own server.</h1>
-<p align="center"><b>نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.</b></p>
+<p align="center"><b>نخستین سیستم مدیریت محتوای پارسی (فارسی) رایگان و متن‌باز روی سرور شخصی شما.</b></p>
 
 <p align="center">
   <img alt="Pishdad — Laravel CMS with a Next.js frontend" src="assets/readme-banner.png" width="100%">
 </p>
 
-A Laravel CMS with a Next.js frontend, running on a server you control. Visual block
-editor, a real plugin runtime, installable themes, and Persian baked in from the first
-commit rather than bolted on by a translation file.
+A self-hosted Laravel CMS with a Next.js frontend, running on a server you control.
+Visual block editor, a real plugin runtime, installable themes, and Persian baked in from
+the first commit rather than bolted on by a translation file.
 
 [![license](https://img.shields.io/badge/license-MIT-E7C069?style=flat-square&labelColor=141834)](LICENSE) [![tests](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml/badge.svg)](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml) [![PHP](https://img.shields.io/badge/PHP->=8.2-E7C069?style=flat-square&labelColor=141834)](https://php.net) [![Next.js](https://img.shields.io/badge/Next.js-15-E7C069?style=flat-square&labelColor=141834)](https://nextjs.org) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-E7C069?style=flat-square&labelColor=141834)](https://postgresql.org) [![Redis](https://img.shields.io/badge/Redis-cache-E7C069?style=flat-square&labelColor=141834)](https://redis.io) [![cost](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-E7C069?style=flat-square&labelColor=141834)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
 
@@ -58,6 +58,7 @@ commit rather than bolted on by a translation file.
 - [Installation](#installation)
 - [Server requirements](#server-requirements)
 - [Local development](#local-development)
+- [Frequently asked questions](#frequently-asked-questions)
 - [License](#license)
 - [Contributing](#contributing)
 
@@ -364,6 +365,39 @@ cd cms-core/frontend && docker compose up -d
 | `composer run dev` | Server, queue, logs and Vite together |
 
 > 🇮🇷 [راهنمای توسعهٔ محلی به زبان فارسی](README.fa.md#توسعه-محلی)
+
+---
+
+## Frequently asked questions
+
+**Is Pishdad really free?**
+The core is MIT-licensed. There is no premium edition, no seat count, and no telemetry. You
+pay for a server and nothing else.
+
+**Do I need a plugin for Persian and right-to-left?**
+No. Right-to-left runs on CSS logical properties throughout, Jalali dates are in both the
+backend and the frontend, and the admin interface is Persian out of the box.
+
+**How are plugins checked before they run?**
+Every package is signed with Ed25519. The trust store verifies that signature before any
+plugin code loads, the validator rejects packages carrying embedded credentials, and a
+plugin cannot declare extension points belonging to another plugin's slug. Rejections are
+logged with a reason and a key id. See [SECURITY.md](SECURITY.md).
+
+**Is there an API for a mobile app?**
+The backend is API-only and exposes 135 endpoints described in an OpenAPI 3.1 contract,
+with client types generated into the frontend. That is the same surface a mobile client
+would use.
+
+**What does it need to run?**
+A server you control. Ubuntu 22.04 or 24.04, 2 vCPU, 2 GB of RAM and 20 GB of disk is
+enough for a small site. The full list is under
+[Server requirements](#server-requirements).
+
+**Can I take my content and move away?**
+Yes. PostgreSQL is yours and the schema is plain, so a `pg_dump` is the whole export.
+
+> 🇮🇷 [این بخش به زبان فارسی](README.fa.md#پرسش‌های-پرتکرار)
 
 ---
 
