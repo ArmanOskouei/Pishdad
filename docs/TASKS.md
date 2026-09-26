@@ -323,7 +323,7 @@
 | **B6** | 🔴 `PackageAnalyzer` مقدار اولیهٔ prop را دوباره نمی‌خواند ⇒ مسیر «آپلود رد شد» بی‌اثر است | `PackageAnalyzer.tsx:152` · `PluginsClient.tsx:73,147` | `useEffect` sync یا `key` | done |
 | **B7** | 🟠 `ApiError` فقط از FormData. `authed` هنوز `Error` ساده می‌دهد و هر دو در ۴۰۱ خطای ساده ⇒ تمیز دادن «نشست منقضی» از «خطای اعتبارسنجی» ممکن نیست | `auth.tsx:110,113,126,127` | `authed` هم `ApiError` | done |
 | **B8** | 🟠 `suggestLocation` اولویت‌ها را برعکس زده: نام کلاس قبل از پسوند ⇒ `Model.png` → پیشنهاد `Laravel/src/Models/Model.png`. **نکتهٔ امنیتی:** پسوندهای `.ts/.tsx/.js/.jsx` به `Next.js/panel/` پیشنهاد می‌شوند ولی آن پوشه هرگز اجرا نمی‌شود — اگر روزی به `public/` سرو شود، اسکریپت same-origin روی origin ادمین است | `PluginPackageContract.php:296-324` | پسوند قبل از نام + **حذف** `.ts/.tsx/.js/.jsx` از پیشنهاد | done |
-| **B9** | 🟠 `readManifest` هر `manifest.json` را پیدا می‌کند نه فقط ریشه را. نقض مستقیم K1.5.2. امروز تصادفی امن است چون `manifest.misplaced` جلویش را می‌گیرد — ولی در `upload()` همین خروجی `slug` و امضا و کل ردیف DB را تعیین می‌کند | `Validator.php:422` · `PluginController.php:434` | `getFromName('manifest.json')` | ⏳ |
+| **B9** | 🟠 `readManifest` هر `manifest.json` را پیدا می‌کند نه فقط ریشه را. نقض مستقیم K1.5.2. امروز تصادفی امن است چون `manifest.misplaced` جلویش را می‌گیرد — ولی در `upload()` همین خروجی `slug` و امضا و کل ردیف DB را تعیین می‌کند | `Validator.php:422` · `PluginController.php:434` | `getFromName('manifest.json')` | done |
 | **B10** | 🟠 دو شکل برای یک مفهوم: `manifestChecks` رشتهٔ ساده می‌پذیرد ولی `extensionPointsOf` فقط آبجکت ⇒ مانیفست با رشتهٔ ساده از اعتبارسنجی رد می‌شود ولی در مقایسه با `panel.json` نامرئی است ⇒ اختلاف کاذب | `Validator.php:248,380-384` | فقط آبجکت، در هر دو جا | done |
 | **B11** | 🟠 `upgrade()` فایل قدیمی را **قبل** از موفقیت جدید پاک می‌کند. دیسک پر ⇒ پلاگین فعال با `path` ناموجود | `PluginController.php:207-212` | ذخیرهٔ جدید → ردیف → حذف قدیم | done |
 | **B12** | 🟠 سه درخواست سریالی در layout هر صفحهٔ پنل | `admin/layout.tsx:12,19,26` | `Promise.allSettled` با حفظ سه `catch` جدا | done |
@@ -345,7 +345,7 @@
 | **B28** | 🔴 فلگ `json` سیگنال **ضدّهمبسته با واقعیت** است: تنها نقطهٔ زنده (`site.page_type`) آن را ندارد ولی ۵ نقطهٔ مرده دارند. اگر `openness` اضافه شود و `json` بماند، دو سیگنال رقیب داریم | `Contract.php:80,88-123,145` | K3.6 | done |
 | **B29** | 🟠 کامنت `Contract.php:81` دربارهٔ کلید `builder` نوشته ولی هیچ نقطه‌ای `builder` ندارد. مستندات مرده | `Contract.php:81` | تمیز | ⏳ |
 | **B30** | 🟠 `ManifestRegistry` برخورد `type` را بی‌صدا `continue` می‌کند. پلاگینی که `type` تکراری اعلام کند نصب می‌شود و **اصلاً دیده نمی‌شود** — بدترین حالت بی‌صدا | `ManifestRegistry.php:99-105,152-154` | قاعدهٔ مقطعی «عدم برخورد» ⇒ خطا | ⏳ |
-| **B31** | 🟠 ۴ نقطه از ۶ `example` ندارند و `example` هیچ‌کدام رندر نمی‌شود | `Contract.php:95-123` · `PackageAnalyzer.tsx:264-267` | K3.7 | ⏳ |
+| **B31** | 🟠 ۴ نقطه از ۶ `example` ندارند و `example` هیچ‌کدام رندر نمی‌شود | `Contract.php:95-123` · `PackageAnalyzer.tsx:264-267` | K3.7 | done |
 | **B32** | 🟡 تصحیح اولویت B17: در `Validator.php:43-45` مقدار `$manifest` برابر `null` است پس `result()` شاخهٔ `:444` را رد می‌کند. مواجههٔ واقعی فقط undefined-index روی `Log::info` در `:457/459` است — warning نه crash. **اولویتش پایین‌تر از آن است که TASKS نشان می‌داد** | `Validator.php:41-46,457-463` | پایین | done |
 
 ### کاستی تست
