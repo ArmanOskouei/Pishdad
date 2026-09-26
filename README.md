@@ -1,33 +1,8 @@
-<!--
-=========================== SEO KEYWORDS (invisible to readers) ===========================
-  Pishdad — Persian CMS, the first Persian CMS, open source CMS, free CMS, self-hosted CMS,
-  Laravel CMS, PHP CMS, Next.js CMS, Laravel CMS on GitHub, cms laravel github,
-  best Laravel CMS repository, Laravel CMS GitHub, headless CMS, install CMS on VPS,
-  WordPress alternative, WordPress vs Pishdad, migrate from WordPress, WooCommerce alternative,
-  Drupal alternative, Django CMS, Wagtail alternative, Ghost alternative, Strapi alternative,
-  Sanity alternative, Directus alternative, Persian CMS, Farsi CMS, Parsi CMS, RTL CMS,
-  Iranian CMS, CMS with plugin marketplace, CMS with theme install, visual block CMS,
-  Persian admin panel, Jalali calendar CMS, SEO built-in CMS, llms.txt CMS, PostgreSQL CMS,
-  Redis CMS, MinIO CMS, open source headless CMS Persian, secure CMS, signed plugin CMS,
-  Ed25519 CMS, Laravel CMS on VPS, self hosted Laravel CMS, best free CMS 2026.
-  Target queries: "سیستم مدیریت محتوای فارسی", "CMS فارسی", "وردپرس فارسی جایگزین",
-  "نصب وردپرس روی سرور اختصاصی", "CMS متن باز فارسی", "وردپرس بهترین جایگزین",
-  "cms laravel github", "laravel cms", "laravel cms github", "open source cms github".
-=========================================================================================
--->
-
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/lockup-dark.png">
-    <img alt="Pishdad — پیشداد" src="assets/lockup-light.png" width="620">
-  </picture>
-</p>
-
 <h1 align="center">The first free, open-source Persian CMS on your own server.</h1>
 <p align="center"><b>نخستین سیستم مدیریت محتوای پارسی (فارسی) رایگان و متن‌باز روی سرور شخصی شما.</b></p>
 
 <p align="center">
-  <img alt="Pishdad — Laravel CMS with a Next.js frontend" src="assets/readme-banner.png" width="100%">
+  <img alt="Pishdad — Laravel CMS with a Next.js frontend" src="assets/readme-banner-v2.png" width="100%">
 </p>
 
 A self-hosted Laravel CMS with a Next.js frontend, running on a server you control.

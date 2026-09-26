@@ -1,26 +1,15 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/lockup-dark.png">
-    <img alt="پیشداد — Pishdad" src="assets/lockup-light.png" width="620">
-  </picture>
-</p>
-
 <h1 align="center">نخستین سیستم مدیریت محتوای پارسی (فارسی) رایگان و متن‌باز روی سرور شخصی شما.</h1>
 <p align="center"><b>The first free, open-source Persian CMS on your own server.</b></p>
 
 <p align="center">
-  <img alt="پیشداد — CMS لاراول با فرانت‌اند Next.js" src="assets/readme-banner.png" width="100%">
+  <img alt="پیشداد — CMS لاراول با فرانت‌اند Next.js" src="assets/readme-banner-v2.png" width="100%">
 </p>
 
 یک CMS لاراول با فرانت‌اند Next.js که روی سرور خودتان اجرا می‌شود. ویرایشگر بصری بلوک،
 اجراکنندهٔ واقعی پلاگین، قالب‌های قابل نصب، و فارسی از همان کامیت اول — نه یک فایل ترجمه
 که بعداً به آن اضافه شده باشد.
 
-[![لایسنس](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![PHP](https://img.shields.io/badge/PHP-%3E%3D8.2-777BB3?logo=php&logoColor=white)](https://php.net)
-[![Next.js](https://img.shields.io/badge/Next.js-15-000?logo=next.js)](https://nextjs.org)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-4169E1?logo=postgresql&logoColor=white)](https://postgresql.org)
-[![هزینه](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-2ea44f)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
+[![لایسنس](https://img.shields.io/badge/license-MIT-E7C069?style=flat-square&labelColor=141834)](LICENSE) [![tests](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml/badge.svg)](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml) [![PHP](https://img.shields.io/badge/PHP->=8.2-E7C069?style=flat-square&labelColor=141834)](https://php.net) [![Next.js](https://img.shields.io/badge/Next.js-15-E7C069?style=flat-square&labelColor=141834)](https://nextjs.org) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-E7C069?style=flat-square&labelColor=141834)](https://postgresql.org) [![Redis](https://img.shields.io/badge/Redis-cache-E7C069?style=flat-square&labelColor=141834)](https://redis.io) [![هزینه](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-E7C069?style=flat-square&labelColor=141834)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
 
 **فارسی** · **[English / انگلیسی](README.md)**
 
@@ -55,6 +44,8 @@
 **پیشداد** از **پیشدادیان** آمده است؛ نخستین سلسلهٔ شاهنامه، شاهان افسانه‌ای پیش از
 ساسانیان. داستان پرشین از آن‌ها شروع می‌شود و اسم پروژه هم از همان‌جا آمده.
 
+
+> 🇬🇧 [This section in English](README.md#the-name)
 ---
 
 ## چرا پیشداد
@@ -77,6 +68,8 @@
 | RTL کامل، رابط فارسی، تاریخ جلالی | ✅ | ⚠️ ناقص | ⚠️ دستی |
 | خروجی کامل، بدون قفل‌شدگی | ✅ | ❌ | ✅ |
 
+
+> 🇬🇧 [This section in English](README.md#why-pishdad)
 ---
 
 ## رایگان و متن‌باز
@@ -88,6 +81,8 @@
 پلاگین‌ها و قالب‌هایی که نصب می‌کنید را خودتان انتخاب کرده‌اید، قبل از اجرا بررسی
 می‌شوند، و روی سروری می‌مانند که کسی جز شما نمی‌بیندش.
 
+
+> 🇬🇧 [This section in English](README.md#free-and-open-source)
 ---
 
 ## امنیت
@@ -113,6 +108,8 @@
 دربارهٔ سابقهٔ هک حرفی نمی‌زنیم. حرف ما معماری است: کد پلاگین ورودی بی‌اعتماد است و باید
 اجازهٔ اجرا را به دست بیاورد. کدش در `app/Services/Plugins/` است.
 
+
+> 🇬🇧 [This section in English](README.md#security)
 ---
 
 ## معماری
@@ -144,6 +141,8 @@
 | تست | PHPUnit — **۴۸۹ تست در ۶۷ فایل** (۶۳ Feature، ۳ Unit) |
 | دارایی‌ها | کاملاً محلی. فونت و آیکون بدون CDN خارجی |
 
+
+> 🇬🇧 [This section in English](README.md#architecture)
 ---
 
 ## سیستم پلاگین
@@ -184,6 +183,8 @@
 قرارداد کامل: [`docs/PLUGIN-MANIFEST-CONTRACT.md`](docs/PLUGIN-MANIFEST-CONTRACT.md)
 · راهنمای کامل: [`docs/PLUGIN-GUIDE.md`](docs/PLUGIN-GUIDE.md)
 
+
+> 🇬🇧 [This section in English](README.md#plugin-system)
 ---
 
 ## قالب‌ها
@@ -197,6 +198,8 @@
 ![موکاپ تعویض قالب](./assets/mockup-themes.png)
 *موکاپ برای نمایش مفهوم — بعداً با اسکرین‌شات یا GIF واقعی جایگزین شود.*
 
+
+> 🇬🇧 [This section in English](README.md#themes)
 ---
 
 ## ویرایشگر بلوکی
@@ -212,6 +215,8 @@
 - انتخاب‌گر رسانه روی S3 یا MinIO
 - هدر، فوتر و ستون‌بندی بدون دست‌زدن به کد
 
+
+> 🇬🇧 [This section in English](README.md#block-editor)
 ---
 
 ## سئوی داخلی
@@ -224,6 +229,8 @@
 - قرارداد OpenAPI 3.1، تایپ‌شده از سر تا ته
 - بدون منشأ اسکریپت شخص ثالث، یعنی بدون جریمهٔ اسکریپت شخص ثالث
 
+
+> 🇬🇧 [This section in English](README.md#built-in-seo)
 ---
 
 ## مقایسه
@@ -234,6 +241,8 @@
 قبل از هر تصمیمی بخوانید: **[COMPARISON.fa.md](COMPARISON.fa.md)** ·
 **[English comparison](COMPARISON.md)**
 
+
+> 🇬🇧 [This section in English](README.md#comparison)
 ---
 
 ## نصب
@@ -257,6 +266,8 @@ npm run build
 
 Nginx را به `public/` بک‌اند و `.next/` فرانت‌اند اشاره دهید و سایت بالاست.
 
+
+> 🇬🇧 [This section in English](README.md#installation)
 ---
 
 ## الزامات سرور
@@ -286,6 +297,8 @@ Nginx را به `public/` بک‌اند و `.next/` فرانت‌اند اشار
 
 </details>
 
+
+> 🇬🇧 [This section in English](README.md#server-requirements)
 ---
 
 ## توسعه محلی
@@ -320,6 +333,8 @@ cd cms-core/frontend && docker compose up -d
 | `php artisan serve` | سرور توسعه |
 | `composer run dev` | سرور، صف، لاگ و Vite با هم |
 
+
+> 🇬🇧 [This section in English](README.md#local-development)
 ---
 
 ## پرسش‌های پرتکرار
@@ -351,6 +366,8 @@ cd cms-core/frontend && docker compose up -d
 بله. PostgreSQL متعلق به خودتان است و اسکیما ساده است، پس یک `pg_dump` تمام
 خروجی است.
 
+
+> 🇬🇧 [This section in English](README.md#frequently-asked-questions)
 ---
 
 ## لایسنس
