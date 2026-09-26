@@ -71,6 +71,23 @@ services:
       - redisdata:/data
 
   minio:
+    # UNPINNED (U1 still open). The correct pin is
+    # `quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z` — that release fixes
+    # a CVE (Privilege Escalation via Session Policy Bypass in Service
+    # Accounts and STS) and we are one release behind, on
+    # RELEASE.2025-09-07T16-13-09Z.
+    #
+    # It is not pinned yet because quay.io answers 401 Unauthorized from this
+    # host: neither `pull` nor `manifest inspect` works, so the pinned tag
+    # cannot be fetched, and leaving it pinned breaks every `docker compose
+    # up` — which blocks the other infrastructure work. A floating tag also
+    # means the running code is whatever the registry served on the day it was
+    # last pulled, with no record of that in the file.
+    #
+    # To finish U1: run `docker compose pull minio` on a host with quay access
+    # (or `docker login quay.io` first), then replace `latest` with the tag
+    # above. The local image is 12 months old — verify with
+    # `docker run --rm --entrypoint /usr/bin/minio <image> --version`.
     image: quay.io/minio/minio:latest
     container_name: cms-minio
     restart: unless-stopped
@@ -94,7 +111,10 @@ services:
 
   # Auto-creates the `cms` bucket on first boot (idempotent).
   minio-init:
-    image: quay.io/minio/mc:latest
+    # Pinned (U1). RELEASE.2025-08-13 is the newest `mc` release, so this pin
+    # records the version instead of letting it drift — it does not change
+    # which image runs today.
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: cms-minio-init
     depends_on:
       minio:
