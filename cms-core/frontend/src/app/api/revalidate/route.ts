@@ -3,6 +3,18 @@ import { revalidateTag } from "next/cache";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
+ * Next 16 changed the signature: `revalidateTag(tag)` is gone and the second
+ * argument is now a cacheLife profile. `{ expire: 0 }` is the immediate purge,
+ * which is what the bare one-argument call did in Next 15.
+ *
+ * `updateTag(tag)` looks like the tidier replacement but is wrong here: it can
+ * only be called from inside a Server Action and throws otherwise. This file is
+ * a Route Handler, so the backend's HMAC-signed call into `/api/revalidate`
+ * would blow up at runtime while typechecking cleanly.
+ */
+const EXPIRE_NOW = { expire: 0 };
+
+/**
  * F3 — Route Handler امن revalidate (۱.۵/۴.۲).
  * همان منطق RevalidateSigner بک‌اند (app/Services/RevalidateSigner.php):
  *   signature = HMAC-SHA256("ts|nonce|tag1,tag2,...", REVALIDATE_SECRET)
@@ -65,7 +77,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "نشست معتبر نیست." }, { status: 401 });
     }
     const allowed = (tags as string[]).filter((t) => ALLOWED_LOCAL_TAGS.has(t));
-    for (const t of allowed) revalidateTag(t);
+    for (const t of allowed) revalidateTag(t, EXPIRE_NOW);
     return NextResponse.json({ message: "کش باطل شد.", revalidated: allowed });
   }
 
@@ -91,6 +103,6 @@ export async function POST(req: NextRequest) {
   }
   seenNonces.set(nonce, Date.now() + LEEWAY * 1000);
 
-  for (const t of tags as string[]) revalidateTag(t);
+  for (const t of tags as string[]) revalidateTag(t, EXPIRE_NOW);
   return NextResponse.json({ message: "کش باطل شد.", revalidated: tags });
 }
