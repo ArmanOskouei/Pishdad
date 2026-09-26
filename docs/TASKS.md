@@ -1014,3 +1014,34 @@
 | M4 | مهاجرت داده (کپی اول) و اثبات صحت | done | — | `robocopy /E`، برابری تعداد فایل/حجم، hash نمونه، سپس `npm ci --offline` سبز |
 | M5 | اثبات: lint / typecheck / test / build / اجرای واقعی | done | — | همه سبز با کامندهای مرحله ۶ |
 | M6 | پاک‌سازی مسیر قدیمی و اثبات پس از آن | done | — | فقط `npm-cache` قدیمی حذف شد؛ build/test دوباره سبز؛ `git status` بدون تغییر کار کاربر |
+
+## گروه U — بروزرسانی زیرساخت و فریم‌ورک (درخواست کاربر)
+
+ترتیب بر اساس **ریسک** است، نه شمارهٔ نسخه: اول وصله‌های امنیتی، بعد کارهای کم‌ریسک، آخر ارتقای major.
+همهٔ نسخه‌های «آخرین» از منابع رسمی تأیید شده‌اند (GitHub API / npm registry / Docker Hub / GitHub release notes).
+
+| # | تسک | وضعیت | فایل/محل | یادداشت |
+|---|------|--------|-----------|---------|
+| U1 | MinIO: پین کردن نسخه + وصلهٔ امنیتی | in_progress | cms-core/backend/docker-compose.yml | **نیمه‌تمام — منتظر تصمیم کاربر.** `mc` کامل شد: پین `RELEASE.2025-08-13T08-35-41Z` (همان آخرین نسخهٔ `mc`، پس محتوا عوض نشد) و تگ محلی صادقانه ساخته شد؛ `minio bucket ready` تأیید شد. **سرور گیر کرد:** `quay.io` از این ماشین `401 Unauthorized` می‌دهد ⇒ نه `manifest inspect` و نه `pull` کار می‌کند. بدون دسترسی رجیستری نمی‌شود وصلهٔ CVE اعمال شود. ضمناً کشف شد ایمیج محلی MinIO **۱۲ ماه** دارد و روی `2025-09-07` ایستاده. ⚠️ پینِ سرور در فایل هست ولی تا وقتی رجیستری در دسترس نشود، `docker compose up -d` می‌شکند — نیاز به تصمیم کاربر دارد |
+| U2 | PHP ‏8.3.33 ← 8.3.35 | ⏳ | cms-core/backend/Dockerfile | 🔴 **اولویت ۲.** هر دو نسخه *security release* اعلام شده‌اند (۲۴ سپت ۲۰۲۶). ۸.۳.۳۵ همان وصلهٔ امنیتی ۸.۵.۱۱ است، backport‌شده به شاخهٔ ۸.۳. دو رقم آخر، بدون breaking change. Dockerfile تگ نمی‌کند ⇒ فقط pk در build تازه می‌گیرد |
+| U3 | حذف docker-compose.yml کهنهٔ ریشه | ⏳ | docker-compose.yml (ریشه) | 🟢 کهنه و گمراه‌کننده: php:7-alpine3.16 دارد در حالی که زیرساخت واقعی lpine:3.24 + php83-* است. هیچ سرویسی از آن استفاده نمی‌کند. حذف یا علامت‌گذاری deprecated |
+| U4 | Alpine ‏3.24.0 ← 3.24.2 | ⏳ | cms-core/backend/Dockerfile | 🟢 دو patch. FROM alpine:3.24 تگ شناور است؛ فقط rebuild |
+| U5 | Nginx ‏1.27 ← 1.31.6 | ⏳ | cms-core/backend/docker-compose.yml | 🟡. سرور وب. بدون breaking change |
+| U6 | Laravel ‏11.56.1 ← 12.69.2 | done | cms-core/backend/composer.json |  ✅ تمام. `11.56.1` → `12.69.2` در `4a49dd9`. tinker `2.10.2` شد (نسخهٔ ۲.۱۰.۰ فقط تا `illuminate/support ^11.0` را می‌گیرد). ۴۸۹ تست پاس. **کشف:** mirror سراسری composer به `mirrors.aliyun.com` داخل کانتینر `canonical` بود ⇒ وقتی متادیتایش کهنه می‌شد fallback به packagist نمی‌کرد و update شکست می‌خورد. با `canonical:false` حل شد؛ **ولی داخل کانتینر است و با rebuild از بین می‌رود** |
+| U7 | Laravel ‏12.69.2 ← 13.33.0 | done | cms-core/backend/composer.json |  ✅ تمام. `12.69.2` → `13.33.0` در `d611fd0`. tinker مجبور شد `2`→`3` (۲.۱۱.۱ سقف `^12.0` دارد). **پیامد پنهان:** guzzle `7`→`8` و psr7 `2`→`3` هم major عوض کردند، روی لایهٔ HTTP اثر دارند که Chabokan و MinIO از آن استفاده می‌کنند. ۴۸۹ تست پاس، بدون deprecation، ۱۷۰ route، صفر خطای جدید در لاگ |
+| U8 | Next.js ‏15.5.26 ← 16.3.6 + React ‏19.0.0 ← 19.3.0 | ⏳ | cms-core/frontend/package.json | ⚠️ یک major. ریسک: 
+ext.config، middleware احراز هویت، و **cacheHandler روی Redis** (ISR چابکان) که تغییرات breaking در caching دارد. توجه: 15.5.26 همین حالا آخرین وصلهٔ امنیتی شاخهٔ ۱۵ است (dist-tag: backport) و پروژه از کد آسیب‌پذیر 
+ext/og استفاده نمی‌کند ⇒ ارتقا اختیاری است نه فوری |
+| U9 | PostgreSQL ‏16.15 ← 18.6 | ⏳ | cms-core/backend/docker/postgres/Dockerfile | ⚠️ دو major. ریسک بالا چون icu-data-full برای collation فارسی لازم است و داده‌های PGDATA باید سازگار بمانند. نیازمند pg_upgrade یا dump/restore |
+| U10 | Redis ‏7.4.11 ← 8.10.2 | ⏳ | cms-core/backend/docker-compose.yml | ⚠️ یک major. روی کش/صف و cacheHandler اثر دارد |
+| U11 | TypeScript ‏5.7 ← 7.0.2 | ⏳ | cms-core/frontend/package.json | 🔴 دو major. ۷ همان بازنویسی Go است، نه نسخهٔ ۶ ⇒ هم نسخه و هم زیرساخت ابزار عوض می‌شود. **آخرین کار** |
+| U99 | بازرسی و رفع ایرادات پس از بروزرسانی | ⏳ | سراسر ریپو | 🔴 **الزامی و پس از همهٔ Uها.** بعد از هر ارتقا، کل مجموعه باید دوباره اجرا شود و هر ایرادی که ارتقا ساخته رفع شود. شامل: اجرای کامل تست backend، typecheck/build frontend، اجرای واقعی مسیرهای حیاتی (آپلود/نصب پلاگین، کش ISR، احراز هویت)، بررسی deprecationها، و رفتار سرویس‌های زیرساخت. تا وقتی U99 پاک نشده، هیچ Uای «کامل» حساب نمی‌شود |
+
+
+## گروه U90 — ایرادهای کشف‌شده حین کار بروزرسانی
+
+| # | تسک | وضعیت | فایل/محل | یادداشت |
+|---|------|--------|-----------|---------|
+| U90 | درخواست API بدون احراز هویت 504 می‌دهد به‌جای 401 | ⏳ | بک‌اند، مسیر auth | 🔴 کشف شد ۲۶ سپت حین تست runtime بعد از ارتقای Laravel. **از قبل وجود داشت** — اولین رخداد در لاگ ۲۳ سپت، یعنی سه روز قبل از ارتقا. بک‌اند token-based است (Sanctum) و route‌ای به اسم login ندارد، ولی middleware برای کاربر مهمان oute('login') صدا می‌زند ⇒ RouteNotFoundException ⇒ nginx 504. تست‌ها این مسیر را نمی‌زنند چون اول authenticate می‌کنند، برای همین سبز می‌مانند. برای API باید 401 JSON برگردد نه redirect. ریشه را پیدا کن و رفع کن |
+| U91 | mirror سراسری composer با canonical:true گیر می‌اندازد | ⏳ | تنظیمات سراسری داخل کانتینر | 🟡 کشف شد ۲۶ سپت. epositories سراسری به mirrors.aliyun.com/composer/ بود با اولویت بالا ⇒ وقتی متادیتایش کهنه می‌شد composer به packagist fallback نمی‌کرد و فقط نسخه‌های dev می‌داد ⇒ composer update شکست می‌خورد و نسخهٔ واقعی Laravel اصلاً دیده نمی‌شد. برای این نشست canonical:false شد، ولی **داخل کانتینر است و با هر rebuild از بین می‌رود**. راه‌حل دائمی: بگذار در Dockerfile بیاید یا از راه env تزریق شود، نه با دستی |
+
