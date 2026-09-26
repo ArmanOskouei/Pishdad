@@ -1,9 +1,9 @@
 # Pishdad
-> The first Persian-first, self-hosted content management system. Free and MIT-licensed,
-> built for right-to-left Persian, and verified before any plugin code runs.
+> The first Persian-first, self-hosted CMS. Free and MIT-licensed, built for
+> right-to-left Persian, and verified before any plugin code runs.
 
-Pishdad (پیشداد) is a plugin-based CMS for building and managing websites. It is named
-after the Pishdadians, the first dynasty of the Shahnameh.
+Pishdad (پیشداد) is a plugin-based content management system for building and
+managing websites. It is named after the Pishdadians, the first dynasty of the Shahnameh.
 
 ## Stack
 - Backend: Laravel 11 (API-only), PHP 8.2+
@@ -14,21 +14,20 @@ after the Pishdadians, the first dynasty of the Shahnameh.
 
 ## What makes it different
 - Persian and RTL from the first commit: CSS logical properties, Jalali dates, a locally
-  served Persian typeface, and no external CDN.
-- Plugins are declarative and signed. A package declares permissions, header/footer
-  widgets and page types through a manifest, and is signed with Ed25519. The trust store
-  verifies the signature before any plugin code loads, and a package carrying an embedded
-  credential is rejected at install.
-- SEO tooling is in the core, not an add-on: sitemap.xml, robots.txt, llms.txt and an
-  on-site search endpoint.
+  served Persian typeface, no external CDN.
+- Plugins are declarative and signed. A package declares permissions, header/footer widgets
+  and page types through a manifest, and is signed with Ed25519. The trust store verifies the
+  signature before any plugin code loads; a package carrying an embedded credential is
+  rejected at install.
+- SEO tooling is in the core, not an add-on: sitemap.xml, robots.txt, llms.txt, site search.
 
 ## Licensing and hosting
-Free and MIT-licensed, with no premium edition, no seat count and no telemetry.
-Self-hosted: it runs on a server you control, and your data stays there.
+Free and MIT-licensed: no premium edition, no seat count, no telemetry. Self-hosted, so it
+runs on a server you control and your data stays there.
 
 ## Links
 - English README: https://github.com/ArmanOskouei/Pishdad/blob/main/README.md
 - Persian README: https://github.com/ArmanOskouei/Pishdad/blob/main/README.fa.md
-- Comparison against other CMSs: https://github.com/ArmanOskouei/Pishdad/blob/main/COMPARISON.md
+- Comparison: https://github.com/ArmanOskouei/Pishdad/blob/main/COMPARISON.md
 - Security policy: https://github.com/ArmanOskouei/Pishdad/blob/main/SECURITY.md
 - Repository: https://github.com/ArmanOskouei/Pishdad
