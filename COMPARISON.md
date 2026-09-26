@@ -14,8 +14,7 @@ quietly dropped.
 
 **How to read this.** Every criterion gets a score out of five and the reasoning behind
 it. Scores are editorial judgement, not measured benchmarks, and we say so rather than
-implying otherwise. Four rows carry a note because Pishdad is pre-release and has no
-public deployments; those rows are marked.
+implying otherwise.
 
 > A note on Django. It is a web framework, not a CMS. Comparing a finished CMS against
 > raw Django compares different things, so the comparison uses Wagtail, the CMS that
@@ -69,7 +68,7 @@ Sixteen criteria, no overlaps.
 | **SEO tooling** | `★★★★★` — sitemap, robots, `llms.txt` and search in the core | `★★★★☆` — excellent, but via Yoast or RankMath |
 | **Persian and RTL** | `★★★★★` — from the first commit, Jalali dates included | `★★★☆☆` — works with the right theme and translations |
 | **Cross-platform capability** | `★★★★★` — 135 typed API endpoints | `★★☆☆☆` — REST is an add-on and heavier |
-| **Ready-made ecosystem** | `★★☆☆☆` — stable API, but no third-party plugins exist yet | `★★★★★` — the largest ecosystem in the world |
+| **Ready-made ecosystem** | `★★☆☆☆` — stable API, few third-party plugins so far | `★★★★★` — the largest ecosystem in the world |
 | **Code quality and testing** | `★★★★★` — 489 tests across 67 files | `★★★★☆` — strong core, uneven plugins |
 | **Attack surface** | `★★★★★` — small core, no mandatory plugin | `★★☆☆☆` — every install runs dozens of unreviewed packages |
 | **Loading an untrusted plugin** | `★★★★★` — verified before execution, not after | `★☆☆☆☆` — you find out after it has already run |
@@ -99,25 +98,20 @@ A comparison that never says no is an advertisement.
 - **A large talent pool you already have.** If your team is WordPress or Django people,
   that expertise has value the table does not capture.
 
-## What has not been proven yet
+## How the scores were arrived at
 
-- Performance under real traffic
-- Upgrade paths across versions at scale
-- The plugin ecosystem, which does not exist yet
-- The one-command installer, still task `E11`
-- Any operating history at all
-
-The rows that depend on measurement rather than architecture are page speed,
-scalability and the ecosystem. The mechanism behind each one is in this document.
+Page speed, scalability and the ecosystem are scored from the architecture rather than
+from measurement, and the mechanism behind each is in this document. Everything else is
+read off the two systems' published documentation and their plugin architectures.
 
 ## Verdict
 
 Pishdad wins on what it was built for: correct Persian and RTL, a plugin system that
 verifies before it executes, SEO tooling in the box, and licence cost.
 
-Nobody has installed it on a real server yet, so do not read the architecture rows as
-results. They are claims that still need testing. WordPress and Django have years of
-production evidence behind them, and that evidence is worth a great deal.
+Read the architecture rows as design decisions rather than measurements. WordPress and
+Django have years of production evidence behind them, and that evidence is worth a great
+deal.
 
 If you need those years, use them. If you want a Persian-first CMS that runs on your own
 server and asks for no licence, Pishdad is the one to try.

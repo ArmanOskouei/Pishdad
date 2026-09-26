@@ -15,12 +15,12 @@ Target queries: "سیستم مدیریت محتوای فارسی", "CMS فارس
 
 # Pishdad · پیشداد
 
-> ### The first Persian CMS. Free, open-source, on your own server.
-> ### نخستین سیستم مدیریت محتوای پرشین. رایگان، متن‌باز، روی سرور خودتان.
+> ### The first free, open-source Persian CMS on your own server.
+> ### نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.
 
-A complete content management system you install on your own server with a single command.
-Visual block editor, a real plugin runtime, installable themes, and Persian baked in from the
-first commit rather than bolted on by a translation file.
+A content management system you run on your own server, with a visual block editor, a
+real plugin runtime, installable themes, and Persian baked in from the first commit
+rather than bolted on by a translation file.
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![php](https://img.shields.io/badge/PHP-%3E%3D8.2-777BB3?logo=php&logoColor=white)](https://php.net)
@@ -77,7 +77,7 @@ and security patches. Pishdad sits in the second camp and tries to remove the bi
 
 | | Pishdad | Subscription platform | Self-hosted build |
 |---|:---:|:---:|:---:|
-| One-command install on your own server | ✅ | ❌ | ⚠️ manual |
+| No vendor account, no signup | ✅ | ❌ account required | ✅ |
 | Monthly cost | **Free forever** | 💳 subscription | 💳 plugins + themes |
 | Data stays on your server | ✅ | ❌ vendor servers | ⚠️ shared hosting |
 | Plugin runtime in the core | ✅ | ⚠️ marketplace | ⚠️ often absent |
@@ -125,10 +125,8 @@ first and find out what it is afterwards. Pishdad checks first.
 Plugin permissions are namespaced as `plugin:{slug}:{module}.{action}`, so a plugin module
 can never collide with a core module or with another plugin's.
 
-We are not going to claim a breach record. Pishdad is pre-release with no public
-deployments, and a clean history on zero installations is not a security property. The
-claim worth making is the one above: the architecture takes plugin code as untrusted
-input that has to earn execution. Read `app/Services/Plugins/` and judge it there.
+None of this is a track-record claim. What is worth claiming is the mechanism: plugin
+code is untrusted input that has to earn execution. `app/Services/Plugins/` has the code.
 
 > 🇮🇷 [این بخش به زبان فارسی](README.fa.md#امنیت)
 
@@ -265,9 +263,6 @@ Read it before you decide anything: **[COMPARISON.md](COMPARISON.md)** ·
 
 ## Installation
 
-> ⚠️ **Under active development.** The one-command installer is task `E11` and is not
-> released. The manual steps below are the supported path today.
-
 ```bash
 git clone https://github.com/ArmanOskouei/Pishdad.git
 cd Pishdad/cms-core
@@ -286,16 +281,6 @@ npm run build
 ```
 
 Point Nginx at the backend `public/` and the frontend `.next/`, and the site is running.
-
-When the installer ships this collapses into one command:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/ArmanOskouei/Pishdad/main/install.sh | sudo bash
-```
-
-It will provision PHP-FPM, Nginx, PostgreSQL, Redis, MinIO, Composer and Node.js, create
-the database, start the site, and open a setup wizard that asks for the minimum: site
-name, domain, one admin account.
 
 > 🇮🇷 [راهنمای نصب به زبان فارسی](README.fa.md#نصب)
 
