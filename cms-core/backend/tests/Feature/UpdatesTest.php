@@ -81,7 +81,7 @@ class UpdatesTest extends TestCase
         $auth->postJson("/api/central/updates/installs/{$client->id}/rollback")
             ->assertOk()->assertJsonPath('data.current_version', '1.0.0');
 
-        $this->assertDatabaseHas('update_rollout_items', [
+        $this->assertDatabaseHas('central_update_rollout_items', [
             'client_id' => $client->id, 'status' => 'rolled_back',
         ]);
 

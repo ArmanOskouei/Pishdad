@@ -41,12 +41,6 @@ final class PluginPackageContract
     /** نسبت فشرده‌سازی بالاتر از این ⇒ zip bomb. */
     public const MAX_COMPRESSION_RATIO = 100;
 
-    public const MAX_TABLE_COUNT = 20;
-
-    public const MAX_INDEXES_PER_TABLE = 10;
-
-    public const MAX_ACTIVE_PLUGINS = 20;
-
     /**
      * بستهٔ کمینهٔ مقصدهای مجاز. deny-by-default.
      *
@@ -105,9 +99,6 @@ final class PluginPackageContract
     ];
 
     /**
-     * سقف‌های گرامر micro-schema. بیرون از این‌ها خطاست، نه هشدار.
-     */
-    /**
      * interface هایی که افزونه مجاز است پیاده‌سازی‌اش را جایگزین کند.
      *
      * ⚠️ این فهرست با `ServiceProviderRegistry::OVERRIDABLE` **باید یکی باشد.**
@@ -127,6 +118,9 @@ final class PluginPackageContract
     /** ریشهٔ اجباری namespace کلاس افزونه — هم‌ریشه با قاعدهٔ K5.3. */
     public const PLUGIN_NAMESPACE_PREFIX = 'Pishdad\\Plugins\\';
 
+    /**
+     * سقف‌های گرامر micro-schema. بیرون از این‌ها خطاست، نه هشدار.
+     */
     public const GRAMMAR_LIMITS = [
         'max_depth' => 1,
         'max_total_bytes' => 65536,
@@ -208,8 +202,8 @@ final class PluginPackageContract
                     'decl' => ['title' => 'نوشته‌ها', 'path' => '/admin/blog', 'icon' => 'pencil', 'permission' => 'posts.view'],
                 ],
                 [
-                    'why' => 'پرمیشن بدون prefix اسلاگ بین دو پلاگین مشترک می‌شود.',
-                    'decl' => ['key' => 'blog', 'label' => 'نوشته‌ها', 'href' => '/admin/blog', 'permission' => 'posts.view'],
+                    'why' => 'اینجا prefix لازم است چون نام پرمیشن **کامل** در مانیفست نوشته می‌شود. (در `permissions[].module` برعکس است: فقط بخش آخر را بنویسید، چون هسته prefix اسلاگ را خودش اضافه می‌کند.)',
+                    'decl' => ['key' => 'blog', 'label' => 'نوشته‌ها', 'href' => '/admin/blog', 'permission' => 'blog.view'],
                 ],
             ],
         ],

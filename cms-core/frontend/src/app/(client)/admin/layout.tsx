@@ -28,7 +28,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <Shell
       groups={suspended ? ADMIN_MENU_LOCKED : ADMIN_MENU}
       brand={{ name: "پنل مدیریت", sub: site?.title?.trim() || "پنل مدیریت", logoUrl: site?.logo_url ?? null }}
-      crumbs={["پنل", "مدیریت"]}
+      // فقط ریشه؛ بقیهٔ مسیر را Shell از رجیستری منو + مسیر جاری می‌سازد.
+      crumbs={["پنل"]}
       user={profile ? { name: profile.first_name?.trim() || profile.name, avatarUrl: profile.avatar_url ?? null } : null}
     >
       <AdminFavicon href={site?.favicon_url ?? null} />

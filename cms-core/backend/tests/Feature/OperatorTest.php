@@ -55,7 +55,7 @@ class OperatorTest extends TestCase
             ->assertCreated();
 
         $this->assertEquals(48, strlen($res->json('data.token')));
-        $this->assertDatabaseHas('operator_setup_tokens', ['purpose' => 'نصب جدید']);
+        $this->assertDatabaseHas('central_operator_setup_tokens', ['purpose' => 'نصب جدید']);
     }
 
     public function test_hardware_key_registration(): void

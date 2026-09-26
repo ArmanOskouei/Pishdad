@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SetupToken extends Model
 {
-    protected $table = 'operator_setup_tokens';
+    protected $table = 'central_operator_setup_tokens';
 
     protected $fillable = ['created_by', 'token_hash', 'purpose', 'expires_at', 'used_at'];
 

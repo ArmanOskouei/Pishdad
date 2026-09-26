@@ -5,11 +5,11 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
 import { AdminSearch } from "@/components/search/AdminSearch";
 
-/** تاپ‌بار F1+F2: breadcrumb، جستجو، سوییچ پنل مشتری↔مرکزی (۱.۱)، سوییچ تم، اعلان، آواتار، خروج. */
+/** تاپ‌بار F1+F2: breadcrumb، جستجو، سوییچ پنل مشتری↔مرکزی (۱.۱)، سوییچ تم، آواتار، خروج. */
 export function Topbar({
-  crumbs, onMenu, alertCount = 0, user,
+  crumbs, onMenu, user,
 }: {
-  crumbs: string[]; onMenu: () => void; alertCount?: number;
+  crumbs: string[]; onMenu: () => void;
   user?: { name: string; avatarUrl: string | null } | null;
 }) {
   const { theme, toggleMode } = useTheme();
@@ -44,9 +44,6 @@ export function Topbar({
         </Link>
         <button className="icon-btn" onClick={toggleMode} aria-label="سوییچ روشن/تیره">
           {theme.mode === "dark" ? "☀" : "☾"}
-        </button>
-        <button className="icon-btn" aria-label={`اعلان‌ها${alertCount ? ` (${alertCount} خوانده‌نشده)` : ""}`}>
-          🔔{alertCount > 0 ? <span className="dot" /> : null}
         </button>
         <Link href="/admin/profile" className="icon-btn" aria-label={`پروفایل ${user?.name ?? ""}`} title={user?.name ?? "پروفایل"}>
           {user?.avatarUrl ? (

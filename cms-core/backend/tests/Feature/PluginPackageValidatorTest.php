@@ -992,6 +992,21 @@ class PluginPackageValidatorTest extends TestCase
         }
     }
 
+    /**
+     * B29: کامنتِ نقطهٔ اتصال وعدهٔ کلید `builder` را می‌داد — «کد هسته‌ای که باید
+     * merge/dispatch را انجام دهد» — ولی هیچ نقطه‌ای آن را نداشت.
+     *
+     * پاسخ آن سؤال حالا `status` است (live / declared_only / deferred) و رجیستری‌های
+     * واقعی. نام‌بردن کد هسته از داخل مانیفست خودش K1.5.8 است، پس برنمی‌گردد.
+     */
+    public function test_legacy_builder_key_is_gone(): void
+    {
+        foreach (PluginPackageContract::extensionPoints() as $point) {
+            $this->assertArrayNotHasKey('builder', $point);
+            $this->assertArrayNotHasKey('builder', PluginPackageContract::EXTENSION_POINTS[$point['key']]);
+        }
+    }
+
     /** `forbidden` سراسری است وگرنه تکرارش یعنی drift. */
     public function test_forbidden_is_a_single_global_list(): void
     {

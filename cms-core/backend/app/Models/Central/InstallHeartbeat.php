@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class InstallHeartbeat extends Model
 {
+    protected $table = 'central_install_heartbeats';
+
     protected $fillable = ['site_id', 'status', 'version', 'payload', 'last_seen_at'];
 
     protected function casts(): array

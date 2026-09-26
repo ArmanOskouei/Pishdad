@@ -54,7 +54,7 @@ class MonitoringTest extends TestCase
         $this->withHeaders($hb['headers'])->postJson('/api/internal/heartbeat', $hb['body'])
             ->assertOk()->assertJsonPath('message', 'heartbeat ثبت شد.');
 
-        $this->assertDatabaseHas('install_heartbeats', [
+        $this->assertDatabaseHas('central_install_heartbeats', [
             'site_id' => $client->site_id, 'status' => 'online', 'version' => '1.2.0',
         ]);
         $this->assertEquals('1.2.0', $client->fresh()->current_version);

@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OperatorActivity extends Model
 {
+    protected $table = 'central_operator_activities';
+
     protected $fillable = ['user_id', 'action', 'ip', 'meta'];
 
     protected function casts(): array

@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UpdateRollout extends Model
 {
+    protected $table = 'central_update_rollouts';
+
     protected $fillable = ['version', 'status', 'batch_size', 'created_by'];
 
     public function items(): HasMany

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class HardwareKey extends Model
 {
-    protected $table = 'operator_hardware_keys';
+    protected $table = 'central_operator_hardware_keys';
 
     protected $fillable = ['user_id', 'name', 'credential'];
 

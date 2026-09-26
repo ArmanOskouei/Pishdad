@@ -50,7 +50,7 @@ class UpdateController extends Controller
     public function rollout(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'version' => 'required|string|max:30|exists:core_versions,version',
+            'version' => 'required|string|max:30|exists:central_core_versions,version',
             'install_ids' => 'sometimes|array',
             'install_ids.*' => 'integer|exists:central_clients,id',
             'batch_size' => 'sometimes|integer|min:1|max:100',

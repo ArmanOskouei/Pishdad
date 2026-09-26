@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class KillSwitch extends Model
 {
+    protected $table = 'central_kill_switches';
+
     protected $fillable = ['executed_by', 'reason', 'confirmed', 'scope'];
 
     protected function casts(): array

@@ -2,6 +2,7 @@
 
 namespace App\Models\Central;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -50,7 +51,7 @@ class Client extends Model
 
     public function owner(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'owner_user_id');
+        return $this->belongsTo(User::class, 'owner_user_id');
     }
 
     /** سلامت نمایشی برای فیلتر لیست: از وضعیت اشتراک استخراج می‌شود. */
