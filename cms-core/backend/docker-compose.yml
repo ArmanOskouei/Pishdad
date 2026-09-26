@@ -28,7 +28,7 @@ services:
         condition: service_started
 
   web:
-    image: nginx:1.27-alpine
+    image: nginx:1.31.6-alpine
     container_name: cms-web
     restart: unless-stopped
     ports:
@@ -62,7 +62,12 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    # U10: 7.4.11 -> 8.10.2. Major, and this one is load-bearing — Redis backs
+    # the cache, the session store and the queue, and the Next.js cacheHandler
+    # sits on top of it. Pinned to an exact version rather than a floating tag
+    # so the running server is recorded in the file instead of being whatever
+    # the registry served on the day of the pull.
+    image: redis:8.10.2-alpine
     container_name: cms-redis
     restart: unless-stopped
     ports:
