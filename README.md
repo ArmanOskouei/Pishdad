@@ -16,6 +16,13 @@
 =========================================================================================
 -->
 
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/lockup-dark.png">
+    <img alt="Pishdad" src="assets/lockup-light.png" width="640">
+  </picture>
+</div>
+
 # Pishdad · پیشداد
 
 > ### The first free, open-source Persian CMS on your own server.

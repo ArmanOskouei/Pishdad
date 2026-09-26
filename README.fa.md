@@ -1,3 +1,10 @@
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/lockup-dark.png">
+    <img alt="پیشداد" src="assets/lockup-light.png" width="640">
+  </picture>
+</div>
+
 # پیشداد · Pishdad
 
 > ### نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.
