@@ -1,14 +1,12 @@
-<div align="center">
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/lockup-dark.png">
-    <img alt="پیشداد" src="assets/lockup-light.png" width="640">
+    <img alt="پیشداد — Pishdad" src="assets/lockup-light.png" width="620">
   </picture>
-</div>
+</p>
 
-# پیشداد · Pishdad
-
-> ### نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.
-> ### The first free, open-source Persian CMS on your own server.
+<h1 align="center">نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.</h1>
+<p align="center"><b>The first free, open-source Persian CMS on your own server.</b></p>
 
 یک CMS لاراول با فرانت‌اند Next.js که روی سرور خودتان اجرا می‌شود. ویرایشگر بصری بلوک،
 اجراکنندهٔ واقعی پلاگین، قالب‌های قابل نصب، و فارسی از همان کامیت اول — نه یک فایل ترجمه

@@ -16,17 +16,15 @@
 =========================================================================================
 -->
 
-<div align="center">
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/lockup-dark.png">
-    <img alt="Pishdad" src="assets/lockup-light.png" width="640">
+    <img alt="Pishdad — پیشداد" src="assets/lockup-light.png" width="620">
   </picture>
-</div>
+</p>
 
-# Pishdad · پیشداد
-
-> ### The first free, open-source Persian CMS on your own server.
-> ### نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.
+<h1 align="center">The first free, open-source Persian CMS on your own server.</h1>
+<p align="center"><b>نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.</b></p>
 
 A Laravel CMS with a Next.js frontend, running on a server you control. Visual block
 editor, a real plugin runtime, installable themes, and Persian baked in from the first
