@@ -107,21 +107,20 @@ A comparison that never says no is an advertisement.
 - The one-command installer, still task `E11`
 - Any operating history at all
 
-The rows that depend on measurement rather than architecture are the ones for page
-speed, scalability and ecosystem. We are confident in the mechanisms and have stated
-each one plainly enough to be checked.
+The rows that depend on measurement rather than architecture are page speed,
+scalability and the ecosystem. The mechanism behind each one is in this document.
 
 ## Verdict
 
-Pishdad wins on what it was built for: Persian and RTL correctness, a plugin system that
+Pishdad wins on what it was built for: correct Persian and RTL, a plugin system that
 verifies before it executes, SEO tooling in the box, and licence cost.
 
-It is pre-release, so treat the architecture rows as claims to test rather than results.
-WordPress and Django have years of production evidence behind them, and that evidence is
-worth a great deal.
+Nobody has installed it on a real server yet, so do not read the architecture rows as
+results. They are claims that still need testing. WordPress and Django have years of
+production evidence behind them, and that evidence is worth a great deal.
 
-If you need those years, use them. If you need a Persian-first CMS that does not charge
-you a licence to run your own site, Pishdad is the one to try.
+If you need those years, use them. If you want a Persian-first CMS that runs on your own
+server and asks for no licence, Pishdad is the one to try.
 
 ---
 

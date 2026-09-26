@@ -13,10 +13,10 @@ Target queries: "سیستم مدیریت محتوای فارسی", "CMS فارس
 =========================================================================================
 -->
 
-# Pishdad · پشداد
+# Pishdad · پیشداد
 
-> ### The first Persian CMS. Free, open-source, and you own it.
-> ### نخستین سیستم مدیریت محتوای پرشین. رایگان، متن‌باز، مال خودتان.
+> ### The first Persian CMS. Free, open-source, on your own server.
+> ### نخستین سیستم مدیریت محتوای پرشین. رایگان، متن‌باز، روی سرور خودتان.
 
 A complete content management system you install on your own server with a single command.
 Visual block editor, a real plugin runtime, installable themes, and Persian baked in from the
@@ -63,7 +63,7 @@ they open the Persian story.
 
 It seemed right that the first Persian CMS should carry the first Persian name.
 
-> 🇮🇷 [این بخش به زبان فارسی](README.fa.md#نام-پشداد)
+> 🇮🇷 [این بخش به زبان فارسی](README.fa.md#نام-پیشداد)
 
 ---
 
@@ -87,7 +87,7 @@ and security patches. Pishdad sits in the second camp and tries to remove the bi
 | Full RTL, Persian UI, Jalali dates | ✅ | ⚠️ partial | ⚠️ manual |
 | Export everything, no lock-in | ✅ | ❌ | ✅ |
 
-> 🇮🇷 [این بخش به زبان فارسی](README.fa.md#چرا-پشداد)
+> 🇮🇷 [این بخش به زبان فارسی](README.fa.md#چرا-پیشداد)
 
 ---
 
@@ -253,8 +253,8 @@ Search tooling is part of the core, not a plugin to buy.
 
 ## Comparison
 
-Pishdad is compared against WordPress, Drupal and Django + Wagtail across 22 criteria, with
-the criteria where Pishdad scores low kept in rather than dropped.
+Pishdad is scored against WordPress and Django + Wagtail across 16 criteria, with the
+rows where Pishdad scores low kept in rather than dropped.
 
 Read it before you decide anything: **[COMPARISON.md](COMPARISON.md)** ·
 **[مقایسهٔ فارسی](COMPARISON.fa.md)**
