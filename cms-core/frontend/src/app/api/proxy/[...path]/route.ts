@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkPath } from "@/lib/proxy-allowlist";
 
 /** پروکسی احرازهویت‌شده: /api/proxy/v1/admin/... → بک‌اند با Bearer از کوکی httpOnly. */
 const UPSTREAM = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
@@ -6,7 +7,13 @@ const UPSTREAM = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL
 async function proxy(req: NextRequest, path: string[]) {
   const token = req.cookies.get("auth_token")?.value;
   if (!token) return NextResponse.json({ message: "نشست منقضی شد — دوباره وارد شوید." }, { status: 401 });
-  const target = `${UPSTREAM}/${path.join("/")}${req.nextUrl.search}`;
+
+  // مسیر کاربر هرگز مستقیم به `UPSTREAM` نمی‌رود؛ بدون این allowlist هر کسی که
+  // لاگین کرده بود می‌توانست `internal/heartbeat` (بدون auth) را صدا بزند.
+  const decision = checkPath(path);
+  if (!decision.ok) return NextResponse.json({ message: decision.reason }, { status: 403 });
+
+  const target = `${UPSTREAM}/${decision.path}${req.nextUrl.search}`;
   const contentType = req.headers.get("content-type") ?? "";
 
   // آپلود ZIP (قالب/پلاگین): بدنه multipart باید دست‌نخورده با همان boundary فوروارد شود.

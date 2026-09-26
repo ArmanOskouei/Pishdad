@@ -7,26 +7,21 @@ import type { MySubscription, ProfileData, SiteSettings } from "@/lib/domain";
 
 /** لایه‌بندی پنل مشتری (جهت سپیده) + قفل تعلیق (بنر + منوی محدود) + لوگو/فاوآیکون سایت. */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  let sub: MySubscription | null = null;
-  try {
-    sub = await serverOne<MySubscription>("/v1/admin/subscription");
-  } catch {
-    sub = null;
-  }
+  // این سه قبلاً پشت‌سرهم `await` می‌شدند، یعنی هر صفحهٔ پنل سه رفت‌وبرگشت
+  // سریال تحمل می‌کرد. `allSettled` هم‌زمان اجا می‌کند و در عین حال ایزوله‌بودن
+  // خطا را نگه می‌دارد: هر کدام جداگانه به `null` تبدیل می‌شود.
+  const [subRes, siteRes, profileRes] = await Promise.allSettled([
+    serverOne<MySubscription>("/v1/admin/subscription"),
+    serverOne<SiteSettings>("/v1/admin/settings/site"),
+    serverOne<ProfileData>("/v1/admin/profile"),
+  ]);
+
+  const sub: MySubscription | null = subRes.status === "fulfilled" ? subRes.value : null;
   // هویت بصری پنل از settings/site (نام/لوگو/فاوآیکون واقعی کاربر — بدون هاردکد).
-  let site: SiteSettings | null = null;
-  try {
-    site = await serverOne<SiteSettings>("/v1/admin/settings/site");
-  } catch {
-    site = null;
-  }
+  const site: SiteSettings | null = siteRes.status === "fulfilled" ? siteRes.value : null;
   // تسک ۵: آواتار و نام مدیر جاری برای سایدبار/تاپ‌بار (به‌جای حرف ثابت).
-  let profile: ProfileData | null = null;
-  try {
-    profile = await serverOne<ProfileData>("/v1/admin/profile");
-  } catch {
-    profile = null;
-  }
+  const profile: ProfileData | null = profileRes.status === "fulfilled" ? profileRes.value : null;
+
   const suspended = sub?.status === "suspended";
   const pastDue = sub?.status === "past_due";
   return (
