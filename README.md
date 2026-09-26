@@ -34,11 +34,7 @@ A Laravel CMS with a Next.js frontend, running on a server you control. Visual b
 editor, a real plugin runtime, installable themes, and Persian baked in from the first
 commit rather than bolted on by a translation file.
 
-[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![php](https://img.shields.io/badge/PHP-%3E%3D8.2-777BB3?logo=php&logoColor=white)](https://php.net)
-[![nextjs](https://img.shields.io/badge/Next.js-15-000?logo=next.js)](https://nextjs.org)
-[![postgres](https://img.shields.io/badge/PostgreSQL-14%2B-4169E1?logo=postgresql&logoColor=white)](https://postgresql.org)
-[![cost](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-2ea44f)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
+[![license](https://img.shields.io/badge/license-MIT-E7C069?style=flat-square&labelColor=141834)](LICENSE) [![tests](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml/badge.svg)](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml) [![PHP](https://img.shields.io/badge/PHP->=8.2-E7C069?style=flat-square&labelColor=141834)](https://php.net) [![Next.js](https://img.shields.io/badge/Next.js-15-E7C069?style=flat-square&labelColor=141834)](https://nextjs.org) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-E7C069?style=flat-square&labelColor=141834)](https://postgresql.org) [![Redis](https://img.shields.io/badge/Redis-cache-E7C069?style=flat-square&labelColor=141834)](https://redis.io) [![cost](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-E7C069?style=flat-square&labelColor=141834)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
 
 **English** · **[فارسی / Persian](README.fa.md)**
 

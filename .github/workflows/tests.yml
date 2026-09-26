@@ -1,0 +1,81 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: cmssecret
+          POSTGRES_DB: cms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_pgsql, redis, intl, bcmath, mbstring, zip, gd, sodium, fileinfo
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: cms-core/backend/vendor
+          key: composer-${{ hashFiles('cms-core/backend/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        working-directory: cms-core/backend
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Create the fa-IR collation
+        env:
+          PGPASSWORD: cmssecret
+        run: |
+          psql -h localhost -U cms -d cms_test -v ON_ERROR_STOP=0 <<'SQL'
+          DO $$
+          BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_collation WHERE collname = 'fa-IR') THEN
+                  BEGIN
+                      CREATE COLLATION "fa-IR" (provider = icu, locale = 'fa-IR');
+                  EXCEPTION WHEN OTHERS THEN
+                      RAISE NOTICE 'ICU fa-IR unavailable (%), using default collation.', SQLERRM;
+                  END;
+              END IF;
+          END
+          $$;
+          SQL
+
+      - name: Run the test suite
+        working-directory: cms-core/backend
+        run: php artisan test
