@@ -115,7 +115,7 @@ export default async function SitePageRoute({ params }: Props) {
 
   return (
     <div className="site" style={themeVars(chrome)}>
-      {ld ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} /> : null}
+      {ld ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(ld) }} /> : null}
       <SiteHeader chrome={chrome} />
       <div className={`site-body ${cols}`.trim()}>
         {right ? (
@@ -144,6 +144,31 @@ function visibleSidebar(s: SidebarData | null | undefined): SidebarData | null {
   if (!s || !s.enabled) return null;
   if (!Array.isArray(s.blocks) || s.blocks.length === 0) return null;
   return s;
+}
+
+/**
+ * F0.1 — escape امن برای JSON-LD.
+ *
+ * مشکل: `JSON.stringify` اسلش `/` را escape **نمی‌کند** (قاعدهٔ JSONP است، نه
+ * JSON). پس `</script>` داخل یک رشته، عنصر `<script>` را می‌بندد و هر HTML
+ * بعد از آن اجرا می‌شود. ورودی‌ها `page.title` و `chrome.title` هستند که هر دو
+ * روی صفحهٔ **عمومی** و برای **بازدیدکنندهٔ ناشناس** رندر می‌شوند.
+ *
+ * `<` ضروری است و کل مانع breakout است. `>` و `&` دفاعی‌اند.
+ *
+ * عمداً U+2028/U+2029 اینجا escape نمی‌شوند: هر دو در جاوااسکریپت «پایان خط»
+ * هستند و نوشتن‌شان در سورس، regex را می‌شکند؛ و تنها ریسک‌شان تفاوت تفسیر
+ * بین مفسر JSON و مفسر HTML است که با escape کردن `<` از بین می‌رود. لایهٔ
+ * دوم (`no_markup` در بک‌اند) هم اجازه نمی‌دهد این رشته‌ها اصلاً ذخیره شوند.
+ */
+const JSON_LD_ESCAPES: Record<string, string> = {
+  "<": "\\u003c",
+  ">": "\\u003e",
+  "&": "\\u0026",
+};
+
+function safeJsonLd(value: unknown): string {
+  return JSON.stringify(value).replace(/[<>&]/g, (c) => JSON_LD_ESCAPES[c]);
 }
 
 /** متن خام بلوک‌ها برای خلاصه AI/GEO (حداکثر ۵۰۰ نویسه، بدون تگ). */

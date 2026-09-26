@@ -1,4 +1,9 @@
 import { SOCIAL_FA, type ChromeLinkItem, type SocialItem, type WidgetValue } from "@/lib/domain";
+// F0.2: ویجت CTA و آیتم‌های فوتر/ناوبری `href` می‌دهند و تا امروز هیچ
+// sanitize‌ای نداشتند ⇒ `javascript:` در هدر *همهٔ صفحات* سایت زنده بود.
+// منبع حقیقت سمت سرور `App\Validation\SafeUrl` است؛ این لایه دفاع عمقی برای
+// داده‌ای است که پیش از آن در DB نشسته.
+import { safeHref } from "@/lib/sanitize";
 import type { SiteChrome } from "@/lib/site";
 import { SiteNav } from "./SiteNav";
 import { SiteSearchBox } from "./SiteSearchBox";
@@ -50,7 +55,7 @@ export function ChromeWidget({ w, chrome }: { w: WidgetValue; chrome: SiteChrome
     case "search":
       return <SiteSearchBox placeholder={S("placeholder") || undefined} />;
     case "cta":
-      return <a className="btn btn-primary btn-sm" href={S("href") || "/"}>{S("label") || "اقدام"}</a>;
+      return <a className="btn btn-primary btn-sm" href={safeHref(S("href")) ?? "/"}>{S("label") || "اقدام"}</a>;
     case "socials":
       return <Socials socials={chrome?.socials ?? []} />;
     case "about":
@@ -89,7 +94,7 @@ function FooterLinkItem({ link }: { link: ChromeLinkItem }) {
   const kids = Array.isArray(link.children) ? link.children : [];
   return (
     <li>
-      <a href={link.url ?? link.href ?? "#"}>{link.label || link.title || "—"}</a>
+      <a href={safeHref(link.url ?? link.href) ?? "#"}>{link.label || link.title || "—"}</a>
       {kids.length > 0 ? (
         <ul style={{ listStyle: "none", paddingInlineStart: 14, margin: "4px 0 0", display: "flex", flexDirection: "column", gap: 4 }}>
           {kids.map((c, j) => (
@@ -112,7 +117,7 @@ export function Socials({ socials }: { socials: SocialItem[] }) {
   return (
     <div className="site-socials">
       {active.map((x) => (
-        <a key={x.key} href={x.url} target="_blank" rel="noreferrer" title={socialLabel(x)}>
+        <a key={x.key} href={safeHref(x.url) ?? "#"} target="_blank" rel="noreferrer" title={socialLabel(x)}>
           <span>{socialLabel(x)}</span>
         </a>
       ))}

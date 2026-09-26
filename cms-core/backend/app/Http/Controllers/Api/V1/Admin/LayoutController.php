@@ -9,6 +9,7 @@ use App\Services\Layouts\LinkItems;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\RevalidateDispatcher;
 use App\Services\Settings\CachedSettings;
+use App\Validation\SafeUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -75,6 +76,17 @@ class LayoutController extends Controller
                 LinkItems::validate("widgets.{$i}.settings.links", $links, 'ستون لینک‌ها');
             }
         }
+
+        // F0.2 — اعتبارسنجی href برای *هر* ویجتی که چنین فیلدی در schema دارد.
+        //
+        // چرا از روی schema و نه `if ($type === 'cta')`: ریشهٔ XSS ویجت CTA این
+        // بود که حلقهٔ بالا فقط `nav` و `links` را می‌دانست و هر نوع تازه برای
+        // اضافه‌شدن به آن لیست، ویرایش دستی می‌خواست. یک بار که فیلد `href` در
+        // `config/widgets.php` اعلام شود، همهٔ ویجت‌ها — **و ویجت‌هایی که پلاگین
+        // یا قالب فعال از طریق `ManifestRegistry::widgetSchemas()` اعلام می‌کند** —
+        // خودکار پوشش داده می‌شوند. رجیستری، تنها منبع حقیقت می‌ماند.
+        $this->validateWidgetHrefs($validated['widgets'], $this->widgetSchemaIndex($area));
+
         $columns = $validated['layout']['columns'] ?? null;
         if ($columns !== null && (! is_numeric($columns) || (int) $columns < 1 || (int) $columns > 4)) {
             throw ValidationException::withMessages(['layout.columns' => 'تعداد ستون‌ها باید بین ۱ تا ۴ باشد.']);
@@ -103,6 +115,90 @@ class LayoutController extends Controller
             'message' => $area === 'header' ? 'چیدمان هدر ذخیره شد.' : 'چیدمان فوتر ذخیره شد.',
             'data' => $data,
         ]);
+    }
+
+    /**
+     * F0.2 — ایندکس «کدام ویجت چه فیلدهایی دارد» از رجیستری.
+     *
+     * خروجی: [type => ['href', 'url', ...]] — فقط فیلدهایی که در
+     * `schema.properties` اعلام شده‌اند. هسته از `config/widgets.php` و
+     * ویجت‌های پلاگین/قالب از `ManifestRegistry::widgetSchemas()` می‌آید، پس
+     * یک منبع حقیقت واحد می‌ماند و افزونه هم رایگان پوشش داده می‌شود.
+     *
+     * @return array<string, list<string>>
+     */
+    private function widgetSchemaIndex(string $area): array
+    {
+        $index = [];
+
+        foreach ((array) config("widgets.{$area}", []) as $type => $def) {
+            $index[(string) $type] = $this->urlFieldsOf((array) ($def['schema']['properties'] ?? []));
+        }
+
+        foreach (ManifestRegistry::widgetSchemas() as $widget) {
+            if (($widget['area'] ?? null) !== $area) {
+                continue;
+            }
+            $type = (string) ($widget['type'] ?? '');
+            if ($type === '' || isset($index[$type])) {
+                continue;
+            }
+            $index[$type] = $this->urlFieldsOf((array) ($widget['schema']['properties'] ?? []));
+        }
+
+        return $index;
+    }
+
+    /**
+     * کدام کلیدهای schema واقعاً نشانی‌اند.
+     *
+     * فقط نام فیلد ملاک است، نه `type` — چون اعتبارسنجی باید با نام شروع شود
+     * (`href`، `url`، `link`، `target_url`) و الگوی allowlist برای `src`
+     * سخت‌گیرانه‌تر است. سقف عمق ۲ در آیتم‌های تودرتوی `links` را
+     * `LinkItems::validate` پوشش می‌دهد؛ اینجا فقط سطح تنظیمات ویجت است.
+     *
+     * @return list<string>
+     */
+    private function urlFieldsOf(array $properties): array
+    {
+        $out = [];
+        foreach (array_keys($properties) as $name) {
+            $name = (string) $name;
+            if (preg_match('/^(href|url|link|target_url|to)$/i', $name) === 1) {
+                $out[] = $name;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * F0.2 — اجرای allowlist روی هر فیلد URL که رجیستری برای آن ویجت اعلام کرده.
+     *
+     * نکتهٔ مهم: فیلدهایی که *اعلام نشده‌اند* همچنان ذخیره می‌شوند (سازگاری
+     * عقب‌رو)، ولی در رندر `safeHref` می‌گیرند — یعنی لایهٔ فرانت سوراخ را
+     * نمی‌بندد. این کلاس فقط کاری را می‌کند که رجیستری *قول* داده بود.
+     *
+     * @param  array<int, array<string, mixed>>  $widgets
+     * @param  array<string, list<string>>  $schemaIndex
+     */
+    private function validateWidgetHrefs(array $widgets, array $schemaIndex): void
+    {
+        foreach (array_values($widgets) as $i => $widget) {
+            $fields = $schemaIndex[(string) ($widget['type'] ?? '')] ?? [];
+            $settings = is_array($widget['settings'] ?? null) ? $widget['settings'] : [];
+
+            foreach ($fields as $field) {
+                if (! array_key_exists($field, $settings)) {
+                    continue;
+                }
+                SafeUrl::assertHref(
+                    "widgets.{$i}.settings.{$field}",
+                    $settings[$field],
+                    'نشانی «'.$field.'»'
+                );
+            }
+        }
     }
 
     /** انواع صفحه + بلوک جاری هر نوع (پیش‌فرض کانفیگ یا override ذخیره‌شده). */

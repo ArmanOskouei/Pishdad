@@ -185,13 +185,24 @@ class PageController extends Controller
         $allowedTypes = $registry->keys()->all();
 
         return [
-            'title' => ($ignoreId ? 'sometimes' : 'required').'|string|max:200',
+            // F0.1: `no_markup` روی عنوان و متا. عنوان صفحه مستقیماً در
+            // JSON-LD صفحهٔ عمومی می‌نشیند (`buildJsonLd`)؛ بدون این قاعده
+            // تنها لایهٔ دفاع escape سمت فرانت است و هر رندرر تازه سوراخ می‌شود.
+            'title' => ($ignoreId ? 'sometimes' : 'required').'|string|max:200|no_markup',
             'slug' => 'sometimes|string|max:200|unique:pages,slug'.($ignoreId ? ",{$ignoreId}" : ''),
             'is_single' => 'sometimes|boolean',
             'blocks' => 'sometimes|array',
             'blocks.*.type' => 'required_with:blocks|string|in:'.implode(',', $allowedTypes),
             'blocks.*.data' => 'required_with:blocks|array',
             'meta' => 'sometimes|nullable|array',
+            // متا هم به JSON-LD و `<title>` می‌رود ⇒ همان قاعده.
+            'meta.title' => 'sometimes|nullable|string|max:200|no_markup',
+            'meta.description' => 'sometimes|nullable|string|max:400|no_markup',
+            'meta.og_title' => 'sometimes|nullable|string|max:200|no_markup',
+            'meta.og_description' => 'sometimes|nullable|string|max:400|no_markup',
+            'meta.robots' => 'sometimes|nullable|string|max:100|no_markup',
+            // بقیهٔ کلیدهای متا فقط رشته‌اند (robots/noindex/...) و در همان سطح
+            // `array` بالا گرفته می‌شوند؛ محدود کردن تک‌تکشان بی‌فایده است.
             'left_preset_id' => 'sometimes|nullable|integer|min:1',
             'right_preset_id' => 'sometimes|nullable|integer|min:1',
             'left_enabled' => 'sometimes|boolean',

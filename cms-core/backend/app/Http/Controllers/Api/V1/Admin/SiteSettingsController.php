@@ -85,17 +85,20 @@ class SiteSettingsController extends Controller
     public function updateSite(Request $request, RevalidateDispatcher $dispatcher): JsonResponse
     {
         $validated = $request->validate([
-            'title' => 'required|string|min:2|max:160',
-            'description' => 'nullable|string|max:500',
+            // F0.1: این چهار فیلد در `buildJsonLd` صفحهٔ عمومی تکرار می‌شوند
+            // (WebSite.name، description، Organization.website/address) و در
+            // `<meta>` هم می‌نشینند ⇒ `no_markup` لازم دارند.
+            'title' => 'required|string|min:2|max:160|no_markup',
+            'description' => 'nullable|string|max:500|no_markup',
             'logo_media_id' => 'nullable|integer|min:1',
             'favicon_media_id' => 'nullable|integer|min:1',
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^(\+98|0)?9\d{9}$/'],
             'email' => 'nullable|email|max:200',
             'site_url' => 'nullable|url|max:2048',
             'og_image_media_id' => 'nullable|integer|min:1',
-            'ai_summary' => 'nullable|string|max:1000',
+            'ai_summary' => 'nullable|string|max:1000|no_markup',
             'robots_index' => 'sometimes|boolean',
-            'address' => 'nullable|string|max:500',
+            'address' => 'nullable|string|max:500|no_markup',
             'locale' => 'nullable|string|in:fa,en',
             'timezone' => 'nullable|string|in:Asia/Tehran,Asia/Dubai,Europe/London,UTC',
             'homepage_page_id' => 'nullable|integer|min:1',

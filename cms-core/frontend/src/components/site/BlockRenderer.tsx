@@ -1,4 +1,8 @@
 import { mediaUrl, type BlockValue } from "@/lib/domain";
+// F0.2: sanitizerها به `lib/sanitize.ts` منتقل شدند چون ویجت‌های کروم و
+// پیش‌نمایش ادیتور هم به آن‌ها نیاز دارند — نگه‌داشتنشان اینجا یعنی وابستگی
+// معکوس (پنل → کامپوننتِ سایتِ عمومی).
+import { safeHref, safeSrc, safeHtml } from "@/lib/sanitize";
 import { ContactForm } from "./ContactForm";
 
 /**
@@ -8,61 +12,7 @@ import { ContactForm } from "./ContactForm";
  * بلوک `_enabled === false` رد می‌شود (تغییر فعال/غیرفعال صفحه ۱.۱۲).
  */
 
-/**
- * نشانی امن برای `href` — B24.
- *
- * `data.href` بلوک CTA دادهٔ کاربر است و `safeHtml` فقط متن ریچ‌تکست را می‌شوید،
- * پس `javascript:alert(1)` بدون این تابع مستقیم به `<a>` می‌رسد و زنده است.
- *
- * فقط مسیر داخلی، لنگر، `http(s)` و `mailto` پذیرفته می‌شود. `//evil.com`
- * protocol-relative است و regexِ سادهٔ `^/` آن را نمی‌گیرد — lookahead منفی
- * `(?!\/)` دقیقاً برای همان است. بقیه ⇒ `null` و تصمیم fallback با کامپوننت است.
- */
-const HREF_OK = /^(?:\/(?!\/)|#|https?:\/\/|mailto:)/i;
-
-/**
- * `src` امن — همان allowlist بدون `mailto:`/`#` که برای منبع فایل بی‌معنی‌اند.
- * `data:` عمداً نیست: `data:image/svg+xml` می‌تواند `<script>` در خود داشته باشد.
- */
-const SRC_OK = /^(?:\/(?!\/)|https?:\/\/)/i;
-
-function safeUrl(raw: unknown, ok: RegExp): string | null {
-  if (typeof raw !== "string") return null;
-  const v = raw.trim();
-  if (!v) return null;
-  // مرورگر TAB/LF/CR را از URL حذف می‌کند ⇒ `java\tscript:` بدون این هم زنده است.
-  // فقط برای آزمون پاک می‌کنیم؛ خودِ نشانی دست‌نخورده برمی‌گردد.
-  if (!ok.test(v.replace(/[\u0000-\u001f\u007f]/g, ""))) return null;
-  return v;
-}
-
-export function safeHref(raw: unknown): string | null {
-  return safeUrl(raw, HREF_OK);
-}
-
-export function safeSrc(raw: unknown): string | null {
-  return safeUrl(raw, SRC_OK);
-}
-
-/** متن ریچ‌تکست Jodit با allowlist ساده sanitize می‌شود (بدون lib سنگین). */
-export function safeHtml(html: string): string {
-  const ALLOWED = new Set(["p", "br", "b", "strong", "i", "em", "u", "s", "a", "ul", "ol", "li", "h1", "h2", "h3", "h4", "blockquote", "code", "pre", "hr", "span", "div"]);
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/(href|src)\s*=\s*"(javascript|data|vbscript):[^"]*"/gi, '$1="#"')
-    .replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g, (m, tag: string) => {
-      const t = tag.toLowerCase();
-      if (!ALLOWED.has(t)) return "";
-      if (t === "a") {
-        const href = /href\s*=\s*"([^"]*)"/i.exec(m)?.[1] ?? "#";
-        return `<a href="${(safeHref(href) ?? "#").replace(/"/g, "&quot;")}">`;
-      }
-      return t === "br" || t === "hr" ? `<${t}>` : m.startsWith("</") ? `</${t}>` : `<${t}>`;
-    });
-}
+export { safeHref, safeSrc, safeHtml };
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";

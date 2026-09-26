@@ -1,12 +1,15 @@
 "use client";
 import { useState } from "react";
 import type { ChromeLinkItem } from "@/lib/domain";
+// F0.2: منوی هدر هم `href` می‌دهد و تا امروز بدون sanitize بود ⇒
+// `javascript:` در ناوبری *همهٔ صفحات* سایت زنده بود.
+import { safeHref } from "@/lib/sanitize";
 
 type Path = number[];
 const keyOf = (p: Path) => p.join("-");
 
 function hrefOf(l: ChromeLinkItem): string {
-  return l.url ?? l.href ?? "#";
+  return safeHref(l.url ?? l.href) ?? "#";
 }
 
 function labelOf(l: ChromeLinkItem): string {

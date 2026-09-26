@@ -3,6 +3,7 @@
 namespace App\Services\Layouts;
 
 use App\Models\Page;
+use App\Validation\SafeUrl;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -214,9 +215,17 @@ final class LinkItems
         }
     }
 
+    /**
+     * F0.2 — به `SafeUrl` واگذار می‌شود تا allowlist **دو نسخه** نداشته باشد.
+     *
+     * نسخهٔ قبلی `~^(https?://|/|#|\?|mailto:|tel:)~u` بود که `/` را بدون
+     * lookahead می‌پذیرفت ⇒ `//evil.com` و `/\evil.com` را قبول می‌کرد. این
+     * یعنی اگر روزی فرانت `safeHref` را دور بزند، به open-redirect تبدیل
+     * می‌شود — و دو تعریف ناهمگون، مقایسه‌شان را ناممکن می‌کند.
+     */
     public static function isValidHref(string $href): bool
     {
-        return (bool) preg_match('~^(https?://|/|#|\?|mailto:|tel:)~u', $href);
+        return SafeUrl::isAllowedHref($href);
     }
 
     /**
