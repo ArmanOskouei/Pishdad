@@ -26,6 +26,10 @@
 <h1 align="center">The first free, open-source Persian CMS on your own server.</h1>
 <p align="center"><b>نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.</b></p>
 
+<p align="center">
+  <img alt="Pishdad — Laravel CMS with a Next.js frontend" src="assets/readme-banner.png" width="100%">
+</p>
+
 A Laravel CMS with a Next.js frontend, running on a server you control. Visual block
 editor, a real plugin runtime, installable themes, and Persian baked in from the first
 commit rather than bolted on by a translation file.

@@ -8,6 +8,10 @@
 <h1 align="center">نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.</h1>
 <p align="center"><b>The first free, open-source Persian CMS on your own server.</b></p>
 
+<p align="center">
+  <img alt="پیشداد — CMS لاراول با فرانت‌اند Next.js" src="assets/readme-banner.png" width="100%">
+</p>
+
 یک CMS لاراول با فرانت‌اند Next.js که روی سرور خودتان اجرا می‌شود. ویرایشگر بصری بلوک،
 اجراکنندهٔ واقعی پلاگین، قالب‌های قابل نصب، و فارسی از همان کامیت اول — نه یک فایل ترجمه
 که بعداً به آن اضافه شده باشد.
