@@ -272,7 +272,7 @@ class PluginsTest extends TestCase
         // قبل از فعال‌سازی نباید در ماژول‌های پرمیشن باشد.
         ManifestRegistry::flushCache();
         $this->assertNotContains(
-            'probe',
+            'plugin:cache-probe:probe',
             array_column(ManifestRegistry::permissionModules(), 'name')
         );
 
@@ -281,7 +281,7 @@ class PluginsTest extends TestCase
 
         // بلافاصله بعد از فعال‌سازی باید دیده شود ⇒ کش باطل شده است.
         $this->assertContains(
-            'probe',
+            'plugin:cache-probe:probe',
             array_column(ManifestRegistry::permissionModules(), 'name')
         );
     }

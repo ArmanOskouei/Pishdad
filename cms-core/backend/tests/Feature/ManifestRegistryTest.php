@@ -41,7 +41,7 @@ class ManifestRegistryTest extends TestCase
             ->atLeast()->once();
     }
 
-    private function assertNoCollisionLogged(string $kind): void
+    private function assertNoCollisionLogged(string $kind, string $because = ''): void
     {
         $notCalled = Log::shouldNotHaveReceived('warning');
         if ($notCalled === null) {
@@ -49,6 +49,7 @@ class ManifestRegistryTest extends TestCase
         }
         $notCalled->withArgs(fn (string $m, array $c): bool => $m === 'plugin.manifest_collision'
             && ($c['kind'] ?? null) === $kind);
+        $this->assertTrue(true, $because);
     }
 
     // ---------------------------------------------------------------- B30 / page_types
@@ -145,7 +146,14 @@ class ManifestRegistryTest extends TestCase
      * رفتار کشف‌شده: `module` عیناً (بدون namespace اسلاگ) نام ماژول می‌شود،
      * پس ماژول هم‌نام دو پلاگین یک ردیف مشترک می‌سازد و مالک دوم گم می‌شود.
      */
-    public function test_two_plugins_declaring_same_permission_module_share_one_row_and_report_the_loser(): void
+    /**
+     * B16 — دو افزونه با `module` هم‌نام دیگر **نمی‌توانند** یک ردیف بسازند.
+     *
+     * رفتار قبلی (که این تست آن را قفل کرده بود) باگ بود: `module` عیناً نام
+     * ماژول می‌شد، پس هر دو به `mr_shared.view` می‌رسیدند و تیک‌زدن دسترسی یکی
+     * به دیگری هم می‌داد. حالا نام namespaced است.
+     */
+    public function test_two_plugins_declaring_same_permission_module_get_separate_namespaced_rows(): void
     {
         $this->activePlugin('alpha', ['permissions' => [['module' => 'mr_shared', 'title_fa' => 'الف']]]);
         $this->activePlugin('beta', ['permissions' => [['module' => 'mr_shared', 'title_fa' => 'ب']]]);
@@ -154,12 +162,12 @@ class ManifestRegistryTest extends TestCase
 
         $modules = ManifestRegistry::permissionModules();
 
-        $this->assertCollisionLogged('permission', 'mr_shared', 'plugin:alpha', 'plugin:beta');
-        $this->assertCount(1, ManifestRegistry::collisions('permission'));
+        $this->assertNoCollisionLogged('permission', 'ماژول هم‌نام دیگر تداخل نیست، چون نامش namespaced شده.');
 
-        $names = array_column($modules, 'name');
-        $this->assertSame(1, count(array_keys($names, 'mr_shared', true)));
-        $this->assertSame('plugin:alpha', collect($modules)->firstWhere('name', 'mr_shared')['source']);
+        $byName = collect($modules)->keyBy('name');
+        $this->assertSame('plugin:alpha', $byName['plugin:alpha:mr_shared']['source']);
+        $this->assertSame('plugin:beta', $byName['plugin:beta:mr_shared']['source']);
+        $this->assertSame(2, $byName->filter(fn ($m) => $m['source'] !== 'core' && str_ends_with((string) $m['name'], ':mr_shared'))->count());
     }
 
     public function test_distinct_permission_modules_from_two_plugins_are_separate_rows(): void
@@ -174,11 +182,17 @@ class ManifestRegistryTest extends TestCase
         $this->assertNoCollisionLogged('permission');
 
         $byName = collect($modules)->keyBy('name');
-        $this->assertSame('plugin:alpha', $byName['mr_alpha_mod']['source']);
-        $this->assertSame('plugin:beta', $byName['mr_beta_mod']['source']);
+        $this->assertSame('plugin:alpha', $byName['plugin:alpha:mr_alpha_mod']['source']);
+        $this->assertSame('plugin:beta', $byName['plugin:beta:mr_beta_mod']['source']);
     }
 
-    public function test_permission_module_colliding_with_core_is_reported_as_dropped(): void
+    /**
+     * برخورد با **هسته** هنوز واقعی است: نام namespaced هست ولی هرسته namespaced
+     * نیست، پس `pages.view` هسته با `plugin:alpha:pages.view` افزونه فرق دارد.
+     * یعنی افزونه دیگر نمی‌تواند خود را جای ماژول هسته جا بزند — و این دقیقاً
+     * همان چیزی است که قبلاً با `continue` بی‌صدا انجام می‌شد.
+     */
+    public function test_plugin_cannot_shadow_a_core_module_anymore(): void
     {
         $this->activePlugin('alpha', ['permissions' => [['module' => 'pages', 'title_fa' => 'مزاحم']]]);
 
@@ -186,7 +200,8 @@ class ManifestRegistryTest extends TestCase
 
         $modules = ManifestRegistry::permissionModules();
 
-        $this->assertCollisionLogged('permission', 'pages', 'core', 'plugin:alpha');
-        $this->assertSame('core', collect($modules)->firstWhere('name', 'pages')['source']);
+        $this->assertNoCollisionLogged('permission', 'نام افزونه namespaced است، پس با هسته تداخل نمی‌کند.');
+        $this->assertSame('core', collect($modules)->firstWhere('name', 'pages')['source'], 'ردیف هسته باید دست‌نخورده بماند.');
+        $this->assertSame('plugin:alpha', collect($modules)->firstWhere('name', 'plugin:alpha:pages')['source']);
     }
 }

@@ -1,15 +1,30 @@
 /**
- * رجیستری سراسری جستجوی پنل ادمین + ایندکس ایستا + سورس‌های داینامیک داخلی.
+ * رجیستری سراسری جستجوی پنل ادمین + ایندکس ایستای هسته.
  *
- * قرارداد پلاگین (مستندات کامل: docs/SEARCH-PLUGIN-CONTRACT.md):
- *   window.__ADMIN_SEARCH__.registerSearchSource({ plugin, pages, capabilities, fetchItems? })
+ * ## B5 — وضعیت امروز
  *
- * سورس‌های داینامیک داخلی (صفحات/فایل‌ها/تیکت‌ها) هم از همین رجیستری
- * استفاده می‌کنند (dogfood) — هیچ مسیر ویژه‌ای برای هسته وجود ندارد.
+ * قبلاً قرارداد افزونه این بود:
+ *   `window.__ADMIN_SEARCH__.registerSearchSource({ plugin, pages, capabilities, fetchItems })`
+ *
+ * که `fetchItems` یک تابع بود و افزونه از داخلش **از مرورگر** به
+ * `/api/proxy/v1/admin/...` می‌زد. این یعنی افزونه می‌توانست هر مسیر دلخواهی
+ * از API هسته را صدا بزند — دقیقاً همان چیزی که K1.5.8 می‌خواست جلویش گرفته
+ * شود، و بدتر: هر نتیجه یک درخواست جدا از مرورگر بود.
+ *
+ * حالا مسیر داده‌ای از راه سرور است: `GET /v1/admin/search?q=…`. افزونه فقط
+ * یک پیاده‌سازی `SearchableProvider` اعلام می‌کند و سرور آن را اجرا می‌کند.
+ *
+ * ## چه چیزی هنوز اینجاست
+ *
+ * **ایندکس ایستا** — فهرست صفحات و قابلیت‌های پنل. داده حساسی ندارد (فقط
+ * عنوان و مسیر صفحاتی که کاربر همین حالا می‌بیند) و مسئولیت امنیتی ندارد،
+ * پس ماندنش اشکالی ندارد. حذف کامل آن کار جداگانه‌ای است چون سه مصرف‌کننده
+ * دارد و ارزشش صرفاً UX است.
+ *
+ * `fetchItems` از تایپ حذف شده تا **دوباره** کسی آن را اضافه نکند.
  */
 
 import { normalizeFa, queryTokens } from "./search-normalize";
-import { asPaginator, type MediaItem, type PageItem, type Ticket } from "./domain";
 
 /* ── تایپ‌ها ── */
 
@@ -54,12 +69,20 @@ export type RegisterPayload = {
   pages?: StaticPageEntry[];
   /** قابلیت‌های کلی پلاگین (برای مستندسازی + امتیاز جزئی در تطبیق). */
   capabilities?: string[];
-  /** سورس داینامیک: آیتم‌های رکوردی (پست‌ها، اعضا، …) با لینک مستقیم. */
-  fetchItems?: (q: string) => Promise<SearchHit[]>;
+  /**
+   * ❌ عمداً وجود ندارد.
+   *
+   * قبلاً `fetchItems?: (q: string) => Promise<SearchHit[]>` بود و افزونه از
+   * داخلش به `/api/proxy/v1/admin/...` می‌زد. حذف شد چون یعنی افزونه می‌توانست
+   * هر مسیر دلخواهی از API هسته را از مرورگر صدا بزند.
+   *
+   * جایگزین: پیاده‌سازی `App\Search\SearchableProvider` را از راه نقطهٔ
+   * `core.service_provider` اعلام کنید تا **سرور** نتایج را برگرداند.
+   */
 };
 
 export type SearchSource = Required<Pick<RegisterPayload, "plugin">> &
-  Pick<RegisterPayload, "pages" | "capabilities" | "fetchItems">;
+  Pick<RegisterPayload, "pages" | "capabilities">;
 
 type RegistryApi = {
   sources: SearchSource[];
@@ -92,7 +115,6 @@ function registry(): RegistryApi {
           plugin: p.plugin,
           pages: Array.isArray(p.pages) ? p.pages : [],
           capabilities: Array.isArray(p.capabilities) ? p.capabilities : [],
-          fetchItems: typeof p.fetchItems === "function" ? p.fetchItems : undefined,
         };
         // ثبت مجدد همان پلاگین، نسخه قبلی را جایگزین می‌کند.
         const i = sources.findIndex((s) => s.plugin === entry.plugin);
@@ -186,67 +208,6 @@ function staticToHit(e: StaticPageEntry, plugin: string): SearchHit {
 const dynCache = new Map<string, { at: number; data: SearchHit[] }>();
 const DYN_TTL = 60_000;
 
-async function cachedDyn(key: string, fetcher: () => Promise<SearchHit[]>): Promise<SearchHit[]> {
-  const now = Date.now();
-  const hit = dynCache.get(key);
-  if (hit && now - hit.at < DYN_TTL) return hit.data;
-  try {
-    const data = await fetcher();
-    dynCache.set(key, { at: now, data });
-    return data;
-  } catch {
-    return hit?.data ?? [];
-  }
-}
-
-async function fetchUserPages(q: string): Promise<SearchHit[]> {
-  return cachedDyn(`pages:${q}`, async () => {
-    const { authed } = await import("./auth");
-    const json = await authed<unknown>(`/v1/admin/pages?per_page=10&search=${encodeURIComponent(q)}`);
-    return asPaginator<PageItem>(json).data.map((p) => ({
-      id: `core-pages:${p.id}`,
-      plugin: "core-pages",
-      title: p.title,
-      subtitle: `برگه سایت • ${p.slug}`,
-      path: `/admin/pages/${p.id}/edit`,
-      icon: "▤",
-      group: "pages" as SearchGroup,
-    }));
-  });
-}
-
-async function fetchMedia(q: string): Promise<SearchHit[]> {
-  return cachedDyn(`media:${q}`, async () => {
-    const { authed } = await import("./auth");
-    const json = await authed<unknown>(`/v1/admin/media?per_page=10&search=${encodeURIComponent(q)}`);
-    return asPaginator<MediaItem>(json).data.map((m) => ({
-      id: `core-media:${m.id}`,
-      plugin: "core-media",
-      title: m.original_name,
-      subtitle: "فایل کتابخانه",
-      path: `/admin/media?search=${encodeURIComponent(m.original_name)}`,
-      icon: "🗎",
-      group: "files" as SearchGroup,
-    }));
-  });
-}
-
-async function fetchTickets(q: string): Promise<SearchHit[]> {
-  return cachedDyn(`tickets:${q}`, async () => {
-    const { authed } = await import("./auth");
-    const json = await authed<unknown>(`/v1/admin/tickets?per_page=10&search=${encodeURIComponent(q)}`);
-    return asPaginator<Ticket>(json).data.map((t) => ({
-      id: `core-tickets:${t.id}`,
-      plugin: "core-tickets",
-      title: t.subject,
-      subtitle: `تیکت #${t.id}`,
-      path: `/admin/tickets?ticket=${t.id}`,
-      icon: "✉",
-      group: "other" as SearchGroup,
-    }));
-  });
-}
-
 /* ── dogfood: ثبت سورس‌های داخلی از همین رجیستری ── */
 
 let builtinDone = false;
@@ -259,15 +220,38 @@ export function ensureBuiltInSources(): void {
   if (!has("core")) {
     api.registerSearchSource({ plugin: "core", pages: CORE_STATIC_PAGES, capabilities: CORE_CAPABILITIES });
   }
+  // سورس‌های داینامیک دیگر از راه رجیستری ثبت نمی‌شوند — از endpoint
+  // سمت سرور می‌آیند. ثبت ایستای آن‌ها فقط برای برچسب قابلیت‌ها می‌ماند.
   if (!has("core-pages")) {
-    api.registerSearchSource({ plugin: "core-pages", capabilities: ["برگه‌های ساخته کاربر"], fetchItems: fetchUserPages });
+    api.registerSearchSource({ plugin: "core-pages", capabilities: ["برگه‌های ساخته کاربر"] });
   }
   if (!has("core-media")) {
-    api.registerSearchSource({ plugin: "core-media", capabilities: ["جستجو در نام فایل"], fetchItems: fetchMedia });
+    api.registerSearchSource({ plugin: "core-media", capabilities: ["جستجو در نام فایل"] });
   }
   if (!has("core-tickets")) {
-    api.registerSearchSource({ plugin: "core-tickets", capabilities: ["جستجو در موضوع تیکت"], fetchItems: fetchTickets });
+    api.registerSearchSource({ plugin: "core-tickets", capabilities: ["جستجو در موضوع تیکت"] });
   }
+}
+
+/**
+ * نتایج داینامیک از سرور (B5).
+ *
+ * تنها نقطهٔ مجاز برای دادهٔ رکوردی. قبلاً سه تابع جدا (`fetchUserPages`،
+ * `fetchMedia`، `fetchTickets`) هرکدام مستقل به API می‌زدند؛ حالا یک درخواست
+ * به `AdminSearchController` می‌رود که providerهای ثبت‌شده — از جمله
+ * provider افزونه — را در سرور اجرا می‌کند.
+ */
+export async function fetchServerSearch(q: string, perPage = 10): Promise<SearchHit[]> {
+  const { authed } = await import("./auth");
+  const json = await authed<{ data?: SearchHit[] }>(`/v1/admin/search?q=${encodeURIComponent(q)}&per_page=${perPage}`);
+  const rows = Array.isArray(json.data) ? json.data : [];
+
+  return rows.map((r) => ({
+    ...r,
+    // مسیر از سرور می‌آید ولی باید داخل پنل باشد؛ مسیر بیرونی از افزونه
+    // پذیرفته نمی‌شود چون به بیرون از پنل لینک می‌سازد.
+    path: typeof r.path === "string" && r.path.startsWith("/admin") ? r.path : "/admin",
+  }));
 }
 
 /* ── موتور جستجو ── */
@@ -299,11 +283,9 @@ export async function runSearch(rawQuery: string, opts: RunSearchOpts = {}): Pro
 
   let dyn: SearchHit[] = [];
   if (dynamic && !locked && rawQuery.trim().length >= 2) {
-    const jobs = sources
-      .filter((s) => typeof s.fetchItems === "function")
-      .map((s) => s.fetchItems!(rawQuery.trim()));
-    const settled = await Promise.all(jobs.map((j) => j.catch(() => [] as SearchHit[])));
-    dyn = settled.flat();
+    // B5: یک درخواست به سرور، به‌جای یکی به‌ازای هر سورس. سرور providerهای
+    // ثبت‌شده (از جمله provider افزونه) را اجرا و ادغام می‌کند.
+    dyn = await fetchServerSearch(rawQuery.trim(), limit).catch(() => [] as SearchHit[]);
   }
 
   const seen = new Set(scored.map((s) => s.hit.id));

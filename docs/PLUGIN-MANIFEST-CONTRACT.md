@@ -19,15 +19,21 @@
 }
 ```
 
-- `module`: الزامی، `^[a-z0-9_-]{2,40}$` (مثل `blog`).
+- `module`: الزامی، `^[a-z0-9_-]{2,40}$` (مثل `blog`). **خام بنویسید** — هسته
+  خودش prefix اسلاگ را اضافه می‌کند.
 - `title_fa`: الزامی‌نما — عنوان فارسی ستون «ماژول» در ماتریس نقش‌ها
   (`GET /api/v1/admin/permissions` → `modules[].{name,title_fa,source}`).
 - `actions`: اختیاری، زیرمجموعه `view/edit/delete` (پیش‌فرض هر سه).
-- هنگام فعال‌سازی، رکوردهای `blog.view` و… در جدول permissions ساخته می‌شوند
-  (`PluginController::ensurePermissions`) تا نقش همان‌جا تیک بخورد؛
-  گارد مسیرهای خودتان: `->middleware('perm:blog.view')` (سوپرادمین همیشه عبور می‌کند).
-- نام تکراری با ماژول هسته نادیده گرفته می‌شود؛ ورودی نامعتبر کل مانیفست را
-  خراب نمی‌کند (fail-soft در خواندن).
+- هنگام فعال‌سازی، رکوردهای `plugin:{slug}:blog.view` و… در جدول permissions
+  ساخته می‌شوند (`PluginController::ensurePermissions`) تا نقش همان‌جا تیک بخورد.
+  **نام نهایی را در کد استفاده کنید**:
+  `->middleware('perm:plugin:{slug}:blog.view')` (سوپرادمین همیشه عبور می‌کند).
+
+  نکته: اگر خودتان prefix بنویسید، دوباره prefix می‌خورد
+  (`plugin:slug:plugin:slug:blog.view`). پس `module` را **بدون** prefix بنویسید.
+- چون نام نهایی namespaced است، ماژول افزونه هرگز با ماژول هسته تداخل
+  نمی‌کند و دو افزونه با `module` هم‌نام هم پرمیشن مشترک نمی‌گیرند.
+  در `admin.menu` برعکس است: آنجا `permission` نام **کامل** است و prefix لازم دارد.
 
 ## ۲. هوک `widgets` — ویجت هدر/فوتر جدید
 

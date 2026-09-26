@@ -6,6 +6,7 @@ use App\Models\Plugin;
 use App\Models\Theme;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * رجیستری اعلانی مانیفست پلاگین‌ها (تسک ۴ + ۶ + ۷).
@@ -122,8 +123,11 @@ class ManifestRegistry
         self::$collisions['permission'] = [];
 
         foreach (self::activeManifests() as $slug => $manifest) {
-            foreach (self::manifestPermissions($manifest) as $entry) {
-                $module = $entry['module'];
+            foreach (self::manifestPermissions($manifest, $slug) as $entry) {
+                // B16: کلید مالکیت و نام نمایشی هر دو namespaced می‌شوند،
+                // وگرنه دو افزونه با `module: "reports"` یک ردیف مشترک
+                // می‌ساختند و تیک‌زدن یکی، دسترسی دیگری را می‌داد.
+                $module = $entry['name'];
                 $source = "plugin:{$slug}";
                 if (isset($owner[$module])) {
                     self::recordCollision('permission', $module, $owner[$module], $source);
@@ -366,12 +370,21 @@ class ManifestRegistry
      * ورودی نامعتبر نادیده گرفته می‌شود (fail-soft در خواندن؛ اعتبارسنجی
      * سخت‌گیرانه هنگام فعال‌سازی با ensurePermissions انجام می‌شود).
      */
-    public static function manifestPermissions(array $manifest): array
+    public static function manifestPermissions(array $manifest, string $slug = ''): array
     {
         $entries = $manifest['permissions'] ?? null;
         if (! is_array($entries)) {
             return [];
         }
+
+        // B16: نام ماژول خام به‌تنهایی یکتا نیست. دو افزونه هر دو با
+        // `module: "reports"` نوشته می‌شوند و هر دو ردیف `reports.view`
+        // می‌ساختند — یعنی یکی مال دیگری را می‌دید. وقتی slug داده شود،
+        // نام نهایی namespaced می‌شود.
+        //
+        // `$slug` اختیاری است تا این متد همچنان یک تابع خالص و قابل استفاده
+        // در UI باشد، جایی که هنوز افزونهٔ مشخصی وجود ندارد.
+        $prefix = $slug !== '' ? 'plugin:'.substr(Str::slug($slug), 0, 100).':' : '';
 
         $out = [];
         foreach ($entries as $entry) {
@@ -392,6 +405,7 @@ class ManifestRegistry
             }
             $out[] = [
                 'module' => $module,
+                'name' => $prefix.$module,
                 'title_fa' => is_string($entry['title_fa'] ?? null) && ($entry['title_fa'] ?? '') !== ''
                     ? mb_substr($entry['title_fa'], 0, 80)
                     : $module,

@@ -1,4 +1,33 @@
-# قرارداد جستجوی پنل ادمین برای پلاگین‌ها (فرانت‌اند)
+# قرارداد جست��وی پنل ادمین — ⛔ منسوخ‌شده (B5)
+
+> ## این سند دیگر قرارداد نیست
+>
+> **`fetchItems` حذف شد.** آن تابع از داخل مرورگر به `/api/proxy/v1/admin/...`
+> می‌زد، یعنی هر افزونه‌ای می‌توانست **هر مسیر دلخواهی از API هسته** را از
+> مرورگر صدا بزند — همان چیزی که K1.5.8 می‌خواست جلویش گرفته شود.
+>
+> **راه درست:** کلاسی که `App\Search\SearchableProvider` را پیاده می‌کند از راه
+> نقطهٔ اتصال `core.service_provider` اعلام کنید تا **در سرور** اجرا شود.
+>
+> ```json
+> {
+>   "point": "core.service_provider",
+>   "interface": "App\\Search\\SearchableProvider",
+>   "class": "Pishdad\\Plugins\\Blog\\SearchProvider"
+> }
+> ```
+>
+> سرور از `GET /api/v1/admin/search?q=…` صدا می‌زند و providerها را ادغام
+> می‌کند. پیاده‌سازی: `AdminSearchController` + `ServiceProviderRegistry`.
+>
+> آنچه از قرارداد قدیمی هنوز زنده است: **فهرست برگه‌های ایستا**. داده حساسی
+> ندارد و فقط برای راهنمای میانبرهاست. ولی حتی آن هم دیگر برای افزونه‌ها لازم
+> نیست.
+
+---
+
+<details>
+<summary>متن قدیمی (فقط برای مراجعه)</summary>
 
 > مرجع پیاده‌سازی: `cms-core/frontend/src/lib/search-registry.ts`
 > کامپوننت‌ها: `cms-core/frontend/src/components/search/` — صفحه نتایج: `admin/search?q=…`
@@ -148,3 +177,5 @@ export function MembersSearchSource() {
 - تحمل غلط املایی عمیق‌تر (فاصله لونشتین) فعلاً نیست — فقط includes + شروع‌کلمه.
 - اولویت‌بندی وزنی بین سورس‌ها (مثلاً بوست پلاگین فعال) تعریف نشده.
 - ایندکس ایستا فقط پنل مشتری را پوشش می‌دهد؛ صفحات مرکزی (`/central/*`) هنوز ثبت نشده‌اند.
+
+</details>

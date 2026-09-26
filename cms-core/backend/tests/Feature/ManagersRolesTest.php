@@ -8,6 +8,7 @@ use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -109,7 +110,7 @@ class ManagersRolesTest extends TestCase
         ])->assertOk()->assertJsonPath('data.permissions', ['tickets.view']);
 
         // نقش سیستمی قابل حذف نیست؛ نقش سفارشی خالی حذف می‌شود.
-        $ownerRoleId = \Spatie\Permission\Models\Role::query()->where('name', 'owner')->first()->id;
+        $ownerRoleId = Role::query()->where('name', 'owner')->first()->id;
         $auth->deleteJson("/api/v1/admin/roles/{$ownerRoleId}")->assertStatus(422);
         $auth->deleteJson("/api/v1/admin/roles/{$roleId}")->assertOk();
 
@@ -170,13 +171,13 @@ class ManagersRolesTest extends TestCase
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 
         $matrix = $auth->getJson('/api/v1/admin/permissions')->assertOk()->json('data');
-        $blog = collect($matrix['modules'])->firstWhere('name', 'blog');
+        $blog = collect($matrix['modules'])->firstWhere('name', 'plugin:demo-blog:blog');
         $this->assertNotNull($blog);
         $this->assertSame('بلاگ', $blog['title_fa']);
         $this->assertSame('plugin:demo-blog', $blog['source']);
 
         $roleId = $auth->postJson('/api/v1/admin/roles', [
-            'name' => 'blogger', 'permissions' => ['blog.view', 'blog.edit'],
+            'name' => 'blogger', 'permissions' => ['plugin:demo-blog:blog.view', 'plugin:demo-blog:blog.edit'],
         ])->assertCreated()->json('data.id');
         $this->assertIsInt($roleId);
 
@@ -185,9 +186,9 @@ class ManagersRolesTest extends TestCase
             'password' => Hash::make('Blogger!1234'), 'role' => 'admin',
         ]);
         $manager->assignRole('blogger');
-        $this->assertTrue($manager->fresh()->can('blog.view'));
-        $this->assertTrue($manager->fresh()->can('blog.edit'));
-        $this->assertFalse($manager->fresh()->can('blog.delete'));
+        $this->assertTrue($manager->fresh()->can('plugin:demo-blog:blog.view'));
+        $this->assertTrue($manager->fresh()->can('plugin:demo-blog:blog.edit'));
+        $this->assertFalse($manager->fresh()->can('plugin:demo-blog:blog.delete'));
         $this->assertFalse($manager->fresh()->can('tickets.view'));
 
         // مشترک نصب: مدیر دیگر هم ماژول بلاگ را در ماتریس می‌بیند.
@@ -198,6 +199,6 @@ class ManagersRolesTest extends TestCase
         $other->assignRole('owner');
         $otherMatrix = $this->actingAs($other->fresh(), 'sanctum')
             ->getJson('/api/v1/admin/permissions')->assertOk()->json('data');
-        $this->assertNotNull(collect($otherMatrix['modules'])->firstWhere('name', 'blog'));
+        $this->assertNotNull(collect($otherMatrix['modules'])->firstWhere('name', 'plugin:demo-blog:blog'));
     }
 }

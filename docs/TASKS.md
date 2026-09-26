@@ -319,7 +319,7 @@
 | **B2** | 🔴 `slug` فارسی → رشتهٔ خالی. `Str::slug('پنل')` → `''` ⇒ ردیف با `slug=''` و prefix بی‌نام | `PluginController.php:103` · `Validator.php:210-217` | `^[a-z0-9][a-z0-9._-]{1,39}$` با **خطا** | done |
 | **B3** | 🔴 `dev_mode` اصلاً وجود ندارد. `upload()` و `upgrade()` هیچ بررسی سمت سرور ندارند | `PluginController.php:64,175` | middleware روی هر دو route | done |
 | **B4** | 🔴 `/api/proxy` فهرست مسیر مجاز ندارد. `$target = ${UPSTREAM}/${path.join("/")}` بدون بررسی ⇒ از مرورگر مدیر با کوکی، **هر `/api/*`** قابل فراخوانی است — از جمله `central/*` و `internal/heartbeat`. **همین مسیر دلیل رد کامپوننت پلاگین است (K1.5.8) و مرز امنیتی‌اش allowlist ندارد** | `api/proxy/[...path]/route.ts:9` · `lib/server-api.ts:23` | `if (path[0] !== 'v1') return 403` + فهرست بستهٔ prefix | done |
-| **B5** | 🔴 رجیستری جستجوی کلاینت دقیقاً K1.5.8 را دور می‌زند: `registerSearchSource({fetchItems})` روی `window.__ADMIN_SEARCH__` و نمونه‌اش `fetch('/api/proxy/v1/admin/blog/posts')` | `lib/search-registry.ts:111,336-361` · `docs/SEARCH-PLUGIN-CONTRACT.md` | حذف + انتقال به بک‌اند | ⏳ |
+| **B5** | 🔴 رجیستری جستجوی کلاینت دقیقاً K1.5.8 را دور می‌زند: `registerSearchSource({fetchItems})` روی `window.__ADMIN_SEARCH__` و نمونه‌اش `fetch('/api/proxy/v1/admin/blog/posts')` | `lib/search-registry.ts:111,336-361` · `docs/SEARCH-PLUGIN-CONTRACT.md` | حذف + انتقال به بک‌اند | done |
 | **B6** | 🔴 `PackageAnalyzer` مقدار اولیهٔ prop را دوباره نمی‌خواند ⇒ مسیر «آپلود رد شد» بی‌اثر است | `PackageAnalyzer.tsx:152` · `PluginsClient.tsx:73,147` | `useEffect` sync یا `key` | done |
 | **B7** | 🟠 `ApiError` فقط از FormData. `authed` هنوز `Error` ساده می‌دهد و هر دو در ۴۰۱ خطای ساده ⇒ تمیز دادن «نشست منقضی» از «خطای اعتبارسنجی» ممکن نیست | `auth.tsx:110,113,126,127` | `authed` هم `ApiError` | done |
 | **B8** | 🟠 `suggestLocation` اولویت‌ها را برعکس زده: نام کلاس قبل از پسوند ⇒ `Model.png` → پیشنهاد `Laravel/src/Models/Model.png`. **نکتهٔ امنیتی:** پسوندهای `.ts/.tsx/.js/.jsx` به `Next.js/panel/` پیشنهاد می‌شوند ولی آن پوشه هرگز اجرا نمی‌شود — اگر روزی به `public/` سرو شود، اسکریپت same-origin روی origin ادمین است | `PluginPackageContract.php:296-324` | پسوند قبل از نام + **حذف** `.ts/.tsx/.js/.jsx` از پیشنهاد | done |
@@ -330,7 +330,7 @@
 | **B13** | 🟡 زنگ اعلان `<button>` بدون `onClick`؛ `alertCount` هرگز پاس داده نمی‌شود. جدول `notifications` + `TicketNotification` بی‌خواننده | `Topbar.tsx:48-50` · `Shell.tsx:13` | K5.8 | ⏳ |
 | **B14** | 🟡 breadcrumb روی همهٔ صفحات «پنل › مدیریت» است. ریشه‌اش یک باگ است نه یک نقطهٔ اتصال | `admin/layout.tsx:36` | از page descriptor | ⏳ |
 | **B15** | 🟡 `SaveBar` برچسب «تأیید و ذفیره **قالب**» را هاردکد کرده — کامپوننت عمومی با واژهٔ دامنهٔ قالب | `primitives.tsx:66` | پارامتری کردن | done |
-| **B16** | 🟡 پرمیشن‌ها namespaced نیستند ⇒ دو پلاگین با ماژول هم‌نام پرمیشن مشترک می‌گیرند | `ManifestRegistry.php:51-58` · `PluginController.php:409-412` | I6 | ⏳ |
+| **B16** | 🟡 پرمیشن‌ها namespaced نیستند ⇒ دو پلاگین با ماژول هم‌نام پرمیشن مشترک می‌گیرند | `ManifestRegistry.php:51-58` · `PluginController.php:409-412` | I6 | done |
 | **B17** | 🟡 روی ZIP باز‌نشدنی، `result()` به `$summary['slug']` دست می‌زند که وجود ندارد | `Validator.php:43-45,462` | تست بستهٔ خراب | done (کاذب) |
 | **B18** | 🟡 ثابت‌های مرده: `MAX_TABLE_COUNT`، `MAX_INDEXES_PER_TABLE`، `MAX_ACTIVE_PLUGINS` بی‌استفاده. `ensureSealKey()` هیچ caller ندارد ⇒ **K0.4 پیاده نشده**. `PackageAnalysis::items()` بی‌caller | `Contract.php:41,43,45` · `TrustStore.php:90` | مصرف یا حذف | ⏳ |
 | **B19** | 🟡 `ensureSealKey` از `Cache::forever` ⇒ یک flush ریدایس، کلید را بی‌صدا بی‌اعتبار می‌کند | `TrustStore.php:100` | جدول settings | done |
@@ -674,7 +674,7 @@
 
 | # | تسک | توضیح | وضعیت |
 |---|------|-------|--------|
-| **K7.1** | ⭐ اصلاح نقشهٔ وابستگی — تست grep | **پیش‌نیاز همه‌چیز.** تستی که بگیرد هیچ فایل هسته‌ای به `Central\*` یا `central_`/`chabokan_`/`install_heartbeats`/`operator_*`/`core_versions`/`update_roll*`/`kill_switches` ارجاع ندارد | ⏳ |
+| **K7.1** | ⭐ اصلاح نقشهٔ وابستگی — تست grep | **پیش‌نیاز همه‌چیز.** تستی که بگیرد هیچ فایل هسته‌ای به `Central\*` یا `central_`/`chabokan_`/`install_heartbeats`/`operator_*`/`core_versions`/`update_roll*`/`kill_switches` ارجاع ندارد | done |
 | **K7.2** | ⭐ رابط `SubscriptionSource` + `NullSubscriptionSource` پیش‌فرض | **گزینهٔ الف.** هسته یک interface؛ پیش‌فرض همیشه `active` برمی‌گرداند و هیچ جدولی نمی‌خواند ⇒ **پنل مشتری دیگر به نصب پلاگین وابسته نیست.** نبودِ پلاگین = سایت کار می‌کند، فقط بی‌اشتراک (برای نصب عمومی دقیقاً درست است) | ⏳ |
 | **K7.3** | ثبت پیاده‌سازی از سمت پلاگین | ⚠️ **نیازمند `core.service_provider` (K5.0)**. بدون آن این گام غیرممکن است | ⏳ |
 | **K7.4** | تصمیم محصول دربارهٔ `now()->addDays(30)` | `ClientSubscriptionResolver.php:37` هنگام autoprovision **۳۰ روز اشتراک رایگان می‌سازد**. اگر داخل پلاگین برود رفتار عوض می‌کند و `SubscriptionTest.php` می‌شکند | ⏳ منتظر تصمیم |

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Central\ReviewController;
 use App\Http\Controllers\Api\Central\SubscriptionAdminController;
 use App\Http\Controllers\Api\Central\UpdateController;
 use App\Http\Controllers\Api\Internal\HeartbeatController;
+use App\Http\Controllers\Api\V1\Admin\AdminSearchController;
 use App\Http\Controllers\Api\V1\Admin\BlockSchemaController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\LayoutController;
@@ -171,6 +172,10 @@ Route::prefix('v1')->group(function () {
             Route::post('tickets/{ticket}/messages', [TicketController::class, 'reply'])->middleware('perm:tickets.edit');
 
             // تسک ۵.۴ — پلاگین‌ها (امضای Ed25519 اجباری).
+            // B5: جستجوی پنل سمت سرور. افزونه‌ها پیاده‌سازی SearchableProvider را از راه
+            // نقطهٔ core.service_provider اعلام می‌کنند، نه با fetch از مرورگر.
+            Route::get('search', AdminSearchController::class)->middleware('perm:plugins.view');
+
             Route::get('plugins', [PluginController::class, 'index'])->middleware('perm:plugins.view');
             Route::post('plugins/validate', [PluginController::class, 'validatePackage'])->middleware('perm:plugins.edit');
             Route::post('plugins/upload', [PluginController::class, 'upload'])->middleware(['perm:plugins.edit', 'devmode.gate']);

@@ -498,7 +498,7 @@ class PluginController extends Controller
             }
         }
 
-        $this->ensurePermissions(is_array($plugin->manifest) ? $plugin->manifest : []);
+        $this->ensurePermissions(is_array($plugin->manifest) ? $plugin->manifest : [], $plugin->slug);
     }
 
     /**
@@ -506,18 +506,21 @@ class PluginController extends Controller
      * مانیفست تا نقش‌ها بتوانند همان‌جا در ماتریس تخصیص داده شوند.
      * ماژول تکراری هسته نادیده گرفته می‌شود.
      */
-    private function ensurePermissions(array $manifest): void
+    private function ensurePermissions(array $manifest, string $slug): void
     {
         $core = array_keys(config('modules', []));
         $created = false;
 
-        foreach (ManifestRegistry::manifestPermissions($manifest) as $entry) {
+        foreach (ManifestRegistry::manifestPermissions($manifest, $slug) as $entry) {
+            // B16: این چک باید روی نامِ نهایی باشد نه `module` خام. وگرنه
+            // افزونه‌ای با `module: "blog"` رد می‌شد در حالی که نامش
+            // `plugin:alpha:blog` است و هیچ تداخلی با هسته ندارد.
             if (in_array($entry['module'], $core, true)) {
                 continue;
             }
             foreach ($entry['actions'] as $action) {
                 Permission::firstOrCreate(
-                    ['name' => "{$entry['module']}.{$action}", 'guard_name' => 'web']
+                    ['name' => "{$entry['name']}.{$action}", 'guard_name' => 'web']
                 );
                 $created = true;
             }
