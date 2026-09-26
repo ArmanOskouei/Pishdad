@@ -1,15 +1,18 @@
 <!--
 =========================== SEO KEYWORDS (invisible to readers) ===========================
-Pishdad — Persian CMS, the first Persian CMS, open source CMS, free CMS, self-hosted CMS,
-headless CMS, PHP CMS, Laravel CMS, Next.js CMS, install CMS on VPS, one-command CMS install,
-WordPress alternative, WordPress vs Pishdad, migrate from WordPress, WooCommerce alternative,
-Drupal alternative, Django CMS, Wagtail alternative, Ghost alternative, Strapi alternative,
-Sanity alternative, Directus alternative, Persian CMS, Farsi CMS, RTL CMS, Iranian CMS,
-CMS with plugin marketplace, CMS with theme install, visual block CMS, Persian admin panel,
-Jalali calendar CMS, SEO built-in CMS, llms.txt CMS, PostgreSQL CMS, Redis CMS, MinIO CMS,
-open source headless CMS Persian, secure CMS, signed plugin CMS, Ed25519 CMS.
-Target queries: "سیستم مدیریت محتوای فارسی", "CMS فارسی", "وردپرس فارسی جایگزین",
-"نصب وردپرس روی سرور اختصاصی", "CMS متن باز فارسی", "وردپرس بهترین جایگزین".
+  Pishdad — Persian CMS, the first Persian CMS, open source CMS, free CMS, self-hosted CMS,
+  Laravel CMS, PHP CMS, Next.js CMS, Laravel CMS on GitHub, cms laravel github,
+  best Laravel CMS repository, Laravel CMS GitHub, headless CMS, install CMS on VPS,
+  WordPress alternative, WordPress vs Pishdad, migrate from WordPress, WooCommerce alternative,
+  Drupal alternative, Django CMS, Wagtail alternative, Ghost alternative, Strapi alternative,
+  Sanity alternative, Directus alternative, Persian CMS, Farsi CMS, Parsi CMS, RTL CMS,
+  Iranian CMS, CMS with plugin marketplace, CMS with theme install, visual block CMS,
+  Persian admin panel, Jalali calendar CMS, SEO built-in CMS, llms.txt CMS, PostgreSQL CMS,
+  Redis CMS, MinIO CMS, open source headless CMS Persian, secure CMS, signed plugin CMS,
+  Ed25519 CMS, Laravel CMS on VPS, self hosted Laravel CMS, best free CMS 2026.
+  Target queries: "سیستم مدیریت محتوای فارسی", "CMS فارسی", "وردپرس فارسی جایگزین",
+  "نصب وردپرس روی سرور اختصاصی", "CMS متن باز فارسی", "وردپرس بهترین جایگزین",
+  "cms laravel github", "laravel cms", "laravel cms github", "open source cms github".
 =========================================================================================
 -->
 
@@ -18,9 +21,9 @@ Target queries: "سیستم مدیریت محتوای فارسی", "CMS فارس
 > ### The first free, open-source Persian CMS on your own server.
 > ### نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز روی سرور شخصی شما.
 
-A content management system you run on your own server, with a visual block editor, a
-real plugin runtime, installable themes, and Persian baked in from the first commit
-rather than bolted on by a translation file.
+A Laravel CMS with a Next.js frontend, running on a server you control. Visual block
+editor, a real plugin runtime, installable themes, and Persian baked in from the first
+commit rather than bolted on by a translation file.
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![php](https://img.shields.io/badge/PHP-%3E%3D8.2-777BB3?logo=php&logoColor=white)](https://php.net)
