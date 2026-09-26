@@ -5,6 +5,7 @@ namespace App\Services\Plugins;
 use App\Models\Plugin;
 use App\Models\Theme;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * رجیستری اعلانی مانیفست پلاگین‌ها (تسک ۴ + ۶ + ۷).
@@ -31,6 +32,76 @@ class ManifestRegistry
         'delete' => 'حذف',
     ];
 
+    /** برچسب فارسی هر نوع ادغام — فقط برای پیام گزارش برخورد. */
+    private const KIND_FA = [
+        'permission' => 'ماژول دسترسی',
+        'widget' => 'ویجت',
+        'page_type' => 'نوع صفحه',
+    ];
+
+    /** @var array<string, array<int, array<string, string>>> برخوردهای آخرین ادغام، به تفکیک kind. */
+    private static array $collisions = [];
+
+    /** @var array<string, true> کلید برخوردهایی که لاگ شده‌اند (ضد سیل لاگ در هر درخواست). */
+    private static array $logged = [];
+
+    /**
+     * برخوردهای ادغام آخر — قابل خواندن برای پنل سلامت پلاگین و برای تست.
+     *
+     * بدون این، «رد شدن» یک ورودی فقط یک `continue` بی‌صدا بود: پلاگین نصب
+     * می‌شد، رکوردش ساخته می‌شد، ولی هیچ‌جا دیده نمی‌شد و کاربر فکر می‌کرد
+     * کار می‌کند. حالا هر رد با منبع نگه‌دارنده و منبع بازنده قابل ممیزی است.
+     *
+     * @return array<int, array<string, string>>|array<string, array<int, array<string, string>>>
+     */
+    public static function collisions(?string $kind = null): array
+    {
+        if ($kind !== null) {
+            return self::$collisions[$kind] ?? [];
+        }
+
+        return self::$collisions;
+    }
+
+    /**
+     * ثبت برخورد: اولویت با «kept» می‌ماند و بازنده گزارش می‌شود.
+     *
+     * چرا هشدار و نه خطا: این متدها روی مسیر خواندن/رندر صدا زده می‌شوند
+     * (ماتریس نقش‌ها، پالت ویجت‌ها، تب بلوک‌ها) و برای هر بازدیدکننده اجرا
+     * می‌شوند — پرتاب استثنا یعنی یک مانیفست سوم‌طرف، کل سایت را از کار
+     * می‌اندازد و آن هم به‌جای نصب‌کننده، برای بازدیدکننده. نقطهٔ درستِ
+     * رد سخت‌گیرانه، اعتبارسنجی زمان نصب است
+     * (`PluginPackageContract`/`PluginPackageValidator`) که مال این فایل
+     * نیست. اینجا اولویت قطعی حفظ می‌شود تا رندر ناپایدار نشود، ولی رد
+     * دیگر بی‌صدا نمی‌ماند.
+     */
+    private static function recordCollision(string $kind, string $key, string $kept, string $dropped): void
+    {
+        $entry = [
+            'kind' => $kind,
+            'key' => $key,
+            'kept' => $kept,
+            'dropped' => $dropped,
+            'message' => sprintf(
+                '%s «%s» از «%s» تکراری بود و اعمال نشد؛ «%s» اولویت دارد.',
+                self::KIND_FA[$kind] ?? $kind,
+                $key,
+                $dropped,
+                $kept,
+            ),
+        ];
+
+        self::$collisions[$kind][] = $entry;
+
+        $fingerprint = implode('|', [$kind, $key, $kept, $dropped]);
+        if (isset(self::$logged[$fingerprint])) {
+            return;
+        }
+        self::$logged[$fingerprint] = true;
+
+        Log::warning('plugin.manifest_collision', $entry);
+    }
+
     /**
      * ماژول‌های دسترسی: هسته (config/modules.php) + پلاگین‌های فعال کاربر.
      * خروجی: [{name, title_fa, source}] — source = core | plugin:{slug}
@@ -38,24 +109,33 @@ class ManifestRegistry
     public static function permissionModules(): array
     {
         $modules = [];
+        $owner = [];
         foreach (config('modules', []) as $name => $def) {
             $modules[] = [
                 'name' => $name,
                 'title_fa' => $def['title_fa'] ?? $name,
                 'source' => 'core',
             ];
+            $owner[$name] = 'core';
         }
+
+        self::$collisions['permission'] = [];
 
         foreach (self::activeManifests() as $slug => $manifest) {
             foreach (self::manifestPermissions($manifest) as $entry) {
-                $exists = collect($modules)->contains(fn (array $m) => $m['name'] === $entry['module']);
-                if (! $exists) {
-                    $modules[] = [
-                        'name' => $entry['module'],
-                        'title_fa' => $entry['title_fa'],
-                        'source' => "plugin:{$slug}",
-                    ];
+                $module = $entry['module'];
+                $source = "plugin:{$slug}";
+                if (isset($owner[$module])) {
+                    self::recordCollision('permission', $module, $owner[$module], $source);
+
+                    continue;
                 }
+                $owner[$module] = $source;
+                $modules[] = [
+                    'name' => $module,
+                    'title_fa' => $entry['title_fa'],
+                    'source' => $source,
+                ];
             }
         }
 
@@ -69,6 +149,7 @@ class ManifestRegistry
     public static function widgetSchemas(): array
     {
         $out = [];
+        $owner = [];
         foreach (['header', 'footer'] as $area) {
             foreach (config("widgets.{$area}", []) as $type => $def) {
                 $out[] = [
@@ -80,10 +161,13 @@ class ManifestRegistry
                     'ui' => $def['ui'] ?? [],
                     'source' => 'core',
                 ];
+                $owner["{$area}:{$type}"] = 'core';
             }
         }
 
-        $merge = function (array $manifest, string $source) use (&$out): void {
+        self::$collisions['widget'] = [];
+
+        $merge = function (array $manifest, string $source) use (&$out, &$owner): void {
             $widgets = $manifest['widgets'] ?? null;
             if (! is_array($widgets)) {
                 return;
@@ -96,13 +180,15 @@ class ManifestRegistry
                     if (! is_string($type) || ! is_array($def)) {
                         continue;
                     }
-                    // type تکراری هسته بازنویسی نمی‌شود — پلاگین فقط type جدید می‌افزاید.
-                    $exists = collect($out)->contains(
-                        fn (array $w) => $w['area'] === $area && $w['type'] === $type
-                    );
-                    if ($exists) {
+                    // type تکراری بازنویسی نمی‌شود — اولویت با نگه‌دارندهٔ قبلی است،
+                    // ولی بازنده گزارش می‌شود تا «نصب شد ولی دیده نشد» ممکن نباشد.
+                    $key = "{$area}:{$type}";
+                    if (isset($owner[$key])) {
+                        self::recordCollision('widget', $key, $owner[$key], $source);
+
                         continue;
                     }
+                    $owner[$key] = $source;
                     $out[] = [
                         'area' => $area,
                         'type' => $type,
@@ -143,17 +229,25 @@ class ManifestRegistry
             ]);
         }
 
+        self::$collisions['page_type'] = [];
+
         foreach (self::activeManifests() as $slug => $manifest) {
             $extra = $manifest['page_types'] ?? null;
             if (! is_array($extra)) {
                 continue;
             }
             foreach ($extra as $type => $def) {
-                if (! is_string($type) || ! is_array($def) || isset($types[$type])) {
+                $source = "plugin:{$slug}";
+                if (! is_string($type) || ! is_array($def)) {
+                    continue;
+                }
+                if (isset($types[$type])) {
+                    self::recordCollision('page_type', $type, $types[$type]['source'] ?? 'core', $source);
+
                     continue;
                 }
                 $types[$type] = array_merge($def, [
-                    'source' => "plugin:{$slug}",
+                    'source' => $source,
                     'enabled' => ($def['enabled'] ?? true) !== false,
                 ]);
             }
@@ -261,6 +355,10 @@ class ManifestRegistry
     public static function flushCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+
+        // مجموعهٔ فعال عوض شده ⇒ برخوردهای تازه باید دوباره لاگ شوند، وگرنه
+        // ضدّسیل لاگ، تازه‌ترین خرابی را برای همیشه بی‌صدا نگه می‌دارد.
+        self::$logged = [];
     }
 
     /**

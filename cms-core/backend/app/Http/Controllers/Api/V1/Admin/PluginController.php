@@ -167,6 +167,11 @@ class PluginController extends Controller
             'path' => $path,
         ]);
 
+        // K5.9/K0.4: مهر یکپارچگی per-install ساخته می‌شود. بعد از `create`
+        // است چون قبل از آن اصلاً نصبی وجود ندارد که بخورد، و داخل همان
+        // تراکنشِ ساخت رکورد می‌ماند تا نیمه‌کاره نصب نشود.
+        $this->trustStore()->ensureSealKeyFor($plugin);
+
         return response()->json([
             'message' => $exempt
                 ? 'پلاگین با امضای معتبر نصب شد.'
@@ -324,6 +329,10 @@ class PluginController extends Controller
             Storage::disk('local')->delete($plugin->path);
         }
         $plugin->delete();
+
+        // کلید مهر هم باید برود، وگرنه ردیف settings یتیم می‌ماند و اگر
+        // افزونه‌ای با همان slug دوباره نصب شود به کلید قبلی می‌خورد.
+        $this->trustStore()->forgetSealKeyFor($plugin->slug);
 
         return response()->json(['message' => 'پلاگین حذف شد.']);
     }

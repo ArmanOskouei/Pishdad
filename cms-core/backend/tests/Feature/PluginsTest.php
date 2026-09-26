@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\PluginController;
 use App\Http\Middleware\GateDevModeUpload;
 use App\Models\Plugin;
 use App\Models\PublisherKey;
+use App\Models\Setting;
 use App\Models\SystemPlugin;
 use App\Models\User;
 use App\Services\Plugins\CoreRequirementChecker;
@@ -165,6 +166,49 @@ class PluginsTest extends TestCase
 
         $this->assertNotNull($id);
         $this->assertDatabaseHas('plugins', ['id' => $id, 'review_status' => 'pending']);
+    }
+
+    /**
+     * K5.9 — کلید مهر باید هنگام **نصب** ساخته شود.
+     *
+     * این تست از مسیر واقعی endpoint رد می‌شود، چون تست واحدِ `ensureSealKey`
+     * فقط ثابت می‌کند متد کار می‌کند — نه اینکه کسی صدایش می‌زند. قبل از این
+     * متد هیچ callerی نداشت و K0.4 عملاً پیاده نشده بود.
+     */
+    public function test_upload_creates_the_seal_key(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest())])
+            ->assertStatus(201);
+
+        $this->assertSame(
+            1,
+            Setting::query()->where('key', 'seal_key_sample-plugin')->count(),
+            'نصب باید کلید مهر بسازد.'
+        );
+    }
+
+    /**
+     * حذف افزونه باید کلید مهر را هم پاک کند، وگرنه نصب دوبارهٔ همان slug به
+     * کلید قبلی می‌خورد و مهرهایی که با آن زده شده بودند دوباره معتبر می‌شدند.
+     */
+    public function test_uninstall_removes_the_seal_key(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest())])
+            ->assertStatus(201)->json('data.id');
+
+        $this->assertSame(1, Setting::query()->where('key', 'seal_key_sample-plugin')->count());
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/uninstall")->assertStatus(200);
+
+        $this->assertSame(
+            0,
+            Setting::query()->where('key', 'seal_key_sample-plugin')->count(),
+            'حذف افزونه باید کلید مهر را هم پاک کند.'
+        );
     }
 
     public function test_signed_install_activate_registers_hooks_and_upgrade(): void

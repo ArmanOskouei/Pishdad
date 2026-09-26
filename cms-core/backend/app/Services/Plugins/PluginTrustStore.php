@@ -2,9 +2,13 @@
 
 namespace App\Services\Plugins;
 
+use App\Models\Plugin;
 use App\Models\PublisherKey;
-use Illuminate\Support\Facades\Log;
+use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 /**
  * فاز ۰ — trust store ناشران.
@@ -78,28 +82,157 @@ class PluginTrustStore
     }
 
     /**
-     * مهر یکپارچگی per-install (تصمیم K0.4).
+     * گروه تنظیماتی که کلید مهر در آن می‌نشیند.
      *
-     * فاز ۰ فقط کلید را تولید و ذخیره می‌کند. مهر واقعی زمانی زده می‌شود که
-     * فایل‌ها استخراج شده باشند (فاز ۱)، چون digest روی فایل‌های روی دیسک
-     * حساب می‌شود نه روی ZIP آپلودی.
+     * `public` است چون مسیر حذف پلاگین — که مال فایل دیگری است — باید بتواند
+     * ردیف کلید را پاک کند. کلید یتیم یعنی پلاگینی که حذف شده و دوباره با
+     * همان slug نصب می‌شود و کلید مرده را به ارث می‌برد.
+     */
+    public const SEAL_GROUP = 'plugin';
+
+    /**
+     * کلید مهر یکپارچگی per-install (تصمیم K0.4).
      *
-     * کلید عمداً بیرون از آرتیفکت ذخیره می‌شود. اگر داخل ZIP بود، uninstall
-     * و نصب مجدد همان ZIP آن را بی‌اثر می‌کرد.
+     * **چرا جدول `settings` و نه cache (B19).** نسخهٔ قبلی کلید را با
+     * `Cache::forever` می‌نوشت. یک `cache:clear` یا flush ریدایس کلید را بی‌صدا
+     * نابود می‌کرد و آن‌وقت همهٔ بسته‌های قبلی «مهرشان نامعتبر» می‌شد بدون اینکه
+     * کسی بفهمد چرا. حالا جدول `settings` تنها منبع حقیقت است — نه cache جلویش
+     * هست و نه fallback، چون دو منبع حقیقت یعنی بعداً معلوم نیست باید کدام را
+     * خواند و کدام را می‌شود دور انداخت.
+     *
+     * مهر واقعی زمانی زده می‌شود که فایل‌ها استخراج شده باشند (فاز ۱)، چون
+     * digest روی فایل‌های روی دیسک حساب می‌شود نه روی ZIP آپلودی.
+     *
+     * کلید عمداً بیرون از آرتیفکت ذخیره می‌شود. اگر داخل ZIP بود، uninstall و
+     * نصب مجدد همان ZIP آن را بی‌اثر می‌کرد.
+     *
+     * @throws InvalidArgumentException اگر slug به چیز قابل استفاده‌ای تبدیل نشود
      */
     public function ensureSealKey(string $slug): string
     {
-        $cacheKey = "plugin:seal:{$slug}";
+        $slug = $this->normalizeSlug($slug);
 
-        $existing = Cache::get($cacheKey);
-        if (is_string($existing) && $existing !== '') {
-            return $existing;
+        $stored = $this->readSealKey($slug);
+        if ($stored !== null) {
+            return $stored;
         }
 
-        $key = base64_encode(random_bytes(SODIUM_CRYPTO_SIGN_SECRETKEYBYTES));
-        Cache::forever($cacheKey, $key);
+        // کلید از `keypair()` ساخته می‌شود، نه از `random_bytes` با طول ثابت.
+        // `ext-sodium` روی این پروژه نصب نیست و polyfill اندازهٔ secret را
+        // متفاوت اعلام می‌کند (۶۴ به‌جای ۳۲). نوشتن `random_bytes(32)` کلیدی
+        // می‌داد که همین runtime آن را نمی‌پذیرد — یعنی ساخت مهر در محیط
+        // واقعی کرش می‌کرد ولی چون متد بی‌caller بود، کسی متوجه نبود.
+        $pair = sodium_crypto_sign_keypair();
+        $secret = base64_encode(sodium_crypto_sign_secretkey($pair));
 
-        return $key;
+        // `insertOrIgnore` و نه `updateOrCreate`: دو درخواستِ همزمانِ یک
+        // پلاگین نباید کلید برنده را بی‌صدا عوض کنند، وگرنه مهری که با کلید
+        // قبلی زده شده برای همیشه نامعتبر می‌ماند. اگر درج بازنده بود، مقدار
+        // ذخیره‌شده را می‌خوانیم؛ اگر برنده بود، همان کلید خودمان است.
+        Setting::query()->insertOrIgnore([
+            'group' => self::SEAL_GROUP,
+            'key' => $this->sealKeyName($slug),
+            // درج دسته‌ای cast مدل را اعمال نمی‌کند، پس JSON دستی نوشته می‌شود.
+            'value' => (string) json_encode(['secret' => $secret], JSON_UNESCAPED_UNICODE),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $stored = $this->readSealKey($slug);
+        if ($stored !== null) {
+            return $stored;
+        }
+
+        // رسیدن به اینجا یعنی یک ردیف هست که درج را خفه کرده ولی کلیدِ
+        // قابل استفاده‌ای ندارد. تنها جایی که مجاز به بازنویسی هستیم.
+        // فقط slug ثبت می‌شود، نه خود کلید.
+        Log::warning('plugin.seal_key_rebuilt', ['slug' => $slug]);
+
+        return $this->replaceSealKey($slug, $secret);
+    }
+
+    /**
+     * نقطهٔ اتصال مهر یکپارچگی در مسیر نصب (K5.9).
+     *
+     * `ensureSealKey()` رشته می‌گیرد تا در آزمون و ابزار راحت باشد، ولی مسیر
+     * واقعی نصب یک شیء `Plugin` دارد. این متد همان تبدیل را انجام می‌دهد تا
+     * فراخوانی در `PluginController` حدس‌وبرگو نباشد.
+     */
+    public function ensureSealKeyFor(Plugin $plugin): string
+    {
+        return $this->ensureSealKey($plugin->slug);
+    }
+
+    /**
+     * حذف کلید مهر — همراهِ حذف افزونه.
+     *
+     * بدون این، ردیف settings یتیم می‌ماند و نصب دوبارهٔ افزونه‌ای با همان slug
+     * به کلید **قبلی** می‌خورد؛ یعنی مهرهایی که با کلید قبلی ساخته شده بودند
+     * دوباره معتبر شمرده می‌شدند.
+     *
+     * برگشت‌پذیر نیست و عمداً: حذف افزونه یعنی پاک کردن مهرش.
+     */
+    public function forgetSealKeyFor(string $slug): void
+    {
+        Setting::query()
+            ->where('group', self::SEAL_GROUP)
+            ->where('key', $this->sealKeyName($this->normalizeSlug($slug)))
+            ->delete();
+    }
+
+    private function sealKeyName(string $slug): string
+    {
+        return 'seal_key_'.$slug;
+    }
+
+    /**
+     * همان نرمال‌سازی‌ای که `PluginController::upload()` روی slug انجام می‌دهد.
+     *
+     * اگر اینجا چیز دیگری بود، کلید زیر نامی می‌نشست که کدِ استخراج در فاز ۱
+     * پیدایش نمی‌کرد — یعنی همان بازسازی بی‌صدایی که این متد برای جلوگیری از
+     * آن نوشته شده.
+     */
+    private function normalizeSlug(string $slug): string
+    {
+        $normalized = substr(Str::slug($slug), 0, 100);
+
+        // slug تهی همه به یک ردیف مشترک می‌ریخت و یک پلاگین می‌توانست کلیدِ
+        // پلاگین دیگر را برودارد.
+        if ($normalized === '') {
+            throw new InvalidArgumentException('شناسهٔ پلاگین برای ساخت کلید مهر قابل استفاده نیست.');
+        }
+
+        return $normalized;
+    }
+
+    /** کلید ذخیره‌شده، یا null اگر نبود / ناقص بود / base64 نبود. */
+    private function readSealKey(string $slug): ?string
+    {
+        $raw = Setting::get(self::SEAL_GROUP, $this->sealKeyName($slug));
+
+        if (! is_array($raw) || ! isset($raw['secret']) || ! is_string($raw['secret'])) {
+            return null;
+        }
+
+        $decoded = base64_decode($raw['secret'], true);
+        if (! is_string($decoded) || strlen($decoded) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) {
+            return null;
+        }
+
+        return $raw['secret'];
+    }
+
+    private function replaceSealKey(string $slug, string $secret): string
+    {
+        Setting::query()
+            ->where('group', self::SEAL_GROUP)
+            ->where('key', $this->sealKeyName($slug))
+            ->update([
+                'value' => (string) json_encode(['secret' => $secret], JSON_UNESCAPED_UNICODE),
+                'updated_at' => now(),
+            ]);
+
+        return $secret;
     }
 
     /** key_id از مانیفست، یا null اگر ناشر اعلام نکرده باشد. */

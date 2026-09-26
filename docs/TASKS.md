@@ -331,11 +331,11 @@
 | **B14** | 🟡 breadcrumb روی همهٔ صفحات «پنل › مدیریت» است. ریشه‌اش یک باگ است نه یک نقطهٔ اتصال | `admin/layout.tsx:36` | از page descriptor | ⏳ |
 | **B15** | 🟡 `SaveBar` برچسب «تأیید و ذفیره **قالب**» را هاردکد کرده — کامپوننت عمومی با واژهٔ دامنهٔ قالب | `primitives.tsx:66` | پارامتری کردن | done |
 | **B16** | 🟡 پرمیشن‌ها namespaced نیستند ⇒ دو پلاگین با ماژول هم‌نام پرمیشن مشترک می‌گیرند | `ManifestRegistry.php:51-58` · `PluginController.php:409-412` | I6 | ⏳ |
-| **B17** | 🟡 روی ZIP باز‌نشدنی، `result()` به `$summary['slug']` دست می‌زند که وجود ندارد | `Validator.php:43-45,462` | تست بستهٔ خراب | ⏳ |
+| **B17** | 🟡 روی ZIP باز‌نشدنی، `result()` به `$summary['slug']` دست می‌زند که وجود ندارد | `Validator.php:43-45,462` | تست بستهٔ خراب | done (کاذب) |
 | **B18** | 🟡 ثابت‌های مرده: `MAX_TABLE_COUNT`، `MAX_INDEXES_PER_TABLE`، `MAX_ACTIVE_PLUGINS` بی‌استفاده. `ensureSealKey()` هیچ caller ندارد ⇒ **K0.4 پیاده نشده**. `PackageAnalysis::items()` بی‌caller | `Contract.php:41,43,45` · `TrustStore.php:90` | مصرف یا حذف | ⏳ |
-| **B19** | 🟡 `ensureSealKey` از `Cache::forever` ⇒ یک flush ریدایس، کلید را بی‌صدا بی‌اعتبار می‌کند | `TrustStore.php:100` | جدول settings | ⏳ |
+| **B19** | 🟡 `ensureSealKey` از `Cache::forever` ⇒ یک flush ریدایس، کلید را بی‌صدا بی‌اعتبار می‌کند | `TrustStore.php:100` | جدول settings | done |
 | **B20** | 🟡 `hooks.not_yet_dispatched` هشدار است ولی `syncHooks` ردیف می‌نویسد و فرانت toast می‌دهد «هوک‌ها ثبت شدند». هوک‌ها **اجرا نمی‌شوند** | `Validator.php:293` · `PluginsClient.tsx:43` | متن صادقانه تا K5.5 | done |
-| **B21** | 🟡 عدد جادویی ۲۰۰۰ کنار `MAX_FILES`=۵۰۰۰ | `Validator.php:191` | ثابت | ⏳ |
+| **B21** | 🟡 عدد جادویی ۲۰۰۰ کنار `MAX_FILES`=۵۰۰۰ | `Validator.php:191` | ثابت | done |
 | **B22** | 🟡 تورفتگی شکسته در گروه `admin` | `routes/api.php:174-181` | تمیز | ⏳ |
 | **B23** | 🟡 `api.d.ts` (۲۰۸KB) نوع دستی `PackageAnalysis` دارد که با `PackageAnalyzer.tsx:27` تکراری است | — | I8 | ⏳ |
 | **B24** | 🔴 **XSS در بلوک CTA — تأییدشده.** `href` بدون هیچ sanitize مستقیم در `<a>` می‌رود. `safeHtml` (`:12`) فقط روی متن ریچ‌تکست کار می‌کند و خط `:19` پاک‌سازی‌اش فقط داخل `safeHtml` است. یعنی `javascript:alert(1)` در بلوک CTA زنده است. **قبل از باز کردن `site.block_type` باید درست شود** | `components/site/BlockRenderer.tsx:109` | رد `href` از `safeHtml` | done |
@@ -344,7 +344,7 @@
 | **B27** | 🔴 `extensionPoints()` فیلدهای تازهٔ قرارداد را **بی‌صدا drop** می‌کند. هر فیلدی که دستی به این map اضافه نشود از پاسخ API حذف می‌شود و UI نشانش نمی‌دهد | `Contract.php:137` | K3.2 | done |
 | **B28** | 🔴 فلگ `json` سیگنال **ضدّهمبسته با واقعیت** است: تنها نقطهٔ زنده (`site.page_type`) آن را ندارد ولی ۵ نقطهٔ مرده دارند. اگر `openness` اضافه شود و `json` بماند، دو سیگنال رقیب داریم | `Contract.php:80,88-123,145` | K3.6 | done |
 | **B29** | 🟠 کامنت `Contract.php:81` دربارهٔ کلید `builder` نوشته ولی هیچ نقطه‌ای `builder` ندارد. مستندات مرده | `Contract.php:81` | تمیز | ⏳ |
-| **B30** | 🟠 `ManifestRegistry` برخورد `type` را بی‌صدا `continue` می‌کند. پلاگینی که `type` تکراری اعلام کند نصب می‌شود و **اصلاً دیده نمی‌شود** — بدترین حالت بی‌صدا | `ManifestRegistry.php:99-105,152-154` | قاعدهٔ مقطعی «عدم برخورد» ⇒ خطا | ⏳ |
+| **B30** | 🟠 `ManifestRegistry` برخورد `type` را بی‌صدا `continue` می‌کند. پلاگینی که `type` تکراری اعلام کند نصب می‌شود و **اصلاً دیده نمی‌شود** — بدترین حالت بی‌صدا | `ManifestRegistry.php:99-105,152-154` | قاعدهٔ مقطعی «عدم برخورد» ⇒ خطا | done |
 | **B31** | 🟠 ۴ نقطه از ۶ `example` ندارند و `example` هیچ‌کدام رندر نمی‌شود | `Contract.php:95-123` · `PackageAnalyzer.tsx:264-267` | K3.7 | done |
 | **B32** | 🟡 تصحیح اولویت B17: در `Validator.php:43-45` مقدار `$manifest` برابر `null` است پس `result()` شاخهٔ `:444` را رد می‌کند. مواجههٔ واقعی فقط undefined-index روی `Log::info` در `:457/459` است — warning نه crash. **اولویتش پایین‌تر از آن است که TASKS نشان می‌داد** | `Validator.php:41-46,457-463` | پایین | done |
 
@@ -609,13 +609,13 @@
 | **K5.0** | ⭐ **نقطهٔ `core.service_provider`** (bootstrap/binding) | **کوچک‌ترین کار با بیشترین بازگشت کل پروژه.** فقط کلاس‌هایی که interface مشخصِ هسته را پیاده کنند. بدون آن: `SubscriptionSource` قابل ثبت نیست ⇒ گزینهٔ الفِ K7.2 شکست می‌خورد؛ `SearchableProvider` قابل ثبت نیست ⇒ B5/I7 بسته نمی‌شود؛ `PaymentGatewayInterface` و `ChabokanClientInterface` (هر دو singleton هاردکد در `AppServiceProvider.php:20-39`) قابل تعویض نیستند | done |
 | K5.1 | `PluginExtractor` — ۱۱ کنترل استخراج امن | گام ۱ (فهرست ZIP) **در K1.6.3 انجام شد**. گام‌های ۲ تا ۱۱ باقی است | 🟡 ۱ از ۱۱ |
 | K5.2 | ساختار `releases/{version}-{hash}/` + `current` + استخراج atomic | staging → verify → rename. هرگز مستقیم روی مسیر زنده | ⏳ |
-| K5.3 | PSR-4 loader با prefix اجباری `Pishdad\Plugins\{Studly}\` | با `ClassLoader::addPsr4()` روی نمونه. **رد هر namespace خارج از prefix** — تنها جایی که امنیت بارگذاری واقعاً enforce می‌شود | ⏳ |
+| K5.3 | PSR-4 loader با prefix اجباری `Pishdad\Plugins\{Studly}\` | با `ClassLoader::addPsr4()` روی نمونه. **رد هر namespace خارج از prefix** — تنها جایی که امنیت بارگذاری واقعاً enforce می‌شود | done |
 | K5.4 | `PluginRouter` catch-all — تنها route واقعی مالک هسته باشد | تداخل ساختاری ناممکن، `route:cache` معتبر، غیرفعال‌سازی = یک فلگ | ⏳ |
 | K5.5 | dispatcher هوک **یا** حذف `hooks` از مانیفست | B20. فعلاً هیچ‌کدام | ⏳ |
 | K5.6 | migration runner با prefix `{slug}_` + سقف ۲۰ جدول / ۱۰ ایندکس | + بررسی تداخل با جدول‌های هسته | ⏳ |
 | K5.7 | ⭐ نقش دوم PostgreSQL (K1.5.3) | نقش `pishdad_owner` برای `migrate`، نقش `pishdad_app` برای runtime با DDL فقط روی `{slug}_*`. تا وقتی این enforce نشده، prefix فقط **انتخاب** است نه **محدودیت**. ⚠️ متخصص نامطمئن است که مکانیزم migration لاراول ۱۱ زیر این تفکیک بدون تغییر کار کند ⇒ spike دو-روزه | ⏳ |
 | K5.8 | سرویس اعلان (`POST /v1/admin/notifications` با namespacing بر slug) + drawer + نشانگر | B13. **بیرون از فهرست نقاط اتصال** — سرویسی است که پلاگین صدایش می‌زند نه چیزی که اعلام می‌کند | ⏳ |
-| K5.9 | مهر یکپارچگی per-install (K0.4) | `ensureSealKey` الان بی‌caller است (B18/B19). کلید در `settings` نه cache | ⏳ |
+| K5.9 | مهر یکپارچگی per-install (K0.4) | `ensureSealKey` الان بی‌caller است (B18/B19). کلید در `settings` نه cache | done |
 | K5.10 | سقف `file_count` و سرپوش opcache | ۵۰ پلاگین × ۲۰۰ فایل = ۱۰هزار فایل | ⏳ |
 | K5.11 | rollback واقعی | `upgrade()` الان فایل قبلی را حذف می‌کند ⇒ rollback فقط یک رشتهٔ `previous_version` بدون آرتیفکت است | ⏳ |
 

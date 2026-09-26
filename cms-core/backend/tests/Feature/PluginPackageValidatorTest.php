@@ -10,6 +10,8 @@ use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use ReflectionClass;
+use ReflectionMethod;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -775,6 +777,71 @@ class PluginPackageValidatorTest extends TestCase
         }
     }
 
+    /**
+     * B17: `result()` روی ZIP باز‌نشدنی با `emptySummary()` صدا زده می‌شود، ولی
+     * هر فراخوانیِ دیگر هم باید نرمال‌سازی را تحمل کند. این تست عمداً کلیدها را
+     * به ترتیب می‌سنجد نه فقط وجودشان را، چون کلیدِ جابه‌جاشده یعنی قراردادِ
+     * مصرف‌کنندهٔ فرانت شکسته است.
+     */
+    public function test_result_normalizes_a_completely_empty_summary(): void
+    {
+        $result = $this->callResult(false, [], [], null, []);
+
+        $this->assertSame(
+            ['errors', 'warnings', 'slug', 'version', 'extension_points'],
+            array_keys($result['summary'])
+        );
+        $this->assertNull($result['summary']['slug']);
+        $this->assertNull($result['summary']['version']);
+        $this->assertSame([], $result['summary']['extension_points']);
+    }
+
+    /** summary نیمه‌پر نباید بقیهٔ کلیدها را حذف کند. */
+    public function test_result_fills_the_gaps_of_a_partial_summary(): void
+    {
+        $result = $this->callResult(false, [], [], null, ['slug' => 'blog']);
+
+        $this->assertSame('blog', $result['summary']['slug']);
+        $this->assertArrayHasKey('version', $result['summary']);
+        $this->assertArrayHasKey('extension_points', $result['summary']);
+        $this->assertArrayHasKey('errors', $result['summary']);
+        $this->assertArrayHasKey('warnings', $result['summary']);
+    }
+
+    /**
+     * B21: عدد ۲۰۰۰ کنار `MAX_FILES` یک آستانهٔ **پیشنهادی** است، نه سقف سخت.
+     * باید نام‌دار باشد تا تغییرش یک تصمیم قابل بازبینی باشد نه ویرایش خاموش
+     * یک عدد در بدنهٔ متد.
+     */
+    public function test_recommended_allowed_file_cap_is_a_named_constant(): void
+    {
+        $constant = (new ReflectionClass(PluginPackageValidator::class))
+            ->getConstant('RECOMMENDED_ALLOWED_FILES');
+
+        $this->assertSame(2000, $constant, 'آستانهٔ هشدار باید یک ثابت نام‌دار باشد.');
+    }
+
+    /**
+     * رفتارِ آستانه جدا از نام‌گذاریِ آن سنجیده می‌شود، پس عدد اینجا عمداً خام
+     * است تا نبودِ ثابت باعث نشود این تست هم بی‌صدا رد شود.
+     */
+    public function test_warns_past_the_recommended_file_cap(): void
+    {
+        $files = ['manifest.json' => $this->manifestJson()];
+        for ($i = 0; $i <= 2000; $i++) {
+            $files['Laravel/src/F'.$i.'.php'] = '<?php';
+        }
+
+        $result = $this->analyze($this->zip($files));
+
+        $issue = $this->firstWithCode($result['warnings'], 'package.large');
+        $this->assertNotNull($issue, 'عبور از سقف پیشنهادی باید هشدار بدهد.');
+        // فقط عدد داخل پیام سنجیده می‌شود؛ متن فارسیِ پیام عمداً مقایسه نمی‌شود
+        // چون نشانه‌های نامرئی RTL آن را شکننده می‌کنند.
+        $this->assertStringContainsString('2000', $issue['message']);
+        $this->assertNotContains('zip.too_many_files', $this->codes($result['errors']));
+    }
+
     // ── endpoint ────────────────────────────────────────────────────────────
 
     public function test_validate_endpoint_returns_200_even_for_broken_package(): void
@@ -1122,6 +1189,13 @@ class PluginPackageValidatorTest extends TestCase
     private function analyze(string $zipPath): array
     {
         return app(PluginPackageValidator::class)->analyze($zipPath);
+    }
+
+    /** `result()` خصوصی است، ولی نرمال‌سازی summary یک قرارداد داخلی است که باید محافظت شود. */
+    private function callResult(bool $ok, array $errors, array $warnings, ?array $manifest, array $summary): array
+    {
+        return (new ReflectionMethod(PluginPackageValidator::class, 'result'))
+            ->invoke(app(PluginPackageValidator::class), $ok, $errors, $warnings, $manifest, $summary);
     }
 
     private function manifestJson(array $over = [], ?string $signature = null): string

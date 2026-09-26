@@ -28,6 +28,15 @@ class PluginPackageValidator
      */
     private const SECRET_KEY_PATTERN = '/(^|_)(public_key|private_key|secret_key|seed|mnemonic|api_key|token|password|salt|passphrase|webhook_secret)$/i';
 
+    /**
+     * سقف **پیشنهادی** تعداد فایل‌های مجاز — هشدار است نه خطا.
+     *
+     * عمداً از `PluginPackageContract::MAX_FILES` کمتر است: آن سقف سختِ امنیتی
+     * است، ولی opcache روی چند هزار فایل پر شده و بسته «معتبر ولی کند» نصب
+     * می‌شود. پس دو آستانهٔ جدا با دو معنای جدا.
+     */
+    private const RECOMMENDED_ALLOWED_FILES = 2000;
+
     public function __construct(private PluginTrustStore $trustStore) {}
 
     /**
@@ -210,10 +219,10 @@ class PluginPackageValidator
 
         // ۹) سقف حجم کل فایل‌های مجاز
         $allowed = array_filter($normalized, fn ($p) => PluginPackageContract::isAllowedPath($p));
-        if (count($allowed) > 2000) {
+        if (count($allowed) > self::RECOMMENDED_ALLOWED_FILES) {
             $issues[] = [
                 'severity' => 'warning', 'code' => 'package.large',
-                'message' => 'بسته '.count($allowed).' فایل مجاز دارد. سقف پیشنهادی ۲۰۰۰ فایل است تا opcache سرریز نکند.',
+                'message' => 'بسته '.count($allowed).' فایل مجاز دارد. سقف پیشنهادی '.self::RECOMMENDED_ALLOWED_FILES.' فایل است تا opcache سرریز نکند.',
             ];
         }
 
