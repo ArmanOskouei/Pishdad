@@ -1,4 +1,4 @@
-# Pishdad
+# Pishdad CMS
 Pishdad — the first Persian CMS. Named after the first dynasty of Persian mythology's Shahnameh. Fully extensible with custom plugins and themes, built on Laravel + Next.js.
 
 Pishdad is a fully extensible, open-source content management system — the first of its kind built for the Persian-speaking web. Its name comes from the Pishdadian dynasty, the first dynasty in Ferdowsi's Shahnameh, symbolizing a strong foundation for what's built on top of it.
