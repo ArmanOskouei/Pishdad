@@ -92,13 +92,24 @@ class PluginController extends Controller
 
         $check = $this->trustStore()->verifyPublisherSignature($manifest);
         if (! $check['valid']) {
-            Log::warning('plugin.upload_rejected', [
+            // B3: تنها راه عبور از بررسی امضا، حالت توسعه‌دهندهٔ باز و توکن
+            // معتبر است که `devmode.gate` بررسی‌اش کرده. پیش از این،
+            // `dev_mode` اصلاً وجود نداشت و این شاخه همیشه می‌بست.
+            if ($request->attributes->get('dev_mode_granted') !== true) {
+                Log::warning('plugin.upload_rejected', [
+                    'user_id' => $request->user()->id,
+                    'slug' => $manifest['slug'] ?? null,
+                    'reason' => $check['reason'],
+                ]);
+
+                return response()->json(['message' => $check['reason']], 422);
+            }
+
+            Log::warning('plugin.upload_unsigned_via_dev_mode', [
                 'user_id' => $request->user()->id,
                 'slug' => $manifest['slug'] ?? null,
                 'reason' => $check['reason'],
             ]);
-
-            return response()->json(['message' => $check['reason']], 422);
         }
 
         // K3.0/B25: `requires.core` بعد از تأیید امضا سنجیده می‌شود، نه قبلش.
@@ -225,11 +236,21 @@ class PluginController extends Controller
 
         $check = $this->trustStore()->verifyPublisherSignature($manifest);
         if (! $check['valid']) {
-            Log::warning('plugin.upgrade_rejected', [
-                'user_id' => $request->user()->id, 'slug' => $plugin->slug,
-            ]);
+            // B3: ارتقا باید دقیقاً همان قاعدهٔ آپلود را داشته باشد. وگرنه
+            // بستهٔ بی‌امضا راهی برای جایگزینی کدِ پلاگین نصب‌شده پیدا می‌کند.
+            if ($request->attributes->get('dev_mode_granted') !== true) {
+                Log::warning('plugin.upgrade_rejected', [
+                    'user_id' => $request->user()->id, 'slug' => $plugin->slug,
+                    'reason' => $check['reason'],
+                ]);
 
-            return response()->json(['message' => $check['reason']], 422);
+                return response()->json(['message' => $check['reason']], 422);
+            }
+
+            Log::warning('plugin.upgrade_unsigned_via_dev_mode', [
+                'user_id' => $request->user()->id, 'slug' => $plugin->slug,
+                'reason' => $check['reason'],
+            ]);
         }
 
         // K3.0/B25 — دلیل ترتیب مثل upload(): اول اصالت، بعد ادعای سازگاری.
@@ -354,8 +375,14 @@ class PluginController extends Controller
         }
 
         try {
+            // B3: تحلیلگر دروازهٔ امضای مستقل خودش را دارد، پس باید همان وضعیت
+            // حالت تDevelopه‌دهنده را ببیند. این مقدار فقط از صفتِ درخواست
+            // می‌آید که middleware پس از بررسی توکن گذاشته — نه از بدنهٔ
+            // درخواست، پس کاربر نمی‌تواند خودش صادق جلوه کند.
+            $allowUnsigned = $request->attributes->get('dev_mode_granted') === true;
+
             return PackageAnalysis::fromValidator(
-                $this->validator()->analyze($file->getRealPath())
+                $this->validator()->analyze($file->getRealPath(), ['allowUnsigned' => $allowUnsigned])
             );
         } catch (\Throwable $e) {
             Log::error('plugin.analysis_exception', ['error' => $e->getMessage()]);

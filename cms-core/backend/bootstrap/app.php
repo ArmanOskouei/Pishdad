@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureCentralOperator;
+use App\Http\Middleware\EnsurePermission;
+use App\Http\Middleware\GateDevModeUpload;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,8 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'central.operator' => \App\Http\Middleware\EnsureCentralOperator::class,
-            'perm' => \App\Http\Middleware\EnsurePermission::class,
+            'central.operator' => EnsureCentralOperator::class,
+            'perm' => EnsurePermission::class,
+            'devmode.gate' => GateDevModeUpload::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

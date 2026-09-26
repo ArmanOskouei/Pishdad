@@ -40,8 +40,20 @@ class PluginPackageValidator
      *   summary: array
      * }
      */
-    public function analyze(string $zipPath): array
+    /**
+     * @param  array{allowUnsigned?: bool}  $options
+     *
+     * `allowUnsigned` را **هرگز** از بدنهٔ درخواست نگیر. فقط کنترلر باید آن را
+     * از وضعیت سمت سرورِ حالت تDevelopه‌دهنده بسازد و بیاورد.
+     *
+     * این پارامتر لازم است چون بدون آن تحلیلگر خودش یک دروازهٔ امضای دوم و
+     * مستقل است: بستهٔ بی‌امضا پیش از آنکه به شاخهٔ حالت تDevelopه‌دهنده در
+     * کنترلر برسد، همین‌جا با `signature.invalid` رد می‌شد و دروازهٔ کنترلر
+     * تزئینی می‌شد.
+     */
+    public function analyze(string $zipPath, array $options = []): array
     {
+        $allowUnsigned = ($options['allowUnsigned'] ?? false) === true;
         $errors = [];
         $warnings = [];
         $manifest = null;
@@ -67,7 +79,7 @@ class PluginPackageValidator
                     'message' => 'فایل manifest.json در ریشهٔ ZIP پیدا نشد. این فایل باید دقیقاً در ریشه باشد، نه داخل پوشهٔ Laravel/ یا Next.js/.',
                 ];
             } else {
-                foreach ($this->manifestChecks($manifest) as $issue) {
+                foreach ($this->manifestChecks($manifest, $allowUnsigned) as $issue) {
                     $issue['severity'] === 'error' ? $errors[] = $issue : $warnings[] = $issue;
                 }
             }
@@ -213,10 +225,9 @@ class PluginPackageValidator
      *
      * @return list<array{severity: string, code: string, message: string, path?: string, suggest?: array}>
      */
-    private function manifestChecks(array $manifest): array
+    private function manifestChecks(array $manifest, bool $allowUnsigned = false): array
     {
         $issues = [];
-
         foreach (['slug', 'name'] as $required) {
             if (empty($manifest[$required])) {
                 $issues[] = [
@@ -275,9 +286,16 @@ class PluginPackageValidator
         // امضایش کاملاً معتبر است.
         $check = $this->trustStore->verifyPublisherSignature($manifest);
         if (! $check['valid']) {
+            // در حالت توسعه‌دهنده، نبودِ امضا **خطا نیست** — فقط هشدار است،
+            // چون کاربر آگاهانه در حال تست است. ولی پیام باید صریح بگوید
+            // نصب بدون امضا انجام می‌شود، وگرنه کاربر فکر می‌کند بسته
+            // معتبر است.
             $issues[] = [
-                'severity' => 'error', 'code' => 'signature.invalid',
-                'message' => $check['reason'],
+                'severity' => $allowUnsigned ? 'warning' : 'error',
+                'code' => $allowUnsigned ? 'devmode.unsigned_allowed' : 'signature.invalid',
+                'message' => $allowUnsigned
+                    ? 'حالت توسعه‌دهنده باز است، پس نبودِ امضا مانع نصب نیست. این پلاگین «تأییدنشده» ثبت می‌شود و برای انتشار عمومی به امضا نیاز دارد.'
+                    : $check['reason'],
                 'guide' => 'plugins.signature',
             ];
         } elseif (! $check['publisher_verified']) {

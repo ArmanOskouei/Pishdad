@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\Api\V1\Admin\PluginController;
+use App\Http\Middleware\GateDevModeUpload;
 use App\Models\Plugin;
 use App\Models\PublisherKey;
 use App\Models\SystemPlugin;
 use App\Models\User;
 use App\Services\Plugins\CoreRequirementChecker;
+use App\Services\Plugins\DevMode;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Plugins\PluginSignatureVerifier;
 use Database\Seeders\RolesPermissionsSeeder;
@@ -105,6 +107,64 @@ class PluginsTest extends TestCase
             ->assertStatus(422)->assertJsonPath('message', 'امضای پلاگین معتبر نیست.');
 
         $this->assertDatabaseCount('plugins', 0);
+    }
+
+    /**
+     * B3 — middleware واقعاً روی route هست و توکن نامعتبر هم راهی باز نمی‌کند.
+     *
+     * این تست عمداً «یکپارچه» است نه واحد: هدفش این است که اگر کسی بعداً
+     * `devmode.gate` را از آرایهٔ middleware هر دو route برداشت، این تست
+     * قرمز شود. تست واحدِ `DevMode` چنین چیزی را نمی‌گیرد.
+     */
+    public function test_dev_mode_gate_is_wired_and_wrong_token_grants_nothing(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        // حالت توسعه‌دهنده باز است، ولی توکن غلط است.
+        app(DevMode::class)->enable('tok-right');
+        app(DevMode::class)->forget();
+
+        $auth->withHeader(GateDevModeUpload::HEADER, 'tok-wrong')
+            ->post('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest(), 'unsigned')])
+            ->assertStatus(422);
+
+        $this->assertSame(0, Plugin::query()->count(), 'توکن نادرست نباید بستهٔ بی‌امضا را نصب کند.');
+
+        // حالت توسعه‌دهنده بسته است، ولی توکن درست ارائه شده.
+        app(DevMode::class)->disable();
+        app(DevMode::class)->forget();
+
+        $auth->withHeader(GateDevModeUpload::HEADER, 'tok-right')
+            ->post('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest(), 'unsigned')])
+            ->assertStatus(422);
+
+        $this->assertSame(0, Plugin::query()->count(), 'توکن درست بدون حالت باز نباید چیزی را باز کند.');
+    }
+
+    /**
+     * تنها مسیر مجاز: حالت باز + توکن درست.
+     *
+     * و نکتهٔ مهم این تست: حالت توسعه‌دهنده **تأیید نمی‌کند**. بسته با
+     * وضعیت `pending` ثبت می‌شود، نه `approved` — چون `isReviewExempt()` فقط
+     * سوپرادمین و اپراتور را از بازبینی معاف می‌کند. حالت توسعه‌دهنده
+     * راه تست را باز می‌کند، نه راه انتشار.
+     */
+    public function test_dev_mode_allows_unsigned_upload_when_open_with_valid_token(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        app(DevMode::class)->enable('tok-right');
+        app(DevMode::class)->forget();
+
+        $res = $auth->withHeader(GateDevModeUpload::HEADER, 'tok-right')
+            ->post('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest(), 'unsigned')]);
+
+        $this->assertSame(201, $res->getStatusCode(), 'پاسخ: '.json_encode($res->json(), JSON_UNESCAPED_UNICODE));
+
+        $id = $res->json('data.id');
+
+        $this->assertNotNull($id);
+        $this->assertDatabaseHas('plugins', ['id' => $id, 'review_status' => 'pending']);
     }
 
     public function test_signed_install_activate_registers_hooks_and_upgrade(): void

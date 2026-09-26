@@ -1,8 +1,8 @@
 <?php
 
-use App\Http\Controllers\Api\Central\ClientController;
 use App\Http\Controllers\Api\Central\CentralDashboardController;
 use App\Http\Controllers\Api\Central\ChabokanController;
+use App\Http\Controllers\Api\Central\ClientController;
 use App\Http\Controllers\Api\Central\GatewaySettingsController;
 use App\Http\Controllers\Api\Central\InvoiceController as CentralInvoiceController;
 use App\Http\Controllers\Api\Central\MonitoringController;
@@ -22,8 +22,8 @@ use App\Http\Controllers\Api\V1\Admin\PageController;
 use App\Http\Controllers\Api\V1\Admin\PluginController;
 use App\Http\Controllers\Api\V1\Admin\ProfileController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
-use App\Http\Controllers\Api\V1\Admin\SiteSettingsController;
 use App\Http\Controllers\Api\V1\Admin\SidePresetController;
+use App\Http\Controllers\Api\V1\Admin\SiteSettingsController;
 use App\Http\Controllers\Api\V1\Admin\SubscriptionController;
 use App\Http\Controllers\Api\V1\Admin\ThemeController;
 use App\Http\Controllers\Api\V1\Admin\TicketController;
@@ -171,13 +171,13 @@ Route::prefix('v1')->group(function () {
             Route::post('tickets/{ticket}/messages', [TicketController::class, 'reply'])->middleware('perm:tickets.edit');
 
             // تسک ۵.۴ — پلاگین‌ها (امضای Ed25519 اجباری).
-Route::get('plugins', [PluginController::class, 'index'])->middleware('perm:plugins.view');
-Route::post('plugins/validate', [PluginController::class, 'validatePackage'])->middleware('perm:plugins.edit');
-Route::post('plugins/upload', [PluginController::class, 'upload'])->middleware('perm:plugins.edit');
+            Route::get('plugins', [PluginController::class, 'index'])->middleware('perm:plugins.view');
+            Route::post('plugins/validate', [PluginController::class, 'validatePackage'])->middleware('perm:plugins.edit');
+            Route::post('plugins/upload', [PluginController::class, 'upload'])->middleware(['perm:plugins.edit', 'devmode.gate']);
             Route::get('plugins/{plugin}', [PluginController::class, 'show'])->middleware('perm:plugins.view');
             Route::post('plugins/{plugin}/activate', [PluginController::class, 'activate'])->middleware('perm:plugins.edit');
             Route::post('plugins/{plugin}/deactivate', [PluginController::class, 'deactivate'])->middleware('perm:plugins.edit');
-            Route::post('plugins/{plugin}/upgrade', [PluginController::class, 'upgrade'])->middleware('perm:plugins.edit');
+            Route::post('plugins/{plugin}/upgrade', [PluginController::class, 'upgrade'])->middleware(['perm:plugins.edit', 'devmode.gate']);
             Route::post('plugins/{plugin}/uninstall', [PluginController::class, 'uninstall'])->middleware('perm:plugins.delete');
         });
     });
