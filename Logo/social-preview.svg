@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <title>Pishdad — the first free, open-source Persian CMS on your own server</title>
+  <desc>Laravel CMS + Next.js. Install plugins and themes, own your data.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#141834"/>
+      <stop offset="100%" stop-color="#0B1120"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E7C069"/>
+      <stop offset="100%" stop-color="#C98A2B"/>
+    </linearGradient>
+    <linearGradient id="goldDeep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C98A2B"/>
+      <stop offset="100%" stop-color="#8A5A1E"/>
+    </linearGradient>
+    <pattern id="geo" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M30 0 L60 30 L30 60 L0 30 Z" fill="none" stroke="#E7C069" stroke-width="1"/>
+      <circle cx="30" cy="30" r="3" fill="#E7C069"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#geo)" opacity="0.05"/>
+
+  <g transform="translate(88, 122)">
+    <path d="M92 0 C 48 31, 34 85, 47 138 C 55 176, 75 206, 105 230 L 119 193 L 96 178 C 72 154, 59 118, 64 85 C 69 54, 83 30, 109 14 Z" fill="url(#gold)"/>
+    <path d="M117 11 C 168 24, 202 61, 205 102 C 207 125, 197 147, 182 165 L 168 149 L 177 139 C 188 125, 192 108, 188 90 C 180 60, 152 38, 116 27 Z" fill="url(#goldDeep)"/>
+  </g>
+
+  <g transform="translate(360, 206)">
+    <text x="0" y="72" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="88" font-weight="700" fill="#FAF7EF" letter-spacing="-1">Pishdad</text>
+    <rect x="2" y="98" width="316" height="4" fill="url(#gold)"/>
+    <text x="6" y="186" font-family="Vazirmatn, Tahoma, Segoe UI, sans-serif" font-size="72" font-weight="700" fill="#E7C069" direction="rtl">پیشداد</text>
+  </g>
+
+  <g transform="translate(96, 470)" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <text x="0" y="36" font-size="40" font-weight="600" fill="#FAF7EF">Laravel CMS + Next.js</text>
+    <text x="0" y="76" font-size="25" fill="#C9CEDB">Install plugins and themes, own your data.</text>
+  </g>
+
+  <g transform="translate(88, 590)" font-family="Vazirmatn, Tahoma, Segoe UI, sans-serif" direction="rtl">
+    <text x="1100" y="0" font-size="27" fill="#E7C069">نخستین سیستم مدیریت محتوای پارسی رایگان و متن‌باز</text>
+  </g>
+</svg>
