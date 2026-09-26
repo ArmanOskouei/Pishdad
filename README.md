@@ -224,6 +224,9 @@ panel rather than by copying files.
 Five visual directions ship in the core, and any of them can be switched at runtime with
 a live preview before you commit. No rebuild, no redeploy.
 
+![Theme switcher mockup](./assets/mockup-themes.png)
+*Mockup for illustration — replace with a real screenshot or GIF of live theme switching.*
+
 > 🇮🇷 [این بخش به زبان فارسی](README.fa.md#قالب‌ها)
 
 ---
@@ -231,6 +234,9 @@ a live preview before you commit. No rebuild, no redeploy.
 ## Block editor
 
 Pages are composed from typed blocks rather than templates.
+
+![Block editor mockup](./assets/mockup-editor.png)
+*Mockup for illustration — replace with a real screenshot or GIF of the editor.*
 
 - Drag and drop reordering via `@dnd-kit`
 - Rich text through Jodit, with a JSON fallback so an unknown block type degrades instead
