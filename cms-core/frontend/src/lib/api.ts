@@ -105,9 +105,3 @@ export type DashboardAlert = {
   message: string;
   action: string;
 };
-
-export type DashboardWidgets = {
-  registry_version: string;
-  widgets: Array<{ key: string; title: string; component: string; order: number }>;
-  slots: string[];
-};

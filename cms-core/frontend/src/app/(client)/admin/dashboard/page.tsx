@@ -1,13 +1,21 @@
 "use client";
 
-/** داشبورد مشتری (تسک ۲.۲ + دسته ۱ برابری): stats/alerts/widgets واقعی — بدون هیچ mock. */
+/**
+ * داشبورد مشتری (تسک ۲.۲ + دسته ۱ برابری): stats/alerts واقعی — بدون هیچ mock.
+ *
+ * تسک K6.10: کارت «ویجت‌های پلاگین» و fetch متناظرش حذف شد. endpoint
+ * `dashboard/widgets` آرایهٔ خالیِ هاردکد برمی‌گرداند (DashboardController::widgets)
+ * و نقطهٔ `admin.dashboard_slot` در قرارداد `deferred`/`closed` است، پس کارت
+ * همیشه EmptyState نشان می‌داد و وعدهٔ «پلاگین‌ها اینجا ویجت اضافه می‌کنند» دروغ بود.
+ * نگهبانش: src/lib/dashboard-widget-card.test.ts
+ */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authed } from "@/lib/auth";
-import type { DashboardStats, DashboardAlert, DashboardWidgets } from "@/lib/api";
+import type { DashboardStats, DashboardAlert } from "@/lib/api";
 import { faNum, jalali, jalaliDate, relativeFa } from "@/lib/fa";
-import { Alert, StatCard, Skeleton, EmptyState, Badge } from "@/components/ui/primitives";
+import { Alert, StatCard, Skeleton, Badge } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import type { Invoice, PageItem, Ticket } from "@/lib/domain";
 
@@ -46,19 +54,17 @@ export default function DashboardPage() {
   const toast = useToast();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [alerts, setAlerts] = useState<DashboardAlert[] | null>(null);
-  const [widgets, setWidgets] = useState<DashboardWidgets | null>(null);
   const [activity, setActivity] = useState<Activity[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [s, a, w] = await Promise.all([
+        const [s, a] = await Promise.all([
           authed<DashboardStats>("/v1/admin/dashboard/stats"),
           authed<DashboardAlert[]>("/v1/admin/dashboard/alerts"),
-          authed<DashboardWidgets>("/v1/admin/dashboard/widgets"),
         ]);
-        setStats(s); setAlerts(a); setWidgets(w);
+        setStats(s); setAlerts(a);
         setActivity(await loadActivity());
       } catch (e) {
         const msg = e instanceof Error ? e.message : "خطا در بارگذاری داشبورد.";
@@ -75,7 +81,7 @@ export default function DashboardPage() {
       </div>
     );
   }
-  if (!stats || !alerts || !widgets) {
+  if (!stats || !alerts) {
     return (
       <div>
         <div className="page-head"><div><h1>داشبورد</h1><p>در حال بارگذاری…</p></div></div>
@@ -140,8 +146,7 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-        <div>
-        <div className="card card-pad" style={{ marginBlockEnd: 16 }}>
+        <div className="card card-pad">
           <div className="card-title">وضعیت اشتراک {suspended ? <Badge tone="red">معلق</Badge> : null}</div>
           <div className="kv"><span>وضعیت</span><span>{stats.subscription.status}</span></div>
           <div className="kv"><span>سررسید</span><span>{jalaliDate(stats.subscription.due_at)} ({relativeFa(stats.subscription.due_at)})</span></div>
@@ -151,16 +156,6 @@ export default function DashboardPage() {
           </div>
           <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBlock: "6px 10px" }}>{faNum(periodPct)}٪ از دوره گذشته</div>
           <Link className="btn btn-soft btn-sm btn-block" href="/admin/subscription">مدیریت اشتراک</Link>
-        </div>
-        <div className="card card-pad">
-          <div className="card-title">ویجت‌های پلاگین <Badge>اسلات DashboardWidget</Badge></div>
-          <p className="card-sub">رجیستری نسخه {widgets.registry_version} — اسلات‌ها: {widgets.slots.join("، ")}</p>
-          {widgets.widgets.length === 0 ? (
-            <EmptyState title="ویجتی ثبت نشده" hint="پلاگین‌ها اینجا ویجت اضافه می‌کنند." />
-          ) : (
-            <ul>{widgets.widgets.map((w) => <li key={w.key}>{w.title}</li>)}</ul>
-          )}
-        </div>
         </div>
       </div>
     </div>

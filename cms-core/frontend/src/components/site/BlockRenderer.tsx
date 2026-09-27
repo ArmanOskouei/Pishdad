@@ -3,6 +3,16 @@ import { mediaUrl, type BlockValue } from "@/lib/domain";
 // پیش‌نمایش ادیتور هم به آن‌ها نیاز دارند — نگه‌داشتنشان اینجا یعنی وابستگی
 // معکوس (پنل → کامپوننتِ سایتِ عمومی).
 import { safeHref, safeSrc, safeHtml } from "@/lib/sanitize";
+// K6.3: واژگانِ بلوک‌های هسته و متنِ لاگ/اعلان، در `lib/block-type.ts` زندگی
+// می‌کنند تا لاگ و رفتار و تست یک روایت داشته باشند (و آزمون بتواند بدون
+// رندرر React آن‌ها را بخواند).
+import {
+  blockDiagnosticsEnabled,
+  describeUnknownType,
+  isBuiltinBlockType,
+  unknownBlockNoticeFa,
+  unknownBlockWarning,
+} from "@/lib/block-type";
 import { ContactForm } from "./ContactForm";
 
 /**
@@ -10,6 +20,9 @@ import { ContactForm } from "./ContactForm";
  * hero/text/image/cta/gallery از رجیستری بک‌اند (config/blocks.php) +
  * quote/video/contact-form برای سازگاری با بلوک‌های پلاگینی آینده.
  * بلوک `_enabled === false` رد می‌شود (تغییر فعال/غیرفعال صفحه ۱.۱۲).
+ *
+ * K6.3 — `type` ناشناس (شاخهٔ `default` پایین همین فایل). تصمیم‌ها و دلیلش در
+ * `lib/block-type.ts` است؛ اینجا فقط ویوِ همان تصمیم.
  */
 
 export { safeHref, safeSrc, safeHtml };
@@ -31,21 +44,45 @@ function mediaSrc(d: Record<string, unknown>): string | null {
   return null;
 }
 
-export function BlockRenderer({ blocks }: { blocks: BlockValue[] }) {
+/**
+ * `diagnostics` یعنی «این رندر در دیباگ است» — پیش‌فرض از محیط می‌آید
+ * (`lib/block-type.ts:blockDiagnosticsEnabled`).
+ *
+ * پارامتر صریح برای وقتی لازم است که **ادمین/پیش‌نمایش** بلوک‌ها را رندر کند
+ * (`PageEditor`): همان کامپوننت، ولی با اعلانِ دیداری، تا ادیتور بلوکِ راندر‌نشده
+ * را ببیند. مصرف‌کننده‌های فعلی (`app/page.tsx`، `app/[...path]/page.tsx`) این
+ * را پاس نمی‌دهند و رفتارشان همان پیش‌فرض محیط است.
+ */
+export function BlockRenderer({
+  blocks,
+  diagnostics,
+}: {
+  blocks: BlockValue[];
+  diagnostics?: boolean;
+}) {
   const visible = blocks.filter((b) => (b.data as Record<string, unknown>)?._enabled !== false);
   if (visible.length === 0) {
     return <p style={{ color: "var(--text-muted)" }}>محتوایی برای این صفحه ثبت نشده است.</p>;
   }
+  const showUnknown = diagnostics ?? blockDiagnosticsEnabled();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       {visible.map((b, i) => (
-        <Block key={i} type={b.type} data={(b.data ?? {}) as Record<string, unknown>} />
+        <Block key={i} type={b.type} data={(b.data ?? {}) as Record<string, unknown>} diagnostics={showUnknown} />
       ))}
     </div>
   );
 }
 
-function Block({ type, data }: { type: string; data: Record<string, unknown> }) {
+function Block({
+  type,
+  data,
+  diagnostics,
+}: {
+  type: string;
+  data: Record<string, unknown>;
+  diagnostics: boolean;
+}) {
   switch (type) {
     case "hero": {
       const align = data.align === "center" ? "center" : data.align === "left" ? "left" : "right";
@@ -187,9 +224,44 @@ function Block({ type, data }: { type: string; data: Record<string, unknown> }) 
       );
     }
     default: {
-      // بلوک ناشناس (پلاگینی): fail-soft — چیزی نشکن، فقط لاگ کنسول سرور.
-      console.warn(`[site] unknown block type: ${type}`);
-      return null;
+      // K6.3 — بلوکِ ناشناس. سه چیز، عمداً و جدا از هم:
+      //
+      //  ۱. **هرگز throw نمی‌کنیم.** یک بلوکِ خراب نباید کل صفحهٔ عمومی را
+      //     بیندازد؛ `throw` اینجا یعنی یک محتوای اشتباه، دموی کل سایت را
+      //     می‌گیرد.
+      //  ۲. **همیشه لاگ سمتِ سرور.** این تنها کانالی است که در SSR به اپراتور
+      //     می‌رسد و از بین نمی‌رود. اگر `type` در `BUILTIN_BLOCK_TYPES` باشد
+      //     ولی `switch` نخورده، لغزشِ **خودِ ماست** نه خطای محتوا ⇒ یک پله
+      //     بلندتر: `error`.
+      //  ۳. **اعلانِ دیداری فقط وقتی تشخیص روشن است** (`diagnostics`) — یعنی
+      //     نه production، یا production با `BLOCK_RENDER_DIAGNOSTICS=1`. در
+      //     production برای بازدیدکننده چیزی رندر نمی‌شود (نه داخلِ سایت لو
+      //     می‌رود، نه صفحه بد به‌نظر می‌رسد) ولی لاگ حتماً رفته.
+      //
+      // در dev، ادیتور بالاخره می‌بیند که بلوکش رندر نشده — به‌جای اینکه صفحه
+      // سالم به نظر برسد و محتوا غایب باشد. `role="note"` است چون یادداشتِ
+      // محتوایی است، نه خطای قابل‌انجام‌کار برای بازدیدکننده.
+      //
+      // توجه: این شاخه فقط وقتی اجرا می‌شود که هیچ `case`ای نخورده باشد،
+      // یعنی **نمی‌تواند بلوکِ هسته را بپوشاند** — امضای `switch` در
+      // `block-type.test.ts` قفل شده است.
+      if (isBuiltinBlockType(type)) {
+        console.error(unknownBlockWarning(type, "registry-drift"));
+      } else {
+        console.warn(unknownBlockWarning(type));
+      }
+      if (!diagnostics) return null;
+      const named = describeUnknownType(type) || "(خالی)";
+      return (
+        <div
+          role="note"
+          data-block-state="unknown"
+          data-block-type={named}
+          style={{ margin: 0, padding: 16, border: "1px dashed var(--border)", borderRadius: 12, color: "var(--text-muted)", fontSize: 13 }}
+        >
+          {unknownBlockNoticeFa(type)}
+        </div>
+      );
     }
   }
 }
