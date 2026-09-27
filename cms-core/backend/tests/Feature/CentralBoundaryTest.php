@@ -19,9 +19,8 @@ class CentralBoundaryTest extends TestCase
 {
     /** مسیرهایی که «مرکزی» هستند و باید از هستهٔ مشتری جدا بمانند. */
     private const CENTRAL_NAMESPACES = [
-        'App\\Http\\Controllers\\Api\\Central',
-        'App\\Models\\Central',
-        'App\\Services\\Central',
+        'App\Http\Controllers\Api\Central',
+        'App\Models\Central',
     ];
 
     /**
@@ -32,7 +31,6 @@ class CentralBoundaryTest extends TestCase
     private const ALLOWED = [
         'app/Http/Controllers/Api/Central',
         'app/Models/Central',
-        'app/Services/Central',
         'app/Http/Middleware/EnsureCentralOperator.php',
         'app/Services/Subscription/ClientSubscriptionResolver.php',
         // K4.5 — تنها نقطهٔ تماس هسته با جدول ردپای مرکزی. عمداً یک adapter مرزی
@@ -150,16 +148,92 @@ class CentralBoundaryTest extends TestCase
     /**
      * ارجاع رشته‌ای سخت‌تر است: `central_subscriptions` نام جدول است و در
      * کوئری‌های خام می‌آید. خطای K7.5 دقیقاً از همین خانواده است.
+     *
+     * ## چرا فهرست جدول‌ها از مدل‌ها استخراج می‌شود و نه دستی نوشته می‌شود
+     *
+     * نسخهٔ قبلی یک آرایهٔ دستی داشت و **سه نامش وجود نداشت**:
+     * `central_reviews` و `central_updates` هرگز جدول نبودند و
+     * `central_hardware_units` نام اشتباه `central_operator_hardware_keys` بود.
+     * در عوض **یازده جدول واقعی** اصلاً محافظت نمی‌شدند — از جمله
+     * `central_operator_hardware_keys` و `central_operator_activities`.
+     *
+     * یعنی نگهبانی که باید K7.8 را ایمن کند، خودش سه‌جدول متروک و یازده جدول
+     * غایب را می‌سنجید: سبز بود بی‌آنکه چیزی را واقعاً تضمین کند. مهاجرت زیر چنین
+     * نگهبانی دقیقاً همان «مرز حذف‌شده با تست سبز» است.
+     *
+     * استخراج از روی کلاس‌های مدل، فهرست را خودنگه‌دار می‌کند: جدول تازه یعنی
+     * مدل تازه، و مدل تازه یعنی جدول تازه‌ای که خودکار زیر نگهبان می‌رود. تنها
+     * راهی که جدول از دست نگهبان خارج شود، عمداً و با دیده‌شدن است.
+     *
+     * @return list<string>
      */
+    private function centralTables(): array
+    {
+        $tables = [];
+
+        foreach (glob(base_path('app/Models/Central/*.php')) ?: [] as $file) {
+            $class = 'App\\Models\\Central\\'.basename($file, '.php');
+
+            if (! class_exists($class)) {
+                continue;
+            }
+
+            // `getTable()` به‌جای پارس‌کردن `$table`. این هر سه حالت را درست پوشش
+            // می‌دهد: `$table` صریح، snake_case، و جمع‌شدن نام — و `CentralLog`
+            // دقیقاً همان موردی است که پارس دستی از قلم می‌افتاد و `central_logs`
+            // را بی‌سروصدا از نگهبان حذف می‌کرد. همان تست، همان روز، همان جدول را
+            // گزارش کرد.
+            $tables[] = (new $class)->getTable();
+        }
+
+        sort($tables);
+
+        return array_values(array_unique($tables));
+    }
+
+    /**
+     * فهرست استخراج‌شده باید هر جدول `central_*` واقعی را پوشش دهد.
+     *
+     * این تست خودِ نگهبان را نگهبانی می‌کند: اگر کسی استخراج را خراب کند یا
+     * مدلی اضافه کند که دیده نمی‌شود، اینجا قرمز می‌شود نه آن‌که مرز بی‌سروصدا
+     * باز بماند.
+     */
+    public function test_the_table_list_covers_every_real_central_table(): void
+    {
+        $fromModels = $this->centralTables();
+
+        $live = [];
+        foreach (\DB::select("select tablename from pg_tables where schemaname = current_schema() and tablename like 'central\\_%'") as $row) {
+            $live[] = (string) ($row->tablename ?? '');
+        }
+        sort($live);
+
+        $this->assertNotSame(
+            [],
+            $live,
+            'هیچ جدول مرکزی پیدا نشد — اگر اتصال DB نیست، این تست نباید بی‌صدا رد شود.'
+        );
+
+        $missing = array_values(array_diff($live, $fromModels));
+        $this->assertSame(
+            [],
+            $missing,
+            "این جدول‌های مرکزی از نگهبان غایب‌اند — هر فایل هسته می‌تواند بی‌سروصدا صدایشان بزند:\n"
+            .implode("\n", $missing)
+        );
+
+        $stale = array_values(array_diff($fromModels, $live));
+        $this->assertSame(
+            [],
+            $stale,
+            "فهرست جدول‌های مرکزی نام‌هایی دارد که دیگر وجود ندارند — یعنی محافظت از چیزی که نیست:\n"
+            .implode("\n", $stale)
+        );
+    }
+
     public function test_no_core_file_queries_a_central_table_directly(): void
     {
         $violations = [];
-        $tables = [
-            'central_subscriptions', 'central_clients', 'central_invoices',
-            'central_plans', 'central_payments', 'central_billing_events',
-            'central_reviews', 'central_updates', 'central_kill_switches',
-            'central_chabokan_deployments', 'central_hardware_units',
-        ];
 
         foreach ($this->coreFiles() as $path) {
             if ($this->isCentral($path)) {
@@ -167,7 +241,7 @@ class CentralBoundaryTest extends TestCase
             }
 
             $source = (string) file_get_contents($path);
-            foreach ($tables as $table) {
+            foreach ($this->centralTables() as $table) {
                 if (preg_match('/[\'"`]'.$table.'[\'"`]/', $source) === 1) {
                     $violations[] = str_replace('\\', '/', str_replace(base_path().'/', '', $path)).' → '.$table;
                 }
