@@ -19,4 +19,8 @@ fi
 mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
 
 # -R: dev image runs FPM as root (see zz-docker.conf); production must use non-root.
-exec php-fpm83 -F -R
+# `php-fpm` (no version) is the symlink the Dockerfile points at whichever
+# package is installed. Hardcoding php-fpmNN here made the 8.3 -> 8.4 bump fail
+# with a restart loop on `php-fpm83: not found`, after the image had already
+# built and looked fine.
+exec php-fpm -F -R
