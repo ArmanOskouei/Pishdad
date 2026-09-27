@@ -183,9 +183,11 @@ final class PluginRouteTable
     /**
      * باطل‌کردن جدول. باید کنار `ManifestRegistry::flushCache()` صدا زده شود.
      *
-     * @see self::CACHE_TTL چرا فعلاً caller ندارد.
+     * static است چون تنها کارش `Cache::forget` روی یک ثابت کلاسی است و
+     * باید از `Plugin::booted()` — جایی که خودش static context است — صدا
+     * زده شود. به‌عنوان instance method از آنجا قابل فراخوانی نبود.
      */
-    public function flush(): void
+    public static function flush(): void
     {
         Cache::forget(self::CACHE_KEY);
     }

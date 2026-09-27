@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Services\Plugins\ManifestRegistry;
+use App\Services\Plugins\PluginRouteTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property string $review_status pending|approved|rejected|unverified
- * @property bool   $publisher_verified آیا امضای ناشر معتبر بوده (اصالت، نه تأیید)
+ * @property bool $publisher_verified آیا امضای ناشر معتبر بوده (اصالت، نه تأیید)
  * @property string|null $content_digest یکپارچگی محتوا؛ null یعنی «هرگز تأیید نشده»
  * @property string $source local|market|core
  */
@@ -43,6 +44,10 @@ class Plugin extends Model
     {
         $flush = static function (): void {
             ManifestRegistry::flushCache();
+            // K99: بدون این، جدول routeها تا پایان TTL سی‌ثانیه‌ای قدیمی
+            // می‌ماند و «غیرفعال‌سازی فوری» که سند معماری وعده می‌دهد عملی
+            // نیست: پلاگین غیرفعال‌شده تا ثانیهٔ ۳۰ هنوز route سرو می‌کند.
+            PluginRouteTable::flush();
         };
 
         static::saved($flush);
