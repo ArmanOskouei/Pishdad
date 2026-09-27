@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Central\Invoice;
+use App\Models\Central\Subscription;
 use App\Models\Media;
 use App\Models\Page;
 use App\Models\Ticket;
@@ -76,7 +77,7 @@ class DashboardController extends Controller
             ];
         }
 
-        if ($subscription->status === \App\Models\Central\Subscription::SUSPENDED) {
+        if ($subscription->status === Subscription::SUSPENDED) {
             $alerts[] = [
                 'type' => 'suspended',
                 'severity' => 'critical',

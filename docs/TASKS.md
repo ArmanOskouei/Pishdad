@@ -345,8 +345,8 @@
 | **B19** | 🟡 `ensureSealKey` از `Cache::forever` ⇒ یک flush ریدایس، کلید را بی‌صدا بی‌اعتبار می‌کند | `TrustStore.php:100` | جدول settings | done |
 | **B20** | 🟡 `hooks.not_yet_dispatched` هشدار است ولی `syncHooks` ردیف می‌نویسد و فرانت toast می‌دهد «هوک‌ها ثبت شدند». هوک‌ها **اجرا نمی‌شوند** | `Validator.php:293` · `PluginsClient.tsx:43` | متن صادقانه تا K5.5 | done |
 | **B21** | 🟡 عدد جادویی ۲۰۰۰ کنار `MAX_FILES`=۵۰۰۰ | `Validator.php:191` | ثابت | done |
-| **B22** | 🟡 تورفتگی شکسته در گروه `admin` | `routes/api.php:174-181` | تمیز | ⏳ |
-| **B23** | 🟡 `api.d.ts` (۲۰۸KB) نوع دستی `PackageAnalysis` دارد که با `PackageAnalyzer.tsx:27` تکراری است | — | I8 | ⏳ |
+| **B22** | 🟡 تورفتگی شکسته در گروه `admin` | done | تمیز | ✅ **انجام شد.** بررسی اولیهٔ من اشتباه بود: ۴ فاصله در `app/Http/Controllers` سطح استاندارد PSR-12 است نه نشانهٔ خرابی. تست درست با Pint نشان داد فقط **۵ فایل** مشکل دارند نه ۱۶. اصلاح: `DashboardController` یک import اضافه شد و مسیر کامل به import تبدیل شد؛ `RoleController` یک import بلااستفاده حذف شد؛ `LayoutController` و `PageController` و `SiteSettingsController` فقط CRLF←LF شدند و محتوا بایت‌به‌بایت یکسان است. Pint روی هر ۱۶ فایل PASS و ۴۹۵ تست پاس. **نکتهٔ باقی‌مانده:** `.gitattributes` قاعده‌ای برای `*.php` ندارد و `core.autocrlf=true` است، پس هر توسعه‌دهنده با autocrlf دوباره CRLF می‌گیرد و Pint قرمز می‌شود ⇒ افزودن `*.php text eol=lf` یک تسک جدا است |
+| **B23** | 🟡 `api.d.ts` (۲۰۸KB) نوع دستی `PackageAnalysis` دارد که با `PackageAnalyzer.tsx:27` تکراری است | done | I8 | ✅ **با گزارش بسته شد — ایجنت درست تشخیص داد صورت‌مسئله غلط است.** بررسی شد: `PackageAnalysis` اصلاً در `api.d.ts` نیست (صفر تطابق) و هیچ فایلی `@/types/api` را import نمی‌کند (صفر import). پس فایل تولیدشده دست‌نخورده است و خطر بازنویسی وجود ندارد. ایجنت سه راه مستقل آورد: هدر خودکار، hash یکسان قبل و بعد از `gen:types`، و صفر importer. `result()` در `PluginPackageValidator` با فیلدهای UI هم‌خوان است پس drift وجود ندارد. **تنها نقص واقعی:** این سه type در فایل کامپوننت نشسته‌اند در حالی که خانهٔ typeهای دامنه `src/lib/domain.ts` است و آن خارج از مالکیت فایل بود. **کشف مهم:** `api.d.ts` با ۲۰۸KB امروز کد مرده است و هیچ‌چیز از آن import نمی‌کند |
 | **B24** | 🔴 **XSS در بلوک CTA — تأییدشده.** `href` بدون هیچ sanitize مستقیم در `<a>` می‌رود. `safeHtml` (`:12`) فقط روی متن ریچ‌تکست کار می‌کند و خط `:19` پاک‌سازی‌اش فقط داخل `safeHtml` است. یعنی `javascript:alert(1)` در بلوک CTA زنده است. **قبل از باز کردن `site.block_type` باید درست شود** | `components/site/BlockRenderer.tsx:109` | رد `href` از `safeHtml` | done |
 | **B25** | 🔴 **`requires.core` هرگز بررسی نمی‌شود** — تأییدشده با جست‌وجوی کامل. فقط در یک کامنت ذکر شده. یعنی کل لایهٔ سازگاری نسخه (`since`/`schema_version`) روی کاغذ است | `PluginPackageContract.php:18` | K3.0 | done |
 | **B26** | 🔴 `example` نقطهٔ `admin.menu` ۳ از ۴ فیلدش غلط است — تأییدشده با مقایسهٔ واقعی. `Contract.php:87` می‌گوید `title`/`path` ولی `menu.ts:3` می‌خواهد `{ href, label, icon, key }`. عملاً داریم به برنامه‌نویس **فیلد غلط** یاد می‌دهیم | `Contract.php:87` × `menu.ts:3` | K3.1 | done |
@@ -513,8 +513,8 @@
 | **K3.0** | ⭐ **enforce کردن `requires.core`** | `requires` **الان هیچ‌جا بررسی نمی‌شود** — فقط در کامنت `PluginPackageContract.php:18`. یعنی کل لایهٔ سازگاری روی کاغذ است. **پیش‌شرط I5** | done |
 | **K3.1** | ⭐ اصلاح `example` غلط `admin.menu` | 🔴 `Contract.php:87` می‌گوید `title`/`path`/`icon`/`permission` ولی واقعیت `lib/menu.ts:3` است: `{ href, label, icon, key }`. **۳ از ۴ فیلد اشتباه** — عملاً داریم به برنامه‌نویس فیلد غلط یاد می‌دهیم. `permission: 'posts.view'` هم بدون prefix اسلاگ است | done |
 | **K3.2** | اصلاح `extensionPoints()` که فیلدها را drop می‌کند | 🔴 `Contract.php:137` یک map **دستی** است. هر فیلد تازهٔ قرارداد که دستی اضافه نشود **بی‌صدا از پاسخ API حذف می‌شود** و UI نشانش نمی‌دهد | done |
-| **K3.3** | ⭐ `openness` + `status` + `since` + `schema_version` + `forbidden` + `max` | ساختار دادهٔ بالا | ⏳ |
-| **K3.4** | `validateDeclaration()` — متد خالص، دستی، fail-closed | | done |
+| **K3.3** | ⭐ `openness` + `status` + `since` + `schema_version` + `forbidden` + `max` | done | ⏳ | ✅ **از قبل انجام شده بود — فهرست کهنه بود.** `openness` · `status` · `since` · `schema_version` · `forbidden` همگی در `PluginPackageContract` موجودند 
+| **K3.4** | `validateDeclaration()` — متد خالص، دستی، fail-closed | done | done | ✅ **از قبل انجام شده بود — فهرست کهنه بود.** `validateDeclaration()` در `PluginPackageContract.php` موجود است 
 | **K3.5** | 🔴 حذف `Next.js/panel.json` از `ALLOWED_PATHS` + حذف `panelFileChecks` + رفع وابستگی تست | تصمیم C2 | done |
 | **K3.6** | ⛔ حذف فلگ `json` | سیگنال **ضدّهمبسته با واقعیت**: تنها نقطهٔ زنده (`site.page_type`) این فلگ را ندارد ولی ۵ نقطهٔ مرده دارند | done |
 | **K3.7** | `example_ok` + `example_bad` برای هر نقطه | تست و راهنما هر دو از آن استفاده می‌کنند | done |
@@ -602,7 +602,7 @@
 | K4.3 | مودال تأیید **با رمز عبور** (نه checkbox) + re-auth سمت سرور | چون gesture سمت کلاینت است و در برابر CSRF ضعیف | ⏳ |
 | K4.4 | وضعیت `dev_mode` در `settings` گروه `system` + `expires_at` (۸ ساعت) + `unlock_token` | انقضای خودکار غیرقابل مذاکره است | ⏳ |
 | K4.5 | ثبت در `operator_activities` | بعد از نصب یک پلاگین بد، همین ردپا تفاوت «می‌توانیم عیب‌یابی کنیم» و «کور هستیم» است | ⏳ |
-| K4.6 | ⛔ **enforce سمت سرور** روی `upload()` و `upgrade()` | B3. middleware، نه gate سمت کلاینت | ⏳ |
+| K4.6 | ⛔ **enforce سمت سرور** روی `upload()` و `upgrade()` | done | ⏳ | ✅ **از قبل انجام شده بود — فهرست کهنه بود.** `GateDevModeUpload` صفت `dev_mode_granted` را می‌گذارد و هر دو مسیر enforce می‌کنند: `upload()` خط ۹۸ و `upgrade()` خط ۲۴۶ با شرط `!== true` پاسخ ۴۲۲ می‌دهند و لاگ `plugin.upload_rejected` و `plugin.upgrade_rejected` می‌نویسند. کار در commit `616d316` انجام شده بود. یعنی هیچ مسیر امنیتی بازی وجود ندارد 
 | K4.7 | فرانت: ۵ کلیک + مودال در تنظیمات | — | ⏳ |
 | K4.8 | فرانت: گیت کردن دکمهٔ آپلود + نمایش راهنما | بند ۲ | ⏳ |
 | K4.9 | نمایش زمان باقی‌مانده در UI | — | ⏳ |
