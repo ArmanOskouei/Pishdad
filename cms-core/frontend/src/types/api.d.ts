@@ -423,7 +423,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description صفحه ساخته شد */
+                /** @description صفحه ساخته شد؛ data.is_single boolean با default false */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -466,7 +466,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description جزئیات صفحه */
+                /** @description جزئیات صفحه شامل data.is_single */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -513,7 +513,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description ویرایش ذخیره شد */
+                /** @description ویرایش ذخیره شد؛ data.is_single boolean */
                 200: {
                     headers: {
                         [name: string]: unknown;

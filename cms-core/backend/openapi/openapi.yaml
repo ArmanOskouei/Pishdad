@@ -203,8 +203,7 @@ paths:
                       data: { type: object, description: 'بلوک faq: {items: [{q (الزامی، حداکثر ۲۰۰ نویسه), a (الزامی)}]} — حداکثر ۲۰ آیتم' }
                 meta: { type: object }
       responses:
-         '201': { description: 'صفحه ساخته شد؛ data.is_single boolean با default false' }
-
+        '201': { description: 'صفحه ساخته شد؛ data.is_single boolean با default false' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: پریست یافت نشد }
         '422': { $ref: '#/components/responses/ValidationError' }
@@ -215,7 +214,7 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
-         '200': { description: 'جزئیات صفحه شامل data.is_single' }
+        '200': { description: 'جزئیات صفحه شامل data.is_single' }
 
         '404': { description: صفحه یافت نشد }
     put:
@@ -241,7 +240,7 @@ paths:
                 left_enabled: { type: boolean, description: 'فعال/غیرفعال مستقل ستون چپ' }
                 right_enabled: { type: boolean, description: 'فعال/غیرفعال مستقل ستون راست' }
       responses:
-         '200': { description: 'ویرایش ذخیره شد؛ data.is_single boolean' }
+        '200': { description: 'ویرایش ذخیره شد؛ data.is_single boolean' }
 
         '404': { description: پریست یافت نشد }
         '422': { $ref: '#/components/responses/ValidationError' }
