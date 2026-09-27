@@ -1056,12 +1056,13 @@ epositories سراسری به mirrors.aliyun.com/composer/ بود با اولو�
 
 | # | تسک | وضعیت | فایل/محل | یادداشت |
 |---|------|--------|-----------|---------|
-| K95 | DeveloperGuide.tsx به پلاگین‌نویس یک بخش کامل hooks آموزش می‌دهد | ⏳ | cms-core/frontend/src/components/DeveloperGuide.tsx:22,78-90,123 | 🔴 **بدترین مورد باقی‌مانده.** جدول نام hookها و جملهٔ «هوک‌ها اعلانی‌ند: هنگام فعال‌سازی، عین مانیفست در رجیستری ثبت می‌شود (جایگزینی کامل)» ⇒ دقیقاً قابلیت حذف‌شده را به همان مخاطبی تبلیغ می‌کند که حذفش به او آسیب می‌زند |
-| K96 | PLUGIN-GUIDE.md نمودار چرخهٔ عمر هنوز ثبت هوک را وعده می‌دهد | ⏳ | docs/PLUGIN-GUIDE.md:180 | 🟠 سند رو‌به‌پلاگین‌نویس و حالا نادرست است |
-| K97 | openapi.yaml در summary هنوز «هوک‌ها» را وعده می‌دهد | ⏳ | openapi.yaml:1578,1591 | 🟠 فقط متن است نه شکل — Plugin در خط ۱۹۱۹ هیچ property به اسم hooks ندارد، پس فقط دو رشته اصلاح و gen:types دوباره اجرا شود (که pi.d.ts:5319,5366 را تغییر می‌دهد) |
-| K98 | PluginPackageValidator هنوز کد hooks.not_yet_dispatched می‌دهد | ⏳ | PluginPackageValidator.php:317-320 + تست خط ۷۲۱ | 🟠 کامنتش می‌گوید «فاز ۱ هنوز نیامده» — یعنی همان دروگویی که حذفش کردیم، تکرارشده. تست‌اش هنوز سبز است. اگر ادغام شود، PackageAnalyzer.tsx:90 هم باید نگاشت کد را عوض کند |
+| K95 | DeveloperGuide.tsx به پلاگین‌نویس یک بخش کامل hooks آموزش می‌دهد | done | cms-core/frontend/src/components/DeveloperGuide.tsx:22,78-90,123 | 🔴 **بدترین مورد باقی‌مانده.** جدول نام hookها و جملهٔ «هوک‌ها اعلانی‌ند: هنگام فعال‌سازی، عین مانیفست در رجیستری ثبت می‌شود (جایگزینی کامل)» ⇒ دقیقاً قابلیت حذف‌شده را به همان مخاطبی تبلیغ می‌کند که حذفش به او آسیب می‌زند |
+| K96 | PLUGIN-GUIDE.md نمودار چرخهٔ عمر هنوز ثبت هوک را وعده می‌دهد | done | docs/PLUGIN-GUIDE.md:180 | 🟠 سند رو‌به‌پلاگین‌نویس و حالا نادرست است |
+| K97 | openapi.yaml در summary هنوز «هوک‌ها» را وعده می‌دهد | done | openapi.yaml:1578,1591 | 🟠 فقط متن است نه شکل — Plugin در خط ۱۹۱۹ هیچ property به اسم hooks ندارد، پس فقط دو رشته اصلاح و gen:types دوباره اجرا شود (که pi.d.ts:5319,5366 را تغییر می‌دهد) |
+| K98 | PluginPackageValidator هنوز کد hooks.not_yet_dispatched می‌دهد | done | PluginPackageValidator.php:317-320 + تست خط ۷۲۱ | 🟠 کامنتش می‌گوید «فاز ۱ هنوز نیامده» — یعنی همان دروگویی که حذفش کردیم، تکرارشده. تست‌اش هنوز سبز است. اگر ادغام شود، PackageAnalyzer.tsx:90 هم باید نگاشت کد را عوض کند |
 | K99 | PluginRouteTable::flush() هیچ caller ندارد | ⏳ | PluginRouteTable.php · Plugin.php | 🟠 TTL ۳۰ ثانیه دامنهٔ آسیب را محدود می‌کند ولی «غیرفعال‌سازی فوری» سند کامل نیست. Plugin::booted() فقط ManifestRegistry::flushCache() را صدا می‌زند |
-| K100 | ثبت route در outes/api.php انجام نشد (مالکیت ایجنت نبود) | ⏳ | cms-core/backend/routes/api.php | 🟡 یک خط لازم است. snippet داخل docblock کلاس PluginRouter آمده و تست setUp() همان را ثبت می‌کند، پس کار می‌کند — ولی در فایل واقعی ثبت نشده |
-| K101 | domain.ts فیلد مردهٔ hooks_count را نگه داشته | ⏳ | cms-core/frontend/src/lib/domain.ts:440 | ⚪ اختیاری است پس هنوز کامپایل می‌شود، ولی دیگر هیچ‌وقت پر نمی‌شود |
+| K100 | ثبت route در 
+outes/api.php انجام نشد (مالکیت ایجنت نبود) | ⏳ | cms-core/backend/routes/api.php | 🟡 یک خط لازم است. snippet داخل docblock کلاس PluginRouter آمده و تست setUp() همان را ثبت می‌کند، پس کار می‌کند — ولی در فایل واقعی ثبت نشده |
+| K101 | domain.ts فیلد مردهٔ hooks_count را نگه داشته | done | cms-core/frontend/src/lib/domain.ts:440 | ⚪ اختیاری است پس هنوز کامپایل می‌شود، ولی دیگر هیچ‌وقت پر نمی‌شود |
 | K102 | .gitattributes برای *.php text eol=lf ندارد | ⏳ | .gitattributes | 🟠 core.autocrlf=true است، پس هر توسعه‌دهنده با autocrlf فایل را CRLF می‌گیرد و Pint دوباره قرمز می‌شود ⇒ اصلاح B22 برای آن‌ها پایدار نیست |
 
