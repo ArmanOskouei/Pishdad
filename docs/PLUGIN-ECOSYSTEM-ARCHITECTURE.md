@@ -25,7 +25,7 @@
 پیش از هر برنامه‌ریزی برای بازار، این را باید دانست:
 
 1. **سیستم پلاگین فعلی کد را اجرا نمی‌کند.** `PluginController::upload()` فایل ZIP را در `storage/app/private/plugins/shared/` ذخیره می‌کند و تمام. در کل بک‌اند هیچ `extractTo`، هیچ `ClassLoader::addPsr4` و هیچ autoload برای پلاگین وجود ندارد.
-2. **جدول `plugin_hooks` فقط نوشتنی است.** `PluginController::syncHooks()` رکورد می‌سازد ولی هیچ dispatcherای آن را نمی‌خواند. یعنی فیلد `hooks` در مانیفست قولی است که هسته نگه نمی‌دارد.
+2. **جدول `plugin_hooks` حذف شد — K5.5، تاریخ ۲۰۲۶-۰۹-۲۷.** تا آن روز فقط نوشتنی بود: `PluginController::syncHooks()` رکورد می‌ساخت ولی هیچ dispatcherای آن را نمی‌خواند، یعنی فیلد `hooks` در مانیفست قولی بود که هسته نگه نمی‌داشت. تصمیم ثبت‌شده: به‌جای ساختن dispatcher، فیلد از قرارداد حذف شود — چون dispatcher واقعی به `PluginAutoloader` وصل‌نشده و کار جداسازی اجرا می‌خواهد، یعنی فاز ۱ با ریسک امنیتی، نه یک حذف ساده. مدل `PluginHook` و رابطهٔ `Plugin::hooks()` رفتند و جدول با مهاجرت `2026_10_06_000001_drop_plugin_hooks_table` افتاد. مانیفستی که هنوز `hooks` اعلام کند نه خطا می‌گیرد و نه چیزی می‌نویسد؛ پاسخ فعال‌سازی صریح می‌گوید این فیلد بی‌اثر است.
 3. **نتیجه:** تا فاز ۱ ساخته نشود، «بازار»، «سهم ۳۰٪» و «حالت توسعه‌دهنده» روی هوا هستند.
 
 فاز ۰ این مشکلات را حل **نمی‌کند**؛ فقط پایهٔ اعتماد را درست می‌کند تا فاز ۱ روی پایهٔ غلط ساخته نشود.
@@ -372,7 +372,7 @@ plugin.active                      → پلاگین باید فعال باشد
 | 2 | `system` از مانیفست خوانده می‌شد | `PluginController` | 🔴 | ✅ **فاز ۰ رفع شد** (`system_plugins` allowlist) |
 | 3 | `review_status` پیش‌فرض `approved` (fail-open) | اسکیما | 🔴 | ✅ **فاز ۰ رفع شد** |
 | 4 | پلاگین استخراج/اجرا نمی‌شود | کل بک‌اند | 🔴 | فاز ۱ |
-| 5 | `plugin_hooks` dispatcher ندارد | `PluginController::syncHooks` | 🔴 | فاز ۱ — یا بساز یا از مانیفست حذف کن |
+| 5 | `plugin_hooks` dispatcher نداشت | ~~`PluginController::syncHooks`~~ | 🔴 | ✅ **K5.5 رفع شد** (۲۰۲۶-۰۹-۲۷) — به‌جای dispatcher، خودِ فیلد از مانیفست حذف شد؛ جدول و مدل رفتند |
 | 6 | پرمیشن بدون prefix slug | `PluginController::ensurePermissions` | 🟠 | فاز ۱ |
 | 7 | `config('search.providers')` استاتیک — docblock خود `SearchManager` به پلاگین می‌گوید فایل کانفیگ هسته را ویرایش کند | `SearchManager` | 🟠 | فاز ۱ (registry) |
 | 8 | بدون سطح route برای بک‌اند | `SEARCH-PLUGIN-CONTRACT.md` | 🟠 | فاز ۱ |

@@ -619,8 +619,8 @@
 | K5.1 | `PluginExtractor` — ۱۱ کنترل استخراج امن | گام ۱ (فهرست ZIP) **در K1.6.3 انجام شد**. گام‌های ۲ تا ۱۱ باقی است | 🟡 ۱ از ۱۱ |
 | K5.2 | ساختار `releases/{version}-{hash}/` + `current` + استخراج atomic | staging → verify → rename. هرگز مستقیم روی مسیر زنده | done |
 | K5.3 | PSR-4 loader با prefix اجباری `Pishdad\Plugins\{Studly}\` | با `ClassLoader::addPsr4()` روی نمونه. **رد هر namespace خارج از prefix** — تنها جایی که امنیت بارگذاری واقعاً enforce می‌شود | done |
-| K5.4 | `PluginRouter` catch-all — تنها route واقعی مالک هسته باشد | تداخل ساختاری ناممکن، `route:cache` معتبر، غیرفعال‌سازی = یک فلگ | ⏳ |
-| K5.5 | dispatcher هوک **یا** حذف `hooks` از مانیفست | B20. فعلاً هیچ‌کدام | ⏳ |
+| K5.4 | `PluginRouter` catch-all — تنها route واقعی مالک هسته باشد | تداخل ساختاری ناممکن، `route:cache` معتبر، غیرفعال‌سازی = یک فلگ | done |
+| K5.5 | dispatcher هوک **یا** حذف `hooks` از مانیفست | B20. فعلاً هیچ‌کدام | done |
 | K5.6 | migration runner با prefix `{slug}_` + سقف ۲۰ جدول / ۱۰ ایندکس | + بررسی تداخل با جدول‌های هسته | ⏳ |
 | K5.7 | ⭐ نقش دوم PostgreSQL (K1.5.3) | نقش `pishdad_owner` برای `migrate`، نقش `pishdad_app` برای runtime با DDL فقط روی `{slug}_*`. تا وقتی این enforce نشده، prefix فقط **انتخاب** است نه **محدودیت**. ⚠️ متخصص نامطمئن است که مکانیزم migration لاراول ۱۱ زیر این تفکیک بدون تغییر کار کند ⇒ spike دو-روزه | ⏳ |
 | K5.8 | سرویس اعلان (`POST /v1/admin/notifications` با namespacing بر slug) + drawer + نشانگر | B13. **بیرون از فهرست نقاط اتصال** — سرویسی است که پلاگین صدایش می‌زند نه چیزی که اعلام می‌کند | ⏳ |
@@ -1051,3 +1051,17 @@ epositories سراسری به mirrors.aliyun.com/composer/ بود با اولو�
 
 | U93 | مهاجرت K7.5 روی دیتابیس dev هرگز اجرا نشده بود ⇒ مدل و دیتابیس ناهماهنگ | done | `cms` DB · `2026_10_05_000001_prefix_central_tables` | 🔴 **کشف شد در U99.** مدل‌های مرکزی `$table = central_*` دارند ولی ۸ جدول بدون پیشوند هنوز وجود داشتند و migration در وضعیت Pending بود ⇒ هر چیزی که این مدل‌ها می‌خواند (core_versions، kill_switches، update_rollouts، operator_hardware_keys، setup_tokens…) جدول اشتباه یا خالی می‌دید. **چرا تست‌ها سبز بودند:** هر تست دیتابیس تازه می‌سازد و migration را خودش اجرا می‌کند، پس این ناهماهنگی هرگز دیده نمی‌شد — فقط در خود دیتابیس dev وجود داشت. با `migrate --force` اجرا و تأیید شد: ۱۹ جدول مرکزی، همه پیشونددار، صفر بدون پیشوند. ۴۹۵ تست پاس |
 | U94 | `openapi.yaml` سه خط با تورفتگی غلط داشت ⇒ `gen:types` از کار افتاده بود | done | `cms-core/backend/openapi/openapi.yaml` | 🔴 **کشف شد در U11.** خط‌های `'201'` و `'200'` با ۹ فاصله بودند در حالی که ۳۰۳ خط دیگر با ۸ فاصله ⇒ YAML نامعتبر و `openapi-typescript` روی `bad indentation of a mapping entry` می‌افتاد. یعنی `npm run gen:types` **از قبل** خراب بود و `src/types/api.d.ts` کهنه مانده بود. اصلاح شد و اسکریپت برای اولین بار کار کرد. تأیید: صفر `$ref` شکسته، صفر مقدار null، و خروجی **idempotent** است (دو بار اجرا = یک نتیجه) — تنها تفاوت با نسخهٔ commit‌شده سه توضیح `data.is_single` است که در YAML بود ولی هرگز به type نرسیده بود. **اشتباه خودم:** اسکریپت اصلاح اولم با regex فقط کلید را نگه داشت و مقدار را دور انداخت؛ با `git diff` دیده شد و هر دو خط برگردانده شد |
+
+## گروه K95 — پیگیری‌های باز مربوط به K5.4 و K5.5 (کشف‌شده حین اجرا)
+
+| # | تسک | وضعیت | فایل/محل | یادداشت |
+|---|------|--------|-----------|---------|
+| K95 | DeveloperGuide.tsx به پلاگین‌نویس یک بخش کامل hooks آموزش می‌دهد | ⏳ | cms-core/frontend/src/components/DeveloperGuide.tsx:22,78-90,123 | 🔴 **بدترین مورد باقی‌مانده.** جدول نام hookها و جملهٔ «هوک‌ها اعلانی‌ند: هنگام فعال‌سازی، عین مانیفست در رجیستری ثبت می‌شود (جایگزینی کامل)» ⇒ دقیقاً قابلیت حذف‌شده را به همان مخاطبی تبلیغ می‌کند که حذفش به او آسیب می‌زند |
+| K96 | PLUGIN-GUIDE.md نمودار چرخهٔ عمر هنوز ثبت هوک را وعده می‌دهد | ⏳ | docs/PLUGIN-GUIDE.md:180 | 🟠 سند رو‌به‌پلاگین‌نویس و حالا نادرست است |
+| K97 | openapi.yaml در summary هنوز «هوک‌ها» را وعده می‌دهد | ⏳ | openapi.yaml:1578,1591 | 🟠 فقط متن است نه شکل — Plugin در خط ۱۹۱۹ هیچ property به اسم hooks ندارد، پس فقط دو رشته اصلاح و gen:types دوباره اجرا شود (که pi.d.ts:5319,5366 را تغییر می‌دهد) |
+| K98 | PluginPackageValidator هنوز کد hooks.not_yet_dispatched می‌دهد | ⏳ | PluginPackageValidator.php:317-320 + تست خط ۷۲۱ | 🟠 کامنتش می‌گوید «فاز ۱ هنوز نیامده» — یعنی همان دروگویی که حذفش کردیم، تکرارشده. تست‌اش هنوز سبز است. اگر ادغام شود، PackageAnalyzer.tsx:90 هم باید نگاشت کد را عوض کند |
+| K99 | PluginRouteTable::flush() هیچ caller ندارد | ⏳ | PluginRouteTable.php · Plugin.php | 🟠 TTL ۳۰ ثانیه دامنهٔ آسیب را محدود می‌کند ولی «غیرفعال‌سازی فوری» سند کامل نیست. Plugin::booted() فقط ManifestRegistry::flushCache() را صدا می‌زند |
+| K100 | ثبت route در outes/api.php انجام نشد (مالکیت ایجنت نبود) | ⏳ | cms-core/backend/routes/api.php | 🟡 یک خط لازم است. snippet داخل docblock کلاس PluginRouter آمده و تست setUp() همان را ثبت می‌کند، پس کار می‌کند — ولی در فایل واقعی ثبت نشده |
+| K101 | domain.ts فیلد مردهٔ hooks_count را نگه داشته | ⏳ | cms-core/frontend/src/lib/domain.ts:440 | ⚪ اختیاری است پس هنوز کامپایل می‌شود، ولی دیگر هیچ‌وقت پر نمی‌شود |
+| K102 | .gitattributes برای *.php text eol=lf ندارد | ⏳ | .gitattributes | 🟠 core.autocrlf=true است، پس هر توسعه‌دهنده با autocrlf فایل را CRLF می‌گیرد و Pint دوباره قرمز می‌شود ⇒ اصلاح B22 برای آن‌ها پایدار نیست |
+

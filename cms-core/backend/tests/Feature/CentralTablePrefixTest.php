@@ -47,12 +47,13 @@ class CentralTablePrefixTest extends TestCase
         'central_logs',
     ];
 
+    // K5.5: `plugin_hooks` از این فهرست بیرون است — همان فایل سازنده‌اش ساخته بود ولی
+    // `2026_10_06_000001` حذفش کرد، و این تست `hasTable` را assert می‌کند.
     /** @var list<string> جدول‌های هسته‌ای که در همان فایل مهاجرت ساخته شده‌اند. */
     private const CORE_TABLES_IN_SAME_MIGRATION = [
         'tickets',
         'ticket_messages',
         'plugins',
-        'plugin_hooks',
         'notifications',
         'side_presets',
         'publisher_keys',

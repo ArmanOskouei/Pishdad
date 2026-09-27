@@ -17,11 +17,13 @@ use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 use ZipArchive;
 
-/** تسک ۵.۴ — DoD: نصب امضاشده → فعال → هوک‌ها ثبت → rollback؛ امضای نامعتبر = 422. */
+/** تسک ۵.۴ — DoD: نصب امضاشده → فعال → rollback؛ امضای نامعتبر = 422. K5.5: بدون رجیستری هوک. */
 class PluginsTest extends TestCase
 {
     use RefreshDatabase;
@@ -211,7 +213,7 @@ class PluginsTest extends TestCase
         );
     }
 
-    public function test_signed_install_activate_registers_hooks_and_upgrade(): void
+    public function test_signed_install_activate_then_upgrade(): void
     {
         $auth = $this->actingAs($this->owner(), 'sanctum');
 
@@ -230,11 +232,12 @@ class PluginsTest extends TestCase
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
             ->assertJsonPath('data.active', true);
 
-        $this->assertDatabaseCount('plugin_hooks', 2);
-
+        // K5.5: اعلام `hooks` نه رجیستری می‌سازد، نه در `present()` چیزی برمی‌گرداند.
         $show = $auth->getJson("/api/v1/admin/plugins/{$id}")->assertOk()->json('data');
         $this->assertEquals(64, strlen($show['checksum']));
-        $this->assertCount(2, $show['hooks']);
+        $this->assertArrayNotHasKey('hooks', $show);
+        $this->assertArrayNotHasKey('hooks_count', $show);
+        $this->assertFalse(Schema::hasTable('plugin_hooks'), 'جدول plugin_hooks باید حذف شده باشد.');
 
         // ارتقا به نسخه بالاتر + rollback نسخه قبلی ثبت می‌شود.
         $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
@@ -666,8 +669,11 @@ class PluginsTest extends TestCase
     // ── B20 — پاسخ صادقانهٔ فعال‌سازی ────────────────────────────────────────
 
     /**
-     * `hooks.not_yet_dispatched` هشدار است چون هوک‌ها dispatch نمی‌شوند؛ پس پاسخ
+     * `hooks.not_yet_dispatched` هشدار است چون هوک‌ها اجرا نمی‌شوند؛ پس پاسخ
      * فعال‌سازی نباید طوری باشد که UI فکر کند هوک‌ها ثبت و اجرا شدند.
+     *
+     * K5.5 بعد از این تست آمد و «هنوز» را از متن برداشت: وعدهٔ ساخت dispatcher
+     * لغو شد، پس متن باید بگوید فیلد بی‌اثر است نه اینکه فعلاً اجرا نمی‌شود.
      */
     public function test_activate_response_is_honest_about_hooks(): void
     {
@@ -687,7 +693,12 @@ class PluginsTest extends TestCase
             ->json('warning');
 
         $this->assertIsString($warning);
-        $this->assertStringContainsString('هنوز اجرا نمی‌شوند', $warning);
+        $this->assertStringContainsString('در قرارداد پلاگین نیست', $warning);
+        $this->assertStringNotContainsString(
+            'هنوز اجرا نمی‌شوند',
+            $warning,
+            'متن نباید وعدهٔ ساخت dispatcher بدهد؛ K5.5 آن را لغو کرد.'
+        );
     }
 
     /** پلاگین بی‌هوک هشدار نمی‌گیرد — ولی `hooks_dispatched` همچنان صادقانه `false` است. */
@@ -704,5 +715,123 @@ class PluginsTest extends TestCase
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
             ->assertJsonPath('hooks_dispatched', false)
             ->assertJsonPath('warning', null);
+    }
+
+    // ── K5.5 — هوک‌ها از قرارداد حذف شد ─────────────────────────────────────
+
+    /**
+     * قرارداد تازه: اعلام `hooks` نه رد می‌شود، نه چیزی می‌نویسد.
+     *
+     * مانیفست پیش‌فرض همین کلاس دو هوک اعلام می‌کند، پس این تست مسیر «هوک
+     * اعلام کرده» را بدون دست‌زدن به fixture ثابت می‌کند: 201، سپس 200، و
+     * هیچ جدولی در کار نیست.
+     */
+    public function test_declaring_hooks_is_neither_an_error_nor_a_row(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'still-declares-hooks'])),
+        ])->assertCreated()->json('data.id');
+
+        $this->approveAsOperator('plugin', (int) $id);
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
+            ->assertJsonPath('data.active', true)
+            ->assertJsonPath('hooks_dispatched', false);
+
+        $this->assertFalse(
+            Schema::hasTable('plugin_hooks'),
+            'جدول باید حذف شده باشد، پس اعلام هوک چیزی برای نوشتن ندارد.'
+        );
+    }
+
+    /**
+     * مدل و رابطه هم با جدول باید رفته باشند — وگرنه یک `->hooks()` استفاده‌نشده
+     * باقی می‌ماند که فقط در اولین فراخوانی می‌ترکد.
+     */
+    public function test_the_hook_model_and_relation_are_gone(): void
+    {
+        // `class_exists()` با autoload صدا می‌زند و روی فایل حذف‌شده خطای include
+        // می‌دهد، پس وجودِ خودِ فایل بررسی می‌شود — همان چیزی که autoloader
+        // هنوز به آن اشاره دارد.
+        $this->assertFalse(
+            is_file(app_path('Models/PluginHook.php')),
+            'مدل PluginHook باید حذف شده باشد.'
+        );
+        $this->assertFalse(
+            method_exists(Plugin::class, 'hooks'),
+            'رابطهٔ hooks() باید حذف شده باشد.'
+        );
+    }
+
+    /**
+     * مهاجرت حذف باید برگشت‌پذیر باشد و `down()` همان شکل اصلی را بسازد.
+     *
+     * الگوی مهاجرت K7.5: خودِ فایل را `require` می‌کنیم و مستقیم صدا می‌زنیم.
+     * DDL در PostgreSQL تراکنشی است، پس RefreshDatabase همه‌چیز را برمی‌گرداند.
+     */
+    public function test_the_drop_migration_round_trips_the_original_table_shape(): void
+    {
+        $this->assertFalse(Schema::hasTable('plugin_hooks'));
+
+        $migration = require base_path('database/migrations/2026_10_06_000001_drop_plugin_hooks_table.php');
+
+        $migration->down();
+        $this->assertTrue(Schema::hasTable('plugin_hooks'));
+
+        $this->assertSame(
+            ['id', 'plugin_id', 'hook', 'handler', 'created_at', 'updated_at'],
+            collect(Schema::getColumns('plugin_hooks'))->pluck('name')->all()
+        );
+
+        $foreign = collect(Schema::getForeignKeys('plugin_hooks'))->first();
+        $this->assertSame('plugins', $foreign['foreign_table']);
+        $this->assertSame(['plugin_id'], $foreign['columns']);
+        $this->assertSame('cascade', strtolower((string) $foreign['on_delete']));
+
+        $migration->up();
+        $this->assertFalse(Schema::hasTable('plugin_hooks'));
+    }
+
+    /**
+     * رگرسیون جابه‌جایی: `ensurePermissions` فقط از تهِ `syncHooks()` صدا زده
+     * می‌شد، پس حذف آن متد می‌توانست پرمیشن‌های مانیفست را بی‌سروصدا از بین
+     * ببرد. مسیر ارتقا هیچ تستی نداشت، پس اینجا ساخته شد.
+     */
+    public function test_upgrading_an_active_plugin_still_registers_new_manifest_permissions(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest([
+                'slug' => 'perm-drift',
+                'permissions' => [['module' => 'alpha', 'title_fa' => 'آلفا', 'actions' => ['view']]],
+            ])),
+        ])->assertCreated()->json('data.id');
+
+        $this->approveAsOperator('plugin', (int) $id);
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
+
+        $this->assertNotNull(
+            Permission::findByName('plugin:perm-drift:alpha.view', 'web'),
+            'فعال‌سازی باید پرمیشن نسخهٔ اول را بسازد.'
+        );
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+            'file' => $this->pluginZip($this->manifest([
+                'slug' => 'perm-drift',
+                'version' => '2.0.0',
+                'permissions' => [
+                    ['module' => 'alpha', 'title_fa' => 'آلفا', 'actions' => ['view']],
+                    ['module' => 'beta', 'title_fa' => 'بتا', 'actions' => ['edit']],
+                ],
+            ])),
+        ])->assertOk();
+
+        $this->assertNotNull(
+            Permission::findByName('plugin:perm-drift:beta.edit', 'web'),
+            'ارتقای نسخهٔ فعال باید پرمیشن ماژول تازه را هم بسازد.'
+        );
     }
 }

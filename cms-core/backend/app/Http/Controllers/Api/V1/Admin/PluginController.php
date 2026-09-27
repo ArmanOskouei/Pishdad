@@ -27,7 +27,8 @@ use ZipArchive;
  *
  * - آپلود فقط ZIP (سقف ۲۰MB) با manifest.json دارای signature معتبر؛
  *   در غیر این صورت 422 + لاگ امنیتی (fail-closed).
- * - هوک‌های مانیفست هنگام فعال‌سازی در رجیستری plugin_hooks ثبت می‌شوند.
+ * - فیلد `hooks` در مانیفست پذیرفته ولی نادیده گرفته می‌شود (K5.5): نه رجیستری
+ *   می‌سازد، نه dispatcher دارد. جدولش حذف شد.
  * - پلاگین سیستمی (manifest.system=true) قابل deactivate/uninstall نیست (422).
  * - مورد ۶ (گردش تایید): آپلود مشتری → review_status=pending و غیرقابل
  *   فعال‌سازی تا تایید مرکزی؛ سوپرادمین/اپراتور مستثنا (approved).
@@ -45,7 +46,6 @@ class PluginController extends Controller
     {
         // مشترک: همه مدیران همه پلاگین‌های نصب را می‌بینند.
         $plugins = Plugin::query()
-            ->withCount('hooks')
             ->latest()
             ->paginate((int) $request->query('per_page', 20));
 
@@ -187,13 +187,16 @@ class PluginController extends Controller
         }
 
         $plugin->forceFill(['active' => true])->save();
-        $this->syncHooks($plugin);
+        // این فراخوانی قبلاً تهِ `syncHooks()` بود و با حذف آن، تنها جایی که
+        // پرمیشن‌های مانیفست ساخته می‌شدند از بین رفت. `ManifestRegistry` روی
+        // همین سخت‌گیری تکیه می‌کند، پس جایگزینش الزامی است نه اختیاری.
+        $this->ensurePermissions(is_array($plugin->manifest) ? $plugin->manifest : [], $plugin->slug);
 
         $fresh = $plugin->fresh();
 
-        // «فعال شد» بدون این فیلد دروغ می‌گوید: رجیستری هوک‌ها پر می‌شود ولی
-        // dispatcher هنوز وجود ندارد (K5.5)، پس هیچ هوکی اجرا نمی‌شود. پاسخ باید
-        // این را صریح بگوید تا UI بتواند به‌جای toast خوش‌بینانه، هشدار بدهد.
+        // «فعال شد» بدون این فیلد دروغ می‌گوید. K5.5 هوک‌ها را از قرارداد برداشت:
+        // نه رجیستری ساخته می‌شود و نه موتوری برای اجرا وجود دارد. فیلد عمداً
+        // می‌ماند تا UI به‌جای toast خوش‌بینانه هشدار بدهد.
         return response()->json([
             'message' => 'پلاگین فعال شد.',
             'hooks_dispatched' => false,
@@ -310,7 +313,9 @@ class PluginController extends Controller
         }
 
         if ($plugin->active) {
-            $this->syncHooks($plugin->fresh());
+            // ارتقا مانیفست را عوض می‌کند، پس پرمیشن‌های اعلام‌شدهٔ نسخهٔ جدید
+            // باید دوباره ساخته شوند — وگرنه ماژول تازه در ماتریس نقش‌ها غایب می‌ماند.
+            $this->ensurePermissions(is_array($plugin->manifest) ? $plugin->manifest : [], $plugin->slug);
         }
 
         return response()->json([
@@ -473,32 +478,10 @@ class PluginController extends Controller
      */
     private function present(Plugin $plugin): array
     {
-        $plugin->loadMissing('hooks');
-
         return array_merge($plugin->toArray(), [
             'trust' => $plugin->trustSummary(),
             'is_system' => $plugin->isSystem(),
         ]);
-    }
-
-    /** ثبت هوک‌های مانیفست در رجیستری (جایگزینی کامل — اعلامی). */
-    private function syncHooks(Plugin $plugin): void
-    {
-        $hooks = $plugin->manifest['hooks'] ?? [];
-        $plugin->hooks()->delete();
-
-        foreach (is_array($hooks) ? $hooks : [] as $hook) {
-            if (is_string($hook)) {
-                $plugin->hooks()->create(['hook' => $hook, 'handler' => null]);
-            } elseif (is_array($hook) && isset($hook['hook'])) {
-                $plugin->hooks()->create([
-                    'hook' => $hook['hook'],
-                    'handler' => $hook['handler'] ?? null,
-                ]);
-            }
-        }
-
-        $this->ensurePermissions(is_array($plugin->manifest) ? $plugin->manifest : [], $plugin->slug);
     }
 
     /**
@@ -563,9 +546,9 @@ class PluginController extends Controller
     /**
      * هشدار صادقانهٔ فعال‌سازی، یا `null` وقتی مانیفست هوکی اعلام نکرده.
      *
-     * `syncHooks()` رجیستری را پر می‌کند ولی dispatcher هنوز نیست (K5.5)، پس
-     * «هوک‌ها ثبت شدند» با «هوک‌ها اجرا می‌شوند» فرق دارد و پاسخ باید دومی را
-     * نگوید.
+     * K5.5 تصمیم گرفت dispatcher ساخته نشود، پس «هنوز اجرا نمی‌شوند» وعدهٔ
+     * آینده بود و خودش همان دروغی که می‌خواست حذف کند. حالا اعلام هوک یعنی اعلام
+     * یک چیز بی‌اثر؛ گفتنش بهتر از سکوت است چون شاید نویسنده به آن تکیه کرده باشد.
      */
     private function hooksDispatchWarning(Plugin $plugin): ?string
     {
@@ -574,8 +557,7 @@ class PluginController extends Controller
             return null;
         }
 
-        return 'هوک‌های این پلاگین فقط در رجیستری ثبت شدند و هنوز اجرا نمی‌شوند؛ '
-            .'موتور dispatch در فاز K5.5 ساخته می‌شود. تا آن زمان، هر بخشی از پلاگین که '
-            .'به هوک تکیه کند کار نخواهد کرد.';
+        return 'فیلد «hooks» در قرارداد پلاگین نیست: نه جایی ثبت می‌شود و نه موتوری '
+            .'برای اجرایش وجود دارد. اگر بخشی از این پلاگین به هوک تکیه کند کار نخواهد کرد.';
     }
 }

@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Services\Plugins\ManifestRegistry;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property string $review_status pending|approved|rejected|unverified
@@ -76,11 +75,6 @@ class Plugin extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function hooks(): HasMany
-    {
-        return $this->hasMany(PluginHook::class);
     }
 
     /**
