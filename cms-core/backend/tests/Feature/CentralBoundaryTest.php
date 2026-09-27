@@ -35,6 +35,11 @@ class CentralBoundaryTest extends TestCase
         'app/Services/Central',
         'app/Http/Middleware/EnsureCentralOperator.php',
         'app/Services/Subscription/ClientSubscriptionResolver.php',
+        // K4.5 — تنها نقطهٔ تماس هسته با جدول ردپای مرکزی. عمداً یک adapter مرزی
+        // است: سرویس‌های دیگر فقط `DevModeAudit` را می‌شناسند و مستقیم به
+        // مرکزی ارجاع نمی‌دهند. وقتی K7.8 مرکز را به افزونه منتقل کرد، **فقط همین
+        // یک ورودی** باید از این فهرست بیرون بیاید.
+        'app/Services/Plugins/DevModeAudit.php',
     ];
 
     /**
