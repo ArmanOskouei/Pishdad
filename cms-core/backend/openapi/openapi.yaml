@@ -1932,7 +1932,11 @@ components:
         submitted_at: { type: string, format: date-time, nullable: true }
         reviewed_at: { type: string, format: date-time, nullable: true }
         checksum: { type: string, description: 'sha256 فایل ZIP' }
-        manifest: { type: object, nullable: true }
+        manifest:
+          type: object
+          nullable: true
+          properties:
+            db: { $ref: '#/components/schemas/PluginManifestDb' }
     Theme:
       type: object
       properties:
@@ -1957,8 +1961,31 @@ components:
         version: { type: string }
         signature_valid: { type: boolean }
         submitted_at: { type: string, format: date-time, nullable: true }
-        manifest: { type: object, nullable: true }
+        manifest:
+          type: object
+          nullable: true
+          properties:
+            db: { $ref: '#/components/schemas/PluginManifestDb' }
         owner: { type: object, nullable: true, properties: { id: { type: integer }, name: { type: string }, email: { type: string } } }
+    PluginManifestDb:
+      type: object
+      description: 'بخش اختیاری «db» مانیفست پلاگین (K5.6) — جدول‌هایی که افزونه مالکشان است. هسته پیشوند «{slug}_» را خودش اضافه می‌کند، پس نام خام را اعلام کنید. اگر جدولی ندارید «db» را کلاً حذف کنید. سقف‌ها پیش از اجرای هر DDL سنجیده می‌شوند: ۲۰ جدول در افزونه، ۱۰ ایندکس در هر جدول، ۴۰ نویسه برای نام نهایی، و تداخل با جدول‌های هسته. هر جدولی که یک migration به آن دست بزند باید اینجا اعلام شده باشد؛ ارجاع به جدول اعلام‌نشده کل نصب را رد می‌کند. کلید ناشناخته در این بخش یا در هر آیتمش پذیرفته نمی‌شود.'
+      required: [tables]
+      properties:
+        tables:
+          type: array
+          maxItems: 20
+          description: 'فهرست جدول‌های افزونه — حداکثر ۲۰ جدول.'
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, pattern: '^[a-z][a-z0-9_]{0,29}$', maxLength: 30, example: posts, description: 'نام خام جدول، بدون پیشوند — هسته «{slug}_» را اضافه می‌کند. نوشتن پیشوند خودتان خطای db.table_already_prefixed می‌دهد و نامِ جدول هسته خطای db.table_collides_core. اسلاگی که نقطه یا خط تیره دارد اصلاً نمی‌تواند جدول داشته باشد (db.slug_not_table_safe).' }
+              indexes:
+                type: array
+                maxItems: 10
+                description: 'نام ایندکس‌های آن جدول — حداکثر ۱۰ ایندکس **در هر جدول**، نه در کل افزونه.'
+                items: { type: string, pattern: '^[a-z][a-z0-9_]{0,29}$', maxLength: 30, example: author_id }
     LayoutPayload:
       type: object
       properties:

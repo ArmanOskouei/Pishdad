@@ -4,7 +4,8 @@
  * راهنمای توسعه‌دهنده پلاگین/قالب (مورد ۶) — بخش جمع‌شونده در صفحات
  * admin/plugins و admin/themes: ساختار ZIP، نمونه manifest.json، امضای
  * Ed25519، چک‌لیست امنیتی، SLA سه‌روزه + چاپ PDF با
- * window.print (بدون lib اضافی). فقط var()، فارسی و RTL.
+ * window.print (بدون lib اضافی). بخش ۶ فقط برای پلاگین است: `db.tables`.
+ * فقط var()، فارسی و RTL.
  */
 export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
   const isPlugin = kind === "plugin";
@@ -111,6 +112,27 @@ $manifest['signature'] = base64_encode(
             چاپ / دانلود PDF این راهنما
           </button>
         </section>
+
+        {isPlugin && (
+        <section>
+          <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۶. بخش <span dir="ltr">db</span> — جدول‌های دیتابیس</h3>
+          <pre dir="ltr" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: 12, overflowX: "auto", fontSize: 12 }}>
+{`"db": {
+  "tables": [
+    { "name": "posts", "indexes": ["author_id", "slug"] },
+    { "name": "comments" }
+  ]
+}`}
+          </pre>
+          <ul style={{ paddingInlineStart: 18, display: "grid", gap: 4 }}>
+            <li>نام را <b>خام</b> بنویسید؛ هسته خودش پیشوند <span dir="ltr">slug_</span> را اضافه می‌کند. اگر پیشوند را خودتان بنویسید، خطا می‌خورید (<span dir="ltr">db.table_already_prefixed</span>).</li>
+            <li>سقف ۲۰ جدول در هر افزونه، و ۱۰ ایندکس <b>در هر جدول</b> — نه در کل افزونه. نام نهایی هم حداکثر ۴۰ نویسه.</li>
+            <li>اسلاگی که نقطه یا خط تیره دارد اصلاً نمی‌تواند جدول داشته باشد: نام نهایی شناسهٔ SQL است و فقط <span dir="ltr">a-z</span>، <span dir="ltr">0-9</span> و زیرخل را می‌پذیرد.</li>
+            <li>هر جدولی که <span dir="ltr">migration</span> به آن دست می‌زند باید همین‌جا اعلام شود. ارجاع به جدولِ اعلام‌نشده کل نصب را رد می‌کند — از این رو در <span dir="ltr">migration</span> هم نام خام بنویسید، نه نهایی را.</li>
+            <li>جدول ندارید؟ کل بخش <span dir="ltr">db</span> را حذف کنید؛ <span dir="ltr">db</span> بدون <span dir="ltr">tables</span> خطا می‌گیرد.</li>
+          </ul>
+        </section>
+        )}
       </div>
     </details>
   );
