@@ -270,6 +270,15 @@ class PluginPackageValidator
             ];
         }
 
+        // اعلام جدول‌های دیتابیس — K5.6. اختیاری، ولی اگر آمده باشد باید کامل
+        // درست باشد: prefix جدول فقط وقتی «محدودیت» است که فهرستِ اعلام‌شده
+        // معتبر باشد، وگرنه راستی‌آزماییِ migration چیزی برای مقایسه ندارد.
+        if ($slug !== null && $slug !== '') {
+            foreach (PluginDbContract::check($manifest['db'] ?? null, $slug) as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
         // نشت کلید — بازگشتی. مانیفست تودرتو است، پس `{"publisher":{"private_key":…}}`
         // هم باید گرفته شود؛ بررسی سطح‌بالا این را رد می‌کرد.
         //

@@ -130,6 +130,47 @@ class PluginPackageValidatorTest extends TestCase
         $this->assertNull(PluginPackageContract::suggestLocation('Laravel/app/Http/Kernel.php'));
     }
 
+    /**
+     * K5.6 — اعلام `db.tables` باید واقعاً به validator وصل باشد.
+     *
+     * `PluginDbContract` به‌تنهایی کد مرده است اگر `analyze()` آن را صدا نزند. این
+     * تست از مسیر واقعی (بستهٔ ZIP) عبور می‌کند، پس اگر اتصال بعداً حذف شود قرمز
+     * می‌شود — برخلاف تست‌های خودِ `PluginDbContract` که مستقیم کلاس را صدا می‌زنند.
+     */
+    public function test_db_declaration_is_enforced_through_the_real_validator(): void
+    {
+        $result = $this->analyze($this->zip([
+            'manifest.json' => $this->manifestJson([
+                'db' => ['tables' => [['name' => 'users']]],
+            ]),
+            'Laravel/src/ServiceProvider.php' => '<?php',
+        ]));
+
+        $codes = array_column($result['errors'], 'code');
+
+        $this->assertContains(
+            'db.table_collides_core',
+            $codes,
+            'اعلام جدول هسته باید از مسیر واقعی validator خطا بدهد.'
+        );
+        $this->assertFalse($result['ok']);
+    }
+
+    public function test_a_valid_db_declaration_does_not_block_the_package(): void
+    {
+        $result = $this->analyze($this->zip([
+            'manifest.json' => $this->manifestJson([
+                'db' => ['tables' => [['name' => 'posts', 'indexes' => ['author_id']]]],
+            ]),
+            'Laravel/src/ServiceProvider.php' => '<?php',
+        ]));
+
+        $this->assertTrue(
+            $result['ok'],
+            'اعلام درست نباید بسته را رد کند: '.json_encode($result['errors'], JSON_UNESCAPED_UNICODE)
+        );
+    }
+
     /** بند ۲ خواستهٔ کارفرما: `Laravel/` و `Next.js/` باید شناسایی شوند. */
     public function test_recognizes_laravel_and_nextjs_roots(): void
     {
