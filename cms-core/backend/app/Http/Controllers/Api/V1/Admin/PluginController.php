@@ -402,6 +402,7 @@ class PluginController extends Controller
         // نوشتن شکست بخورد (دیسک پر)، رکوردی می‌ماند که `path`اش به فایل
         // ناموجود اشاره می‌کند و پلاگین فعال برای همیشه آجر می‌شود.
         $oldPath = $plugin->path;
+        $oldVersion = $plugin->version;
         $path = $this->storePackage($file, $plugin->slug.'_'.Str::random(8).'.zip');
         if ($path === false) {
             return response()->json([
@@ -409,8 +410,77 @@ class PluginController extends Controller
             ], 422);
         }
 
+        // ── K5.11: ارتقا هم باید نسخه را روی دیسک داشته باشد ──────────────
+        //
+        // تا این‌جا `upgrade()` هیچ‌کدام از `PluginInstaller` / `PluginReleaseManager`
+        // / `PluginMigrator` را صدا نمی‌زد. نتیجه یک وضعیت متناقض بود: رکورد DB
+        // می‌گفت نسخهٔ ۲.۰.۰ و `path` اش به ZIP تازه، ولی روی دیسک فقط نسخهٔ
+        // ۱.۰.۰ استخراج‌شده وجود داشت و ZIP جدید هرگز extract نشده بود. یعنی
+        // `currentDir()` نسخهٔ قدیم را برمی‌گرداند، `PluginRouter` و autoloader
+        // **کد قدیم** را اجرا می‌کردند، و مدیر فکر می‌کرد ارتقا انجام شده.
+        //
+        // نصب **پیش از** به‌روزرسانی رکورد انجام می‌شود تا اگر بستهٔ جدید رد شد،
+        // رکورد قدیمی دست‌نخورده بماند و نسخهٔ در حال اجرا هم عوض نشود.
+        $absolute = Storage::disk('local')->path($path);
+        $newChecksum = hash_file('sha256', $absolute) ?: null;
+        $installed = $this->installer->install($absolute, $plugin->slug, $newVersion, $newChecksum);
+
+        if (! ($installed['ok'] ?? false)) {
+            Storage::disk('local')->delete($path);
+
+            Log::warning('plugin.upgrade_rejected', [
+                'user_id' => $request->user()->id,
+                'slug' => $plugin->slug,
+                'from' => $oldVersion,
+                'to' => $newVersion,
+                'reason' => $installed['code'] ?? 'install.failed',
+            ]);
+
+            return response()->json([
+                'message' => 'نسخهٔ جدید روی دیسک نصب نشد، پس ارتقا انجام نشد و نسخهٔ فعلی دست‌نخورده ماند: '.($installed['message'] ?? ''),
+                'code' => $installed['code'] ?? 'install.failed',
+            ], 422);
+        }
+
+        // ── K5.11: اگر افزونه فعال بود، اشاره‌گر و migration هم باید جلو بروند ──
+        //
+        // تا وقتی این نبود، ارتقا یک افزونهٔ فعال را در وضعیتی می‌گذاشت که DB و
+        // دیسک دربارهٔ نسخه اختلاف دارند. و مهم‌تر: اگر migration نسخهٔ جدید
+        // شکست بخورد، `pointerBack()` برمی‌گردد و نسخهٔ قبلی — که به‌خاطر
+        // content-addressed بودن هنوز روی دیسک است — دوباره فعال می‌شود.
+        if ($plugin->active) {
+            try {
+                $this->releases->activate($plugin->slug, $newVersion, (string) $newChecksum);
+            } catch (\Throwable $e) {
+                Log::warning('plugin.upgrade_pointer_failed', [
+                    'slug' => $plugin->slug,
+                    'reason' => $e->getMessage(),
+                ]);
+
+                return response()->json([
+                    'message' => 'نسخهٔ فعال روی دیسک تعیین نشد، پس ارتقا انجام نشد: '.$e->getMessage(),
+                    'code' => 'plugin.pointer_failed',
+                ], 422);
+            }
+
+            $migrated = $this->migrator->run(
+                $this->releases,
+                $plugin->slug,
+                $this->migrator->declaredTables($manifest)
+            );
+
+            if (! $migrated['ok']) {
+                $this->pointerBack($plugin);
+
+                return response()->json([
+                    'message' => 'ارتقا انجام نشد: '.$migrated['message'],
+                    'code' => $migrated['code'],
+                ], 422);
+            }
+        }
+
         $plugin->forceFill([
-            'previous_version' => $plugin->version,
+            'previous_version' => $oldVersion,
             'version' => $newVersion,
             'name' => $manifest['name'],
             // فاز ۰: ارتقا هم نمی‌تواند پرچم system را از مانیفست بگیرد.
@@ -422,7 +492,7 @@ class PluginController extends Controller
             'review_note' => null,
             'submitted_at' => now(),
             'reviewed_at' => $this->isReviewExempt($request) ? now() : null,
-            'checksum' => hash_file('sha256', Storage::disk('local')->path($path)),
+            'checksum' => $newChecksum,
             // نسخه عوض شده ⇒ مهر یکپارچگی قبلی بی‌اعتبار است.
             'content_digest' => null,
             'digest_verified_at' => null,
@@ -431,6 +501,15 @@ class PluginController extends Controller
         ])->save();
 
         if ($oldPath && $oldPath !== $path) {
+            // فقط ZIP قدیمی پاک می‌شود، نه پوشهٔ نسخهٔ قبلی. پوشه‌ها content-addressed
+            // هستند (`releases/{version}-{hash}/`) و عمداً باقی می‌مانند — همان چیزی
+            // که `pointerBack()` روی آن حساب می‌کند. اگر این‌ها هم پاک شوند،
+            // rollback دوباره به رشته‌ای بدون آرتیفکت تبدیل می‌شود، یعنی دقیقاً
+            // همان چیزی که K5.11 برای رفعش انتخاب شد.
+            //
+            // نتیجهٔ عمدی: حجم دیسک با تعداد نسخه‌های ارتقایافته رشد می‌کند.
+            // `PluginReleaseManager::purge()` برای همین کار وجود دارد و باید
+            // با سیاست نگه‌داری صریح (نه «هر چه قدیمی بود حذف کن») صدا زده شود.
             Storage::disk('local')->delete($oldPath);
         }
 

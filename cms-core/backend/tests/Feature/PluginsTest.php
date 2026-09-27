@@ -938,6 +938,132 @@ class PluginsTest extends TestCase
     }
 
     /**
+     * K5.11 — ارتقا باید نسخهٔ جدید را واقعاً روی دیسک نصب کند.
+     *
+     * تا این‌جا `upgrade()` فقط ZIP تازه را ذخیره می‌کرد و رکورد DB را به‌روز
+     * می‌کرد، بدون آنکه `PluginInstaller` را صدا بزند. نتیجه یک وضعیت متناقض بود:
+     * DB می‌گفت ۲.۰.۰ ولی `currentDir()` نسخهٔ ۱.۰.۰ را برمی‌گرداند و
+     * `PluginRouter` کد قدیم را اجرا می‌کرد — یعنی مدیر ارتقایی می‌دید که اصلاً
+     * اتفاق نیفتاده بود.
+     *
+     * ادعای اصلی این تست بعد از ارتقا **دو نسخه روی دیسک** است: نسخهٔ تازه فعال،
+     * و نسخهٔ قبلی که هنوز هست تا rollback واقعی باشد.
+     */
+    public function test_upgrade_installs_the_new_release_on_disk_and_keeps_the_previous_one(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+        $releases = app(PluginReleaseManager::class);
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest())])
+            ->assertCreated()->json('data.id');
+        $this->approveAsOperator('plugin', (int) $id);
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
+
+        $firstDir = $releases->currentDir('sample-plugin');
+        $this->assertNotNull($firstDir, 'نسخهٔ ۱.۰.۰ باید فعال باشد.');
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+            'file' => $this->pluginZip($this->manifest(['version' => '2.0.0'])),
+        ])->assertOk()->assertJsonPath('data.version', '2.0.0');
+
+        $secondDir = $releases->currentDir('sample-plugin');
+        $this->assertNotNull($secondDir, 'اشاره‌گر باید نسخهٔ ۲.۰.۰ را نشان دهد.');
+        $this->assertNotSame(
+            $firstDir,
+            $secondDir,
+            'اشاره‌گر هنوز نسخهٔ قبلی را نشان می‌دهد ⇒ ارتقا فقط رکورد DB را عوض کرده و کد اجرا نمی‌شود.'
+        );
+
+        // آرتیفکت نسخهٔ قبلی باید روی دیسک مانده باشد — این همان چیزی است که
+        // rollback واقعی را از یک رشتهٔ بی‌آرتیفکت جدا می‌کند.
+        $this->assertDirectoryExists(
+            $firstDir,
+            'پوشهٔ نسخهٔ قبلی نباید حذف شود؛ `pointerBack()` روی همین حساب می‌کند.'
+        );
+        $this->assertSame(
+            '2.0.0',
+            Plugin::find($id)?->version,
+            'رکورد DB باید با اشاره‌گر دیسک هم‌خوان باشد.'
+        );
+    }
+
+    /**
+     * K5.11 — اگر migration نسخهٔ جدید شکست بخورد، نسخهٔ قبلی باید دوباره فعال شود.
+     *
+     * این بدترین حالت ارتقاست: نسخهٔ تازه جدول‌هایش ساخته نشده ولی کدش بارگذاری
+     * شده، و افزونه در اولین درخواست می‌میرد. به‌خاطر content-addressed بودن
+     * نسخه‌ها، نسخهٔ قبلی هنوز روی دیسک است — ولی فقط اگر اشاره‌گر برگردد.
+     */
+    public function test_a_failed_migration_during_upgrade_restores_the_previous_release(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+        $releases = app(PluginReleaseManager::class);
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest())])
+            ->assertCreated()->json('data.id');
+        $this->approveAsOperator('plugin', (int) $id);
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
+
+        $firstDir = $releases->currentDir('sample-plugin');
+
+        // نسخهٔ ۲.۰. جدولی *اعلام‌نشده* را لمس می‌کند ⇒ `verify()` باید ردش کند.
+        $bad = $this->pluginZip(
+            $this->manifest(['version' => '2.0.0']),
+            extra: [
+                'Laravel/database/migrations/2026_01_01_000001_drop_users.php' => $this->migrationDropping('users'),
+            ]
+        );
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", ['file' => $bad])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'migration.rejected');
+
+        $this->assertSame(
+            $firstDir,
+            $releases->currentDir('sample-plugin'),
+            'بعد از شکست migration باید نسخهٔ قبلی دوباره فعال باشد.'
+        );
+        $this->assertSame(
+            '1.0.0',
+            Plugin::find($id)?->version,
+            'رکورد DB هم باید روی نسخهٔ قبلی بماند.'
+        );
+        $this->assertTrue(
+            Schema::hasTable('users'),
+            'جدول هسته باید سالم مانده باشد — این مهم‌ترین ادعای این تست است.'
+        );
+    }
+
+    /**
+     * K5.11 — بستهٔ ارتقایی که نصب روی دیسکش رد می‌شود نباید رکورد را عوض کند.
+     *
+     * ترتیب در `upgrade()` عمداً «نصب، بعد رکورد» است، پس ردِ نصب یعنی نسخهٔ
+     * قبلی هم در DB و هم روی دیسک دست‌نخورده می‌ماند.
+     */
+    public function test_a_rejected_upgrade_package_leaves_the_record_and_disk_untouched(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+        $releases = app(PluginReleaseManager::class);
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest())])
+            ->assertCreated()->json('data.id');
+        $this->approveAsOperator('plugin', (int) $id);
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
+
+        $firstDir = $releases->currentDir('sample-plugin');
+        $firstPath = Plugin::find($id)?->path;
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+            'file' => $this->pluginZip($this->manifest(['version' => '2.0.0']), 'unsigned'),
+        ])->assertStatus(422);
+
+        $plugin = Plugin::find($id);
+        $this->assertSame('1.0.0', $plugin?->version, 'نسخه نباید عوض شده باشد.');
+        $this->assertSame($firstPath, $plugin?->path, 'مسیر فایل نباید عوض شده باشد.');
+        $this->assertSame($firstDir, $releases->currentDir('sample-plugin'), 'اشاره‌گر نباید جابه‌جا شده باشد.');
+    }
+
+    /**
      * افزونه‌ای که جدول اعلام می‌کند ولی migration همراه ندارد، نباید فعال شود.
      *
      * این شکاف را فعال‌سازی K5.2-W آشکار کرد. گاردِ `migration.no_release` فقط
