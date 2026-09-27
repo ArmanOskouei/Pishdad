@@ -1008,7 +1008,12 @@ class PluginPackageValidatorTest extends TestCase
             'site.footer_widget' => ['declared_only', 'schema_defined'],
             'site.block_type' => ['declared_only', 'open_vocabulary'],
             'admin.menu' => ['declared_only', 'closed'],
-            'admin.settings_schema' => ['declared_only', 'schema_defined'],
+            // K6.7 — `declared_only` بود و به `deprecated` رفت: میکرو-اسکیمای این
+            // نقطه با `max_depth => 1` نمی‌تواند اسکیمای JSON تودرتو را حمل کند،
+            // پس هیچ مانیفستی قانوناً نمی‌توانست آن را پر کند. جایگزینش کلید
+            // سطح‌بالای `settings` است. حذف کامل از فهرست عمداً انجام نشد چون
+            // راهنمای تولیدشده و ابزارهای خوانندهٔ این آرایه را می‌شکند.
+            'admin.settings_schema' => ['deprecated', 'schema_defined'],
             'admin.data_collection' => ['declared_only', 'schema_defined'],
             'admin.dashboard_slot' => ['deferred', 'closed'],
             'admin.plugin_tools' => ['deferred', 'closed'],
@@ -1095,27 +1100,40 @@ class PluginPackageValidatorTest extends TestCase
     }
 
     /**
-     * هر نقطه باید مثال معتبر داشته باشد (B31) — جز نقطه‌های `deferred` که هیچ
-     * اعلان معتبری ندارند و خودِ نبودن مثال پیام است.
+     * هر نقطه باید مثال معتبر داشته باشد (B31) — با یک استثنای جدید در K6.7.
+     *
+     * قبلاً فرض این تست این بود که حتی نقطهٔ بدون schema هم باید مثال نشان دهد و
+     * فقط اعتبارسنجی‌اش نکنیم. آن فرض غلط بود: `fields => []` با
+     * `open_schema => false` یعنی validator هر اعلانی را با `no_schema` خطای سخت
+     * می‌دهد، پس «مثال معتبر» عملاً مثالی بود که سیستم خودش ردش می‌کرد. کاربر
+     * مثال را می‌دید، کپی می‌کرد، و خطا می‌گرفت.
+     *
+     * حالا سه دسته وجود دارد و هر سه باید صادق باشند:
+     *   • نقطهٔ زنده یا با اسکیما ⇒ مثال معتبر دارد و باید واقعاً اعتبارسنجی شود
+     *   • نقطهٔ `deferred` ⇒ هیچ مثال معتبری ندارد، نبودنش خودش پیام است
+     *   • نقطهٔ بدون schema ⇒ مثال معبتَر ندارد، چون هیچ اعلانی معتبر نیست
+     *
+     * قاعدهٔ کلی این invariant در `PluginContractExampleIntegrityTest` است؛ اینجا
+     * فقط بررسی می‌شود که مثال‌های موجود واقعاً اعتبارسنجی می‌شوند.
      */
     public function test_every_point_has_a_valid_example(): void
     {
         foreach (PluginPackageContract::EXTENSION_POINTS as $key => $meta) {
             $this->assertNotEmpty($meta['example_bad'] ?? [], '«'.$key.'» مثال نامعتبر ندارد.');
 
-            if (($meta['status'] ?? '') === 'deferred') {
-                $this->assertSame([], $meta['example_ok'], 'نقطهٔ deferred نباید مثال معتبر داشته باشد.');
+            $schemaless = ($meta['schema']['fields'] ?? []) === [] && ($meta['open_schema'] ?? false) === false;
+
+            if (($meta['status'] ?? '') === 'deferred' || $schemaless) {
+                $this->assertSame(
+                    [],
+                    $meta['example_ok'] ?? null,
+                    '«'.$key.'» مثال معتبر ندارد — چون '.($schemaless ? 'اسکیمایی اعلام نشده و validator هر اعلانی را رد می‌کند' : 'نقطه deferred است').'.'
+                );
 
                 continue;
             }
 
             $this->assertNotEmpty($meta['example_ok'] ?? [], '«'.$key.'» مثال معتبر ندارد.');
-
-            // نقطهٔ بدون schema نمی‌تواند مثال «معتبر» داشته باشد: اعتبارسنجی
-            // هر چیزی را رد می‌کند. با این حال کاربر باید مثال ببیند.
-            if (($meta['schema']['fields'] ?? []) === []) {
-                continue;
-            }
 
             foreach ($meta['example_ok'] as $i => $example) {
                 $decl = $example;
@@ -1156,7 +1174,12 @@ class PluginPackageValidatorTest extends TestCase
         foreach (PluginPackageContract::extensionPoints() as $point) {
             $this->assertNotSame('free_form', $point['openness']);
             $this->assertContains($point['openness'], ['closed', 'schema_defined', 'open_vocabulary']);
-            $this->assertContains($point['status'], ['live', 'declared_only', 'deferred']);
+
+            // `deprecated` در K6.7 اضافه شد: نقطه‌ای که از راه micro-schema قابل
+            // اعلام نبود و جایگزینش اعلام شده. رفتارش مثل `deferred` است — نه
+            // زنده است و نه چیزی برای اعتبارسنجی دارد — ولی صریح می‌گوید نویسنده
+            // باید برود سراغ جایگزینش.
+            $this->assertContains($point['status'], ['live', 'declared_only', 'deferred', 'deprecated']);
         }
 
         $this->assertArrayNotHasKey('free_form', PluginPackageContract::EXTENSION_POINTS);

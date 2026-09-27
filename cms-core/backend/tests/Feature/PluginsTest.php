@@ -65,6 +65,17 @@ class PluginsTest extends TestCase
      *
      * @param  array<string, string>  $extra  مسیر ⇒ محتوا
      */
+    /**
+     * K5.2-W — این `$extra` قبلاً همین‌جا **دور ریخته می‌شد**.
+     *
+     * امضا `$extra` را می‌گرفت ولی `rawZip($manifest)` بدون آن صدا زده می‌شد، پس
+     * هر تستی که `extra:` می‌داد یک ZIP بدون آن فایل‌ها می‌ساخت و بی‌صدا از کنارش
+     * می‌گذشت. بدترین حالتش `test_a_migration_touching_an_undeclared_table` بود که
+     * ادعایش «بدترین حالت ممکن» بود ولی migration بدافزاری‌اش هرگز داخل ZIP نرفت —
+     * یعنی یک خاصیت امنیتی کاملاً بی‌تست. قبلاً هم سبز بود، ولی به دلیل اشتباه:
+     * چون نسخه‌ای روی دیسک نبود، فعال‌سازی با `migration.no_release` رد می‌شد و
+     * تست فکر می‌کرد دارد بررسی جدول اعلام‌نشده را می‌سنجد.
+     */
     private function pluginZip(array $manifest, string $mode = 'signed', array $extra = []): UploadedFile
     {
         $verifier = app(PluginSignatureVerifier::class);
@@ -76,7 +87,7 @@ class PluginsTest extends TestCase
             $manifest['name'] .= ' دست‌کاری‌شده';
         }
 
-        return $this->rawZip($manifest);
+        return $this->rawZip($manifest, $extra);
     }
 
     private function rawZip(array $manifest, array $extra = []): UploadedFile
@@ -854,59 +865,64 @@ class PluginsTest extends TestCase
     }
 
     /**
-     * K5.6 گام ۳ — **وضعیت واقعیِ امروزِ مسیر سرتاسری.**
+     * K5.2-W — مسیر سرتاسری فعال‌سازی، حالا که اشاره‌گر نوشته می‌شود.
      *
-     * انتظارِ این تست عمداً «فعال‌سازی رد می‌شود» است و دلیلش یک شکاف واقعی است،
-     * نه محدودیت تست:
+     * این تست قبلاً عمداً tripwire بود: انتظار داشت فعال‌سازی با
+     * `migration.no_release` رد شود، و کامنتش می‌گفت «اگر این تست قرمز شد یعنی
+     * K5.2-W وصل شده». همین اتفاق افتاد، پس حالا ادعای **مثبت** را می‌سنجد:
+     * فعال‌سازی باید موفق شود و جدول اعلام‌شده واقعاً ساخته شود.
      *
-     * `PluginInstaller::install()` نسخه را روی دیسک می‌نویسد ولی فایل اشاره‌گر
-     * `.current` را **نمی‌نویسد**، چون `upload` هنوز installer را صدا نمی‌زند و
-     * lifecycle به هم وصل نیست (K5.2-W). در نتیجه `currentDir()` مقدار `null`
-     * می‌دهد و `PluginMigrator` اصلاً migration را نمی‌بیند.
-     *
-     * این تست همان وضعیت را قفل می‌کند تا کسی فکر نکند مسیر کار می‌کند.
-     * **وقتی K5.2-W وصل شود** باید برعکس شود: ۲۰۰ و جدول `tableplugin_notes`
-     * موجود — و `test_the_release_pointer_is_not_written_yet` قرمز می‌شود و
-     * یادآوری می‌کند که انتظارات را بازبینی کن.
+     * قبلاً این جدول ساخته نمی‌شد چون `PluginMigrator` نسخه را از `currentDir()`
+     * پیدا می‌کرد و آن `null` بود — یعنی قابلیت اعلام `db.tables` عملاً هرگز
+     * اجرا نمی‌شد. حالا باید اجرا شود، وگرنه فعال کردن افزونه‌ای که جدول‌هایش
+     * ساخته نشده در اولین درخواست می‌میرد.
      *
      * اسلاگ `tableplugin` است نه پیش‌فرض fixture، چون قاعدهٔ `db.tables` اجازه
      * نمی‌دهد اسلاگی با خط تیره (`sample-plugin`) مالک جدول باشد: خط تیره در
      * شناسهٔ SQL معتبر نیست. این محدودیت عمدی است (سند معماری خط ۱۲۵).
      */
-    public function test_activation_is_refused_while_the_release_lifecycle_is_unwired(): void
+    public function test_activation_runs_migrations_and_creates_the_declared_table(): void
     {
         $auth = $this->actingAs($this->owner(), 'sanctum');
 
-        $zip = $this->pluginZip($this->manifest([
-            'slug' => 'tableplugin',
-            'db' => ['tables' => [['name' => 'notes']]],
-        ]));
+        $zip = $this->pluginZip(
+            $this->manifest(['slug' => 'tableplugin', 'db' => ['tables' => [['name' => 'notes']]]]),
+            extra: [
+                'Laravel/database/migrations/2026_01_01_000001_create_notes.php' => $this->migrationCreating('notes'),
+            ]
+        );
 
         $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $zip])
             ->assertCreated()->json('data.id');
 
-        // نصب روی دیسک واقعاً موفق است؛ این بخش کار می‌کند.
         $this->assertTrue($this->installToDisk($zip, 'tableplugin'), 'نصب روی دیسک باید موفق باشد.');
 
         $this->approveAsOperator('plugin', (int) $id);
 
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")
-            ->assertStatus(422)
-            ->assertJsonPath('code', 'migration.no_release');
+            ->assertOk()
+            ->assertJsonPath('data.active', true);
 
-        $this->assertFalse(
+        $this->assertTrue(
             Schema::hasTable('tableplugin_notes'),
-            'تا وقتی lifecycle وصل نشده، نباید جدولی ساخته شود — وگرنه مسیر نیمه‌وصل است.'
+            'جدول اعلام‌شده باید بعد از فعال‌سازی ساخته شده باشد.'
+        );
+
+        $this->assertNotNull(
+            app(PluginReleaseManager::class)->currentDir('tableplugin'),
+            'اشاره‌گر نسخهٔ فعال باید بعد از فعال‌سازی نوشته شده باشد.'
         );
     }
 
     /**
-     * ریشهٔ مسدودیِ بالا: اشاره‌گر نسخهٔ فعال نوشته نمی‌شود.
+     * اشاره‌گر نسخه فقط با **فعال‌سازی** نوشته می‌شود، نه با نصب.
      *
-     * اگر این تست قرمز شد یعنی K5.2-W وصل شده و تست‌های K5.6 باید از حالت
-     * «رد شدن فعال‌سازی» به «ساخته شدن جدول» تغییر کنند.
+     * نصب روی دیسک یعنی «کد آماده است ولی هنوز اجرا نمی‌شود». اگر نصب به‌تنهایی
+     * اشاره‌گر می‌نوشت، نسخه‌ای که هرگز فعال نشده به‌عنوان فعال گزارش می‌شد —
+     * و `currentDir()` دقیقاً همان چیزی است که `PluginMigrator` برای یافتن فایل‌ها
+     * به آن تکیه می‌کند، پس مرز «نصب شده» و «فعال است» محو می‌شد.
      */
-    public function test_the_release_pointer_is_not_written_yet(): void
+    public function test_installing_alone_does_not_write_the_release_pointer(): void
     {
         $zip = $this->pluginZip($this->manifest(['slug' => 'pointergap']));
 
@@ -917,7 +933,48 @@ class PluginsTest extends TestCase
 
         $this->assertNull(
             app(PluginReleaseManager::class)->currentDir('pointergap'),
-            'K5.2-W وصل شده — انتظارات تست‌های K5.6 را بازبینی کن.'
+            'نصب نباید اشاره‌گر بنویسد — فقط فعال‌سازی این کار را می‌کند.'
+        );
+    }
+
+    /**
+     * افزونه‌ای که جدول اعلام می‌کند ولی migration همراه ندارد، نباید فعال شود.
+     *
+     * این شکاف را فعال‌سازی K5.2-W آشکار کرد. گاردِ `migration.no_release` فقط
+     * وقتی اجرا می‌شد که اصلاً نسخه‌ای روی دیسک نباشد؛ ولی اگر نسخه هست و بسته
+     * migration ندارد، شاخهٔ «این افزونه migration ندارد» بدون هیچ بررسی‌ای `ok`
+     * برمی‌گرداند. نتیجه: افزونه‌ای که `db.tables` اعلام کرده ولی جدولش ساخته
+     * نشده، فعال می‌شد و در اولین درخواست می‌مرد.
+     *
+     * یعنی اعتبارسنجیِ migration جلوی دست‌کاریِ جدولِ *اعلام‌نشده* را می‌گیرد، ولی
+     * جلوی *ساخته‌نشدنِ* جدولِ اعلام‌شده را نمی‌گرفت.
+     */
+    public function test_declaring_a_table_without_a_migration_is_refused(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $zip = $this->pluginZip(
+            $this->manifest(['slug' => 'tableplugin', 'db' => ['tables' => [['name' => 'notes']]]])
+        );
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $zip])
+            ->assertCreated()->json('data.id');
+
+        $this->assertTrue($this->installToDisk($zip, 'tableplugin'), 'نصب روی دیسک باید موفق باشد.');
+        $this->approveAsOperator('plugin', (int) $id);
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'migration.tables_missing');
+
+        $this->assertFalse(
+            Schema::hasTable('tableplugin_notes'),
+            'جدول نباید ساخته شده باشد — هیچ migrationی برای ساختنش نبود.'
+        );
+
+        $this->assertFalse(
+            (bool) Plugin::find($id)?->active,
+            'افزونه نباید فعال بماند وقتی جدول اعلام‌شده‌اش وجود ندارد.'
         );
     }
 
@@ -979,6 +1036,38 @@ class PluginsTest extends TestCase
             public function up(): void
             {
                 Schema::dropIfExists('{$table}');
+            }
+        };
+        PHP;
+    }
+
+    /**
+     * بدنهٔ migration سالم که جدول اعلام‌شدهٔ افزونه را می‌سازد.
+     *
+     * نام جدول باید **خام** باشد (`notes`، نه `tableplugin_notes`). دلیلش ترتیب
+     * کارها در `PluginMigrator` است: اول `verify()` متن خام را می‌خواند و هر نامی
+     * را که در `db.tables` اعلام نشده `migration.undeclared_table` می‌دهد، بعد
+     * `rewrite()` نام‌ها را prefix می‌کند. پس اگر اینجا نام از پیش prefix‌شده را
+     * بدهیم، `verify()` آن را ناشناخته می‌بیند و اگر ندهیم، `Schema::create` جدول
+     * درست یعنی `tableplugin_notes` را می‌سازد.
+     */
+    private function migrationCreating(string $rawTable): string
+    {
+        return <<<PHP
+        <?php
+
+        use Illuminate\\Database\\Migrations\\Migration;
+        use Illuminate\\Support\\Facades\\Schema;
+
+        return new class extends Migration
+        {
+            public function up(): void
+            {
+                Schema::create('{$rawTable}', function (\\Illuminate\\Database\\Schema\\Blueprint \$table): void {
+                    \$table->id();
+                    \$table->string('body')->nullable();
+                    \$table->timestamps();
+                });
             }
         };
         PHP;

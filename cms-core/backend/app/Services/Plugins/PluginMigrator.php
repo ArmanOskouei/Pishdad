@@ -4,6 +4,7 @@ namespace App\Services\Plugins;
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
 
@@ -76,6 +77,18 @@ final class PluginMigrator
         $files = $this->runner->discover($dir);
 
         if ($files === []) {
+            // بسته migration ندارد. اگر جدولی هم اعلام نکرده، چیزی برای ساختن
+            // نبوده و اشکالی ندارد. ولی اگر جدول اعلام کرده، نبودِ migration یعنی
+            // آن جدول هرگز ساخته نمی‌شود — مگر از فعال‌سازی قبلی باقی مانده باشد،
+            // که همان چیزی است که `missingTables()` می‌سنجد.
+            if ($missing = $this->missingTables($slug, $declaredTables)) {
+                return self::fail(
+                    'migration.tables_missing',
+                    'این جدول‌های اعلام‌شده وجود ندارند و بسته هم migrationی برای ساختنشان ندارد: '.implode('، ', $missing)
+                        .'. یا migration اضافه کن، یا اعلامشان را از `db.tables` بردار.'
+                );
+            }
+
             return ['ok' => true, 'message' => 'این افزونه migration ندارد.', 'applied' => [], 'skipped' => []];
         }
 
@@ -120,12 +133,61 @@ final class PluginMigrator
 
         $this->forget($stage['root']);
 
+        // ── ۳) تضمین بعد از اجرا: هر جدول اعلام‌شده باید واقعاً وجود داشته باشد ──
+        //
+        // این گارد نبودِ یک شکاف واقعی بود، نه تکرار گاردِ بالا. گاردِ بالا فقط
+        // وقتی اجرا می‌شود که اصلاً نسخه‌ای روی دیسک نباشد. ولی اگر نسخه هست و
+        // بسته **migration همراه ندارد**، `$files` خالی می‌شود و شاخهٔ
+        // «این افزونه migration ندارد» بدون هیچ بررسی‌ای `ok` برمی‌گرداند.
+        //
+        // نتیجه: افزونه‌ای که `db.tables` اعلام کرده ولی جدولش را نمی‌سازد، فعال
+        // می‌شد و در اولین درخواست می‌مرد — دقیقاً همان چیزی که تصمیم K5.6
+        // «جدول اعلام‌شده ولی ساخته‌نشده ⇒ فعال‌سازی رد شود» می‌خواست جلویش را
+        // بگیرد. اعتبارسنجیِ migration جلوی دست‌کاریِ جدولِ *اعلام‌نشده* را
+        // می‌گیرد، ولی جلوی *ساخته‌نشدنِ* جدولِ اعلام‌شده را نمی‌گیرد.
+        if ($missing = $this->missingTables($slug, $declaredTables)) {
+            return self::fail(
+                'migration.tables_missing',
+                'این جدول‌های اعلام‌شده بعد از اجرای migration وجود ندارند: '.implode('، ', $missing)
+                    .'. یا migration ساختشان کن، یا اعلامشان را از `db.tables` بردار — جدول اعلام‌نشده ولی ساخته‌شده هم به همان اندازه غلط است.'
+            );
+        }
+
         return [
             'ok' => true,
             'message' => count($applied).' migration اجرا شد، '.count($skipped).' قبلاً اجرا شده بود.',
             'applied' => $applied,
             'skipped' => $skipped,
         ];
+    }
+
+    /**
+     * جدول‌های اعلام‌شده‌ای که بعد از اجرای migration روی دیسکِ پایگاه‌داده نیستند.
+     *
+     * نام نهایی همان چیزی است که `rewrite()` می‌سازد: `{slug}_{table}` — چون مالکیت
+     * جدول با prefix اجباری است و اسلاگِ دارای خط تیره اصلاً اجازهٔ اعلام ندارد
+     * (قاعدهٔ `db.tables`)، پس نام معتبر است و نیازی به escape ندارد.
+     *
+     * @param  array<int, string>  $declaredTables
+     * @return list<string>
+     */
+    private function missingTables(string $slug, array $declaredTables): array
+    {
+        if ($declaredTables === []) {
+            return [];
+        }
+
+        $missing = [];
+
+        foreach ($declaredTables as $table) {
+            $qualified = $slug.'_'.$table;
+
+            if (! Schema::hasTable($qualified)) {
+                $missing[] = $qualified;
+            }
+        }
+
+        return $missing;
     }
 
     /**

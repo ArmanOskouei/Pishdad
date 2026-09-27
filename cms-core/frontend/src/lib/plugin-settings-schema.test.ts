@@ -5,31 +5,32 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * K6.7 — `admin.settings_schema` هنوز مسیر زنده ندارد.
+ * K6.7 — `admin.settings_schema` مسیر زنده ندارد، و این فایل دلیلش را قفل می‌کند.
  *
  * پرسش: «SchemaForm از قبل هست، پس فرم تنظیمات را بساز.» جواب منفی است، و این
- * تست دلیلش را قفل می‌کند تا کسی دوباره همان فرم بی‌مصرف را نسازد.
+ * تست دلیلش را نگه می‌دارد تا کسی دوباره همان فرم بی‌مصرف را نسازد.
  *
- * سه چیز جدا باید **همزمان** درست باشند تا این نقطه زنده شود، و هیچ‌کدام امروز
- * نیست:
+ * سه چیز جدا باید **همزمان** درست باشند تا این نقطه زنده شود. وضعیت امروز:
+ * اول و دوم حل شدند، سوم هنوز نه.
  *
- *  1. **قرارداد** — `PluginPackageContract` برای این نقطه
- *     `'schema' => ['fields' => []` دارد و `open_schema => false`. متد
- *     `validateDeclaration()` روی `fields === [] && open_schema === false`
- *     یک خطای `no_schema` برمی‌گرداند و **زود بازمی‌گردد** ⇒ هر اعلانی در
- *     `panel.extensions` رد می‌شود. یعنی هیچ پلاگینی امروز نمی‌تواند فرم
- *     تنظیمات اعلام کند.
- *  2. **مصرف‌کننده** — `ManifestRegistry` سه مصرف‌کننده دارد
- *     (`permissionModules`، `widgetSchemas`، `pageTypes`) و هیچ‌کدام
- *     `admin.settings_schema` را نمی‌خواند. endpoint و مسیر ذخیره هم نیست.
- *  3. **محل سوار شدن** — صفحهٔ `/admin/settings` چهارده `useState` دستی دارد
- *     و کارت «اسلات پلاگین»‌اش (سه input هاردکدِ `readOnly`) در K6.7 حذف شد.
+ *  1. **قرارداد** — حل شد، ولی به راه دیگری. `admin.settings_schema` میکرو-اسکیمای
+ *     خالی داشت و `open_schema => false`، پس `validateDeclaration()` خطای
+ *     `no_schema` می‌داد و هر اعلانی رد می‌شد. به‌جای پر کردن فیلدها (که تصمیم
+ *     محصول است و نه این‌جا گرفته می‌شود)، نقطه `deprecated` شد با جایگزین صریح
+ *     و بدون مثال — چون مثال قبلی خودش توسط validator رد می‌شد.
+ *  2. **مصرف‌کننده** — حل شد. `ManifestRegistry::pluginSettingsSchemas()` کانال را
+ *     به کلید سطح‌بالای مانیفست برد، درست مثل `widgets` و `page_types`. دلیلش
+ *     ساختاری است: میکرو-اسکیما سقف عمق ۱ دارد و اسکیمای JSON تودرتو است.
+ *  3. **محل سوار شدن** — هنوز نیست. صفحهٔ `/admin/settings` چهارده `useState` دستی
+ *     دارد، کارت «اسلات پلاگین»اش (سه input هاردکدِ `readOnly`) حذف شد، ولی
+ *     endpoint و مسیر ذخیرهٔ مقدار وجود ندارد. تا وقتی این نباشد، هر فرمی که
+ *     ساخته شود جایی رندر نمی‌شود — همان دروغی که K6.10 کارت ویجت داشبورد را
+ *     به‌خاطرش حذف کرد.
  *
- * نتیجه: فرمی که امروز ساخته شود هیچ‌جا رندر نمی‌شود — همان دروغی که K6.10
- * کارت ویجت داشبورد را به‌خاطرش حذف کرد.
- *
- * ⚠️ اگر روزی نقطهٔ قرارداد `live` شد یا مصرف‌کننده‌ای اضافه شد، **این تست
- * عمداً می‌افتد**. آن‌وقت نگهبان را دستی بردارید و به‌جایش تست رفتار بنویسید.
+ * ⚠️ اگر روزی endpoint و مسیر ذخیره اضافه شد، **این تست‌ها عمداً می‌افتند**.
+ * آن‌وقت نگهبان را دستی بردارید و به‌جایش تست رفتار بنویسید: کلیدی که در مانیفست
+ * *خوانده* می‌شود با کلیدی که در UI *رندر* می‌شود فرق دارد، و این فایل فقط
+ * اولی را می‌سنجد.
  */
 
 /** ریشهٔ `src/` — از این فایل یک سطح بالاتر (`src/lib` → `src`). */
@@ -74,7 +75,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-test("قرارداد: admin.settings_schema هنوز هیچ فیلدی اعتبارسنجی نمی‌کند", () => {
+test("قرارداد: admin.settings_schema بازنشسته شد و مثال نامعتبر ندارد", () => {
   const contract = readFileSync(CONTRACT_PATH, "utf8");
 
   // `[\s\S]` به‌جای پرچم `s` — هدف tsc این پروژه es2018 نیست.
@@ -82,14 +83,32 @@ test("قرارداد: admin.settings_schema هنوز هیچ فیلدی اعتب�
   assert.ok(point, "نقطهٔ admin.settings_schema باید در قرارداد تعریف شده باشد.");
   const body = point[1];
 
-  assert.match(body, /'status'\s*=>\s*'declared_only'/, "وضعیت باید declared_only بماند.");
+  // این نقطه از `declared_only` به `deprecated` رفت: میکرو-اسکیما با
+  // `max_depth => 1` نمی‌تواند اسکیمای JSON تودرتو را حمل کند، پس هیچ مانیفستی
+  // قانوناً نمی‌توانست آن را پر کند. جایگزینش کلید سطح‌بالای `settings` است.
+  assert.match(body, /'status'\s*=>\s*'deprecated'/, "وضعیت باید deprecated باشد.");
+  assert.match(
+    body,
+    /'replaced_by'\s*=>\s*'manifest\.settings'/,
+    "نقطهٔ بازنشسته باید بگوید جایگزینش چیست، وگرنه نویسنده بی‌راه می‌ماند.",
+  );
   assert.match(body, /'openness'\s*=>\s*'schema_defined'/);
   assert.match(
     body,
     /'schema'\s*=>\s*\[\s*'fields'\s*=>\s*\[\]/,
-    "فهرست فیلدها باید خالی بماند — تا وقتی پر نشده، هر اعلانی خطای no_schema می‌گیرد.",
+    "فهرست فیلدها خالی می‌ماند — تا وقتی پر نشده، هر اعلانی خطای no_schema می‌گیرد.",
   );
   assert.match(body, /'open_schema'\s*=>\s*false/, "بدون فهرست فیلد، واژگان باز هم مجاز نیست.");
+
+  // K6.7 — مثال «معتبر» قبلی خودش توسط validator رد می‌شد. نمایش مثالی که سیستم
+  // خودش ردش می‌کند بدتر از نبود مثال است.
+  const exampleOk = /'example_ok'\s*=>\s*(\[[^\]]*\])/.exec(body);
+  assert.ok(exampleOk, "example_ok باید صریح باشد.");
+  assert.equal(
+    exampleOk[1].replace(/\s/g, ""),
+    "[]",
+    "نقطه‌ای که اسکیما ندارد نباید مثال معتبر داشته باشد.",
+  );
 });
 
 test("قرارداد: همین «فیلد خالی» است که اعلام را رد می‌کند (نه چیز دیگر)", () => {
@@ -113,24 +132,35 @@ test("قرارداد: همین «فیلد خالی» است که اعلام را
   assert.match(contract, /'no_schema'/, "خطای no_schema باید به نویسندهٔ پلاگین گفته شود.");
 });
 
-test("مصرف‌کننده‌ای وجود ندارد: رجیستری مانیفست تنظیمات پلاگین را نمی‌خواند", () => {
-  const registry = readFileSync(REGISTRY_PATH, "utf8");
+test("مصرف‌کننده حالا وجود دارد: رجیستری کلید سطح‌بالای settings را می‌خواند", () => {
+  const registry = liveCode(readFileSync(REGISTRY_PATH, "utf8"));
 
-  for (const reader of ["permissionModules", "widgetSchemas", "pageTypes"]) {
+  for (const reader of ["permissionModules", "widgetSchemas", "pageTypes", "pluginSettingsSchemas"]) {
     assert.match(registry, new RegExp(`function ${reader}\\b`), `${reader} باید مصرف‌کنندهٔ زنده باشد.`);
   }
 
+  // K6.7 — `pluginSettingsSchemas()` اضافه شد و کانال را از
+  // `panel.extensions` به کلید سطح‌بالای مانیفست برد، درست مثل `widgets` و
+  // `page_types`. دلیلش ساختاری است: میکرو-اسکیمای نقطه‌ها سقف عمق ۱ دارد و
+  // اسکیمای JSON شیء تودرتو است، پس جا دادنش آنجا یعنی بالا بردن سقف عمق برای
+  // همهٔ نقاط.
+  assert.match(
+    registry,
+    /\$manifest\['settings'\]\s*\?\?\s*null/,
+    "کانال زندهٔ فرم تنظیمات باید کلید سطح‌بالای manifest.settings باشد.",
+  );
+
+  // نقطهٔ قراردادِ بازنشسته نباید دوباره به رجیستری برگردد: از راه micro-schema
+  // قابل اعلام نبود و حالا جایگزین صریح دارد.
   assert.equal(
     registry.includes("settings_schema"),
     false,
-    "ManifestRegistry نباید به admin.settings_schema اشاره کند — تا وقتی مصرف‌کننده‌ای نیست، افزودنش یعنی وعدهٔ بی‌پشتوانه.",
+    "کد زندهٔ رجیستری نباید به admin.settings_schema اشاره کند — مسیر زنده‌اش manifest.settings است.",
   );
 
-  // کانالِ واقعیِ schema در این کدبیس `panel.extensions` **نیست**: ویجت‌ها و
-  // نوع‌های صفحه، JSON Schema را در کلیدِ top-level مانیفست می‌گذارند و از
-  // آنجا merge می‌شوند. یعنی پلاگین امروز می‌تواند فرم تنظیمات بیاورد **بدون**
-  // اینکه به نقطهٔ قرارداد نیاز داشته باشد ⇒ اولویت با کانالِ top-level است،
-  // و نقطهٔ `admin.settings_schema` فعلاً چیزی به آن اضافه نمی‌کند.
+  // کانال‌های واقعیِ schema در این کدبیس `panel.extensions` **نیست**: ویجت‌ها،
+  // نوع‌های صفحه و فرم‌های تنظیمات، JSON Schema را در کلیدِ top-level مانیفست
+  // می‌گذارند و از آنجا merge می‌شوند.
   assert.match(
     registry,
     /\$manifest\['widgets'\]\s*\?\?\s*null/,

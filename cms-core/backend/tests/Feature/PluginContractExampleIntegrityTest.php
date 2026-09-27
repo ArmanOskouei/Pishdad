@@ -14,21 +14,32 @@ use Tests\TestCase;
 class PluginContractExampleIntegrityTest extends TestCase
 {
     /**
-     * هر نقطه‌ای که `fields` خالی و `open_schema => false` دارد، نمی‌تواند
-     * `example_ok` داشته باشد — چون validator هر اعلانی را با `no_schema` رد
-     * می‌کند. یعنی مثالی که این‌جا به نویسنده نشان داده می‌شود، حتی با رعایتش
-     * هم خطا می‌گیرد.
+     * تنها invariant لازم این است: نقطه‌ای که هیچ فیلدی برای اعلان ندارد
+     * (`fields => []` و `open_schema => false`) نمی‌تواند `example_ok` داشته باشد.
+     *
+     * چون validator برای چنین نقطه‌ای `no_schema` خطای سخت می‌دهد، یعنی هر
+     * اعلانی که آنجا گذاشته شود رد می‌شود. پس مثالی که پنل به نویسنده نشان می‌دهد
+     * حتی با رعایتش هم خطا می‌گیرد.
+     *
+     * نقطه‌ای که اسکیمای واقعی دارد (مثل `core.service_provider`) برعکس — مثال
+     * معتبر داشتنش درست و مطلوب است، پس برایش محدودیتی اعمال نمی‌کنیم.
      *
      * @dataProvider points
      */
-    public function test_no_point_advertises_an_example_its_own_validator_rejects(string $key): void
+    public function test_no_schemaless_point_advertises_an_example(string $key): void
     {
         $meta = PluginPackageContract::EXTENSION_POINTS[$key] ?? null;
 
         $this->assertIsArray($meta, "نقطهٔ «{$key}» وجود ندارد.");
 
-        if (($meta['schema']['fields'] ?? null) !== [] || ($meta['open_schema'] ?? false) === true) {
-            $this->assertSame([], $meta['example_ok'] ?? [], "نقطهٔ «{$key}» schema دارد، پس مثال معتبر داشتنش مجاز است.");
+        $hasSchema = ($meta['schema']['fields'] ?? null) !== [] || ($meta['open_schema'] ?? false) === true;
+
+        if ($hasSchema) {
+            $this->assertNotSame(
+                [],
+                $meta['example_ok'] ?? [],
+                "نقطهٔ «{$key}» اسکیمای واقعی دارد، پس مثال معتبر داشتنش لازم است — اگر مثال ندارد یعنی مستند ناقص است."
+            );
 
             return;
         }
@@ -70,6 +81,72 @@ class PluginContractExampleIntegrityTest extends TestCase
         $this->assertNotSame('', trim((string) ($meta['deprecated']['reason_fa'] ?? '')), "«{$key}» دلیل حذف را نگفته.");
     }
 
+    /**
+     * نقطه‌ای که واقعاً اسکیما ندارد، باید **دلیلش را توضیح داده باشد** — وگرنه
+     * خالی بودن `fields` شبیه یک بی‌دقتی ساده به نظر می‌رسد، درحالی که برای
+     * `site.block_type` یک شکاف واقعی نیت-در-برابر-پیاده‌سازی است.
+     *
+     * @dataProvider schemalessPoints
+     */
+    public function test_a_schemaless_point_explains_itself(string $key): void
+    {
+        $meta = PluginPackageContract::EXTENSION_POINTS[$key];
+
+        $this->assertNotSame(
+            '',
+            trim((string) ($meta['openness_why'] ?? '')),
+            "نقطهٔ «{$key}» اسکیما ندارد ولی نگفته چرا — خواننده نمی‌فهمد تصمیم است یا بی‌دقتی."
+        );
+    }
+
+    /**
+     * هیچ نقطه‌ای نباید هم‌زمان «واژگان باز» باشد و میکرو-اسکیمای بسته و خالی
+     * داشته باشد — این ترکیب غیرقابل بیان است و نتیجه‌اش این است که نقطه هر
+     * اعلانی را رد می‌کند، درحالی که برچسبش وعدهٔ باز بودن می‌دهد.
+     *
+     * `site.block_type` امروز دقیقاً در این وضعیت است و این یک تصمیم باز است، نه
+     * یک باگ پنهان: نیت ثبت‌شده «واژگان باز، گرامر بسته» است ولی ساختار فعلی
+     * `open_schema` این ترکیب را نمی‌تواند بیان کند. تا وقتی مال محصول تصمیم
+     * نگیرد، این تست آن را فهرست می‌کند و بعد از رفع، از فهرست حذف می‌شود.
+     *
+     * @dataProvider points
+     */
+    public function test_open_vocabulary_never_claims_a_closed_empty_schema(string $key): void
+    {
+        $meta = PluginPackageContract::EXTENSION_POINTS[$key];
+
+        if (($meta['openness'] ?? null) !== 'open_vocabulary') {
+            $this->assertTrue(true, 'این نقطه واژگان باز نیست — شرط برایش معنا ندارد.');
+
+            return;
+        }
+
+        $consistent = ($meta['open_schema'] ?? false) === true || ($meta['schema']['fields'] ?? []) !== [];
+
+        if (in_array($key, self::KNOWN_OPEN_VOCABULARY_GAPS, true)) {
+            $this->assertFalse(
+                $consistent,
+                "«{$key}» از فهرست شکاف‌های شناخته‌شده بیرون آمده — پس یا تصمیمش گرفته شد (این تست را سخت‌گیر کن) یا قرارداد دوباره ناسازگار شده."
+            );
+
+            return;
+        }
+
+        $this->assertTrue(
+            $consistent,
+            "نقطهٔ «{$key}» واژگان باز است ولی میکرو-اسکیمای بسته و خالی دارد — یعنی هر اعلانی با no_schema رد می‌شود درحالی که برچسبش وعدهٔ باز بودن می‌دهد. یا `fields` را پر کن یا `open_schema` را باز کن."
+        );
+    }
+
+    /**
+     * نقاطی که می‌دانیم امروز ناسازگارند و منتظر تصمیم مال محصول‌اند.
+     *
+     * @var list<string>
+     */
+    private const KNOWN_OPEN_VOCABULARY_GAPS = [
+        'site.block_type',
+    ];
+
     /** @return array<int, array{0: string}> */
     public static function points(): array
     {
@@ -87,6 +164,22 @@ class PluginContractExampleIntegrityTest extends TestCase
             array_keys(array_filter(
                 PluginPackageContract::EXTENSION_POINTS,
                 static fn (array $m): bool => ($m['status'] ?? null) === 'deprecated'
+            ))
+        );
+    }
+
+    /**
+     * @return array<int, array{0: string}>
+     *
+     * @phpstan-ignore-next-line
+     */
+    public static function schemalessPoints(): array
+    {
+        return array_map(
+            static fn (string $key): array => [$key],
+            array_keys(array_filter(
+                PluginPackageContract::EXTENSION_POINTS,
+                static fn (array $m): bool => ($m['schema']['fields'] ?? null) === [] && ($m['open_schema'] ?? false) === false
             ))
         );
     }

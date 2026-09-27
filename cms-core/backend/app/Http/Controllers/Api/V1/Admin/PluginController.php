@@ -7,6 +7,7 @@ use App\Models\Plugin;
 use App\Models\SystemPlugin;
 use App\Services\Plugins\CoreRequirementChecker;
 use App\Services\Plugins\ManifestRegistry;
+use App\Services\Plugins\PluginInstaller;
 use App\Services\Plugins\PluginMigrator;
 use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\PluginPackageValidator;
@@ -46,6 +47,7 @@ class PluginController extends Controller
         private PluginSignatureVerifier $verifier,
         private PluginMigrator $migrator,
         private PluginReleaseManager $releases,
+        private PluginInstaller $installer,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -178,6 +180,40 @@ class PluginController extends Controller
         // تراکنشِ ساخت رکورد می‌ماند تا نیمه‌کاره نصب نشود.
         $this->trustStore()->ensureSealKeyFor($plugin);
 
+        // K5.2-W: بسته روی دیسک هم نصب می‌شود، نه فقط در storage.
+        //
+        // تا این لحظه `upload()` فقط رکورد DB می‌ساخت و ZIP را در storage می‌گذاشت،
+        // پس **هیچ نسخه‌ای روی دیسک نبود** — یعنی `PluginRouter`، autoloader و
+        // `PluginMigrator` هیچ‌کدام چیزی برای کار کردن نداشتند. و سقف‌های
+        // امنیتی نصب (zip-slip، symlink، bomb، file count) روی مسیر زنده
+        // اجرا نمی‌شدند چون `PluginInstaller` هیچ caller نداشت.
+        //
+        // ترتیب عمداً این است: اول نصب، بعد رکورد. اگر نصب رد شود، رکورد DB هم
+        // ساخته نمی‌شود و نیمه‌نصب باقی نمی‌ماند.
+        $installed = $this->installer->install(
+            Storage::disk('local')->path($path),
+            $slug,
+            (string) ($manifest['version'] ?? '1.0.0'),
+            hash_file('sha256', Storage::disk('local')->path($path)) ?: null
+        );
+
+        if (! ($installed['ok'] ?? false)) {
+            // رکورد را بردار تا نصب نیمه‌کاره در پنل دیده نشود.
+            $plugin->delete();
+            $this->trustStore()->forgetSealKeyFor($slug);
+
+            Log::warning('plugin.upload_rejected', [
+                'user_id' => $request->user()->id,
+                'slug' => $slug,
+                'reason' => $installed['code'] ?? 'install.failed',
+            ]);
+
+            return response()->json([
+                'message' => 'بسته روی دیسک نصب نشد، پس پلاگینی ثبت نشد: '.($installed['message'] ?? ''),
+                'code' => $installed['code'] ?? 'install.failed',
+            ], 422);
+        }
+
         return response()->json([
             'message' => $exempt
                 ? 'پلاگین با امضای معتبر نصب شد.'
@@ -194,6 +230,30 @@ class PluginController extends Controller
 
         $manifest = is_array($plugin->manifest) ? $plugin->manifest : [];
 
+        // K5.2-W: اشاره‌گر نسخهٔ فعال، **پیش از** migration.
+        //
+        // ترتیب مهم است: `PluginMigrator` نسخه را از روی `currentDir()` پیدا
+        // می‌کند، و `currentDir()` اشاره‌گر `.current` را می‌خواند. تا وقتی این
+        // نوشته نشود، `currentDir()` مقدار `null` می‌دهد و migration نمی‌تواند
+        // فایل‌ها را ببیند — یعنی فعال‌سازی همیشه با `migration.no_release`
+        // رد می‌شد. این همان شکافی بود که مسیر سرتاسری را از کار انداخته بود.
+        //
+        // اگر نوشتن اشاره‌گر شکست بخورد، فعال‌سازی کامل رد می‌شود: نیمه‌فعال
+        // یعنی افزونه‌ای که در DB فعال است ولی کدش بارگذاری نمی‌شود.
+        try {
+            $this->releases->activate($plugin->slug, $plugin->version, (string) $plugin->checksum);
+        } catch (\Throwable $e) {
+            Log::warning('plugin.activate_pointer_failed', [
+                'slug' => $plugin->slug,
+                'reason' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'نسخهٔ فعال روی دیسک تعیین نشد، پس فعال‌سازی انجام نشد: '.$e->getMessage(),
+                'code' => 'plugin.pointer_failed',
+            ], 422);
+        }
+
         // K5.6 — پیش از هر تغییر وضعیت. اگر migration رد شود، فعال‌سازی هم رد
         // می‌شود: فعال کردن افزونه‌ای که جدول‌هایش ساخته نشده یعنی افزونه‌ای که
         // در اولین درخواست می‌میرد. ترتیب عمداً این است و نه بعد از `save()`.
@@ -204,6 +264,10 @@ class PluginController extends Controller
         );
 
         if (! $migrated['ok']) {
+            // اشاره‌گر را برگردان تا فعال‌سازیِ ناموفق ردپای نیمه‌کاره نگذارد.
+            // نسخهٔ قبلی دست‌نخورده می‌ماند چون `swapPointer` تاریخ نگه می‌دارد.
+            $this->pointerBack($plugin);
+
             return response()->json([
                 'message' => 'فعال‌سازی انجام نشد: '.$migrated['message'],
                 'code' => $migrated['code'],
@@ -228,6 +292,39 @@ class PluginController extends Controller
             'warning' => $this->hooksDispatchWarning($fresh),
             'data' => $this->present($fresh),
         ]);
+    }
+
+    /**
+     * برگرداندن اشاره‌گر پس از فعال‌سازی ناموفق.
+     *
+     * `activate()` نسخهٔ قبلی را در تاریخ می‌گذارد، پس `rollback()` دقیقاً همان
+     * کاری را می‌کند که لازم است — بدون اینکه مجبور باشیم برچسب را دوباره به
+     * version/hash بشکنیم و حدس بزنیم کدام تکه hash بوده.
+     *
+     * اگر نسخهٔ قبلی‌ای نبود، اشاره‌گر حذف می‌شود: «اشاره‌گر به نسخه‌ای که هرگز
+     * فعال نشد» خودش دروغ است و `currentDir()` را طوری نشان می‌دهد که انگار
+     * فعال است — و `PluginRouter` و autoloader همان را می‌خوانند.
+     */
+    private function pointerBack(Plugin $plugin): void
+    {
+        try {
+            if ($this->releases->rollback($plugin->slug) !== null) {
+                return;
+            }
+
+            $pointer = $this->releases->pointerPath($plugin->slug);
+
+            if (is_file($pointer)) {
+                @unlink($pointer);
+            }
+        } catch (\Throwable $e) {
+            // ناتوانی در برگرداندن اشاره‌گر نباید خطای تازه‌ای بسازد؛ نسخهٔ فعال
+            // قبلی اگر وجود داشته باشد دست‌نخورده می‌ماند چون تاریخ نگه داشته شده.
+            Log::warning('plugin.pointer_rollback_failed', [
+                'slug' => $plugin->slug,
+                'reason' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function deactivate(Request $request, Plugin $plugin): JsonResponse
