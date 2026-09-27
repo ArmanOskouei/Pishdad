@@ -303,4 +303,32 @@ class PluginDbContractTest extends TestCase
             );
         }
     }
+
+    /**
+     * همان ادعا، از زاویهٔ دیتابیس.
+     *
+     * ## چرا این تست **سبز** است در حالی که وضعیت بد است
+     *
+     * نقش اتصال **superuser** است. تستی که `assertFalse` می‌کرد همیشه قرمز
+     * می‌ماند و بعد از چند روز کسی نگاهش نمی‌کند — یعنی دقیقاً همان چیزی که
+     * نباید بشود.
+     *
+     * پس به‌جای ادعای خلاف واقع، **وضعیت شناخته‌شده را ثبت می‌کند** و وقتی
+     * کسی نقش را درست کرد، همین تست قرمز می‌شود و می‌گوید چه چیزهایی باید
+     * به‌روز شود. یعنی این تست یک یادآور است، نه یک دروغ.
+     */
+    public function test_the_app_role_state_is_the_one_the_spike_documented(): void
+    {
+        $row = DB::selectOne('select rolsuper as s from pg_roles where rolname = current_user');
+
+        $this->assertNotNull($row, 'نقش جاری در pg_roles پیدا نشد.');
+
+        $this->assertTrue(
+            (bool) $row->s,
+            'وضعیت عوض شده: نقش اتصال دیگر superuser نیست. حالا این کارها را بکن — '
+            .'۱) `docs/spike-K5.7-POSTGRES-ROLES.md` را ببند و نتیجه را بنویس، '
+            .'۲) کامنت «تنها لایهٔ دفاع» را در `PluginDbContract` بازنویسی کن چون دیگر تنها نیست، '
+            .'۳) به `assertFalse` برگردان تا نقش غیر-superuser را تضمین کند.'
+        );
+    }
 }
