@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+// fixtureهای اجرایی: کلاس‌های واقعی افزونه، نه mock. بدون این‌ها guardهای
+// `PluginDispatcher` آزموده نمی‌شوند — تست یک stub را صدا می‌زند و سبز می‌شود.
+require_once __DIR__.'/../Fixtures/PluginDemo/Http.php';
+
 use App\Http\Controllers\PluginRouter;
 use App\Models\Plugin;
 use App\Services\Plugins\PluginRouteTable;
@@ -488,33 +492,135 @@ class PluginRouterTest extends TestCase
 
     // ── ۷) HTTP: همان چیزی که کاربر می‌بیند ────────────────────────────────
 
-    public function test_a_resolved_route_is_answered_501_with_the_dispatch_decision(): void
+    /**
+     * K7.11 — مسیر resolve‌شده حالا **اجرا** می‌شود، نه اینکه ۵۰۱ بدهد.
+     *
+     * تا این‌جا `PluginRouteTable` اعلان را می‌خواند و `PluginAutoloader` کلاس‌ها
+     * را بارگذاری می‌کرد، ولی هیچ‌کدام به هم وصل نبودند. یعنی افزونه می‌توانست
+     * مسیر **اعلام** کند و هیچ مسیری **اجرا** نمی‌شد — و K7.8/K7.9 (انتقال ۶۱
+     * route مرکزی) روی زیرساختی نوشته می‌شدند که هرگز اجرا نمی‌شد.
+     *
+     * کلاس‌های `Demo\…` در همین فایل تعریف شده‌اند و `PluginDispatcher` آن‌ها را
+     * از namespace اجباری `Pishdad\Plugins\Demo\` پیدا می‌کند — یعنی تست مسیر
+     * واقعی را می‌پیماید، نه یک mock را.
+     */
+    public function test_a_resolved_route_actually_runs_plugin_code(): void
     {
         $this->plugin('demo', [
-            ['method' => 'post', 'path' => 'callback/{id}', 'handler' => 'Pishdad\\Plugins\\Demo\\Http\\CallbackController@store', 'middleware' => ['auth:sanctum']],
+            ['method' => 'post', 'path' => 'callback/{id}', 'handler' => 'Pishdad\\Plugins\\Demo\\Http\\CallbackController@store'],
         ]);
 
         $response = $this->postJson('/api/v1/p/demo/callback/7');
 
-        $response->assertStatus(501);
-        $this->assertSame('demo', $response->json('dispatch.plugin'));
-        $this->assertSame('POST', $response->json('dispatch.method'));
-        $this->assertSame('Pishdad\\Plugins\\Demo\\Http\\CallbackController@store', $response->json('dispatch.handler'));
-        $this->assertSame(['auth:sanctum'], $response->json('dispatch.middleware'));
-        $this->assertSame(['id' => '7'], $response->json('dispatch.params'));
+        $response->assertOk();
+        $this->assertSame('demo', $response->json('plugin'));
+        $this->assertSame('7', $response->json('id'), 'پارامتر مسیر باید به متد هندلر برسد.');
     }
 
-    public function test_the_whole_request_shape_works_through_the_real_route(): void
+    /**
+     * `@method` **اجباری** است — و این امنیتی است، نه محدودیتِ سلیقه‌ای.
+     *
+     * منطقش در `PluginRouteTable::compileHandler()` است: بدون `@` هیچ نام متدی
+     * وجود ندارد، پس یا باید از روی متد HTTP حدس زد (که یعنی یک بسته می‌تواند
+     * متدی را که اصلاً قصد فراخوانی‌اش را نداشت اجرا کند) یا باید `@` را صریح
+     * نوشت. حدس زدن بدتر است.
+     *
+     * همچنین `__`-پیشوند ممنوع است (`:520`) تا `__destruct` و `__clone` از بیرون
+     * قابل فراخوانی نباشند. این تست هر دو قاعده را قفل می‌کند.
+     */
+    public function test_a_handler_without_a_method_is_rejected(): void
+    {
+        $this->plugin('demo', [
+            ['method' => 'get', 'path' => 'ping', 'handler' => 'Pishdad\\Plugins\\Demo\\Http\\PingController'],
+        ]);
+
+        Log::spy();
+
+        // ۴۰۴، نه ۵۰۰: اعلان اصلاً ثبت نشد، پس «مسیر وجود ندارد» درست است.
+        $this->getJson('/api/v1/p/demo/ping')->assertStatus(404);
+
+        Log::shouldHaveReceived('warning')->withArgs(function (string $m, array $c): bool {
+            return $m === 'plugin.route_rejected' && ($c['reason'] ?? '') === 'handler_rejected';
+        });
+    }
+
+    /**
+     * متدِ `__`-دار از بیرون قابل فراخوانی نیست.
+     */
+    public function test_a_dunder_handler_method_is_rejected(): void
+    {
+        $this->plugin('demo', [
+            ['method' => 'get', 'path' => 'destruct', 'handler' => 'Pishdad\\Plugins\\Demo\\Http\\PingController@__destruct'],
+        ]);
+
+        $this->getJson('/api/v1/p/demo/destruct')->assertStatus(404);
+    }
+
+    /**
+     * هندلر باید داخل namespace اجباری همان افزونه باشد.
+     *
+     * این تنها جایی است که جلوی یک بستهٔ مخرب را می‌گیرد که می‌خواهد به کلاسِ
+     * هسته دست بزند. `PluginAutoloader` همین قاعده را هنگام ثبت دارد ولی روی رشتهٔ
+     * **اعلام‌شده**؛ `PluginDispatcher` روی رشتهٔ **واقعیِ فراخوانی** هم می‌سنجد.
+     */
+    public function test_a_handler_outside_the_plugin_namespace_is_rejected_at_declaration(): void
+    {
+        $this->plugin('demo', [
+            // یک کلاس واقعی و داخل هسته — نه یک نام ساختگی.
+            ['method' => 'get', 'path' => 'escape', 'handler' => 'App\\Http\\Controllers\\Api\\V1\\Admin\\PluginController@index'],
+        ]);
+
+        Log::spy();
+
+        $this->getJson('/api/v1/p/demo/escape')->assertStatus(404);
+
+        Log::shouldHaveReceived('warning')->withArgs(function (string $m, array $c): bool {
+            return $m === 'plugin.route_rejected' && ($c['reason'] ?? '') === 'handler_rejected';
+        });
+    }
+
+    /**
+     * خطای افزونه نباید جزئیاتش را به کاربر نشت دهد.
+     *
+     * یک استثنا می‌تواند connection string یا مسیر فایل داشته باشد و مسیر فایل
+     * ساختار دیسک را لو می‌دهد. جزئیات باید فقط در لاگ برود.
+     */
+    public function test_a_throwing_handler_does_not_leak_details_to_the_client(): void
+    {
+        $this->plugin('demo', [
+            ['method' => 'get', 'path' => 'boom', 'handler' => 'Pishdad\\Plugins\\Demo\\Http\\ThrowingController@show'],
+        ]);
+
+        Log::spy();
+
+        $response = $this->getJson('/api/v1/p/demo/boom');
+
+        $response->assertStatus(500);
+        $body = $response->getContent();
+        $this->assertStringNotContainsString('SECRET-LEAK', (string) $body);
+        $this->assertStringNotContainsString('/var/www/html', (string) $body);
+        $this->assertStringNotContainsString('pg_password', (string) $body);
+
+        Log::shouldHaveReceived('error')->withArgs(function (string $m, array $c): bool {
+            return $m === 'plugin.dispatch_failed' && ($c['slug'] ?? '') === 'demo';
+        });
+    }
+
+    /**
+     * یک افزونهٔ غیرفعال هیچ مسیری ندارد — حتی اگر اعلانش در کش مانده باشد.
+     */
+    public function test_a_deactivated_plugin_runs_nothing(): void
     {
         $this->plugin('demo', [
             ['method' => 'get', 'path' => 'ping', 'handler' => 'Pishdad\\Plugins\\Demo\\Http\\PingController@show'],
         ]);
 
-        $this->getJson('/api/v1/p/demo/ping')->assertStatus(501);
-        $this->postJson('/api/v1/p/demo/ping')->assertStatus(404);
-        $this->getJson('/api/v1/p/demo/pong')->assertStatus(404);
-        $this->getJson('/api/v1/p/ghost/ping')->assertStatus(404);
-        $this->getJson('/api/v1/p/demo/ping/extra')->assertStatus(404);
+        $this->getJson('/api/v1/p/demo/ping')->assertOk();
+
+        Plugin::query()->where('slug', 'demo')->update(['active' => false]);
+        PluginRouteTable::flush();
+
+        $this->getJson('/api/v1/p/demo/ping')->assertStatus(404);
     }
 
     public function test_the_404_message_does_not_distinguish_why(): void
@@ -573,7 +679,7 @@ class PluginRouterTest extends TestCase
             ['method' => 'get', 'path' => 'ping', 'handler' => 'Pishdad\\Plugins\\Demo\\Http\\PingController@show'],
         ]);
 
-        $this->getJson('/api/v1/p/demo/ping')->assertStatus(501);
+        $this->getJson('/api/v1/p/demo/ping')->assertOk();
 
         Plugin::query()->where('slug', 'demo')->update(['active' => false]);
         $this->table->flush();

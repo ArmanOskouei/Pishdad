@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Plugins\PluginDispatcher;
 use App\Services\Plugins\PluginRouteTable;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * K5.4 — catch-all مالکِ هسته برای routeهای افزونه.
@@ -34,20 +36,21 @@ use Illuminate\Http\Request;
  *    نویسهٔ خارج از الفبا)، متد نخواند، یا مسیر نخواند. یک پیام واحد و بی‌طرف:
  *    گفتن اینکه «افزونه هست ولی مسیر نه» یک طاقهٔ شمارش می‌سازد. به همین دلیل
  *    پیام یک ثابت است و نه دو رشتهٔ هم‌معنی.
- *  - **501** برای مسیری که resolve شد ولی هنوز قابل اجرا نیست.
+ *  - **500** برای استثنایی که از کد افزونه یا از guardهای `PluginDispatcher`
+ *    برمی‌آید. جزئیات فقط در لاگ می‌رود.
  *
  * **405 هرگز.** متدِ نخواندن هم 404 است، چون نگفتنِ آن بهتر از گفتنِ آن است.
  *
- * **چرا 501 و نه اجرا.** `PluginRouteTable` عمداً کدی از افزونه اجرا نمی‌کند
- * و `PluginAutoloader` هنوز به هیچ‌جای چرخهٔ حیات وصل نیست. گفتن 501 دروغ نمی‌گوید
- * (هسته مسیر را می‌شناسد و قصد اجرا دارد) ولی وانمود هم نمی‌کند که اجرا شده —
- * برخلاف 200ِ خالی یا 404ای که پیامش «پلاگین خراب است» است و هیچ‌کس برای
- * تشخیص مسیرش ابزاری ندارد. تصمیم dispatch در بدنهٔ پاسخ برمی‌گردد تا روزی که
- * `dispatch()` اضافه شد دقیقاً همان چیزی باشد که مصرف می‌کند.
+ * **K7.11 — این‌جا ۵۰۱ نبود.** تا آن روز مسیر درست **۵۰۱** برمی‌گرداند چون
+ * `PluginRouteTable` اعلان را می‌خواند ولی `PluginAutoloader` به هیچ چرخهٔ حیاتی
+ * وصل نبود و `dispatch()` وجود نداشت. یعنی افزونه می‌توانست مسیر **اعلام** کند و
+ * هیچ مسیری **اجرا** نمی‌شد — و K7.8/K7.9 (انتقال ۶۱ route مرکزی) روی زیرساختی
+ * نوشته می‌شدند که هرگز اجرا نمی‌شد. اجرای واقعی حالا در
+ * `PluginDispatcher::dispatch()` است و guardهای امنیتی‌اش همان‌جاست.
  *
- * بدنهٔ پاسخ عمداً شامل هندلر، میدلورها و پارامترهاست: این‌ها را فقط کسی
- * می‌بیند که همین حالا slug یک افزونهٔ **فعال** را می‌داند، پس طاقهٔ شمارش نمی‌سازد
- * و در عوض مسیر را قابل تشخیص می‌کند.
+ * بدنهٔ پاسخ ۴۰۴ قبلاً شامل هندلر/میدلورها/پارامترها بود تا مسیر قابل تشخیص
+ * باشد؛ با اجرا شدن dispatch دیگر لازم نیست و **حذف شد** — چون دیگر پاسخی نیست
+ * که بخواهد تشخیص را ممکن کند.
  */
 class PluginRouter extends Controller
 {
@@ -66,9 +69,12 @@ class PluginRouter extends Controller
      */
     private const NOT_FOUND = 'این مسیر وجود ندارد.';
 
-    public function __construct(private PluginRouteTable $routes) {}
+    public function __construct(
+        private PluginRouteTable $routes,
+        private PluginDispatcher $dispatcher,
+    ) {}
 
-    public function __invoke(Request $request, string $slug, ?string $any = null): JsonResponse
+    public function __invoke(Request $request, string $slug, ?string $any = null): mixed
     {
         $method = strtoupper($request->getMethod());
         $route = $this->routes->resolve($slug, (string) $any);
@@ -77,16 +83,25 @@ class PluginRouter extends Controller
             return response()->json(['message' => self::NOT_FOUND], 404);
         }
 
-        return response()->json([
-            'message' => 'این route شناسایی شد اما هنوز اجرا نمی‌شود؛ اجرای کد افزونه در چرخهٔ حیات افزونه سیم‌کشی نشده است.',
-            'dispatch' => [
-                'plugin' => $route['slug'],
-                'method' => $route['method'],
+        // K7.11 — پیش از این، هر مسیر درست ۵۰۱ برمی‌گرداند چون
+        // `PluginAutoloader` به هیچ چرخهٔ حیاتی وصل نبود.
+        try {
+            return $this->dispatcher->dispatch($request, $route);
+        } catch (Throwable $e) {
+            // جزئیات فقط در لاگ. یک استثنا می‌تواند connection string یا مسیر
+            // فایل داشته باشد و مسیر فایل ساختار دیسک را لو می‌دهد.
+            Log::error('plugin.dispatch_failed', [
+                'slug' => $route['slug'],
                 'path' => $route['path'],
-                'params' => $route['params'],
+                'method' => $route['method'],
                 'handler' => $route['handler'],
-                'middleware' => $route['middleware'],
-            ],
-        ], 501);
+                'exception' => $e::class,
+                'reason' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'اجرای این مسیر افزونه ناموفق بود.',
+            ], 500);
+        }
     }
 }
