@@ -52,6 +52,182 @@ class ManifestRegistryTest extends TestCase
         $this->assertTrue(true, $because);
     }
 
+    // ------------------------------------------------------- K6.8 / panel.extensions
+
+    /**
+     * K6.8 — اعلان نوع صفحه از راه `panel.extensions` باید واقعاً به فهرست برسد.
+     *
+     * این مهم‌ترین ادعای این تسک است. تا پیش از آن، `pageTypes()` فقط کلید سطح‌بالای
+     * `manifest.page_types` را می‌خواند، درحالی که `PluginPackageValidator`
+     * اعلان‌های `panel.extensions` را بررسی می‌کند. یعنی نویسنده اعلانش
+     * اعتبارسنجی می‌شد و **هیچ خطایی هم نمی‌گرفت**، ولی نوع صفحه هرگز در فهرست
+     * ظاهر نمی‌شد — همان «نصب شد ولی دیده نشد».
+     */
+    public function test_page_type_declared_via_panel_extensions_reaches_the_list(): void
+    {
+        $this->activePlugin('alpha', [
+            'panel' => [
+                'extensions' => [
+                    ['point' => 'site.page_type', 'type' => 'glossary', 'title' => 'واژه‌نامه'],
+                ],
+            ],
+        ]);
+
+        $types = ManifestRegistry::pageTypes();
+
+        $this->assertArrayHasKey(
+            'glossary',
+            $types,
+            'اعلان از راه panel.extensions باید در فهرست انواع صفحه باشد.'
+        );
+        $this->assertSame('واژه‌نامه', $types['glossary']['title'] ?? null);
+        $this->assertSame('plugin:alpha', $types['glossary']['source'] ?? null);
+    }
+
+    /**
+     * `point` و `path` فیلدهای داخلی اعلان‌اند، نه چیزی که بقیهٔ کد باید ببیند.
+     */
+    public function test_internal_declaration_fields_are_stripped_from_the_merged_page_type(): void
+    {
+        $this->activePlugin('alpha', [
+            'panel' => [
+                'extensions' => [
+                    ['point' => 'site.page_type', 'type' => 'glossary', 'title' => 'واژه‌نامه'],
+                ],
+            ],
+        ]);
+
+        $def = ManifestRegistry::pageTypes()['glossary'];
+
+        $this->assertArrayNotHasKey('point', $def);
+        $this->assertArrayNotHasKey('path', $def);
+    }
+
+    /**
+     * اعلان نقطهٔ دیگر نباید به‌اشتباه نوع صفحه شود.
+     */
+    public function test_other_extension_points_do_not_leak_into_page_types(): void
+    {
+        $this->activePlugin('alpha', [
+            'panel' => [
+                'extensions' => [
+                    ['point' => 'admin.menu', 'type' => 'not_a_page_type'],
+                    ['point' => 'site.page_type', 'type' => 'glossary'],
+                ],
+            ],
+        ]);
+
+        $types = ManifestRegistry::pageTypes();
+
+        $this->assertArrayNotHasKey('not_a_page_type', $types);
+        $this->assertArrayHasKey('glossary', $types);
+    }
+
+    /**
+     * برخورد بین دو کانال نباید بی‌صدا باشد.
+     *
+     * کانال مستقیم‌تر (`page_types`) برنده است چون `$adopt` اولین پذیرنده را نگه
+     * می‌دارد و ترتیب merge طوری چیده شده که این کانال اول بیاید. بدون گزارش،
+     * نویسنده نمی‌فهمد چرا اعلانش بی‌اثر بود.
+     */
+    public function test_collision_between_the_two_page_type_channels_is_reported(): void
+    {
+        $this->activePlugin('alpha', [
+            'panel' => [
+                'extensions' => [
+                    ['point' => 'site.page_type', 'type' => 'faq', 'title' => 'از کانال اعلان'],
+                ],
+            ],
+        ]);
+        $this->activePlugin('beta', ['page_types' => ['faq' => ['title' => 'از کانال کلید']]]);
+
+        Log::spy();
+
+        $types = ManifestRegistry::pageTypes();
+
+        $this->assertSame(
+            'از کانال کلید',
+            $types['faq']['title'] ?? null,
+            'کانال کلید سطح‌بالا باید برنده باشد.'
+        );
+        $this->assertCollisionLogged('page_type', 'faq', 'plugin:beta', 'plugin:alpha');
+    }
+
+    /**
+     * برخورد با نام هسته هم باید گزارش شود.
+     *
+     * `archive` یکی از سه نوع صفحهٔ واقعی هسته است (`home`, `single`, `archive`) —
+     * تست عمداً از نامی استفاده می‌کند که واقعاً در `config/page_types.php` هست،
+     * وگرنه به‌جای «برخورد با هسته» عملاً «برخورد با هیچ‌کس» را می‌سنجید.
+     */
+    public function test_page_type_colliding_with_core_is_reported(): void
+    {
+        $this->assertArrayHasKey(
+            'archive',
+            config('page_types', []),
+            'فرض این تست این است که archive نوع صفحهٔ هسته است.'
+        );
+        $coreTitle = config('page_types.archive.title', null);
+
+        $this->activePlugin('alpha', [
+            'panel' => [
+                'extensions' => [
+                    ['point' => 'site.page_type', 'type' => 'archive', 'title' => 'تله'],
+                ],
+            ],
+        ]);
+
+        Log::spy();
+
+        $types = ManifestRegistry::pageTypes();
+
+        $this->assertSame('core', $types['archive']['source'] ?? null, 'هسته باید برنده باشد.');
+        $this->assertSame(
+            $coreTitle,
+            $types['archive']['title'] ?? null,
+            'عنوان اعلان پلاگین نباید روی تعریف هسته بنشیند.'
+        );
+        $this->assertCollisionLogged('page_type', 'archive', 'core', 'plugin:alpha');
+    }
+
+    /**
+     * `enabled === false` باید مثل بقیهٔ انواع صفحه فیلتر شود.
+     */
+    public function test_a_disabled_page_type_from_panel_extensions_is_hidden(): void
+    {
+        $this->activePlugin('alpha', [
+            'panel' => [
+                'extensions' => [
+                    ['point' => 'site.page_type', 'type' => 'hidden', 'enabled' => false],
+                ],
+            ],
+        ]);
+
+        $this->assertArrayNotHasKey('hidden', ManifestRegistry::pageTypes());
+    }
+
+    /**
+     * اعلان خراب نباید کل ادغام را از کار بیندازد.
+     */
+    public function test_malformed_page_type_declarations_are_skipped(): void
+    {
+        $this->activePlugin('alpha', [
+            'panel' => [
+                'extensions' => [
+                    ['point' => 'site.page_type'],
+                    ['point' => 'site.page_type', 'type' => ''],
+                    ['point' => 'site.page_type', 'type' => 123],
+                    ['point' => 'site.page_type', 'type' => 'good'],
+                ],
+            ],
+        ]);
+
+        $types = ManifestRegistry::pageTypes();
+
+        $this->assertArrayHasKey('good', $types);
+        $this->assertCount(1, array_filter($types, fn ($d) => ($d['source'] ?? '') === 'plugin:alpha'));
+    }
+
     // ---------------------------------------------------------------- B30 / page_types
 
     public function test_duplicate_page_type_from_two_plugins_is_not_silently_dropped(): void

@@ -294,6 +294,24 @@ class ManifestRegistry
      * انواع صفحه: هسته (config/page_types.php) + مانیفست پلاگین‌های فعال.
      * خروجی: [type => def + source + enabled] — typeهای enabled === false
      * حذف می‌شوند (فرانت فقط همین لیست را تب می‌کند).
+     *
+     * ## K6.8 — دو کانال، یک ادغام
+     *
+     * اعلان نوع صفحه از دو راه می‌آید و هر دو باید به این فهرست برسند:
+     *
+     *  ۱. کلید سطح‌بالای `manifest.page_types` — همان الگوی `widgets` و `settings`.
+     *  ۲. `panel.extensions` با `point === 'site.page_type'` — تنها نقطهٔ `live` در
+     *     قرارداد، و تنها جایی که `PluginPackageValidator` واقعاً اعلانش را
+     *     بررسی می‌کند.
+     *
+     * تا پیش از این فقط کانال اول خوانده می‌شد. یعنی کانال دوم **اعتبارسنجی
+     * می‌شد ولی هرگز به فهرست نمی‌رسید** — دقیقاً همان «نصب شد ولی دیده نشد» که
+     * این کدبیس برایش اصطلاح دارد. بدتر از بی‌پشتوانه بودن است چون نویسنده پیام
+     * خطا هم نمی‌گیرد.
+     *
+     * ترتیب: کانال دوم اول merge می‌شود، بعد کانال اول روی آن. یعنی در برخورد،
+     * کلید سطح‌بالا برنده است — چون کانال مستقیم‌تر و صریح‌تری است و همین قاعده
+     * در `widgetSchemas()` هم برقرار است.
      */
     public static function pageTypes(): array
     {
@@ -307,31 +325,86 @@ class ManifestRegistry
 
         self::$collisions['page_type'] = [];
 
-        foreach (self::activeManifests() as $slug => $manifest) {
+        $adopt = function (string $type, array $def, string $source) use (&$types): void {
+            if (! is_string($type) || $type === '' || ! is_array($def)) {
+                return;
+            }
+
+            if (isset($types[$type])) {
+                self::recordCollision('page_type', $type, $types[$type]['source'] ?? 'core', $source);
+
+                return;
+            }
+
+            $types[$type] = array_merge($def, [
+                'source' => $source,
+                'enabled' => ($def['enabled'] ?? true) !== false,
+            ]);
+        };
+
+        $manifests = self::activeManifests();
+
+        // ترتیب عمداً برعکسِ نام متد است: کانال مستقیم‌تر اول می‌آید تا برنده شود.
+        // `$adopt` اولین پذیرنده را نگه می‌دارد و بقیه را فقط گزارش می‌کند، پس
+        // اگر `panel.extensions` اول merge شود، کلید سطح‌بالا هرگز برنده نمی‌شود
+        // و قاعده‌ای که در `widgetSchemas()` برقرار است اینجا وارونه می‌افتد.
+        foreach ($manifests as $slug => $manifest) {
             $extra = $manifest['page_types'] ?? null;
             if (! is_array($extra)) {
                 continue;
             }
             foreach ($extra as $type => $def) {
-                $source = "plugin:{$slug}";
-                if (! is_string($type) || ! is_array($def)) {
-                    continue;
-                }
-                if (isset($types[$type])) {
-                    self::recordCollision('page_type', $type, $types[$type]['source'] ?? 'core', $source);
+                $adopt((string) $type, is_array($def) ? $def : [], "plugin:{$slug}");
+            }
+        }
 
-                    continue;
-                }
-                $types[$type] = array_merge($def, [
-                    'source' => $source,
-                    'enabled' => ($def['enabled'] ?? true) !== false,
-                ]);
+        foreach ($manifests as $slug => $manifest) {
+            foreach (self::declaredPageTypes($manifest) as $entry) {
+                $def = $entry['def'];
+
+                // `point` و مسیر اعلان فیلدهای داخلی رجیستری‌اند، نه چیزی که بقیه
+                // ٔ کد ببیند — پس اینجا برداشته می‌شوند.
+                unset($def['point'], $def['path']);
+
+                $adopt($entry['type'], $def, "plugin:{$slug}");
             }
         }
 
         return collect($types)
             ->filter(fn (array $def) => ($def['enabled'] ?? true) !== false)
             ->all();
+    }
+
+    /**
+     * اعلان‌های نوع صفحه که از راه `panel.extensions` آمده‌اند.
+     *
+     * @return list<array{type: string, def: array}>
+     */
+    private static function declaredPageTypes(array $manifest): array
+    {
+        $extensions = $manifest['panel']['extensions'] ?? null;
+
+        if (! is_array($extensions)) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach ($extensions as $entry) {
+            if (! is_array($entry) || ($entry['point'] ?? null) !== 'site.page_type') {
+                continue;
+            }
+
+            $type = $entry['type'] ?? null;
+
+            if (! is_string($type) || $type === '') {
+                continue;
+            }
+
+            $out[] = ['type' => $type, 'def' => $entry];
+        }
+
+        return $out;
     }
 
     /**
