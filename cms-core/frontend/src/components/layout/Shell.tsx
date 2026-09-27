@@ -5,24 +5,13 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { BottomNav } from "./BottomNav";
 import type { MenuGroup } from "@/lib/menu";
+import { crumbsForPath } from "@/lib/crumbs";
 
 const DRAWER_BREAKPOINT = 1100;
 
-/** برچسب مسیر از رجیستری منو خوانده می‌شود، نه از URL خام — تنها منبع حقیقت همین `groups` است.
- *  وقتی K6.9 صفحه‌دسکریپتور اضافه شد، فقط همین تابع عوض می‌شود و بقیهٔ شل دست‌نخورده. */
-function crumbsForPath(pathname: string, groups: MenuGroup[], root: string[]): string[] {
-  let hit: { href: string; label: string; group?: string } | null = null;
-  for (const g of groups) {
-    for (const item of g.items) {
-      if (pathname !== item.href && !pathname.startsWith(`${item.href}/`)) continue;
-      if (!hit || item.href.length > hit.href.length) {
-        hit = { href: item.href, label: item.label, group: g.title };
-      }
-    }
-  }
-  const parts = (hit ? [root, hit.group, hit.label] : [root]).flat().filter((p): p is string => Boolean(p));
-  return parts.filter((p, i) => i === 0 || p !== parts[i - 1]);
-}
+// K6.9 — منطق crumb از این فایل به `lib/crumbs.ts` منتقل شد تا قابل تست باشد.
+// تا قبل از آن، این تابع — که تمام breadcrumb پنل را می‌ساخت — هیچ تستی نداشت و
+// هر تغییر منوی ادمین می‌توانست مسیر ناوبری را بی‌سروصدا خراب کند.
 
 /** شل مشترک F1: سایدبار + تاپ‌بار + BottomNav + Drawer موبایل. */
 export function Shell({
