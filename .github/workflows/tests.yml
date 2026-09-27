@@ -13,7 +13,7 @@ jobs:
 
     services:
       db:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: cms
           POSTGRES_PASSWORD: cmssecret
@@ -27,7 +27,7 @@ jobs:
           --health-retries 5
 
       redis:
-        image: redis:7-alpine
+        image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
@@ -43,7 +43,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: pdo_pgsql, redis, intl, bcmath, mbstring, zip, gd, sodium, fileinfo
           coverage: none
 

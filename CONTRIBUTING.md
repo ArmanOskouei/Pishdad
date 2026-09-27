@@ -12,11 +12,11 @@ which parts of the codebase need care.
 
 | | |
 |---|---|
-| PHP | `>= 8.2` |
+| PHP | `>= 8.3` |
 | Composer | 2.x |
-| Node.js | `>= 20` |
-| PostgreSQL | `>= 14`, with an `fa-IR` collation available |
-| Redis | `>= 6` |
+| Node.js | `>= 22` |
+| PostgreSQL | `>= 18`, with an `fa-IR` collation available |
+| Redis | `>= 8` |
 
 Pishdad needs a real PostgreSQL. SQLite will not do, because the project relies on a
 Persian-aware collation for correct sorting, and it normalises Arabic letter forms in
@@ -64,11 +64,11 @@ Never commit a real `.env`. Both `.env` and `.env.local` are git-ignored.
 
 ```
 cms-core/
-  backend/     Laravel 11, API-only
+  backend/     Laravel 13, API-only
     app/Services/Plugins/    the plugin runtime
     openapi/openapi.yaml     the API contract, source of truth
     tests/                   489 tests across 67 files
-  frontend/    Next.js 15, App Router
+  frontend/    Next.js 16, App Router
     src/app/(client)/admin   client panel
     src/app/(central)/central central panel
     src/app/[...path]        public site
@@ -187,11 +187,11 @@ user-facing string, leave it in a translation file rather than inline in a compo
 
 | | |
 |---|---|
-| PHP | `>= 8.2` |
+| PHP | `>= 8.3` |
 | Composer | 2.x |
-| Node.js | `>= 20` |
-| PostgreSQL | `>= 14` با collation `fa-IR` |
-| Redis | `>= 6` |
+| Node.js | `>= 22` |
+| PostgreSQL | `>= 18` با collation `fa-IR` |
+| Redis | `>= 8` |
 
 پیشداد به PostgreSQL واقعی نیاز دارد. SQLite جواب نمی‌دهد، چون پروژه برای مرتب‌سازی
 درست به collation آگاه به فارسی تکیه می‌کند و نرمال‌سازی شکل حروف عربی را در کد انجام
@@ -236,11 +236,11 @@ cd cms-core/frontend && docker compose up -d
 
 ```
 cms-core/
-  backend/     لاراول ۱۱، فقط API
+  backend/     لاراول ۱۳، فقط API
     app/Services/Plugins/    اجراکنندهٔ پلاگین
     openapi/openapi.yaml     قرارداد API، منبع حقیقت
     tests/                   ۴۸۹ تست در ۶۷ فایل
-  frontend/    Next.js 15، App Router
+  frontend/    Next.js 16، App Router
     src/app/(client)/admin   پنل مشتری
     src/app/(central)/central پنل مرکزی
     src/app/[...path]        سایت عمومی

@@ -6,10 +6,11 @@ Pishdad (پیشداد) is a plugin-based content management system for building 
 websites. It is named after the Pishdadians, the first dynasty of the Shahnameh.
 
 ## Stack
-- Backend: Laravel 11 (API-only), PHP 8.2+
-- Frontend: Next.js 15 (App Router), React 19, TypeScript
-- Data: PostgreSQL 14+ (fa-IR collation), Redis, MinIO (S3-compatible)
-- API: OpenAPI 3.1, 135 endpoints · Tests: PHPUnit, 489 tests
+- Backend: Laravel 13 (API-only), PHP 8.3+
+- Frontend: Next.js 16 (App Router), React 19.3, TypeScript 7
+- Data: PostgreSQL 18+ (fa-IR collation), Redis 8+, MinIO (S3-compatible)
+- Runtime: Nginx 1.31+, PHP-FPM, Node.js 22+
+- API: OpenAPI 3.1, 135 endpoints · Tests: PHPUnit 11, 489 tests
 
 ## What makes it different
 - Persian and RTL from the first commit: CSS logical properties, Jalali dates, a locally
@@ -22,7 +23,6 @@ websites. It is named after the Pishdadians, the first dynasty of the Shahnameh.
 ## Licensing and hosting
 Free and MIT-licensed: no premium edition, no seat count, no telemetry. Self-hosted, so it
 runs on a server you control and your data stays there.
-
 ## Links
 - English README: https://github.com/ArmanOskouei/Pishdad/blob/main/README.md
 - Persian README: https://github.com/ArmanOskouei/Pishdad/blob/main/README.fa.md

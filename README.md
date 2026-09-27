@@ -9,7 +9,7 @@ A self-hosted Laravel CMS with a Next.js frontend, running on a server you contr
 Visual block editor, a real plugin runtime, installable themes, and Persian baked in from
 the first commit rather than bolted on by a translation file.
 
-[![license](https://img.shields.io/badge/license-MIT-E7C069?style=flat-square&labelColor=141834)](LICENSE) [![tests](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml/badge.svg)](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml) [![PHP](https://img.shields.io/badge/PHP->=8.2-E7C069?style=flat-square&labelColor=141834)](https://php.net) [![Next.js](https://img.shields.io/badge/Next.js-15-E7C069?style=flat-square&labelColor=141834)](https://nextjs.org) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-E7C069?style=flat-square&labelColor=141834)](https://postgresql.org) [![Redis](https://img.shields.io/badge/Redis-cache-E7C069?style=flat-square&labelColor=141834)](https://redis.io) [![cost](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-E7C069?style=flat-square&labelColor=141834)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
+[![license](https://img.shields.io/badge/license-MIT-E7C069?style=flat-square&labelColor=141834)](LICENSE) [![tests](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml/badge.svg)](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml) [![PHP](https://img.shields.io/badge/PHP->=8.3-E7C069?style=flat-square&labelColor=141834)](https://php.net) [![Next.js](https://img.shields.io/badge/Next.js-16-E7C069?style=flat-square&labelColor=141834)](https://nextjs.org) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-E7C069?style=flat-square&labelColor=141834)](https://postgresql.org) [![Redis](https://img.shields.io/badge/Redis-8-E7C069?style=flat-square&labelColor=141834)](https://redis.io) [![cost](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-E7C069?style=flat-square&labelColor=141834)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
 
 **English** · **[فارسی / Persian](README.fa.md)**
 
@@ -120,14 +120,14 @@ code is untrusted input that has to earn execution. `app/Services/Plugins/` has 
 
 ```
                       ┌───────────────────────────────────┐
-    Browser  ────────▶ │  Next.js 15  (React 19, App Router) │
+    Browser  ────────▶ │  Next.js 16  (React 19, App Router) │
                       │  RTL · Vazirmatn · cacheHandler    │
                       └────────────────┬──────────────────┘
                                        │ typed client, generated
                                        │ from OpenAPI 3.1
                                        ▼
                       ┌───────────────────────────────────┐
-                      │  Laravel 11   (API-only)           │
+                      │  Laravel 13   (API-only)           │
                       │  Sanctum · RBAC · 2FA              │
                       │  Plugin runtime (Ed25519)          │
                       └──┬───────────┬───────────┬─────────┘
@@ -137,10 +137,10 @@ code is untrusted input that has to earn execution. `app/Services/Plugins/` has 
 
 | Layer | Technology |
 |---|---|
-| Backend | Laravel `^11.31` · PHP `≥8.2` · Sanctum · `spatie/laravel-permission` · `pragmarx/google2fa` · `morilog/jalali` |
-| Frontend | Next.js `^15.5` · React `19` · TypeScript `5.7` · `@dnd-kit` · `jodit-react` · `jalaali-js` |
-| Data | PostgreSQL `≥14` (ICU `fa-IR` collation) · Redis `≥6` · MinIO (S3-compatible) |
-| Runtime | Nginx · PHP-FPM · Composer 2 · Node.js `≥20` |
+| Backend | Laravel `^13.0` · PHP `≥8.3` · Sanctum · `spatie/laravel-permission` · `pragmarx/google2fa` · `morilog/jalali` |
+| Frontend | Next.js `^16.3` · React `19.3` · TypeScript `7.0` · `@dnd-kit` · `jodit-react` · `jalaali-js` |
+| Data | PostgreSQL `≥18` (ICU `fa-IR` collation) · Redis `≥8` · MinIO (S3-compatible) |
+| Runtime | Nginx `1.31` · PHP-FPM · Composer 2 · Node.js `≥22` |
 | API | OpenAPI 3.1, **135 endpoints**, client types generated into the frontend |
 | Tests | PHPUnit — **489 tests across 67 files** (63 feature, 3 unit) |
 | Assets | Fully self-hosted. Fonts and icons served locally, no external CDN |
@@ -291,14 +291,14 @@ Point Nginx at the backend `public/` and the frontend `.next/`, and the site is 
 
 | Service | Version |
 |---|---|
-| PHP | 8.3 (FPM) |
+| PHP | 8.3+ (FPM) |
 | PHP extensions | `pdo_pgsql` · `redis` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
-| Nginx | 1.27+ |
-| PostgreSQL | 14+ with `fa-IR` collation |
-| Redis | 6+ |
+| Nginx | 1.31+ |
+| PostgreSQL | 18+ with `fa-IR` collation |
+| Redis | 8+ |
 | MinIO | latest, S3-compatible object storage |
 | Composer | 2.x |
-| Node.js | 20 LTS, 22 recommended |
+| Node.js | 22 LTS, 24 recommended |
 | TLS | automatic certificate and renewal |
 
 </details>

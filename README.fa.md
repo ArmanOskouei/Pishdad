@@ -9,7 +9,7 @@
 اجراکنندهٔ واقعی پلاگین، قالب‌های قابل نصب، و فارسی از همان کامیت اول — نه یک فایل ترجمه
 که بعداً به آن اضافه شده باشد.
 
-[![لایسنس](https://img.shields.io/badge/license-MIT-E7C069?style=flat-square&labelColor=141834)](LICENSE) [![tests](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml/badge.svg)](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml) [![PHP](https://img.shields.io/badge/PHP->=8.2-E7C069?style=flat-square&labelColor=141834)](https://php.net) [![Next.js](https://img.shields.io/badge/Next.js-15-E7C069?style=flat-square&labelColor=141834)](https://nextjs.org) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-E7C069?style=flat-square&labelColor=141834)](https://postgresql.org) [![Redis](https://img.shields.io/badge/Redis-cache-E7C069?style=flat-square&labelColor=141834)](https://redis.io) [![هزینه](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-E7C069?style=flat-square&labelColor=141834)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
+[![لایسنس](https://img.shields.io/badge/license-MIT-E7C069?style=flat-square&labelColor=141834)](LICENSE) [![tests](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml/badge.svg)](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml) [![PHP](https://img.shields.io/badge/PHP->=8.3-E7C069?style=flat-square&labelColor=141834)](https://php.net) [![Next.js](https://img.shields.io/badge/Next.js-16-E7C069?style=flat-square&labelColor=141834)](https://nextjs.org) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-E7C069?style=flat-square&labelColor=141834)](https://postgresql.org) [![Redis](https://img.shields.io/badge/Redis-8-E7C069?style=flat-square&labelColor=141834)](https://redis.io) [![هزینه](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-E7C069?style=flat-square&labelColor=141834)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
 
 **فارسی** · **[English / انگلیسی](README.md)**
 
@@ -116,14 +116,14 @@
 
 ```
                       ┌───────────────────────────────────┐
-    مرورگر  ─────────▶ │  Next.js 15  (React 19, App Router) │
+    مرورگر  ─────────▶ │  Next.js 16  (React 19, App Router) │
                       │  RTL · وزیرمتن · cacheHandler      │
                       └────────────────┬──────────────────┘
                                        │ کلاینت تایپ‌شده، تولیدشده
                                        │ از روی OpenAPI 3.1
                                        ▼
                       ┌───────────────────────────────────┐
-                      │  Laravel 11   (فقط API)           │
+                      │  Laravel 13   (فقط API)           │
                       │  Sanctum · RBAC · 2FA              │
                       │  اجراکنندهٔ پلاگین (Ed25519)        │
                       └──┬───────────┬───────────┬─────────┘
@@ -133,10 +133,10 @@
 
 | لایه | فناوری |
 |---|---|
-| بک‌اند | Laravel `^11.31` · PHP `≥8.2` · Sanctum · `spatie/laravel-permission` · `pragmarx/google2fa` · `morilog/jalali` |
-| فرانت‌اند | Next.js `^15.5` · React `19` · TypeScript `5.7` · `@dnd-kit` · `jodit-react` · `jalaali-js` |
-| داده | PostgreSQL `≥14` (مرتب‌سازی `fa-IR`) · Redis `≥6` · MinIO (سازگار با S3) |
-| اجرا | Nginx · PHP-FPM · Composer 2 · Node.js `≥20` |
+| بک‌اند | Laravel `^13.0` · PHP `≥8.3` · Sanctum · `spatie/laravel-permission` · `pragmarx/google2fa` · `morilog/jalali` |
+| فرانت‌اند | Next.js `^16.3` · React `19.3` · TypeScript `7.0` · `@dnd-kit` · `jodit-react` · `jalaali-js` |
+| داده | PostgreSQL `≥18` (مرتب‌سازی `fa-IR`) · Redis `≥8` · MinIO (سازگار با S3) |
+| اجرا | Nginx `1.31` · PHP-FPM · Composer 2 · Node.js `≥22` |
 | API | OpenAPI 3.1، **۱۳۵ مسیر**، تایپ‌های کلاینت در فرانت تولید می‌شود |
 | تست | PHPUnit — **۴۸۹ تست در ۶۷ فایل** (۶۳ Feature، ۳ Unit) |
 | دارایی‌ها | کاملاً محلی. فونت و آیکون بدون CDN خارجی |
@@ -285,14 +285,14 @@ Nginx را به `public/` بک‌اند و `.next/` فرانت‌اند اشار
 
 | سرویس | نسخه |
 |---|---|
-| PHP | 8.3 (FPM) |
+| PHP | 8.3+ (FPM) |
 | افزونه‌های PHP | `pdo_pgsql` · `redis` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
-| Nginx | 1.27+ |
-| PostgreSQL | 14+ با مرتب‌سازی `fa-IR` |
-| Redis | 6+ |
+| Nginx | 1.31+ |
+| PostgreSQL | 18+ با مرتب‌سازی `fa-IR` |
+| Redis | 8+ |
 | MinIO | آخرین نسخه، ذخیره‌سازی شیء سازگار با S3 |
 | Composer | 2.x |
-| Node.js | 20 LTS، ۲۲ پیشنهاد می‌شود |
+| Node.js | 22 LTS، ۲۴ پیشنهاد می‌شود |
 | TLS | گواهی خودکار و تمدید خودکار |
 
 </details>
