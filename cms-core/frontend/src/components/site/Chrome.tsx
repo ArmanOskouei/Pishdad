@@ -4,6 +4,16 @@ import { SOCIAL_FA, type ChromeLinkItem, type SocialItem, type WidgetValue } fro
 // منبع حقیقت سمت سرور `App\Validation\SafeUrl` است؛ این لایه دفاع عمقی برای
 // داده‌ای است که پیش از آن در DB نشسته.
 import { safeHref } from "@/lib/sanitize";
+// K6.4: واژگانِ ویجت‌های هسته و متنِ لاگ/اعلان، در `lib/widget-type.ts` زندگی
+// می‌کنند تا لاگ و رفتار و تست یک روایت داشته باشند (و آزمون بتواند بدون
+// رندرر React آن‌ها را بخواند).
+import {
+  chromeWidgetDiagnosticsEnabled,
+  describeUnknownWidgetType,
+  isCoreChromeWidgetType,
+  unknownWidgetNoticeFa,
+  unknownWidgetWarning,
+} from "@/lib/widget-type";
 import type { SiteChrome } from "@/lib/site";
 import { SiteNav } from "./SiteNav";
 import { SiteSearchBox } from "./SiteSearchBox";
@@ -26,7 +36,25 @@ export function themeVars(chrome: Pick<SiteChrome, "theme"> | null): Record<stri
   return out;
 }
 
-export function ChromeWidget({ w, chrome }: { w: WidgetValue; chrome: SiteChrome | null }) {
+/**
+ * `diagnostics` یعنی «این رندر در دیداگ است» — پیش‌فرض از محیط می‌آید
+ * (`lib/widget-type.ts:chromeWidgetDiagnosticsEnabled`).
+ *
+ * پارامترِ صریح برای وقتی لازم است که **ادمین/پیش‌نمایش** کروم را رندر کند
+ * (`admin/header-footer`): همان کامپوننت، ولی با اعلانِ دیداری، تا اپراتور
+ * ببیند ویجتِ افزونه‌اش در سایت اصلاً رندر نمی‌شود. مصرف‌کننده‌های عمومی
+ * (`app/page.tsx`، `app/[...path]/page.tsx`، `app/search/page.tsx`) این را پاس
+ * نمی‌دهند و رفتارشان همان پیش‌فرض محیط است.
+ */
+export function ChromeWidget({
+  w,
+  chrome,
+  diagnostics,
+}: {
+  w: WidgetValue;
+  chrome: SiteChrome | null;
+  diagnostics?: boolean;
+}) {
   const s = (w.settings ?? {}) as Record<string, unknown>;
   const S = (k: string) => (typeof s[k] === "string" ? (s[k] as string) : "");
   switch (w.type) {
@@ -85,8 +113,60 @@ export function ChromeWidget({ w, chrome }: { w: WidgetValue; chrome: SiteChrome
       return <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>{S("text") || "عضویت در خبرنامه به‌زودی."}</p>;
     case "copyright":
       return <small style={{ color: "var(--text-muted)" }}>{S("text") || `© ${new Date().getFullYear()} ${chrome?.title ?? ""}`}</small>;
-    default:
-      return null;
+    // K6.4 — `type` ناشناس (شاخهٔ `default` بالا/پایین همین فایل). تصمیم‌ها و
+    // دلیلش در `lib/widget-type.ts` است؛ اینجا فقط ویوی همان تصمیم.
+    //
+    // چرا اینجا **محتوا** ساخته نمی‌شود:
+    //  ۱. **هیچ primitive‌ای وجود ندارد.** `site.header_widget` و
+    //     `site.footer_widget` در قرارداد با `fields => []` و
+    //     `open_schema => false` اعلام شده‌اند
+    //     (`PluginPackageContract.php:314,340`) ⇒ `validateDeclaration` برای
+    //     هر اعلان خطای `no_schema` می‌دهد (`:829-837`) و رشتهٔ نقطه در هیچ
+    //     کدِ runtime بک‌اند دیده نمی‌شود. کانالِ واقعیِ افزونه
+    //     `manifest.widgets.{header,footer}` است
+    //     (`ManifestRegistry.php:175-206`) که تا همین‌جا زنده است و همین
+    //     `switch` متوقفش می‌کند.
+    //  ۲. تنها راهِ رندرِ افزونه در سایت عمومی، دادنِ `html`/`js`/`component`
+    //     است — که خودِ قرارداد در `FORBIDDEN` (`:118-121`) banned کرده و در
+    //     مرورگرِ بازدیدکننده یعنی تصاحبِ صفحه.
+    //  ۳. پس تنها چیزِ صادقانه این است: **بگو که رندر نشد.** ساختنِ جایی که
+    //     چیزی رندر نمی‌شود همان دروگویی است که K6.10 برای کارتِ داشبورد حذف
+    //     کرد.
+    //
+    // قاعده‌ها (هم‌خط `BlockRenderer`، چون هر دو لایهٔ عمومی‌اند):
+    //  ۱. **هرگز throw نمی‌کنیم.** یک ویجتِ خراب نباید هدر/فوترِ همهٔ صفحات
+    //     سایت را بیندازد.
+    //  ۲. **همیشه لاگ سمتِ سرور.** این تنها کانالی است که در SSR به اپراتور
+    //     می‌رسد و از بین نمی‌رود. اگر `type` در `CORE_CHROME_WIDGET_TYPES`
+    //     باشد ولی `switch` نخورده، لغزشِ **خودِ ما** است ⇒ یک پله بلندتر:
+    //     `error`.
+    //  ۳. **اعلانِ دیداری فقط وقتی تشخیص روشن است** (`diagnostics`) — یعنی نه
+    //     production، یا production با `CHROME_WIDGET_DIAGNOSTICS=1`، یا پنل
+    //     که صریح پاس می‌دهد. برای بازدیدکننده چیزی رندر نمی‌شود (نه داخلِ
+    //     سایت لو می‌رود، نه صفحه بد به‌نظر می‌رسد) ولی لاگ حتماً رفته.
+    //
+    // این شاخه فقط وقتی اجرا می‌شود که هیچ `case`ای نخورده باشد، یعنی
+    // **نمی‌تواند** ویجتِ هسته را بپوشاند — امضای `switch` در
+    // `widget-type.test.ts` قفل شده است.
+    default: {
+      if (isCoreChromeWidgetType(w.type)) {
+        console.error(unknownWidgetWarning(w.type, "registry-drift"));
+      } else {
+        console.warn(unknownWidgetWarning(w.type));
+      }
+      if (!(diagnostics ?? chromeWidgetDiagnosticsEnabled())) return null;
+      const named = describeUnknownWidgetType(w.type) || "(خالی)";
+      return (
+        <span
+          role="note"
+          data-widget-state="unknown"
+          data-widget-type={named}
+          style={{ display: "inline-block", padding: 8, border: "1px dashed var(--border)", borderRadius: 10, color: "var(--text-muted)", fontSize: 12.5 }}
+        >
+          {unknownWidgetNoticeFa(w.type)}
+        </span>
+      );
+    }
   }
 }
 
@@ -125,17 +205,19 @@ export function Socials({ socials }: { socials: SocialItem[] }) {
   );
 }
 
-export function SiteHeader({ chrome }: { chrome: SiteChrome | null }) {
+export function SiteHeader({ chrome, diagnostics }: { chrome: SiteChrome | null; diagnostics?: boolean }) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        {(chrome?.header.widgets ?? []).map((w, i) => <ChromeWidget key={i} w={w} chrome={chrome} />)}
+        {(chrome?.header.widgets ?? []).map((w, i) => (
+          <ChromeWidget key={i} w={w} chrome={chrome} diagnostics={diagnostics} />
+        ))}
       </div>
     </header>
   );
 }
 
-export function SiteFooter({ chrome }: { chrome: SiteChrome | null }) {
+export function SiteFooter({ chrome, diagnostics }: { chrome: SiteChrome | null; diagnostics?: boolean }) {
   // گرید واقعی ستون‌ها: هر ویجت links یک ستون (به ترتیب، راست‌به‌چپ)؛
   // تعداد = footer.layout.columns وگرنه تعداد واقعی (۱ تا ۴) — همان قاعده بک‌اند.
   const widgets = chrome?.footer.widgets ?? [];
@@ -153,7 +235,7 @@ export function SiteFooter({ chrome }: { chrome: SiteChrome | null }) {
       >
         {widgets.map((w, i) => (
           <div key={i} style={w.type === "copyright" ? { gridColumn: "1 / -1" } : undefined}>
-            <ChromeWidget w={w} chrome={chrome} />
+            <ChromeWidget w={w} chrome={chrome} diagnostics={diagnostics} />
           </div>
         ))}
         <Socials socials={chrome?.socials ?? []} />

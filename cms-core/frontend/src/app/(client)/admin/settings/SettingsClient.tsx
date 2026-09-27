@@ -146,16 +146,6 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">اسلات پلاگین</div>
-        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>نمونه اسلات خودکار سئو از پلاگین (فقط‌نمایشی — با نصب پلاگین سئو، فیلدهای واقعی همین‌جا می‌آیند).</p>
-        <div className="grid c3">
-          <div className="field"><label>سئوی خودکار</label><input className="input" value="فعال (نمونه)" readOnly aria-readonly /></div>
-          <div className="field"><label>کلمه کلیدی کانونی (نمونه)</label><input className="input" placeholder="مثلاً: فروشگاه اینترنتی" readOnly aria-readonly /></div>
-          <div className="field"><label>نقشه سایت خودکار (نمونه)</label><input className="input" value="روشن (نمونه)" readOnly aria-readonly /></div>
-        </div>
-      </div>
-
-      <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
         <div className="card-title">تماس</div>        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>تلفن/ایمیل در فوتر + داده ساخت‌یافته Organization (کارت تماس گوگل و پاسخ AI) می‌آید.</p>
         <div className="grid c2">
           <div className="field"><label>موبایل (مثل 09123456789)</label>

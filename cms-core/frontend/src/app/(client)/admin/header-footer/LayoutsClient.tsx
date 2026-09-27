@@ -417,7 +417,7 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
           }}
         >
           <div style={{ position: "relative" }}>
-            <SiteHeader chrome={draftChrome} />
+            <SiteHeader chrome={draftChrome} diagnostics />
             {previewLayerOpen && area === "header" ? (
               <PreviewWidgetLayer
                 area="header"
@@ -451,7 +451,7 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
                 enrichWidget={enrichWidget}
               />
             ) : null}
-            <SiteFooter chrome={draftChrome} />
+            <SiteFooter chrome={draftChrome} diagnostics />
           </div>
         </div>
       </div>
@@ -558,7 +558,7 @@ function PreviewWidgetLayer({
                 <span aria-hidden title={`جابه‌جایی ${title}`} style={{ cursor: "grab", fontSize: 17 }}>⠿</span>
                 <div style={{ flex: "1 1 170px", minInlineSize: 0, maxInlineSize: 300, overflow: "hidden" }}>
                   <small style={{ display: "block", color: "var(--text-muted)", fontSize: 11 }}>{faNum(index + 1)}. {title}</small>
-                  <ChromeWidget w={enrichWidget({ type: item.type, settings: item.settings })} chrome={chrome} />
+                  <ChromeWidget w={enrichWidget({ type: item.type, settings: item.settings })} chrome={chrome} diagnostics />
                 </div>
                 <div className="ver-actions" style={{ gap: 4 }}>
                   <button type="button" className="icon-btn" onClick={helpers.moveUp} disabled={index === 0} aria-label={`انتقال ${title} به بالا`} style={{ minInlineSize: 44, minBlockSize: 44 }}>↑</button>
