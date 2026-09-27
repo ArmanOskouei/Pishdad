@@ -8,6 +8,7 @@
     "start": "next start -p 3100",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.test.ts\"",
     "gen:types": "node scripts/gen-types.mjs"
   },
   "dependencies": {
