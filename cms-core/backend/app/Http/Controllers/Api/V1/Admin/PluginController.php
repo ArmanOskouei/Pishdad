@@ -7,8 +7,10 @@ use App\Models\Plugin;
 use App\Models\SystemPlugin;
 use App\Services\Plugins\CoreRequirementChecker;
 use App\Services\Plugins\ManifestRegistry;
+use App\Services\Plugins\PluginMigrator;
 use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\PluginPackageValidator;
+use App\Services\Plugins\PluginReleaseManager;
 use App\Services\Plugins\PluginSignatureVerifier;
 use App\Services\Plugins\PluginTrustStore;
 use App\Support\Plugins\PackageAnalysis;
@@ -40,7 +42,11 @@ use ZipArchive;
  */
 class PluginController extends Controller
 {
-    public function __construct(private PluginSignatureVerifier $verifier) {}
+    public function __construct(
+        private PluginSignatureVerifier $verifier,
+        private PluginMigrator $migrator,
+        private PluginReleaseManager $releases,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -186,11 +192,30 @@ class PluginController extends Controller
             return response()->json(['message' => $this->activationBlockReason($request, $plugin)], 422);
         }
 
+        $manifest = is_array($plugin->manifest) ? $plugin->manifest : [];
+
+        // K5.6 — پیش از هر تغییر وضعیت. اگر migration رد شود، فعال‌سازی هم رد
+        // می‌شود: فعال کردن افزونه‌ای که جدول‌هایش ساخته نشده یعنی افزونه‌ای که
+        // در اولین درخواست می‌میرد. ترتیب عمداً این است و نه بعد از `save()`.
+        $migrated = $this->migrator->run(
+            $this->releases,
+            $plugin->slug,
+            $this->migrator->declaredTables($manifest)
+        );
+
+        if (! $migrated['ok']) {
+            return response()->json([
+                'message' => 'فعال‌سازی انجام نشد: '.$migrated['message'],
+                'code' => $migrated['code'],
+                'data' => $this->present($plugin->fresh()),
+            ], 422);
+        }
+
         $plugin->forceFill(['active' => true])->save();
         // این فراخوانی قبلاً تهِ `syncHooks()` بود و با حذف آن، تنها جایی که
         // پرمیشن‌های مانیفست ساخته می‌شدند از بین رفت. `ManifestRegistry` روی
         // همین سخت‌گیری تکیه می‌کند، پس جایگزینش الزامی است نه اختیاری.
-        $this->ensurePermissions(is_array($plugin->manifest) ? $plugin->manifest : [], $plugin->slug);
+        $this->ensurePermissions($manifest, $plugin->slug);
 
         $fresh = $plugin->fresh();
 
@@ -198,7 +223,7 @@ class PluginController extends Controller
         // نه رجیستری ساخته می‌شود و نه موتوری برای اجرا وجود دارد. فیلد عمداً
         // می‌ماند تا UI به‌جای toast خوش‌بینانه هشدار بدهد.
         return response()->json([
-            'message' => 'پلاگین فعال شد.',
+            'message' => 'پلاگین فعال شد.'.($migrated['applied'] === [] ? '' : ' '.$migrated['message']),
             'hooks_dispatched' => false,
             'warning' => $this->hooksDispatchWarning($fresh),
             'data' => $this->present($fresh),

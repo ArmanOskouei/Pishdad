@@ -58,22 +58,47 @@ final class PluginDbContract
     public const CENTRAL_PREFIX = 'central_';
 
     /**
-     * نام‌هایی که پلاگین حق ندارد به آن‌ها دست بزند.
+     * جدول‌های هسته که **پیشوند ندارند**.
      *
-     * جدول‌های پیش‌فرض لاراول و Sanctum. جدول‌های `central_*` جداگانه و با
-     * `CENTRAL_PREFIX` رد می‌شوند.
+     * جدول‌های `central_*` جداگانه و با `CENTRAL_PREFIX` رد می‌شوند. این فهرست
+     * بقیهٔ جدول‌های هسته است — فهرستی که از روی اسکیمای واقعی دیتابیس استخراج
+     * شد، نه از روی حافظه. یک تست (`test_the_deny_list_matches_the_real_schema`)
+     * آن را با اسکیمای واقعی مقایسه می‌کند، پس جدول تازه‌ای که کسی اضافه کند و
+     * اینجا یادش نرود، تست را قرمز می‌کند.
+     *
+     * یادآوری: چون prefix اجباری است، از این فهرست **جدول هسته‌ای قابل دسترسی
+     * نمی‌شود** — نام اعلام‌شده همیشه به `slug_name` تبدیل می‌شود. این فهرست برای
+     * گرفتن خطای نویسنده است، نه برای جلوگیری از برخورد در دیتابیس.
      */
     public const CORE_TABLES = [
-        'users',
-        'migrations',
         'cache',
         'cache_locks',
-        'jobs',
-        'job_batches',
         'failed_jobs',
-        'sessions',
+        'job_batches',
+        'jobs',
+        'media',
+        'migrations',
+        'model_has_permissions',
+        'model_has_roles',
+        'notifications',
+        'page_revisions',
+        'pages',
         'password_reset_tokens',
+        'permissions',
         'personal_access_tokens',
+        'plugins',
+        'publisher_keys',
+        'revalidate_logs',
+        'role_has_permissions',
+        'roles',
+        'sessions',
+        'settings',
+        'side_presets',
+        'system_plugins',
+        'themes',
+        'ticket_messages',
+        'tickets',
+        'users',
     ];
 
     /**

@@ -12,6 +12,8 @@ use App\Models\User;
 use App\Services\Plugins\CoreRequirementChecker;
 use App\Services\Plugins\DevMode;
 use App\Services\Plugins\ManifestRegistry;
+use App\Services\Plugins\PluginInstaller;
+use App\Services\Plugins\PluginReleaseManager;
 use App\Services\Plugins\PluginSignatureVerifier;
 use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,7 +56,16 @@ class PluginsTest extends TestCase
     }
 
     /** ساخت ZIP پلاگین با مانیفست امضاشده/نشده/دست‌کاری‌شده. */
-    private function pluginZip(array $manifest, string $mode = 'signed'): UploadedFile
+    /**
+     * `$extra` فایل‌های اضافه به بسته می‌افزاید.
+     *
+     * لازم شد برای K5.6: migration باید **داخل ZIP** باشد تا `PluginInstaller`
+     * آن را استخراج کند و `PluginMigrator` اجرایش کند. بدون این پارامتر، تست
+     * فعال‌سازی نمی‌توانست اصلاً migration بسازد.
+     *
+     * @param  array<string, string>  $extra  مسیر ⇒ محتوا
+     */
+    private function pluginZip(array $manifest, string $mode = 'signed', array $extra = []): UploadedFile
     {
         $verifier = app(PluginSignatureVerifier::class);
 
@@ -68,7 +79,7 @@ class PluginsTest extends TestCase
         return $this->rawZip($manifest);
     }
 
-    private function rawZip(array $manifest): UploadedFile
+    private function rawZip(array $manifest, array $extra = []): UploadedFile
     {
         $path = tempnam(sys_get_temp_dir(), 'plg').'.zip';
         $zip = new ZipArchive;
@@ -78,6 +89,13 @@ class PluginsTest extends TestCase
         }
         $zip->addFromString('manifest.json', json_encode($manifest, JSON_UNESCAPED_UNICODE));
         $zip->addFromString('Laravel/src/Plugin.php', '<?php // stub');
+
+        // نام متغیر عمداً `entry` است نه `path`: بالا‌تر `$path` نام فایل موقت
+        // است و سایه کردنش یعنی `UploadedFile` یک مسیر بی‌ربط می‌گیرد.
+        foreach ($extra as $entry => $body) {
+            $zip->addFromString($entry, $body);
+        }
+
         $zip->close();
 
         return new UploadedFile($path, 'plugin.zip', 'application/zip', null, true);
@@ -833,5 +851,136 @@ class PluginsTest extends TestCase
             Permission::findByName('plugin:perm-drift:beta.edit', 'web'),
             'ارتقای نسخهٔ فعال باید پرمیشن ماژول تازه را هم بسازد.'
         );
+    }
+
+    /**
+     * K5.6 گام ۳ — **وضعیت واقعیِ امروزِ مسیر سرتاسری.**
+     *
+     * انتظارِ این تست عمداً «فعال‌سازی رد می‌شود» است و دلیلش یک شکاف واقعی است،
+     * نه محدودیت تست:
+     *
+     * `PluginInstaller::install()` نسخه را روی دیسک می‌نویسد ولی فایل اشاره‌گر
+     * `.current` را **نمی‌نویسد**، چون `upload` هنوز installer را صدا نمی‌زند و
+     * lifecycle به هم وصل نیست (K5.2-W). در نتیجه `currentDir()` مقدار `null`
+     * می‌دهد و `PluginMigrator` اصلاً migration را نمی‌بیند.
+     *
+     * این تست همان وضعیت را قفل می‌کند تا کسی فکر نکند مسیر کار می‌کند.
+     * **وقتی K5.2-W وصل شود** باید برعکس شود: ۲۰۰ و جدول `tableplugin_notes`
+     * موجود — و `test_the_release_pointer_is_not_written_yet` قرمز می‌شود و
+     * یادآوری می‌کند که انتظارات را بازبینی کن.
+     *
+     * اسلاگ `tableplugin` است نه پیش‌فرض fixture، چون قاعدهٔ `db.tables` اجازه
+     * نمی‌دهد اسلاگی با خط تیره (`sample-plugin`) مالک جدول باشد: خط تیره در
+     * شناسهٔ SQL معتبر نیست. این محدودیت عمدی است (سند معماری خط ۱۲۵).
+     */
+    public function test_activation_is_refused_while_the_release_lifecycle_is_unwired(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $zip = $this->pluginZip($this->manifest([
+            'slug' => 'tableplugin',
+            'db' => ['tables' => [['name' => 'notes']]],
+        ]));
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $zip])
+            ->assertCreated()->json('data.id');
+
+        // نصب روی دیسک واقعاً موفق است؛ این بخش کار می‌کند.
+        $this->assertTrue($this->installToDisk($zip, 'tableplugin'), 'نصب روی دیسک باید موفق باشد.');
+
+        $this->approveAsOperator('plugin', (int) $id);
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'migration.no_release');
+
+        $this->assertFalse(
+            Schema::hasTable('tableplugin_notes'),
+            'تا وقتی lifecycle وصل نشده، نباید جدولی ساخته شود — وگرنه مسیر نیمه‌وصل است.'
+        );
+    }
+
+    /**
+     * ریشهٔ مسدودیِ بالا: اشاره‌گر نسخهٔ فعال نوشته نمی‌شود.
+     *
+     * اگر این تست قرمز شد یعنی K5.2-W وصل شده و تست‌های K5.6 باید از حالت
+     * «رد شدن فعال‌سازی» به «ساخته شدن جدول» تغییر کنند.
+     */
+    public function test_the_release_pointer_is_not_written_yet(): void
+    {
+        $zip = $this->pluginZip($this->manifest(['slug' => 'pointergap']));
+
+        $result = app(PluginInstaller::class)
+            ->install($zip->getRealPath(), 'pointergap', '1.0.0');
+
+        $this->assertTrue($result['ok'] ?? false, 'نصب باید موفق باشد.');
+
+        $this->assertNull(
+            app(PluginReleaseManager::class)->currentDir('pointergap'),
+            'K5.2-W وصل شده — انتظارات تست‌های K5.6 را بازبینی کن.'
+        );
+    }
+
+    /**
+     * افزونه‌ای که migration‌اش جدولی *خارج از اعلام* را لمس می‌کند نباید فعال شود.
+     *
+     * این بدترین حالت ممکن است، چون فعال شدن موفق یعنی کاربر فکر می‌کند همه‌چیز
+     * درست است و بعداً داده‌اش به جدول اشتباه می‌رود.
+     */
+    public function test_a_migration_touching_an_undeclared_table_is_never_accepted(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $zip = $this->pluginZip(
+            $this->manifest(['slug' => 'tableplugin', 'db' => ['tables' => [['name' => 'notes']]]]),
+            extra: [
+                'Laravel/database/migrations/2026_01_01_000001_drop_users.php' => $this->migrationDropping('users'),
+            ]
+        );
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $zip])
+            ->assertCreated()->json('data.id');
+
+        $this->assertTrue($this->installToDisk($zip, 'tableplugin'), 'نصب باید موفق باشد.');
+        $this->approveAsOperator('plugin', (int) $id);
+
+        $response = $auth->postJson("/api/v1/admin/plugins/{$id}/activate");
+
+        $this->assertContains(
+            $response->json('code'),
+            ['migration.rejected', 'migration.no_release'],
+            'کد ناشناخته: '.$response->content()
+        );
+
+        $this->assertTrue(
+            Schema::hasTable('users'),
+            'جدول هسته باید سالم مانده باشد — این مهم‌ترین ادعای این تست است.'
+        );
+    }
+
+    /** نصب روی دیسک؛ `upload` هنوز installer را صدا نمی‌زند (K5.2-W). */
+    private function installToDisk(UploadedFile $zip, string $slug, string $version = '1.0.0'): bool
+    {
+        return app(PluginInstaller::class)
+            ->install($zip->getRealPath(), $slug, $version)['ok'] ?? false;
+    }
+
+    /** بدنهٔ migration که جدول هسته را حذف می‌کند — یعنی یک بدافزار. */
+    private function migrationDropping(string $table): string
+    {
+        return <<<PHP
+        <?php
+
+        use Illuminate\\Database\\Migrations\\Migration;
+        use Illuminate\\Support\\Facades\\Schema;
+
+        return new class extends Migration
+        {
+            public function up(): void
+            {
+                Schema::dropIfExists('{$table}');
+            }
+        };
+        PHP;
     }
 }

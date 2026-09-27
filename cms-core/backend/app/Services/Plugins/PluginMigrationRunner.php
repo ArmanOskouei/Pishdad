@@ -67,6 +67,32 @@ final class PluginMigrationRunner
     ];
 
     /**
+     * مسیر migrationهای یک نسخهٔ نصب‌شده، به ترتیب اجرا.
+     *
+     * مسیر درون بسته `Laravel/database/migrations` است (ثابت `BACKEND_ROOT` در
+     * قرارداد) — **نه** `database/migrations` خود اپ که مهاجرت‌های هسته در آن است.
+     * اگر این دو جابه‌جا شوند، مهاجرت پلاگین وارد مسیر هسته می‌شود.
+     *
+     * @return array<int, string> نام فایل‌ها
+     */
+    public function discover(string $releaseDir): array
+    {
+        $dir = rtrim($releaseDir, '/').'/'.PluginPackageContract::BACKEND_ROOT.'/database/migrations';
+
+        if (! is_dir($dir)) {
+            return [];
+        }
+
+        $files = glob($dir.'/*.php') ?: [];
+
+        // شمارهٔ پیشوند نام، ترتیب زمانی را تعیین می‌کند؛ پس ترتیب باید بین اجراها
+        // ثابت بماند.
+        sort($files, SORT_STRING);
+
+        return array_map('basename', $files);
+    }
+
+    /**
      * جدول‌هایی که migration به آن‌ها اشاره می‌کند.
      *
      * @return array<int, string>

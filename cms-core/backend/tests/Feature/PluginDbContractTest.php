@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\Plugins\PluginDbContract;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -236,6 +237,58 @@ class PluginDbContractTest extends TestCase
     public function test_prefixed_builds_the_documented_name(): void
     {
         $this->assertSame('demo_posts', PluginDbContract::prefixed('demo', 'posts'));
+    }
+
+    /**
+     * فهرست ممنوع باید با اسکیمای واقعی دیتابیس بخواند.
+     *
+     * نسخهٔ اول این فهرست ۱۰ نام داشت و از روی حافظه نوشته شده بود، در حالی که
+     * اسکیمای واقعی ۲۸ جدول هستهٔ بدون‌پیشوند دارد — یعنی ۱۸ جدول بود که یک
+     * افزونه می‌توانست نامشان را اعلام کند. این تست آن شکاف را می‌بندد: هر جدول
+     * هستهٔ تازه، چون در فهرست نیست، تست را قرمز می‌کند.
+     *
+     * توجه: برخی جدول‌های اپ ممکن است در اسکیمای تست نباشند. برای همین تست
+     * وجودِ هر جدولِ فهرست را **در دیتابیس** می‌سنجد، و برعکسِ آن را می‌پرسد که
+     * آیا جدولی در دیتابیس هست که نه در فهرست باشد و نه `central_` یا `pishdad_`.
+     */
+    public function test_the_deny_list_matches_the_real_schema(): void
+    {
+        $actual = DB::select(
+            "select tablename from pg_tables where schemaname = 'public'"
+        );
+
+        $tables = array_map(static fn ($r) => (string) $r->tablename, $actual);
+
+        $this->assertNotSame([], $tables, 'اسکیما باید جدول داشته باشد؛ وگرنه این تست بی‌معناست.');
+
+        $uncovered = array_values(array_filter(
+            $tables,
+            static fn (string $t) => ! str_starts_with($t, 'pishdad_')
+                && ! str_starts_with($t, PluginDbContract::CENTRAL_PREFIX)
+                && ! in_array($t, PluginDbContract::CORE_TABLES, true)
+        ));
+
+        $this->assertSame(
+            [],
+            $uncovered,
+            'این جدول‌های هسته در فهرست ممنوع `PluginDbContract::CORE_TABLES` نیستند: «'.implode('», «', $uncovered).'». یا اضافه‌شان کن یا عمداً بگو کدام‌اند.'
+        );
+    }
+
+    /** هر نامِ فهرست باید واقعاً جدول باشد — ورودی هرز در فهرست یعنی تله. */
+    public function test_every_name_in_the_deny_list_really_exists(): void
+    {
+        $existing = array_map(
+            static fn ($r) => (string) $r->tablename,
+            DB::select("select tablename from pg_tables where schemaname = 'public'")
+        );
+
+        $stale = array_values(array_filter(
+            PluginDbContract::CORE_TABLES,
+            static fn (string $t) => ! in_array($t, $existing, true)
+        ));
+
+        $this->assertSame([], $stale, 'این نام‌ها دیگر جدول نیستند و باید از فهرست حذف شوند: «'.implode('», «', $stale).'».');
     }
 
     public function test_every_core_table_is_reachable_through_the_declaration_path(): void
