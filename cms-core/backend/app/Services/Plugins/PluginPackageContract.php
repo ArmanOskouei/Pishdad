@@ -267,20 +267,42 @@ final class PluginPackageContract
             ],
         ],
 
+        // K6.7 — تصمیم ۲۰۲۶-۰۹-۲۷: این نقطه از فهرست نقاط اتصال **حذف شد**.
+        //
+        // چرا: `fields => []` با `open_schema => false` یعنی `no_schema` خطای سخت،
+        // پس هیچ مانیفستی قانوناً نمی‌توانست آن را پر کند. یعنی نقطه‌ای که نه
+        // می‌شود اعلامش کرد و نه مصرف‌کننده‌ای دارد — وعده‌ای بدون پشتوانه. و
+        // `example_ok` خودِ این نقطه هم چنین اعلانی بود که validator رد می‌کرد،
+        // پس به کاربر «مثال معتبر» نشان می‌داد که خودِ سیستم ردش می‌کند.
+        //
+        // مسیر درست، کلید سطح‌بالای مانیفست است — دقیقاً مثل `widgets` و
+        // `page_types` که هر دو زنده‌اند. دلیل ساختاری: میکرو-اسکیمای
+        // `panel.extensions` با `max_depth => 1` می‌سنجد و اسکیمای JSON شیء تودرتو
+        // است، پس جا دادنش آنجا یعنی بالا بردن سقف عمق برای همهٔ نقاط.
+        // مصرف‌کننده: `ManifestRegistry::pluginSettingsSchemas()`.
+        //
+        // ثبت‌نشده به‌صورت `deprecated` عمداً: حذف کامل از فهرست، راهنمای
+        // توسعه‌دهنده و هر ابزاری را که این آرایه را می‌خواند می‌شکند، و آن
+        // تصمیمِ خودِ مالک محصول است نه چیزی که یک commit این‌جا بگیرد.
         'admin.settings_schema' => [
             'label_fa' => 'فرم تنظیمات اختصاصی',
-            'desc_fa' => 'افزودن صفحهٔ تنظیمات که از روی JSON Schema رندر می‌شود (بدون کد فرانت).',
-            'status' => 'declared_only',
+            'desc_fa' => 'افزودن صفحهٔ تنظیمات که از روی JSON Schema رندر می‌شود (بدون کد فرنت).',
+            'status' => 'deprecated',
             'openness' => 'schema_defined',
-            'openness_why' => 'SchemaForm آماده است و فقط یک map تخت را می‌چرخاند؛ پس نام فیلد قفل و ساختار بسته است.',
+            'openness_why' => 'حذف‌شده: به کلید سطح‌بالای `settings` در مانیفست منتقل شد (`ManifestRegistry::pluginSettingsSchemas()`)، چون میکرو-اسکیمای اینجا با `max_depth => 1` اسکیمای JSON تودرتو را حمل نمی‌کند.',
             'since' => '1.2.0',
+            'deprecated' => [
+                'since' => '1.6.0',
+                'replaced_by' => 'manifest.settings',
+                'reason_fa' => 'اعلان از راه `panel.extensions` برای اسکیمای تودرتو ناممکن بود. از `1.6.0` به‌جای این نقطه، کلید سطح‌بالای `settings` را در مانیفست بنویسید.',
+            ],
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
             'schema' => ['fields' => [], 'cross' => ['no_core_name', 'title_fa']],
             'open_schema' => false,
-            'example_ok' => [
-                ['key' => 'general', 'title_fa' => 'تنظیمات عمومی', 'group' => 'عمومی'],
-            ],
+            // عمداً خالی: نقطه‌ای که `fields` ندارد نمی‌تواند مثال «معتبر» داشته
+            // باشد، چون validator همان مثال را با `no_schema` رد می‌کند.
+            'example_ok' => [],
             'example_bad' => [
                 [
                     'why' => 'هر چیزی که به کاربر نشان داده می‌شود `title_fa` لازم دارد، وگرنه UI متن خالی می‌خواند.',
@@ -322,9 +344,12 @@ final class PluginPackageContract
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
             'schema' => ['fields' => [], 'cross' => ['no_core_name', 'title_fa']],
             'open_schema' => false,
-            'example_ok' => [
-                ['type' => 'trust_bar', 'title_fa' => 'نوار اعتماد'],
-            ],
+            // K6.7 — مثال «معتبر» حذف شد. `fields` خالی + `open_schema => false`
+            // یعنی `no_schema` خطای سخت، پس `['type' => 'trust_bar', …]` هرگز
+            // نمی‌توانست اعلام معتبری باشد: خودِ validator آن را رد می‌کرد. یعنی
+            // `POST /v1/admin/plugins/validate` به نویسنده مثالی نشان می‌داد که
+            // بگیرد و باز هم خطا بگیرد.
+            'example_ok' => [],
             'example_bad' => [
                 [
                     'why' => 'برخورد با نام هسته بی‌صدا رد می‌شود، پس باید خطا بدهد نه اینکه نصب شود و دیده نشود.',
@@ -348,9 +373,9 @@ final class PluginPackageContract
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
             'schema' => ['fields' => [], 'cross' => ['no_core_name', 'title_fa']],
             'open_schema' => false,
-            'example_ok' => [
-                ['type' => 'partners', 'title_fa' => 'همکاران'],
-            ],
+            // K6.7 — همان دلیل `site.header_widget`: این مثال هم اعلانی بود که
+            // validator با `no_schema` رد می‌کرد.
+            'example_ok' => [],
             'example_bad' => [
                 [
                     'why' => 'برخورد با ویجت هسته نصب را سبز نشان می‌دهد ولی ویجت اصلاً رندر نمی‌شود.',

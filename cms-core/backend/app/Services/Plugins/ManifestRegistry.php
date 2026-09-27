@@ -38,6 +38,7 @@ class ManifestRegistry
         'permission' => 'ماژول دسترسی',
         'widget' => 'ویجت',
         'page_type' => 'نوع صفحه',
+        'settings' => 'فرم تنظیمات',
     ];
 
     /** @var array<string, array<int, array<string, string>>> برخوردهای آخرین ادغام، به تفکیک kind. */
@@ -213,6 +214,77 @@ class ManifestRegistry
         $theme = Theme::query()->where('active', true)->first();
         if ($theme && is_array($theme->manifest)) {
             $merge($theme->manifest, 'theme:'.($theme->slug ?? 'active'));
+        }
+
+        return $out;
+    }
+
+    /**
+     * فرم‌های تنظیمات افزونه — K6.7.
+     *
+     * ## چرا کلید سطح‌بالا و نه `panel.extensions`
+     *
+     * الگوی زندهٔ همین کلاس `widgets` و `page_types` است: هر دو کلید سطح‌بالای
+     * مانیفست‌اند، نه نقطهٔ اتصال. دلیلش ساختاری است — `panel.extensions` هر اعلان
+     * را در برابر یک **میکرو-اسکیما** با `max_depth => 1` می‌سنجد، و اسکیمای
+     * JSON یک شیء تودرتو است، پس جای دادنش آنجا یعنی یا بالا بردن سقف عمق برای
+     * همهٔ نقاط، یا باز کردن سیستمی که بسته شده بود.
+     *
+     * `admin.settings_schema` هم دقیقاً همین مشکل را داشت: `fields => []` با
+     * `open_schema => false` یعنی `no_schema` خطای سخت، پس **هیچ مانیفستی قانوناً
+     * نمی‌توانست آن را پر کند**. نقطهٔ اتصالی که هیچ‌کس نمی‌تواند پرش کند، نقطهٔ
+     * اتصال نیست — یک وعدهٔ بدون مصرف‌کننده است.
+     *
+     * ## چرا بدون `permission`
+     *
+     * برخلاف `admin.menu`، این فرم داده است نه ناوبری: فیلتر پرمیشن روی خودِ
+     * فرم انجام می‌شود (هر مدیر فقط فیلدهایی را می‌بیند که مجاز است)، نه اینجا.
+     * اگر بعداً لازم شد، `permission` به‌عنوان کلید اعلانی اضافه می‌شود، ولی
+     * الان اضافه‌کردنش یعنی ادعای قاعده‌ای که هیچ‌کس اجرا نمی‌کند.
+     *
+     * @return list<array{slug: string, key: string, title_fa: string, group: string, schema: array, source: string}>
+     */
+    public static function pluginSettingsSchemas(): array
+    {
+        $out = [];
+        $owner = [];
+        $coreKeys = array_keys(config('plugins.settings_groups', []));
+
+        foreach ($coreKeys as $key) {
+            $owner[$key] = 'core';
+        }
+
+        foreach (self::activeManifests() as $slug => $manifest) {
+            $settings = $manifest['settings'] ?? null;
+
+            if (! is_array($settings)) {
+                continue;
+            }
+
+            foreach ($settings as $key => $def) {
+                if (! is_string($key) || $key === '' || ! is_array($def)) {
+                    continue;
+                }
+
+                // برخورد با هسته یا افزونهٔ قبلی بازنویسی نمی‌شود و بازنده گزارش
+                // می‌گردد — همان قاعدهٔ `widgetSchemas()`.
+                if (isset($owner[$key])) {
+                    self::recordCollision('settings', $key, $owner[$key], "plugin:{$slug}");
+
+                    continue;
+                }
+
+                $owner[$key] = "plugin:{$slug}";
+
+                $out[] = [
+                    'slug' => (string) $slug,
+                    'key' => $key,
+                    'title_fa' => is_string($def['title_fa'] ?? null) ? $def['title_fa'] : $key,
+                    'group' => is_string($def['group'] ?? null) ? $def['group'] : 'عمومی',
+                    'schema' => is_array($def['schema'] ?? null) ? $def['schema'] : ['type' => 'object'],
+                    'source' => "plugin:{$slug}",
+                ];
+            }
         }
 
         return $out;
