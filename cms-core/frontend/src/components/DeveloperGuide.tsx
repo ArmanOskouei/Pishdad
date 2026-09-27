@@ -2,8 +2,8 @@
 
 /**
  * راهنمای توسعه‌دهنده پلاگین/قالب (مورد ۶) — بخش جمع‌شونده در صفحات
- * admin/plugins و admin/themes: ساختار ZIP، نمونه manifest.json، جدول
- * هوک‌ها، امضای Ed25519، چک‌لیست امنیتی، SLA سه‌روزه + چاپ PDF با
+ * admin/plugins و admin/themes: ساختار ZIP، نمونه manifest.json، امضای
+ * Ed25519، چک‌لیست امنیتی، SLA سه‌روزه + چاپ PDF با
  * window.print (بدون lib اضافی). فقط var()، فارسی و RTL.
  */
 export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
@@ -18,11 +18,6 @@ export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
   "description": "توضیح کوتاه فارسی",
   "author": "نام شما",
   "requires": { "core": ">=1.6.0" },
-  "system": false,
-  "hooks": [
-    "dashboard.widget",
-    { "hook": "ticket.created", "handler": "NotifyAdmin" }
-  ],
   "blocks": {
     "my-block": {
       "title": "بلوک نمونه",
@@ -75,25 +70,7 @@ export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
         </section>
 
         <section>
-          <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۳. هوک‌ها / نقاط اتصال</h3>
-          <div className="table-wrap">
-            <table className="tbl">
-              <thead><tr><th>هوک</th><th>کاربرد</th><th>فرمت در مانیفست</th></tr></thead>
-              <tbody>
-                <tr><td dir="ltr">dashboard.widget</td><td>ویجت داشبورد مشتری</td><td dir="ltr">string</td></tr>
-                <tr><td dir="ltr">ticket.created</td><td>رویداد ثبت تیکت جدید</td><td dir="ltr">{`{ hook, handler }`}</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p style={{ color: "var(--text-muted)" }}>
-            هوک‌ها اعلانی‌اند: هنگام فعال‌سازی، عین مانیفست در رجیستری ثبت می‌شود (جایگزینی کامل).
-            هر هوک یا رشته ساده است یا شیء با <span dir="ltr">hook</span> و <span dir="ltr">handler</span> اختیاری.
-            نقاط اتصال جدید در یادداشت هر نسخه هسته اعلام می‌شود.
-          </p>
-        </section>
-
-        <section>
-          <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۴. امضای Ed25519</h3>
+          <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۳. امضای Ed25519</h3>
           <ol style={{ paddingInlineStart: 18, display: "grid", gap: 6 }}>
             <li><b>تولید کلید:</b> با PHP (sodium) یک جفت‌کلید بسازید — کلید محرمانه پیش شما می‌ماند، کلید عمومی را برای تیم CMS بفرستید تا در پیکربندی هسته (<span dir="ltr">PLUGIN_PUBLIC_KEY</span>) ثبت شود.</li>
             <li><b>دستور امضا:</b> مانیفست را <em>بدون</em> فیلد <span dir="ltr">signature</span> به JSON کانونیکال تبدیل کنید (کلیدها مرتب‌شده، بدون فاصله اضافی)، امضای detached بزنید و base64 آن را در فیلد <span dir="ltr">signature</span> بگذارید.</li>
@@ -114,19 +91,18 @@ $manifest['signature'] = base64_encode(
         </section>
 
         <section>
-          <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۵. چک‌لیست بازبینی امنیتی</h3>
+          <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۴. چک‌لیست بازبینی امنیتی</h3>
           <ul style={{ paddingInlineStart: 18, display: "grid", gap: 4 }}>
             <li>بدون اجرای مستقیم ورودی کاربر (command injection / eval ممنوع).</li>
             <li>بدون خواندن/نوشتن خارج از مسیر بسته (path traversal و zip-slip کنترل شده باشد).</li>
             <li>بدون ارسال داده به بیرون (exfiltration) و بدون کلید/توکن هاردکدشده.</li>
             <li>اعتبارسنجی ورودی‌ها در سمت سرور؛ خروجی‌ها escape شده باشند (XSS).</li>
-            <li>حداقل دسترسی: فقط هوک‌های لازم اعلام شود؛ پلاگین سیستمی (<span dir="ltr">system:true</span>) فقط برای موارد واقعاً حیاتی.</li>
             <li>نسخه‌بندی معنایی رعایت شده و تغییرات ناسازگار مستند باشد.</li>
           </ul>
         </section>
 
         <section>
-          <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۶. زمان‌بندی بررسی (SLA)</h3>
+          <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۵. زمان‌بندی بررسی (SLA)</h3>
           <p>
             بررسی هر ارسال حداکثر <b>۳ روز کاری</b> طول می‌کشد. نتیجه (تأیید/رد با دلیل) همین‌جا روی کارت نمایش داده می‌شود.
             اگر بیش از ۳ روز کاری در انتظار ماند، از بخش تیکت‌ها با پشتیبانی در تماس باشید.

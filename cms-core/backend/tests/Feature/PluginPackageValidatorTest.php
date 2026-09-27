@@ -717,8 +717,14 @@ class PluginPackageValidatorTest extends TestCase
         $this->assertNotNull($this->firstWithCode($result['errors'], 'admin.menu.too_many_declarations'));
     }
 
-    /** هوک‌ها هنوز dispatch نمی‌شوند — باید هشدار داده شود نه اینکه وعدهٔ بی‌صدا بدهند. */
-    public function test_warns_that_hooks_are_not_dispatched_yet(): void
+    /**
+     * اعلام `hooks` نه خطاست نه ساکت — فیلدی بی‌اثر است و باید گفته شود.
+     *
+     * K5.5 «هنوز» را از این متن برداشت: وعدهٔ ساخت dispatcher لغو شده، پس پیام باید
+     * بگوید فیلد در قرارداد نیست، نه اینکه فعلاً اجرا نمی‌شود. کد `not_yet_dispatched`
+     * عمداً ثابت ماند چون قرارداد عمومی مصرف‌شده توسط فرانت است.
+     */
+    public function test_warns_that_declared_hooks_field_is_inert(): void
     {
         $result = $this->analyze($this->zip([
             'manifest.json' => $this->manifestJson(['hooks' => ['order.placed']]),
@@ -726,6 +732,14 @@ class PluginPackageValidatorTest extends TestCase
 
         $this->assertTrue($result['ok']);
         $this->assertContains('hooks.not_yet_dispatched', $this->codes($result['warnings']));
+
+        $message = $this->firstWithCode($result['warnings'], 'hooks.not_yet_dispatched')['message'];
+        $this->assertStringContainsString('در قرارداد پلاگین نیست', $message);
+        $this->assertStringNotContainsString(
+            'هنوز',
+            $message,
+            'متن نباید وعدهٔ ساخت dispatcher بدهد؛ K5.5 آن را لغو کرد.'
+        );
     }
 
     /** امضای معتبر ولی ناشر ناشناس ⇒ هشدار، نه خطا. این تفکیک کل فاز ۰ است. */

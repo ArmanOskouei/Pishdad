@@ -1575,7 +1575,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
   /api/v1/admin/plugins/{id}:
     get:
-      summary: وضعیت پلاگین + checksum + هوک‌ها + وضعیت بازبینی و دلیل رد (تسک ۵.۴ + مورد ۶)
+      summary: وضعیت پلاگین + checksum + خلاصهٔ اعتماد (trust) + وضعیت بازبینی و دلیل رد (تسک ۵.۴ + مورد ۶)
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
@@ -1588,7 +1588,7 @@ paths:
         '404': { description: پلاگین یافت نشد }
   /api/v1/admin/plugins/{id}/activate:
     post:
-      summary: فعال‌سازی + ثبت هوک‌ها در رجیستری (pending/rejected بدون تأیید مرکزی = 422) (تسک ۵.۴ + مورد ۶)
+      summary: فعال‌سازی + ساخت پرمیشن‌های اعلام‌شده در مانیفست (pending/rejected بدون تأیید مرکزی = 422) (تسک ۵.۴ + مورد ۶)
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }

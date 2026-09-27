@@ -26,8 +26,8 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "updates">("all");
   // B20: «فعال شد» بدون این یعنی UI کاری را تأیید می‌کند که انجام نشده. هشدار
-  // مربوط به هوک‌ها فقط وقتی پیش می‌آید که بک‌اند واقعاً اعلام کرده، پس پایدار
-  // نگه داشته می‌شود نه فقط در toastی که ۳٫۵ ثانیه بعد گم می‌شود.
+  // مربوط به هوک‌ها فقط وقتی پیش می‌آید که بک‌اند خودش `warning` فرستاده باشد،
+  // پس پایدار نگه داشته می‌شود نه فقط در toastی که ۳٫۵ ثانیه بعد گم می‌شود.
   const [hooksNotice, setHooksNotice] = useState<string | null>(null);
 
   const refresh = () => router.refresh();
@@ -56,13 +56,11 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
       const res = await authedEnvelope<PluginItem>(`/v1/admin/plugins/${p.id}/activate`, { method: "POST" });
       setHooksNotice(null);
 
-      if (res.hooks_dispatched === false) {
-        // بک‌اند فقط وقتی warning می‌دهد که مانیفست واقعاً هوک اعلام کرده باشد.
-        const notice =
-          res.warning ??
-          "پلاگین فعال شد، ولی موتور dispatch هنوز ساخته نشده؛ اگر بخشی از افزونه به هوک تکیه کند کار نخواهد کرد.";
-        setHooksNotice(notice);
-        toast("پلاگین فعال شد — ولی هوک‌هایش هنوز اجرا نمی‌شوند.", "info");
+      if (res.warning) {
+        // بک‌اند این هشدار را فقط وقتی می‌فرستد که مانیفست واقعاً هوک اعلام کرده
+        // باشد؛ خودِ `hooks_dispatched` همیشه `false` است و به‌تنهایی فرقی نمی‌کند.
+        setHooksNotice(res.warning);
+        toast("پلاگین فعال شد — ولی فیلد «hooks» در مانیفستش بی‌اثر است.", "info");
       } else {
         toast("پلاگین فعال شد.", "ok");
       }
@@ -203,7 +201,7 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
       ) : (
         <div className="table-wrap">
           <table className="tbl tbl-cards">
-            <thead><tr><th>نام</th><th>نسخه</th><th>وضعیت</th><th>بازبینی</th><th>سلامت</th><th>امضا</th><th>هوک‌ها</th><th>اکشن</th></tr></thead>
+            <thead><tr><th>نام</th><th>نسخه</th><th>وضعیت</th><th>بازبینی</th><th>سلامت</th><th>امضا</th><th>اکشن</th></tr></thead>
             <tbody>
               {visible.map((p) => (
                 <tr key={p.id}>
@@ -233,7 +231,6 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
                   <td data-label="امضا">
                     <Badge tone={p.signature_valid ? "green" : "red"}>{p.signature_valid ? "معتبر" : "نامعتبر"}</Badge>
                   </td>
-                  <td data-label="هوک‌ها">{faNum(p.hooks_count ?? 0)}</td>
                   <td data-label="اکشن">
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => setUpgrading(p)}>ارتقا…</button>

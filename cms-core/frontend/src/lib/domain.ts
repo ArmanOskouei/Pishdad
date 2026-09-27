@@ -437,7 +437,6 @@ export type PluginItem = {
   submitted_at?: string | null;
   reviewed_at?: string | null;
   checksum?: string;
-  hooks_count?: number;
   manifest?: Record<string, unknown> | null;
   created_at?: string;
 };

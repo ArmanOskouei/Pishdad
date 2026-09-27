@@ -5316,7 +5316,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** وضعیت پلاگین + checksum + هوک‌ها + وضعیت بازبینی و دلیل رد (تسک ۵.۴ + مورد ۶) */
+        /** وضعیت پلاگین + checksum + خلاصهٔ اعتماد (trust) + وضعیت بازبینی و دلیل رد (تسک ۵.۴ + مورد ۶) */
         get: {
             parameters: {
                 query?: never;
@@ -5363,7 +5363,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** فعال‌سازی + ثبت هوک‌ها در رجیستری (pending/rejected بدون تأیید مرکزی = 422) (تسک ۵.۴ + مورد ۶) */
+        /** فعال‌سازی + ساخت پرمیشن‌های اعلام‌شده در مانیفست (pending/rejected بدون تأیید مرکزی = 422) (تسک ۵.۴ + مورد ۶) */
         post: {
             parameters: {
                 query?: never;

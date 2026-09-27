@@ -87,7 +87,7 @@ const CODE_FA: Record<string, string> = {
   "panel.bad_point": "نقطهٔ اتصال نامعتبر",
   "panel.unknown_point": "نقطهٔ اتصال ناشناخته",
   "panel.deferred_point": "نقطهٔ اتصال پشتیبانی‌نشده",
-  "hooks.not_yet_dispatched": "هوک‌ها هنوز اجرا نمی‌شوند",
+  "hooks.not_yet_dispatched": "فیلد «hooks» در قرارداد پلاگین نیست",
   "devmode.unsigned_allowed": "نصب بدون امضا — به‌خاطر حالت توسعه‌دهنده",
   "interface_not_overridable": "این رابط قابل جایگزینی نیست",
   "bad_plugin_namespace": "کلاس بیرون از ریشهٔ افزونه",
