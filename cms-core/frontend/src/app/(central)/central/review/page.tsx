@@ -8,7 +8,7 @@ export default async function ReviewPage() {
   let items: ReviewQueueItem[] = [];
   let error: string | null = null;
   try {
-    const json = await serverApi<{ data: ReviewQueueItem[] }>(`/central/review/queue`);
+    const json = await serverApi<{ data: ReviewQueueItem[] }>(`/v1/p/central/review/queue`);
     items = json.data ?? [];
   } catch (e) {
     error = e instanceof Error ? e.message : "خطا در بارگذاری صف بازبینی.";

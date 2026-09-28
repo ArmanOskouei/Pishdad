@@ -21,7 +21,7 @@ export default async function ClientsPage({
   let initial = asPaginator<CentralClient>(null);
   let error: string | null = null;
   try {
-    const json = await serverApi<unknown>(`/central/clients${apiQs(sp, ["search", "tier", "status", "health"], { per_page: 20, page })}`);
+    const json = await serverApi<unknown>(`/v1/p/central/clients${apiQs(sp, ["search", "tier", "status", "health"], { per_page: 20, page })}`);
     initial = asPaginator<CentralClient>(json);
   } catch (e) {
     error = e instanceof Error ? e.message : "خطا در بارگذاری مشتریان.";

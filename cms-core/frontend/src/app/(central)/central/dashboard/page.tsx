@@ -11,9 +11,9 @@ export default async function CentralDashboardPage() {
   let error: string | null = null;
   try {
     const [s, c, o] = await Promise.all([
-      serverOne<CentralStats>(`/central/dashboard/stats`),
-      serverOne<CentralCharts>(`/central/dashboard/charts`),
-      serverOne<OpenCase[]>(`/central/dashboard/open-cases`).catch(() => [] as OpenCase[]),
+      serverOne<CentralStats>(`/v1/p/central/dashboard/stats`),
+      serverOne<CentralCharts>(`/v1/p/central/dashboard/charts`),
+      serverOne<OpenCase[]>(`/v1/p/central/dashboard/open-cases`).catch(() => [] as OpenCase[]),
     ]);
     stats = s;
     charts = c;

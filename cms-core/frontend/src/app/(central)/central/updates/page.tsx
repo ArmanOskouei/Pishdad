@@ -10,8 +10,8 @@ export default async function UpdatesPage() {
   let error: string | null = null;
   try {
     const [d, c] = await Promise.all([
-      serverOne<UpdatesData>(`/central/updates`),
-      serverOne<CurrentRollout>(`/central/updates/rollouts/current`).catch(() => null),
+      serverOne<UpdatesData>(`/v1/p/central/updates`),
+      serverOne<CurrentRollout>(`/v1/p/central/updates/rollouts/current`).catch(() => null),
     ]);
     data = d;
     current = c;

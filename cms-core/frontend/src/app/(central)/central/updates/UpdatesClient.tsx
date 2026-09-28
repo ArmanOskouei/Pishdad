@@ -29,7 +29,7 @@ export function UpdatesClient({ initial, current }: { initial: UpdatesData; curr
 
   const rollback = async (clientId: number) => {
     try {
-      const r = await authed<{ current_version: string }>(`/central/updates/installs/${clientId}/rollback`, { method: "POST" });
+      const r = await authed<{ current_version: string }>(`/v1/p/central/updates/installs/${clientId}/rollback`, { method: "POST" });
       toast(`نصب به نسخه ${r.current_version ?? "قبلی"} برگردانده شد.`, "ok");
       router.refresh();
     } catch (e) {
@@ -133,7 +133,7 @@ function CurrentRolloutCard({ current }: { current: CurrentRollout }) {
 
   const act = async (kind: "pause" | "resume") => {
     try {
-      await authed(`/central/updates/rollouts/${r.id}/${kind}`, { method: "POST" });
+      await authed(`/v1/p/central/updates/rollouts/${r.id}/${kind}`, { method: "POST" });
       toast(kind === "pause" ? "رول‌اوت متوقف شد." : "رول‌اوت ادامه یافت.", "ok");
       router.refresh();
     } catch (e) {

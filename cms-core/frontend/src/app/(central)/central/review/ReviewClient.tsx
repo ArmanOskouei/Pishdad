@@ -21,7 +21,7 @@ export function ReviewClient({ initial }: { initial: ReviewQueueItem[] }) {
   const approve = async (item: ReviewQueueItem) => {
     setBusy(true);
     try {
-      await authed(`/central/review/${item.type}/${item.id}/approve`, { method: "POST" });
+      await authed(`/v1/p/central/review/${item.type}/${item.id}/approve`, { method: "POST" });
       toast("مورد تأیید شد و فعال‌سازی برای مشتری آزاد شد.", "ok");
       refresh();
     } catch (e) {
@@ -39,7 +39,7 @@ export function ReviewClient({ initial }: { initial: ReviewQueueItem[] }) {
     }
     setBusy(true);
     try {
-      await authed(`/central/review/${rejecting.type}/${rejecting.id}/reject`, {
+      await authed(`/v1/p/central/review/${rejecting.type}/${rejecting.id}/reject`, {
         method: "POST",
         body: { note: note.trim() },
       });

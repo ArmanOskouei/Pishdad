@@ -28,9 +28,9 @@ export default async function MonitoringPage({
 
   try {
     const [h, l, u] = await Promise.all([
-      serverApi<{ data: { silent_minutes: number; grid: HealthRow[]; silent: HealthRow[] } }>(`/central/monitoring/health`),
-      serverApi<unknown>(`/central/monitoring/logs?${qs.toString()}`),
-      serverApi<{ data: { days: number; clients: UptimeRow[] } }>(`/central/monitoring/uptime?days=30`).catch(() => null),
+      serverApi<{ data: { silent_minutes: number; grid: HealthRow[]; silent: HealthRow[] } }>(`/v1/p/central/monitoring/health`),
+      serverApi<unknown>(`/v1/p/central/monitoring/logs?${qs.toString()}`),
+      serverApi<{ data: { days: number; clients: UptimeRow[] } }>(`/v1/p/central/monitoring/uptime?days=30`).catch(() => null),
     ]);
     grid = h.data.grid ?? [];
     silent = h.data.silent ?? [];

@@ -8,7 +8,7 @@ export default async function OperatorPage() {
   let activity = asPaginator<OperatorActivityItem>(null);
   let error: string | null = null;
   try {
-    const json = await serverApi<unknown>(`/central/operator/activity?per_page=25`);
+    const json = await serverApi<unknown>(`/v1/p/central/operator/activity?per_page=25`);
     activity = asPaginator<OperatorActivityItem>(json);
   } catch (e) {
     error = e instanceof Error ? e.message : "خطا در بارگذاری لاگ اپراتور.";

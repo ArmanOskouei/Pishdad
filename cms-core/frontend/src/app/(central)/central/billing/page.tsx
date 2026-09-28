@@ -33,22 +33,22 @@ export default async function BillingPage({
 
   try {
     if (tab === "plans") {
-      plans = asPaginator<Plan>(await serverApi<unknown>("/central/plans?per_page=50")).data;
+      plans = asPaginator<Plan>(await serverApi<unknown>("/v1/p/central/plans?per_page=50")).data;
     } else if (tab === "invoices") {
       const [inv, clients] = await Promise.all([
-        serverApi<unknown>(`/central/invoices${apiQs(sp, ["status", "client_id"], { per_page: 20, page })}`),
-        serverApi<unknown>("/central/clients?per_page=100"),
+        serverApi<unknown>(`/v1/p/central/invoices${apiQs(sp, ["status", "client_id"], { per_page: 20, page })}`),
+        serverApi<unknown>("/v1/p/central/clients?per_page=100"),
       ]);
       invoices = asPaginator<Invoice>(inv);
       invoiceClients = asPaginator<CentralClient>(clients).data;
     } else if (tab === "payments") {
       payments = asPaginator<Payment>(
-        await serverApi<unknown>(`/central/payments${apiQs(sp, ["status"], { per_page: 20, page })}`),
+        await serverApi<unknown>(`/v1/p/central/payments${apiQs(sp, ["status"], { per_page: 20, page })}`),
       );
     } else if (tab === "suspension") {
-      suspended = asPaginator<SuspendedSub>(await serverApi<unknown>(`/central/subscriptions/suspended?per_page=20&page=${page}`));
+      suspended = asPaginator<SuspendedSub>(await serverApi<unknown>(`/v1/p/central/subscriptions/suspended?per_page=20&page=${page}`));
     } else {
-      gateway = await serverOne<GatewaySettings>("/central/gateway-settings");
+      gateway = await serverOne<GatewaySettings>("/v1/p/central/gateway-settings");
     }
   } catch (e) {
     error = e instanceof Error ? e.message : "خطا در بارگذاری.";

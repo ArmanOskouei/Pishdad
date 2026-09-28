@@ -75,7 +75,7 @@ function ClientCreate({ onClose }: { onClose: () => void }) {
     if (!name.trim()) { toast("نام مشتری الزامی است.", "err"); return; }
     setBusy(true);
     try {
-      await authed("/central/clients", { method: "POST", body: { name: name.trim(), domain: domain.trim() || undefined, tier } });
+      await authed("/v1/p/central/clients", { method: "POST", body: { name: name.trim(), domain: domain.trim() || undefined, tier } });
       toast("مشتری ساخته شد (اشتراک ۳۰ روزه).", "ok");
       onClose();
     } catch (e) {
@@ -119,14 +119,14 @@ function ClientDrawer({ id, onClose }: { id: number; onClose: () => void }) {
   const load = async () => {
     try {
       setError(null);
-      const c = await authed<CentralClient>(`/central/clients/${id}`);
+      const c = await authed<CentralClient>(`/v1/p/central/clients/${id}`);
       setClient(c);
       if (tab === "backups") {
-        const b = await authed<Backup[] | { data: Backup[] }>(`/central/clients/${id}/backups`);
+        const b = await authed<Backup[] | { data: Backup[] }>(`/v1/p/central/clients/${id}/backups`);
         setBackups(Array.isArray(b) ? b : (b.data ?? []));
       }
       if (tab === "invoices") {
-        const v = await authed<{ data: { data: Invoice[] } } | { data: Invoice[] }>(`/central/invoices?client_id=${id}&per_page=20`);
+        const v = await authed<{ data: { data: Invoice[] } } | { data: Invoice[] }>(`/v1/p/central/invoices?client_id=${id}&per_page=20`);
         const d = (v as { data: unknown }).data;
         setInvoices(Array.isArray(d) ? d : ((d as { data?: Invoice[] })?.data ?? []));
       }
@@ -146,7 +146,7 @@ function ClientDrawer({ id, onClose }: { id: number; onClose: () => void }) {
   const issueToken = async () => {
     setBusyToken(true);
     try {
-      const r = await authed<{ token: string; expires_at: string }>(`/central/clients/${id}/support-token`, { method: "POST" });
+      const r = await authed<{ token: string; expires_at: string }>(`/v1/p/central/clients/${id}/support-token`, { method: "POST" });
       setToken(r);
     } catch (e) {
       toast(e instanceof Error ? e.message : "صدور توکن ناموفق بود.", "err");
@@ -157,7 +157,7 @@ function ClientDrawer({ id, onClose }: { id: number; onClose: () => void }) {
 
   const doBackup = async () => {
     try {
-      await authed(`/central/clients/${id}/backup`, { method: "POST" });
+      await authed(`/v1/p/central/clients/${id}/backup`, { method: "POST" });
       toast("بکاپ ثبت شد (Stub).", "ok");
       await load();
     } catch (e) {
@@ -167,7 +167,7 @@ function ClientDrawer({ id, onClose }: { id: number; onClose: () => void }) {
 
   const doRestore = async (backupId: number) => {
     try {
-      await authed(`/central/clients/${id}/restore`, { method: "POST", body: { backup_id: backupId } });
+      await authed(`/v1/p/central/clients/${id}/restore`, { method: "POST", body: { backup_id: backupId } });
       toast("ریستور آغاز شد (Stub).", "ok");
       await load();
     } catch (e) {
@@ -182,7 +182,7 @@ function ClientDrawer({ id, onClose }: { id: number; onClose: () => void }) {
       label: "تأیید ارتقا",
       run: async () => {
         if (!client || !NEXT_TIER[client.tier]) return "ارتقای دیگری ممکن نیست.";
-        await authed(`/central/clients/${client.id}/upgrade-tier`, { method: "POST", body: { tier: NEXT_TIER[client.tier] } });
+        await authed(`/v1/p/central/clients/${client.id}/upgrade-tier`, { method: "POST", body: { tier: NEXT_TIER[client.tier] } });
         await load(); router.refresh();
         return "تیر مشتری ارتقا یافت.";
       },
@@ -191,7 +191,7 @@ function ClientDrawer({ id, onClose }: { id: number; onClose: () => void }) {
       title: "تعلیق مشتری", desc: `«${client?.name}» معلق می‌شود (سایت + اشتراک).`, label: "بستن",
       run: async () => {
         if (!client) return "—";
-        await authed(`/central/clients/${client.id}/suspend`, { method: "POST" });
+        await authed(`/v1/p/central/clients/${client.id}/suspend`, { method: "POST" });
         await load(); router.refresh();
         return "مشتری معلق شد.";
       },
@@ -200,7 +200,7 @@ function ClientDrawer({ id, onClose }: { id: number; onClose: () => void }) {
       title: "بازگشایی مشتری", desc: `«${client?.name}» بازگشایی می‌شود.`, label: "بستن",
       run: async () => {
         if (!client) return "—";
-        await authed(`/central/clients/${client.id}/resume`, { method: "POST" });
+        await authed(`/v1/p/central/clients/${client.id}/resume`, { method: "POST" });
         await load(); router.refresh();
         return "مشتری بازگشایی شد.";
       },
@@ -209,7 +209,7 @@ function ClientDrawer({ id, onClose }: { id: number; onClose: () => void }) {
       title: "حذف مشتری", desc: `«${client?.name}» حذف منطقی می‌شود (همراه اشتراک). این عمل مخرب است.`, label: "بستن",
       run: async () => {
         if (!client) return "—";
-        await authed(`/central/clients/${client.id}/delete`, { method: "POST" });
+        await authed(`/v1/p/central/clients/${client.id}/delete`, { method: "POST" });
         router.refresh();
         onClose();
         return "مشتری حذف شد.";

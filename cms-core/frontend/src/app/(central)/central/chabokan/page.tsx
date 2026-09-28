@@ -13,10 +13,10 @@ export default async function ChabokanPage() {
 
   try {
     const [w, s, d, r] = await Promise.all([
-      serverOne<Wallet>(`/central/chabokan/wallet`),
-      serverApi<unknown>(`/central/chabokan/services`),
-      serverApi<unknown>(`/central/chabokan/deployments?per_page=15`),
-      serverOne<Reconciliation>(`/central/chabokan/reconciliation`),
+      serverOne<Wallet>(`/v1/p/central/chabokan/wallet`),
+      serverApi<unknown>(`/v1/p/central/chabokan/services`),
+      serverApi<unknown>(`/v1/p/central/chabokan/deployments?per_page=15`),
+      serverOne<Reconciliation>(`/v1/p/central/chabokan/reconciliation`),
     ]);
     wallet = w;
     const sd = (s as { data?: unknown })?.data ?? s;

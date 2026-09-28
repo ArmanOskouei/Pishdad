@@ -53,7 +53,7 @@ export function PlanManager({ plans, onDone }: { plans: Plan[]; onDone: () => vo
         confirmLabel="بستن"
         onConfirm={async () => {
           if (!deleting) return "—";
-          await authed(`/central/plans/${deleting.id}`, { method: "DELETE" });
+          await authed(`/v1/p/central/plans/${deleting.id}`, { method: "DELETE" });
           toast("پلن حذف شد.", "ok");
           setDeleting(null);
           onDone();
@@ -83,8 +83,8 @@ function PlanForm({ plan, onClose }: { plan: Plan | null; onClose: () => void })
         price_monthly: monthly === "" ? null : Number(monthly),
         price_yearly: yearly === "" ? null : Number(yearly),
       };
-      if (plan) await authed(`/central/plans/${plan.id}`, { method: "PUT", body });
-      else await authed("/central/plans", { method: "POST", body });
+      if (plan) await authed(`/v1/p/central/plans/${plan.id}`, { method: "PUT", body });
+      else await authed("/v1/p/central/plans", { method: "POST", body });
       toast(plan ? "پلن به‌روزرسانی شد." : "پلن ساخته شد.", "ok");
       onClose();
     } catch (e) {
@@ -129,7 +129,7 @@ export function InvoiceCreate({ clients, onDone }: { clients: CentralClient[]; o
     if (!clientId || !amount) { toast("مشتری و مبلغ الزامی است.", "err"); return; }
     setBusy(true);
     try {
-      await authed("/central/invoices", {
+      await authed("/v1/p/central/invoices", {
         method: "POST",
         body: { client_id: Number(clientId), amount: Number(amount), due_at: dueAt },
       });
@@ -173,7 +173,7 @@ export function InvoiceRemind({ id, onDone }: { id: number; onDone: () => void }
   const send = async () => {
     setBusy(true);
     try {
-      await authed(`/central/invoices/${id}/remind`, { method: "POST" });
+      await authed(`/v1/p/central/invoices/${id}/remind`, { method: "POST" });
       toast("یادآوری فاکتور ثبت شد.", "ok");
       onDone();
     } catch (e) {
@@ -193,7 +193,7 @@ export function InvoiceStatus({ id, status, onDone }: { id: number; status: stri
   const toast = useToast();
   const change = async (s: string) => {
     try {
-      await authed(`/central/invoices/${id}/status`, { method: "PUT", body: { status: s } });
+      await authed(`/v1/p/central/invoices/${id}/status`, { method: "PUT", body: { status: s } });
       toast("وضعیت فاکتور به‌روزرسانی شد.", "ok");
       onDone();
     } catch (e) {
@@ -217,7 +217,7 @@ export function SuspensionActions({ subId, onDone }: { subId: number; onDone: ()
   const [confirm, setConfirm] = useState<"resume" | "delete" | null>(null);
   const act = async (kind: "suspend" | "resume" | "delete") => {
     try {
-      await authed(`/central/subscriptions/${subId}/${kind}`, { method: "POST" });
+      await authed(`/v1/p/central/subscriptions/${subId}/${kind}`, { method: "POST" });
       toast(kind === "resume" ? "اشتراک بازگشایی شد." : kind === "delete" ? "اشتراک حذف شد." : "اشتراک معلق شد.", "ok");
       onDone();
       return "انجام شد.";
@@ -259,7 +259,7 @@ export function GatewayForm({ initial }: { initial: GatewaySettings }) {
   const save = async () => {
     setBusy(true);
     try {
-      await authed("/central/gateway-settings", {
+      await authed("/v1/p/central/gateway-settings", {
         method: "PUT",
         body: { driver, ...(merchant ? { merchant_id: merchant } : {}), sandbox },
       });
@@ -296,7 +296,7 @@ export function GatewayForm({ initial }: { initial: GatewaySettings }) {
           disabled={testing}
           onClick={() => {
             setTesting(true);
-            authed<{ ok: boolean }>("/central/gateway-settings/test", { method: "POST" })
+            authed<{ ok: boolean }>("/v1/p/central/gateway-settings/test", { method: "POST" })
               .then((r) => toast(r.ok ? "اتصال موفق ✓ (تست نمایشی — بدون تراکنش)" : "اتصال ناموفق بود.", r.ok ? "ok" : "err"))
               .catch((e: unknown) => toast(e instanceof Error ? e.message : "تست ناموفق بود.", "err"))
               .finally(() => setTesting(false));

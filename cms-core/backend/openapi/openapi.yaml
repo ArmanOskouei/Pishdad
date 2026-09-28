@@ -4,8 +4,8 @@ info:
   description: |-
     قرارداد هسته بک‌اند (تسک‌های ۰.۱، ۰.۲، ۱.۱ تا ۱.۴، ۲.۲، ۲.۳، ۳.۲، ۳.۳، ۴.۱ تا ۴.۳، ۵.۱ تا ۵.۷ — contract-first per DEV-TASKS).
     همه پیام‌ها فارسی. احراز هویت با Bearer (Sanctum) + کوکی httpOnly `auth_token`.
-    مسیرهای /api/central/* فقط برای role=operator (یا سوپرادمین مخفی).
-    مورد ۶: گردش تایید پلاگین/قالب (review_status) + صف مرکزی /api/central/review/*.
+    مسیرهای /api/v1/p/central/* فقط برای role=operator (یا سوپرادمین مخفی).
+    مورد ۶: گردش تایید پلاگین/قالب (review_status) + صف مرکزی /api/v1/p/central/review/*.
      نسخه ۱.۱۱: داده‌های محتوایی و مدیریتی نصب بین همه مدیران مشترک است؛ user_id فقط سازنده/حسابرسی است. پروفایل، نشست‌ها و داده‌های مالی شخصی از این قاعده مستثنا هستند.
   version: 1.11.0
 servers:
@@ -575,7 +575,7 @@ paths:
       responses:
         '200': { description: status + due_at + suspended + days_remaining }
         '404': { description: اشتراکی یافت نشد }
-  /api/central/plans:
+  /api/v1/p/central/plans:
     get:
       summary: لیست پلن‌ها (مرکزی — فقط operator)
       security: [{ bearerAuth: [] }]
@@ -602,7 +602,7 @@ paths:
                 active: { type: boolean }
       responses:
         '201': { description: پلن ساخته شد }
-  /api/central/plans/{id}:
+  /api/v1/p/central/plans/{id}:
     get:
       summary: جزئیات پلن
       security: [{ bearerAuth: [] }]
@@ -624,7 +624,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: پلن حذف شد }
-  /api/central/invoices:
+  /api/v1/p/central/invoices:
     get:
       summary: لیست فاکتورها (فیلتر status/client_id)
       security: [{ bearerAuth: [] }]
@@ -647,7 +647,7 @@ paths:
                 due_at: { type: string, format: date-time }
       responses:
         '201': { description: فاکتور ساخته شد }
-  /api/central/invoices/{id}/status:
+  /api/v1/p/central/invoices/{id}/status:
     put:
       summary: تغییر دستی وضعیت فاکتور (paid دستی هم تعلیق را رفع می‌کند)
       security: [{ bearerAuth: [] }]
@@ -655,7 +655,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: وضعیت به‌روزرسانی شد }
-  /api/central/invoices/{id}/remind:
+  /api/v1/p/central/invoices/{id}/remind:
     post:
       summary: یادآوری دستی فاکتور پرداخت‌نشده — ثبت رویداد remind (ارسال پیامک TODO مرحله ۵) (دسته ۱)
       security: [{ bearerAuth: [] }]
@@ -664,19 +664,19 @@ paths:
       responses:
         '201': { description: یادآوری ثبت شد }
         '422': { description: فاکتور پرداخت شده }
-  /api/central/payments:
+  /api/v1/p/central/payments:
     get:
       summary: لیست پرداخت‌ها (فقط‌خواندنی)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: لیست پرداخت‌ها }
-  /api/central/subscriptions/suspended:
+  /api/v1/p/central/subscriptions/suspended:
     get:
       summary: مشتریان معلق + روز باقی‌مانده تا حذف
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: لیست معلق‌ها }
-  /api/central/subscriptions/{id}/suspend:
+  /api/v1/p/central/subscriptions/{id}/suspend:
     post:
       summary: تعلیق دستی اشتراک
       security: [{ bearerAuth: [] }]
@@ -684,7 +684,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: اشتراک معلق شد }
-  /api/central/subscriptions/{id}/resume:
+  /api/v1/p/central/subscriptions/{id}/resume:
     post:
       summary: بازگشایی دستی اشتراک
       security: [{ bearerAuth: [] }]
@@ -692,7 +692,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: اشتراک بازگشایی شد }
-  /api/central/subscriptions/{id}/delete:
+  /api/v1/p/central/subscriptions/{id}/delete:
     post:
       summary: حذف اشتراک (منطقی)
       security: [{ bearerAuth: [] }]
@@ -700,7 +700,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: اشتراک حذف شد }
-  /api/central/gateway-settings:
+  /api/v1/p/central/gateway-settings:
     get:
       summary: تنظیمات درگاه (کلید ماسک‌شده ****)
       security: [{ bearerAuth: [] }]
@@ -711,7 +711,7 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: تنظیمات ذخیره شد }
-  /api/central/gateway-settings/test:
+  /api/v1/p/central/gateway-settings/test:
     post:
       summary: تست اتصال درگاه (Stub نمایشی — بدون تراکنش واقعی) (دسته ۱)
       security: [{ bearerAuth: [] }]
@@ -734,7 +734,7 @@ paths:
       responses:
         '200': { description: ثبت شد (یا تکراری) }
         '401': { description: امضای وب‌هوک معتبر نیست }
-  /api/central/clients:
+  /api/v1/p/central/clients:
     get:
       summary: لیست مشتریان (فیلتر tier/status/health + جستجوی متنی نام/دامنه/site_id/ایمیل مالک — دسته ۱)
       security: [{ bearerAuth: [] }]
@@ -747,7 +747,7 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         '201': { description: مشتری ساخته شد }
-  /api/central/clients/{id}:
+  /api/v1/p/central/clients/{id}:
     get:
       summary: جزئیات کامل مشتری (اشتراک + فاکتورها + بکاپ‌ها)
       security: [{ bearerAuth: [] }]
@@ -755,7 +755,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: جزئیات مشتری }
-  /api/central/clients/{id}/upgrade-tier:
+  /api/v1/p/central/clients/{id}/upgrade-tier:
     post:
       summary: ارتقا تیر — فقط یک پله رو به جلو (Budget→Standard→Enterprise) + لاگ
       security: [{ bearerAuth: [] }]
@@ -773,7 +773,7 @@ paths:
       responses:
         '200': { description: تیر ارتقا یافت }
         '422': { description: ارتقا نامعتبر (پرش پله یا بازگشت) }
-  /api/central/clients/{id}/support-token:
+  /api/v1/p/central/clients/{id}/support-token:
     post:
       summary: صدور توکن یکبارمصرف سوپرادمین (هش ذخیره، TTL ۱۵ دقیقه، متن خام فقط همین‌بار)
       security: [{ bearerAuth: [] }]
@@ -781,7 +781,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '201': { description: توکن ساخته شد }
-  /api/central/clients/{id}/support-token/consume:
+  /api/v1/p/central/clients/{id}/support-token/consume:
     post:
       summary: مصرف توکن پشتیبانی (یکباره — مصرف دوم 410)
       security: [{ bearerAuth: [] }]
@@ -790,7 +790,7 @@ paths:
       responses:
         '200': { description: توکن پذیرفته شد }
         '410': { description: توکن نامعتبر/منقضی/مصرف‌شده }
-  /api/central/clients/{id}/suspend:
+  /api/v1/p/central/clients/{id}/suspend:
     post:
       summary: تعلیق دستی مشتری
       security: [{ bearerAuth: [] }]
@@ -798,7 +798,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: مشتری معلق شد }
-  /api/central/clients/{id}/resume:
+  /api/v1/p/central/clients/{id}/resume:
     post:
       summary: بازگشایی مشتری
       security: [{ bearerAuth: [] }]
@@ -806,7 +806,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: مشتری بازگشایی شد }
-  /api/central/clients/{id}/delete:
+  /api/v1/p/central/clients/{id}/delete:
     post:
       summary: حذف مشتری (منطقی + اشتراک)
       security: [{ bearerAuth: [] }]
@@ -814,7 +814,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: مشتری حذف شد }
-  /api/central/clients/{id}/backups:
+  /api/v1/p/central/clients/{id}/backups:
     get:
       summary: لیست بکاپ‌های مشتری
       security: [{ bearerAuth: [] }]
@@ -822,7 +822,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200': { description: لیست بکاپ‌ها }
-  /api/central/clients/{id}/backup:
+  /api/v1/p/central/clients/{id}/backup:
     post:
       summary: ثبت بکاپ دستی (Stub — pg_dump واقعی TODO مرحله ۵)
       security: [{ bearerAuth: [] }]
@@ -830,7 +830,7 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '201': { description: بکاپ ثبت شد }
-  /api/central/clients/{id}/restore:
+  /api/v1/p/central/clients/{id}/restore:
     post:
       summary: آغاز ریستور از بکاپ (Stub — ریستور واقعی TODO مرحله ۵)
       security: [{ bearerAuth: [] }]
@@ -903,28 +903,28 @@ paths:
         '200': { description: شبکه‌ها ذخیره شد }
         '404': { description: رسانه آیکون یافت نشد }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /api/central/dashboard/stats:
+  /api/v1/p/central/dashboard/stats:
     get:
       summary: آمار داشبورد مرکزی — مشتریان فعال/معلق + MRR + فاکتور سررسیده (تسک ۳.۲)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: آمار مرکزی }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/dashboard/charts:
+  /api/v1/p/central/dashboard/charts:
     get:
       summary: سری ۱۲ ماهه درآمد (paid روی invoices/payments) و مشتریان جدید (تسک ۳.۲)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: سری‌های نمودار }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/dashboard/open-cases:
+  /api/v1/p/central/dashboard/open-cases:
     get:
       summary: پرونده‌های باز قابل اکشن — کیف پول کم/استخر/تعلیق نزدیک حذف/دیپلوی ناموفق/سررسیده + لینک عمیق (دسته ۱)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: لیست پرونده‌ها (kind/severity/title/detail/action_label/action) }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/chabokan/wallet/charge:
+  /api/v1/p/central/chabokan/wallet/charge:
     post:
       summary: ثبت درخواست شارژ کیف پول چابکان (Stub — شارژ واقعی TODO) + لاگ audit
       security: [{ bearerAuth: [] }]
@@ -940,7 +940,7 @@ paths:
       responses:
         '201': { description: درخواست شارژ ثبت شد }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /api/central/chabokan/services/provision:
+  /api/v1/p/central/chabokan/services/provision:
     post:
       summary: ساخت سرویس آماده (استخر Idle) — ثبت deployment queued + لاگ audit (بدون تماس واقعی)
       security: [{ bearerAuth: [] }]
@@ -957,21 +957,21 @@ paths:
       responses:
         '201': { description: ساخت سرویس ثبت شد }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /api/central/chabokan/wallet:
+  /api/v1/p/central/chabokan/wallet:
     get:
       summary: موجودی کیف پول چابکان — درایور Stub از کانفیگ (اتصال واقعی TODO مرحله ۵) (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: موجودی کیف پول }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/chabokan/services:
+  /api/v1/p/central/chabokan/services:
     get:
       summary: لیست سرویس‌های چابکان + وضعیت (Stub) (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: لیست سرویس‌ها }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/chabokan/services/{name}/start:
+  /api/v1/p/central/chabokan/services/{name}/start:
     post:
       summary: روشن کردن سرویس (name از لیست مجاز + لاگ audit — روی Stub) (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
@@ -980,7 +980,7 @@ paths:
       responses:
         '200': { description: سرویس روشن شد }
         '422': { description: نام سرویس نامعتبر }
-  /api/central/chabokan/services/{name}/stop:
+  /api/v1/p/central/chabokan/services/{name}/stop:
     post:
       summary: خاموش کردن سرویس — مخرب، confirm:true اجباری + لاگ audit (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
@@ -998,7 +998,7 @@ paths:
       responses:
         '200': { description: سرویس خاموش شد }
         '422': { description: تأییدیه confirm یا نام سرویس نامعتبر }
-  /api/central/chabokan/services/{name}/restart:
+  /api/v1/p/central/chabokan/services/{name}/restart:
     post:
       summary: ری‌استارت سرویس — مخرب، confirm:true اجباری + لاگ audit (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
@@ -1016,7 +1016,7 @@ paths:
       responses:
         '200': { description: سرویس ری‌استارت شد }
         '422': { description: تأییدیه confirm یا نام سرویس نامعتبر }
-  /api/central/chabokan/services/{name}/resize:
+  /api/v1/p/central/chabokan/services/{name}/resize:
     post:
       summary: تغییر سایز سرویس — مخرب، confirm:true + پارامتر size اجباری + لاگ audit (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
@@ -1035,14 +1035,14 @@ paths:
       responses:
         '200': { description: سایز سرویس تغییر کرد }
         '422': { description: تأییدیه/size یا نام سرویس نامعتبر }
-  /api/central/chabokan/deployments:
+  /api/v1/p/central/chabokan/deployments:
     get:
       summary: تاریخچه دیپلوی‌ها (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: لیست دیپلوی‌ها }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/chabokan/redeploy:
+  /api/v1/p/central/chabokan/redeploy:
     post:
       summary: دیپلوی مجدد سرویس — ثبت رکورد deployment + لاگ audit (روی Stub) (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
@@ -1059,7 +1059,7 @@ paths:
       responses:
         '201': { description: دیپلوی ثبت شد }
         '422': { description: تأییدیه confirm یا نام سرویس نامعتبر }
-  /api/central/chabokan/reconciliation:
+  /api/v1/p/central/chabokan/reconciliation:
     get:
       summary: مقایسه سرویس‌های DB مرکزی با Stub + لیست ناسازگاری (تسک ۳.۳)
       security: [{ bearerAuth: [] }]
@@ -1643,7 +1643,7 @@ paths:
       responses:
         '200': { description: ثبت شد }
         '401': { description: احراز هویت/امضا نامعتبر }
-  /api/central/monitoring/health:
+  /api/v1/p/central/monitoring/health:
     get:
       summary: گرید سلامت نصب‌ها + لیست ساکت‌ها (تسک ۵.۵)
       security: [{ bearerAuth: [] }]
@@ -1651,7 +1651,7 @@ paths:
         - { name: silent_minutes, in: query, required: false, schema: { type: integer, default: 10 } }
       responses:
         '200': { description: گرید سلامت }
-  /api/central/monitoring/logs:
+  /api/v1/p/central/monitoring/logs:
     get:
       summary: لاگ متمرکز (فیلتر level/site + جستجوی متنی q در message/site_id + صفحه‌بندی — فقط ۳۰ روز) (تسک ۵.۵ + دسته UIUX)
       security: [{ bearerAuth: [] }]
@@ -1661,7 +1661,7 @@ paths:
         - { name: q, in: query, required: false, schema: { type: string } }
       responses:
         '200': { description: لاگ‌ها }
-  /api/central/monitoring/uptime:
+  /api/v1/p/central/monitoring/uptime:
     get:
       summary: آپتایم روزانه هر نصب (پیش‌فرض ۳۰ روز؛ فقط امروز واقعی، گذشته unknown — تاریخچه TODO) (دسته UIUX)
       security: [{ bearerAuth: [] }]
@@ -1671,20 +1671,20 @@ paths:
       responses:
         '200': { description: سری روزانه per-client }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/updates:
+  /api/v1/p/central/updates:
     get:
       summary: رجیستری نسخه‌ها + نسخه هر نصب + آخرین وضعیت رول‌اوت هر نصب (last_rollout_status) (تسک ۵.۶ + دسته UIUX)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: رجیستری }
-  /api/central/updates/rollouts/current:
+  /api/v1/p/central/updates/rollouts/current:
     get:
       summary: کارت رول‌اوت جاری (آخرین in_progress/paused + پیشرفت شمارشی) (دسته UIUX)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: رول‌اوت جاری یا null }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/updates/rollouts/{id}/pause:
+  /api/v1/p/central/updates/rollouts/{id}/pause:
     post:
       summary: توقف موقت رول‌اوت در حال اجرا (دسته UIUX)
       security: [{ bearerAuth: [] }]
@@ -1693,7 +1693,7 @@ paths:
       responses:
         '200': { description: رول‌اوت متوقف شد }
         '422': { description: فقط رول‌اوت در حال اجرا }
-  /api/central/updates/rollouts/{id}/resume:
+  /api/v1/p/central/updates/rollouts/{id}/resume:
     post:
       summary: ادامه رول‌اوت متوقف‌شده (دسته UIUX)
       security: [{ bearerAuth: [] }]
@@ -1702,7 +1702,7 @@ paths:
       responses:
         '200': { description: رول‌اوت ادامه یافت }
         '422': { description: فقط رول‌اوت متوقف‌شده }
-  /api/central/updates/rollout:
+  /api/v1/p/central/updates/rollout:
     post:
       summary: رول‌اوت پلکانی (بچ‌بندی + confirm:true + رکورد per-install؛ بدون canary) (تسک ۵.۶)
       security: [{ bearerAuth: [] }]
@@ -1721,7 +1721,7 @@ paths:
       responses:
         '201': { description: رول‌اوت ثبت شد }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /api/central/updates/installs/{id}/rollback:
+  /api/v1/p/central/updates/installs/{id}/rollback:
     post:
       summary: بازگشت نصب به نسخه قبلی ثبت‌شده (تسک ۵.۶)
       security: [{ bearerAuth: [] }]
@@ -1730,7 +1730,7 @@ paths:
       responses:
         '200': { description: بازگشت انجام شد }
         '422': { description: نسخه قبلی ثبت نشده }
-  /api/central/review/queue:
+  /api/v1/p/central/review/queue:
     get:
       summary: صف بازبینی مرکزی — پلاگین‌ها و قالب‌های pending با مالک (مورد ۶)
       security: [{ bearerAuth: [] }]
@@ -1745,7 +1745,7 @@ paths:
                   data: { type: array, items: { $ref: '#/components/schemas/ReviewQueueItem' } }
                   total: { type: integer }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/review/{type}/{id}/approve:
+  /api/v1/p/central/review/{type}/{id}/approve:
     post:
       summary: تأیید مورد و آزادسازی فعال‌سازی برای مشتری (مورد ۶)
       security: [{ bearerAuth: [] }]
@@ -1756,7 +1756,7 @@ paths:
         '200': { description: تأیید شد }
         '403': { description: فقط اپراتور مرکزی }
         '404': { description: مورد یافت نشد }
-  /api/central/review/{type}/{id}/reject:
+  /api/v1/p/central/review/{type}/{id}/reject:
     post:
       summary: رد مورد با دلیل اجباری (note) — دلیل برای مشتری نمایش داده می‌شود (مورد ۶)
       security: [{ bearerAuth: [] }]
@@ -1776,14 +1776,14 @@ paths:
         '200': { description: رد شد و دلیل ثبت شد }
         '403': { description: فقط اپراتور مرکزی }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /api/central/operator/2fa/hardware/setup:
+  /api/v1/p/central/operator/2fa/hardware/setup:
     get:
       summary: صدور secret موقت + otpauth_url برای ثبت کلید با QR (دسته UIUX)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: secret و otpauth_url }
         '403': { description: فقط اپراتور مرکزی }
-  /api/central/operator/2fa/hardware:
+  /api/v1/p/central/operator/2fa/hardware:
     post:
       summary: ثبت کلید سخت‌افزاری (فعلاً TOTP سخت‌افزاری؛ WebAuthn واقعی TODO) (تسک ۵.۷)
       security: [{ bearerAuth: [] }]
@@ -1801,14 +1801,14 @@ paths:
       responses:
         '201': { description: کلید ثبت شد }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /api/central/operator/setup-tokens:
+  /api/v1/p/central/operator/setup-tokens:
     post:
       summary: توکن نصب با TTL (نیازمند 2FA تازه <۵ دقیقه؛ متن فقط یک‌بار) (تسک ۵.۷)
       security: [{ bearerAuth: [] }]
       responses:
         '201': { description: توکن ساخته شد }
         '403': { description: نیازمند تأیید دومرحله‌ای تازه }
-  /api/central/operator/kill-switch:
+  /api/v1/p/central/operator/kill-switch:
     post:
       summary: توقف اضطراری دومرحله‌ای (confirm:true + دلیل اجباری + 2FA تازه + لاگ غیرقابل حذف) (تسک ۵.۷)
       security: [{ bearerAuth: [] }]
@@ -1826,13 +1826,13 @@ paths:
         '200': { description: ثبت شد }
         '403': { description: نیازمند تأیید دومرحله‌ای تازه }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /api/central/operator/activity:
+  /api/v1/p/central/operator/activity:
     get:
       summary: لاگ فعالیت اپراتور (تسک ۵.۷)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: لاگ فعالیت }
-  /api/central/tickets/{id}/reply:
+  /api/v1/p/central/tickets/{id}/reply:
     post:
       summary: پاسخ اپراتور روی تیکت مشتری + اعلان داخلی (تسک ۵.۳)
       security: [{ bearerAuth: [] }]

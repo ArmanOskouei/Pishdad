@@ -1706,7 +1706,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/plans": {
+    "/api/v1/p/central/plans": {
         parameters: {
             query?: never;
             header?: never;
@@ -1778,7 +1778,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/plans/{id}": {
+    "/api/v1/p/central/plans/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1854,7 +1854,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/invoices": {
+    "/api/v1/p/central/invoices": {
         parameters: {
             query?: never;
             header?: never;
@@ -1916,7 +1916,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/invoices/{id}/status": {
+    "/api/v1/p/central/invoices/{id}/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -1952,7 +1952,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/invoices/{id}/remind": {
+    "/api/v1/p/central/invoices/{id}/remind": {
         parameters: {
             query?: never;
             header?: never;
@@ -1995,7 +1995,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/payments": {
+    "/api/v1/p/central/payments": {
         parameters: {
             query?: never;
             header?: never;
@@ -2029,7 +2029,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/subscriptions/suspended": {
+    "/api/v1/p/central/subscriptions/suspended": {
         parameters: {
             query?: never;
             header?: never;
@@ -2063,7 +2063,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/subscriptions/{id}/suspend": {
+    "/api/v1/p/central/subscriptions/{id}/suspend": {
         parameters: {
             query?: never;
             header?: never;
@@ -2099,7 +2099,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/subscriptions/{id}/resume": {
+    "/api/v1/p/central/subscriptions/{id}/resume": {
         parameters: {
             query?: never;
             header?: never;
@@ -2135,7 +2135,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/subscriptions/{id}/delete": {
+    "/api/v1/p/central/subscriptions/{id}/delete": {
         parameters: {
             query?: never;
             header?: never;
@@ -2171,7 +2171,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/gateway-settings": {
+    "/api/v1/p/central/gateway-settings": {
         parameters: {
             query?: never;
             header?: never;
@@ -2223,7 +2223,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/gateway-settings/test": {
+    "/api/v1/p/central/gateway-settings/test": {
         parameters: {
             query?: never;
             header?: never;
@@ -2307,7 +2307,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients": {
+    "/api/v1/p/central/clients": {
         parameters: {
             query?: never;
             header?: never;
@@ -2361,7 +2361,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}": {
+    "/api/v1/p/central/clients/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2397,7 +2397,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/upgrade-tier": {
+    "/api/v1/p/central/clients/{id}/upgrade-tier": {
         parameters: {
             query?: never;
             header?: never;
@@ -2447,7 +2447,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/support-token": {
+    "/api/v1/p/central/clients/{id}/support-token": {
         parameters: {
             query?: never;
             header?: never;
@@ -2483,7 +2483,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/support-token/consume": {
+    "/api/v1/p/central/clients/{id}/support-token/consume": {
         parameters: {
             query?: never;
             header?: never;
@@ -2526,7 +2526,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/suspend": {
+    "/api/v1/p/central/clients/{id}/suspend": {
         parameters: {
             query?: never;
             header?: never;
@@ -2562,7 +2562,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/resume": {
+    "/api/v1/p/central/clients/{id}/resume": {
         parameters: {
             query?: never;
             header?: never;
@@ -2598,7 +2598,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/delete": {
+    "/api/v1/p/central/clients/{id}/delete": {
         parameters: {
             query?: never;
             header?: never;
@@ -2634,7 +2634,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/backups": {
+    "/api/v1/p/central/clients/{id}/backups": {
         parameters: {
             query?: never;
             header?: never;
@@ -2670,7 +2670,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/backup": {
+    "/api/v1/p/central/clients/{id}/backup": {
         parameters: {
             query?: never;
             header?: never;
@@ -2706,7 +2706,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/clients/{id}/restore": {
+    "/api/v1/p/central/clients/{id}/restore": {
         parameters: {
             query?: never;
             header?: never;
@@ -2979,7 +2979,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/dashboard/stats": {
+    "/api/v1/p/central/dashboard/stats": {
         parameters: {
             query?: never;
             header?: never;
@@ -3020,7 +3020,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/dashboard/charts": {
+    "/api/v1/p/central/dashboard/charts": {
         parameters: {
             query?: never;
             header?: never;
@@ -3061,7 +3061,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/dashboard/open-cases": {
+    "/api/v1/p/central/dashboard/open-cases": {
         parameters: {
             query?: never;
             header?: never;
@@ -3102,7 +3102,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/wallet/charge": {
+    "/api/v1/p/central/chabokan/wallet/charge": {
         parameters: {
             query?: never;
             header?: never;
@@ -3144,7 +3144,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/services/provision": {
+    "/api/v1/p/central/chabokan/services/provision": {
         parameters: {
             query?: never;
             header?: never;
@@ -3188,7 +3188,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/wallet": {
+    "/api/v1/p/central/chabokan/wallet": {
         parameters: {
             query?: never;
             header?: never;
@@ -3229,7 +3229,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/services": {
+    "/api/v1/p/central/chabokan/services": {
         parameters: {
             query?: never;
             header?: never;
@@ -3270,7 +3270,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/services/{name}/start": {
+    "/api/v1/p/central/chabokan/services/{name}/start": {
         parameters: {
             query?: never;
             header?: never;
@@ -3313,7 +3313,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/services/{name}/stop": {
+    "/api/v1/p/central/chabokan/services/{name}/stop": {
         parameters: {
             query?: never;
             header?: never;
@@ -3363,7 +3363,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/services/{name}/restart": {
+    "/api/v1/p/central/chabokan/services/{name}/restart": {
         parameters: {
             query?: never;
             header?: never;
@@ -3413,7 +3413,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/services/{name}/resize": {
+    "/api/v1/p/central/chabokan/services/{name}/resize": {
         parameters: {
             query?: never;
             header?: never;
@@ -3465,7 +3465,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/deployments": {
+    "/api/v1/p/central/chabokan/deployments": {
         parameters: {
             query?: never;
             header?: never;
@@ -3506,7 +3506,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/redeploy": {
+    "/api/v1/p/central/chabokan/redeploy": {
         parameters: {
             query?: never;
             header?: never;
@@ -3555,7 +3555,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/chabokan/reconciliation": {
+    "/api/v1/p/central/chabokan/reconciliation": {
         parameters: {
             query?: never;
             header?: never;
@@ -5575,7 +5575,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/monitoring/health": {
+    "/api/v1/p/central/monitoring/health": {
         parameters: {
             query?: never;
             header?: never;
@@ -5611,7 +5611,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/monitoring/logs": {
+    "/api/v1/p/central/monitoring/logs": {
         parameters: {
             query?: never;
             header?: never;
@@ -5649,7 +5649,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/monitoring/uptime": {
+    "/api/v1/p/central/monitoring/uptime": {
         parameters: {
             query?: never;
             header?: never;
@@ -5693,7 +5693,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/updates": {
+    "/api/v1/p/central/updates": {
         parameters: {
             query?: never;
             header?: never;
@@ -5727,7 +5727,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/updates/rollouts/current": {
+    "/api/v1/p/central/updates/rollouts/current": {
         parameters: {
             query?: never;
             header?: never;
@@ -5768,7 +5768,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/updates/rollouts/{id}/pause": {
+    "/api/v1/p/central/updates/rollouts/{id}/pause": {
         parameters: {
             query?: never;
             header?: never;
@@ -5811,7 +5811,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/updates/rollouts/{id}/resume": {
+    "/api/v1/p/central/updates/rollouts/{id}/resume": {
         parameters: {
             query?: never;
             header?: never;
@@ -5854,7 +5854,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/updates/rollout": {
+    "/api/v1/p/central/updates/rollout": {
         parameters: {
             query?: never;
             header?: never;
@@ -5898,7 +5898,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/updates/installs/{id}/rollback": {
+    "/api/v1/p/central/updates/installs/{id}/rollback": {
         parameters: {
             query?: never;
             header?: never;
@@ -5941,7 +5941,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/review/queue": {
+    "/api/v1/p/central/review/queue": {
         parameters: {
             query?: never;
             header?: never;
@@ -5987,7 +5987,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/review/{type}/{id}/approve": {
+    "/api/v1/p/central/review/{type}/{id}/approve": {
         parameters: {
             query?: never;
             header?: never;
@@ -6038,7 +6038,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/review/{type}/{id}/reject": {
+    "/api/v1/p/central/review/{type}/{id}/reject": {
         parameters: {
             query?: never;
             header?: never;
@@ -6089,7 +6089,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/operator/2fa/hardware/setup": {
+    "/api/v1/p/central/operator/2fa/hardware/setup": {
         parameters: {
             query?: never;
             header?: never;
@@ -6130,7 +6130,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/operator/2fa/hardware": {
+    "/api/v1/p/central/operator/2fa/hardware": {
         parameters: {
             query?: never;
             header?: never;
@@ -6173,7 +6173,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/operator/setup-tokens": {
+    "/api/v1/p/central/operator/setup-tokens": {
         parameters: {
             query?: never;
             header?: never;
@@ -6214,7 +6214,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/operator/kill-switch": {
+    "/api/v1/p/central/operator/kill-switch": {
         parameters: {
             query?: never;
             header?: never;
@@ -6263,7 +6263,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/operator/activity": {
+    "/api/v1/p/central/operator/activity": {
         parameters: {
             query?: never;
             header?: never;
@@ -6297,7 +6297,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/central/tickets/{id}/reply": {
+    "/api/v1/p/central/tickets/{id}/reply": {
         parameters: {
             query?: never;
             header?: never;

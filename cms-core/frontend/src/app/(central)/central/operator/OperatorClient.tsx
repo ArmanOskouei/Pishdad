@@ -28,7 +28,7 @@ export function OperatorClient({ initialActivity }: { initialActivity: Paginator
   const setupSecret = async () => {
     setBusy(true);
     try {
-      const r = await authed<{ secret: string; otpauth_url: string }>(`/central/operator/2fa/hardware/setup`);
+      const r = await authed<{ secret: string; otpauth_url: string }>(`/v1/p/central/operator/2fa/hardware/setup`);
       setHwSecret(r.secret);
       setOtpauth(r.otpauth_url);
       toast("secret جدید صادر شد — QR را اسکن کنید.", "ok");
@@ -42,7 +42,7 @@ export function OperatorClient({ initialActivity }: { initialActivity: Paginator
   const registerHw = async () => {    if (!hwName.trim() || !hwSecret.trim() || !hwCode.trim()) { toast("نام، secret و کد کلید الزامی است.", "err"); return; }
     setBusy(true);
     try {
-      await authed(`/central/operator/2fa/hardware`, {
+      await authed(`/v1/p/central/operator/2fa/hardware`, {
         method: "POST",
         body: { name: hwName.trim(), secret: hwSecret.trim(), code: hwCode.trim() },
       });
@@ -58,7 +58,7 @@ export function OperatorClient({ initialActivity }: { initialActivity: Paginator
   const createToken = async () => {
     setBusy(true);
     try {
-      const r = await authed<{ token: string; expires_at: string }>(`/central/operator/setup-tokens`, {
+      const r = await authed<{ token: string; expires_at: string }>(`/v1/p/central/operator/setup-tokens`, {
         method: "POST",
         body: { purpose: purpose.trim() || undefined },
       });
@@ -73,7 +73,7 @@ export function OperatorClient({ initialActivity }: { initialActivity: Paginator
   const doKill = async (): Promise<string> => {
     const reason = (document.getElementById("kill-reason") as HTMLTextAreaElement | null)?.value ?? "";
     if (reason.trim().length < 10) throw new Error("دلیل توقف اضطراری باید حداقل ۱۰ نویسه باشد.");
-    await authed(`/central/operator/kill-switch`, { method: "POST", body: { reason: reason.trim(), confirm: true } });
+    await authed(`/v1/p/central/operator/kill-switch`, { method: "POST", body: { reason: reason.trim(), confirm: true } });
     return "توقف اضطراری ثبت و در لاگ دائمی درج شد.";
   };
 

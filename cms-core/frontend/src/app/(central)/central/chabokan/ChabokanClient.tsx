@@ -36,7 +36,7 @@ export function ChabokanClient({
     if (!action) return "—";
     const { kind, service } = action;
     if (kind === "redeploy") {
-      await authed(`/central/chabokan/redeploy`, { method: "POST", body: { service, confirm: true } });
+      await authed(`/v1/p/central/chabokan/redeploy`, { method: "POST", body: { service, confirm: true } });
       router.refresh();
       return "دیپلوی مجدد ثبت شد.";
     }
@@ -44,7 +44,7 @@ export function ChabokanClient({
       kind === "resize" ? { size, confirm: true }
       : kind === "start" ? {}
       : { confirm: true };
-    await authed(`/central/chabokan/services/${encodeURIComponent(service)}/${kind}`, { method: "POST", body });
+    await authed(`/v1/p/central/chabokan/services/${encodeURIComponent(service)}/${kind}`, { method: "POST", body });
     router.refresh();
     return { start: "سرویس روشن شد.", stop: "سرویس خاموش شد.", restart: "سرویس ری‌استارت شد.", resize: "سایز سرویس تغییر کرد.", redeploy: "" }[kind];
   };
@@ -176,7 +176,7 @@ function ChargeWalletCard() {
     if (!Number.isInteger(n) || n < 10000) throw new Error("مبلغ شارژ باید عدد صحیح حداقل ۱۰٬۰۰۰ باشد.");
     setBusy(true);
     try {
-      await authed(`/central/chabokan/wallet/charge`, { method: "POST", body: { amount: n } });
+      await authed(`/v1/p/central/chabokan/wallet/charge`, { method: "POST", body: { amount: n } });
       router.refresh();
       return `درخواست شارژ ${faNum(n)} ثبت شد.`;
     } finally {
@@ -220,7 +220,7 @@ function IdlePoolCard({ services }: { services: ServiceItem[] }) {
     if (!/^[a-z0-9-]{3,40}$/.test(name.trim())) { toast("نام سرویس فقط حروف کوچک انگلیسی، عدد و خط تیره (۳ تا ۴۰ نویسه).", "err"); return; }
     setBusy(true);
     try {
-      await authed(`/central/chabokan/services/provision`, { method: "POST", body: { name: name.trim(), size } });
+      await authed(`/v1/p/central/chabokan/services/provision`, { method: "POST", body: { name: name.trim(), size } });
       toast("ساخت سرویس آماده ثبت شد.", "ok");
       setName("");
       router.refresh();
