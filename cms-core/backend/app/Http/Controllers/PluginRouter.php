@@ -6,6 +6,9 @@ use App\Services\Plugins\PluginDispatcher;
 use App\Services\Plugins\PluginRouteTable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException as SymfonyNotFoundHttpException;
 use Throwable;
 
 /**
@@ -87,6 +90,20 @@ class PluginRouter extends Controller
         // `PluginAutoloader` به هیچ چرخهٔ حیاتی وصل نبود.
         try {
             return $this->dispatcher->dispatch($request, $route);
+        } catch (ValidationException $e) {
+            // K7.13 — استثناهای «پاسخ‌دادنی» هسته باید برسند، نه لاگ و نه ۵۰۰.
+            //
+            // `ValidationException` یعنی هندلر `validate()` را صدا زد و شکست
+            // خورد. این یعنی **ورودی بد بود، نه افزونهٔ خراب** — و پاسخ درست
+            // ۴۲۲ با فهرست خطاهاست. وقتی این را نمی‌گرفتیم، کاربر برای یک
+            // فیلد خالی ۵۰۰ می‌دید و نویسندهٔ افزونه هیچ پیامی برای اصلاح
+            // نداشت.
+            //
+            // `HttpException` هم همین منطق را دارد: `abort(403)` در هندلر باید
+            // ۴۰۳ بدهد نه ۵۰۰.
+            throw $e;
+        } catch (HttpExceptionInterface|SymfonyNotFoundHttpException $e) {
+            throw $e;
         } catch (Throwable $e) {
             // جزئیات فقط در لاگ. یک استثنا می‌تواند connection string یا مسیر
             // فایل داشته باشد و مسیر فایل ساختار دیسک را لو می‌دهد.

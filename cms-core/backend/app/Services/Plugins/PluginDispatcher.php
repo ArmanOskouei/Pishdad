@@ -202,6 +202,26 @@ class PluginDispatcher
      * @param  array<string, string>  $params
      * @return list<mixed>
      */
+    /**
+     * پارامترهای هندلر را از segmentهای مسیر پر می‌کند.
+     *
+     * ## چرا تبدیل نوع لازم بود
+     *
+     * مقادیر `params` همیشه **رشته**‌اند چون از URL آمده‌اند. اگر هندلر پارامترش
+     * را `int $ticketId` اعلام کند، نسخهٔ قبل فقط `$params['id'] ?? null` را
+     * می‌گذاشت و PHP در حالت strict یک `TypeError` **بی‌پیام** می‌داد — چون
+     * انتقال ضمنی `string` به `int` در فراخوانی تابعِ typehinted مجاز نیست.
+     *
+     * آن خطای بی‌پیام یعنی کاربر فقط یک ۵۰۰ خالی می‌دید و هیچ راهنمایی برای
+     * نویسندهٔ افزونه نبود. تبدیل نوع اینجا انجام می‌شود تا خطا از خودِ
+     * validation بیاید.
+     *
+     * ## چرا تبدیل شکست‌پذیر عمداً ساکت است
+     *
+     * اگر تبدیل ممکن نبود، مقدار **بدون تبدیل** پاس داده می‌شود تا خودِ هندلر
+     * تصمیم بگیرد. پس دادن `null` جای یک رشتهٔ نامعتبر بدتر بود: هندلر
+     * انتظار داشت عدد ببیند و `null` می‌گرفت، یعنی TypeError با پیام گمراه‌کننده.
+     */
     private function bindParams(object $instance, string $method, array $params, Request $request): array
     {
         $reflection = new ReflectionMethod($instance, $method);
@@ -217,9 +237,46 @@ class PluginDispatcher
             }
 
             $name = $parameter->getName();
-            $ordered[] = $params[$name] ?? null;
+            $raw = $params[$name] ?? null;
+
+            $ordered[] = $this->coerce($raw, $type);
         }
 
         return $ordered;
+    }
+
+    /**
+     * تبدیل مقدار رشته‌ای مسیر به نوع اعلام‌شدهٔ پارامتر.
+     *
+     * اگر تبدیل ممکن نباشد **خودِ مقدار** برگردانده می‌شود، نه `null` — و
+     * اگر مقدار اصلاً نبود `null` می‌ماند. هندلر باید خودش اعتبارسنجی کند.
+     */
+    private function coerce(mixed $value, ?\ReflectionType $type): mixed
+    {
+        if ($value === null || ! $type instanceof \ReflectionNamedType) {
+            return $value;
+        }
+
+        $name = $type->getName();
+
+        if (! $type->isBuiltin()) {
+            // کلاس هسته یا افزونه — bind کردن مدل‌ها خارج از محدودهٔ این
+            // نقطه است و `int`/`string` تنها تبدیل‌های بی‌خطر اینجا هستند.
+            return $value;
+        }
+
+        $scalar = match ($name) {
+            'int' => is_string($value) && preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : $value,
+            'float' => is_numeric($value) ? (float) $value : $value,
+            'bool' => is_string($value) && in_array(strtolower($value), ['1', 'true', '0', 'false'], true)
+                ? in_array(strtolower($value), ['1', 'true'], true)
+                : $value,
+            'string' => is_scalar($value) ? (string) $value : $value,
+            default => $value,
+        };
+
+        // اگر تبدیل نوع را تغییر نداد، یعنی مقدار با نوع اعلام‌شده نمی‌خواند.
+        // همان مقدار خام را می‌دهیم تا خطا از هندلر بیاید نه از اینجا.
+        return $scalar;
     }
 }
