@@ -2,25 +2,41 @@
 
 namespace Tests\Feature;
 
+use App\Services\Plugins\PluginDdlConnection;
+use App\Services\Plugins\PluginDdlProvisioner;
 use App\Services\Plugins\PluginMigrationRunner;
 use App\Services\Plugins\PluginMigrator;
 use App\Services\Plugins\PluginReleaseManager;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
-use Tests\TestCase;
+use Tests\PluginDdlNoTransactionCase;
 
 /**
  * K5.6 گام ۳ — اجرای migration با prefix.
  *
  * این تست‌ها روی دیتابیس واقعی اجرا می‌شوند، چون ادعای اصلی «جدول با prefix ساخته
  * می‌شود» فقط با یک جدول واقعی ثابت می‌شود.
+ *
+ * ## ⚠️ چرا `RefreshDatabase` ندارد — K5.12
+ *
+ * با K5.12، migration افزونه روی **اتصال جدا** با نقش `pishdad_plugin_ddl`
+ * اجرا می‌شود، نه روی اتصالِ هسته.
+ *
+ * `RefreshDatabase` کل تست را در یک تراکنشِ بازِ روی اتصالِ هسته می‌پیچد. نقشی که
+ * در `setUp` با `CREATE ROLE` ساخته می‌شود **داخلِ همان تراکنش** زندگی می‌کند، پس
+ * اتصالِ جدا آن را نمی‌بیند و `isAvailable()` می‌گوید «نیست».
+ *
+ * نتیجهٔ اولیه سه تست قرمز با پیامِ `migration.ddl_unavailable` بود — پیامی که
+ * دربارهٔ چیزی حرف می‌زد که این تست اصلاً نمی‌سنجد. این بدترین شکل قرمزی است:
+ * تست در جای اشتباه ایستاده.
+ *
+ * پس نقش بیرون از تراکنش ساخته و در `tearDown` برداشته می‌شود. `RefreshDatabase`
+ * هم نمی‌ماند چون تراکنشِ باز، `REVOKE … ON ALL TABLES` را در `grantMinimal()`
+ * قفل می‌کند.
  */
-class PluginMigratorTest extends TestCase
+class PluginMigratorTest extends PluginDdlNoTransactionCase
 {
-    use RefreshDatabase;
-
     private PluginMigrator $migrator;
 
     private string $release;
@@ -29,15 +45,44 @@ class PluginMigratorTest extends TestCase
     {
         parent::setUp();
 
-        $this->migrator = new PluginMigrator(new PluginMigrationRunner);
+        // نقش را `PluginDdlTestCase` **بیرون از تراکنش** ساخته — چون
+        // `CREATE ROLE` تا `COMMIT` واقعی دیده نمی‌شود.
+        $this->migrator = new PluginMigrator(
+            new PluginMigrationRunner,
+            app(PluginDdlConnection::class),
+            app(PluginDdlProvisioner::class),
+        );
+
         $this->release = rtrim(sys_get_temp_dir(), '/').'/pishdad-test-release-'.uniqid();
     }
 
     protected function tearDown(): void
     {
         $this->removeTree($this->release);
+        $this->dropTestTables();
 
         parent::tearDown();
+    }
+
+    /**
+     * جدول‌هایی که این تست‌ها می‌سازند.
+     *
+     * فهرست صریح، چون دیتابیسِ تست مشترک است و یک الگوی کلی می‌تواند
+     * جدولِ تستِ دیگری را ببرد.
+     */
+    private function dropTestTables(): void
+    {
+        $rows = DB::select(
+            "select tablename from pg_tables where schemaname = current_schema()
+             and (tablename like 'demo\_%' or tablename in ('posts', 'tags', 'demo'))"
+        );
+
+        foreach ($rows as $row) {
+            DB::statement('drop table if exists "'.$row->tablename.'" cascade');
+        }
+
+        DB::table('plugin_table_prefixes')->whereIn('slug', ['demo', 'other'])->delete();
+        DB::table('pishdad_plugin_migrations')->whereIn('slug', ['demo', 'other'])->delete();
     }
 
     /**

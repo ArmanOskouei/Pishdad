@@ -4,6 +4,7 @@ namespace App\Services\Plugins;
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
@@ -41,7 +42,11 @@ final class PluginMigrator
      */
     private const HISTORY_TABLE = 'pishdad_plugin_migrations';
 
-    public function __construct(private PluginMigrationRunner $runner) {}
+    public function __construct(
+        private PluginMigrationRunner $runner,
+        private PluginDdlConnection $ddl,
+        private PluginDdlProvisioner $provisioner,
+    ) {}
 
     /**
      * @param  array<int, string>  $declaredTables  نام‌های خام از `db.tables`
@@ -99,34 +104,119 @@ final class PluginMigrator
             return self::fail($stage['code'], $stage['message'], skipped: $files);
         }
 
+        // ── ۱٫۵) رجیستری و نقش، **پیش** از اجرا ─────────────────────────
+        //
+        // ترتیب عمدی است. رجیستری باید قبل از migration پر باشد، چون نگهبان در
+        // لحظهٔ `CREATE TABLE` نام را می‌پرسد و رجیستریِ خالی یعنی «هیچ چیز
+        // مجاز نیست» — یعنی شکست.
+        //
+        // و اگر نقش در دسترس نباشد، **قبل** از هر DDL رد می‌کنیم. اگر صبر می‌کردیم
+        // تا migration شکست بخورد، خطای نگهبان می‌آمد که نویسندهٔ افزونه می‌دید
+        // و چیزی از وضعیت نصب نمی‌فهمید.
+        if (! $this->ddl->isAvailable()) {
+            $this->forget($stage['root']);
+
+            return self::fail(
+                'migration.ddl_unavailable',
+                'DDL افزونه اجرا نشد چون نقش «'.PluginDdlConnection::ROLE.'» در دسترس نیست.'
+                    .' این عمداً fail-closed است: اجرای migration روی اتصال هسته یعنی اجرای بی‌نگهبان.'
+            );
+        }
+
+        $this->provisioner->registerTables($slug, $declaredTables);
+
         // ── ۲) اجرا ─────────────────────────────────────────────────────
         $applied = [];
         $skipped = [];
         $history = $this->history($slug);
 
-        try {
-            $this->inTransaction($slug, function () use ($stage, &$applied, &$skipped, &$history): void {
-                foreach ($stage['staged'] as $original => $path) {
-                    if (in_array($original, $history, true)) {
-                        $skipped[] = $original;
+        // ── ۱٫۶) تاریخِ کهنه: ثبت‌شده ولی جدولش نیست ───────────────
+        //
+        // `pishdad_plugin_migrations` می‌گوید «اجرا شد» ولی ممکن است جدول
+        // نباشد. سه حالت این را می‌سازد که هر سه واقعی‌اند:
+        //  · فرایند بین نوشتنِ تاریخ و `commit` مرد؛
+        //  · جدول را کسی دستی حذف کرد؛
+        //  · دیتابیس از پشتیبان برگشت ولی تاریخ‌ها جلوتر از جدول‌ها.
+        //
+        // بدون این بررسی، حالت سوم **ساکت** خراب می‌شد: migration «اجرا شده»
+        // پنداشته و skip می‌شد، بعد گاردِ پایین می‌گفت «بستهٔ شما migration ندارد»
+        // — که غلط است. بسته دارد، اجرا هم شده. کاربر می‌رفت دنبالِ بسته و
+        // هرگز پیدایش نمی‌کرد.
+        //
+        // راه درست پاک کردنِ تاریخِ ناهمخوان است، نه skip کردنش: اگر جدول نیست،
+        // migration باید دوباره اجرا شود.
+        $this->reconcileHistory($slug, $declaredTables, $history);
 
-                        continue;
+        try {
+            // ── تراکنش روی **هر دو** اتصال ─────────────────────────────────
+            //
+            // ⚠️ این مهم‌ترین نکتهٔ این بازنویسی است و با آزمایش کشف شد، نه با
+            // بازبینی کد.
+            //
+            // نسخهٔ اول فقط روی اتصالِ هسته تراکنش باز می‌کرد و DDL را روی اتصالِ
+            // افزونه اجرا می‌کرد. نتیجه: `rollBack` هیچ چیزی را برنمی‌گرداند،
+            // چون DDL در تراکنشِ دیگری بوده. تستِ
+            // `test_a_failure_rolls_back_the_whole_batch` این را لو داد — جدولِ
+            // فایل اول **مانده بود** با وجود ادعای rollback.
+            //
+            // یعنی نصبِ نیمه‌کاره: جدولِ اول ساخته شده، دومی شکست خورده، و کاربر
+            // وضعیتی می‌بیند که نه فعال است نه پاک است. این همان چیزی بود که
+            // تراکنش برای جلوگیری از آن گذاشته شده.
+            //
+            // ترتیبِ باز کردن: اول هسته، بعد افزونه. اگر دومی شکست بخورد،
+            // اولی باید بسته شود وگرنه تراکنشِ هسته معلق می‌ماند.
+            $core = DB::connection($this->coreConnection());
+            $plugin = DB::connection(PluginDdlConnection::CONNECTION);
+
+            $this->ddl->run(function () use ($core, $plugin, $stage, &$applied, &$skipped, &$history): void {
+                $core->beginTransaction();
+                $plugin->beginTransaction();
+
+                try {
+                    foreach ($stage['staged'] as $original => $path) {
+                        if (in_array($original, $history, true)) {
+                            $skipped[] = $original;
+
+                            continue;
+                        }
+
+                        // تاریخ **پیش** از اجرا نوشته می‌شود، و روی اتصال **هسته**:
+                        // نقش افزونه حق نوشتن روی `pishdad_plugin_migrations` را ندارد
+                        // (و نباید داشته باشد).
+                        //
+                        // ترتیب «اول تاریخ، بعد اجرا» محافظه‌کارانه است: اگر فرایند
+                        // بین این دو بمیرد، تاریخ «اجرا شده» ولی جدول نیست — و آن
+                        // را گاردِ `missingTables` پایین می‌گیرد و پیام دقیق می‌دهد.
+                        // ترتیب برعکس، جدولِ بی‌تاریخ می‌ساخت که نصب دوباره را
+                        // می‌شکست.
+                        $core->table(self::HISTORY_TABLE)->insert([
+                            'slug' => $stage['slug'],
+                            'migration' => $original,
+                            'applied_at' => now(),
+                        ]);
+
+                        $this->requireMigration($path, $original)->up();
+
+                        $history[] = $original;
+                        $applied[] = $original;
                     }
 
-                    $this->requireMigration($path, $original)->up();
+                    // ⚠️ **اول** اتصالِ افزونه: `commit` آن جدول‌ها را نهایی
+                    // می‌کند. اگر هسته اول commit شود و افزونه شکست بخورد، تاریخ
+                    // «اجرا شده» می‌ماند ولی جدول‌ها نه.
+                    $plugin->commit();
+                    $core->commit();
+                } catch (Throwable $e) {
+                    // ترتیب برعکسِ باز کردن: اول هر که دیرتر باز شده بسته می‌شود.
+                    $plugin->rollBack();
+                    $core->rollBack();
 
-                    DB::table(self::HISTORY_TABLE)->insert([
-                        'slug' => $stage['slug'],
-                        'migration' => $original,
-                        'applied_at' => now(),
-                    ]);
-
-                    $history[] = $original;
-                    $applied[] = $original;
+                    throw $e;
                 }
             });
         } catch (Throwable $e) {
             $this->forget($stage['root']);
+            $this->forgetHistory($slug, $applied);
 
             return self::fail('migration.failed', $e->getMessage(), skipped: $files);
         }
@@ -335,23 +425,85 @@ final class PluginMigrator
         @rmdir($root);
     }
 
-    /** @param callable(): void $work */
-    private function inTransaction(string $slug, callable $work): void
+    /**
+     * حذفِ تاریخِ migrationهایی که جدولشان روی دیسک نیست.
+     *
+     * اگر همهٔ جدول‌های اعلام‌شده وجود داشته باشند، هیچ کاری نمی‌شود — تاریخ
+     * معتبر است.
+     *
+     * اگر **بعضی** وجود داشته باشند و بعضی نه، هیچ تاریخی پاک نمی‌شود. دلیلش این
+     * است که در آن حالت نمی‌دانیم کدام migration ساخته نشده — حدس زدن یعنی
+     * اجرای دوبارهٔ یک migration که قبلاً اجرا شده، و `Schema::create` روی
+     * جدولِ موجود خطا می‌دهد. در آن حالت `missingTables` پایین پیام دقیق می‌دهد.
+     *
+     * @param  array<int, string>  $declaredTables
+     * @param  array<int, string>  $history  به‌مرجع
+     */
+    private function reconcileHistory(string $slug, array $declaredTables, array &$history): void
     {
-        DB::beginTransaction();
+        if ($history === []) {
+            return;
+        }
+
+        $dangling = $this->provisioner->danglingTables($slug);
+
+        // همهٔ نام‌های ثبت‌شده روی دیسک هستند ⇒ تاریخ معتبر است.
+        if ($dangling === []) {
+            return;
+        }
+
+        // **بعضی** جدول‌ها هستند و بعضی نیستند ⇒ وضعیت نامشخص. دست نمی‌زنیم.
+        $registered = DB::table('plugin_table_prefixes')->where('slug', $slug)->pluck('table_name')->all();
+        $partial = count($registered) > count($dangling);
+
+        if ($partial || $declaredTables === []) {
+            return;
+        }
+
+        Log::warning('plugin.migration_history_stale', [
+            'slug' => $slug,
+            'missing' => $dangling,
+        ]);
+
+        DB::table(self::HISTORY_TABLE)->where('slug', $slug)->delete();
+
+        $history = [];
+    }
+
+    /**
+     * پاک کردن تاریخِ migrationهایی که در این اجرا **ثبت شدند ولی اجرا نشدند**.
+     *
+     * لازم است چون تاریخ روی اتصال هسته نوشته می‌شود و تراکنشِ DDL روی اتصال
+     * افزونه است — این دو تراکنشِ جدا هستند و rollback یکی دیگری را برنمی‌گرداند.
+     * بدون این پاک‌سازی، یک شکست در migration سوم باعث می‌شد دو تای قبلی «اجرا
+     * شده» بمانند در حالی که جدول‌هاشان هم برگشته — و نصب دوباره آن‌ها را
+     * می‌پرید.
+     *
+     * @param  array<int, string>  $names
+     */
+    private function forgetHistory(string $slug, array $names): void
+    {
+        if ($names === []) {
+            return;
+        }
 
         try {
-            $work();
-            DB::commit();
-        } catch (Throwable $e) {
-            DB::rollBack();
-
-            throw new RuntimeException(
-                'migration افزونهٔ «'.$slug.'» اجرا نشد و همه‌چیز برگشت: '.$e->getMessage(),
-                0,
-                $e
-            );
+            DB::connection($this->coreConnection())
+                ->table(self::HISTORY_TABLE)
+                ->where('slug', $slug)
+                ->whereIn('migration', $names)
+                ->delete();
+        } catch (Throwable) {
+            // اگر این هم شکست بخورد، وضعیت نیمه‌کاره می‌ماند و گاردِ
+            // `missingTables` پایین آن را می‌بیند و پیام دقیق می‌دهد. پس این
+            // نباید استثنای اصلی را بپوشاند.
         }
+    }
+
+    /** اتصال هسته، حتی وقتی پیش‌فرض روی افزونه است. */
+    private function coreConnection(): string
+    {
+        return $this->ddl->coreConnection();
     }
 
     /** @return array{ok: false, code: string, message: string, applied: array<int, string>, skipped: array<int, string>} */

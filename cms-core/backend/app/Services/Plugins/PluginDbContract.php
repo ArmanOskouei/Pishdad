@@ -86,6 +86,10 @@ final class PluginDbContract
      * یادآوری: چون prefix اجباری است، از این فهرست **جدول هسته‌ای قابل دسترسی
      * نمی‌شود** — نام اعلام‌شده همیشه به `slug_name` تبدیل می‌شود. این فهرست برای
      * گرفتن خطای نویسنده است، نه برای جلوگیری از برخورد در دیتابیس.
+     *
+     * `plugin_table_prefixes` هم از همین جنس است: رجیستریِ K5.12 که تعیین می‌کند
+     * افزونه اجازهٔ ساخت کدام نام‌ها را دارد. اگر افزونه بتواند آن را اعلام کند،
+     * نگهبانِ دیتابیس عملاً بی‌اثر می‌شود — پس باید مسدود باشد.
      */
     public const CORE_TABLES = [
         'cache',
@@ -103,6 +107,7 @@ final class PluginDbContract
         'password_reset_tokens',
         'permissions',
         'personal_access_tokens',
+        'plugin_table_prefixes',
         'plugins',
         'publisher_keys',
         'revalidate_logs',

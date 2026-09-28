@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+
+use Tests\PluginDdlNoTransactionCase;
 use App\Http\Controllers\Api\V1\Admin\PluginController;
 use App\Http\Middleware\GateDevModeUpload;
 use App\Models\Plugin;
@@ -18,25 +20,126 @@ use App\Services\Plugins\PluginSignatureVerifier;
 use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
-use Tests\TestCase;
 use ZipArchive;
 
-/** تسک ۵.۴ — DoD: نصب امضاشده → فعال → rollback؛ امضای نامعتبر = 422. K5.5: بدون رجیستری هوک. */
-class PluginsTest extends TestCase
+/**
+ * تسک ۵.۴ — DoD: نصب امضاشده → فعال → rollback؛ امضای نامعتبر = 422. K5.5: بدون رجیستری هوک.
+ *
+ * ## ⚠️ چرا `RefreshDatabase` ندارد — K5.12
+ *
+ * `RefreshDatabase` `migrate:fresh` می‌کند و جدول‌ها را **دوباره می‌سازد**، که
+ * `relacl` را پاک می‌کند. یعنی امتیازهایی که `PluginDdlTestCase` داده از بین
+ * می‌رود و افزونه‌ای که واقعاً migration اجرا می‌کند با
+ * `permission denied for table plugin_table_prefixes` رد می‌شود.
+ *
+ * یعنی **یک تست باید `RefreshDatabase` داشته باشد و دیگری نه**، بسته به اینکه
+ * آیا واقعاً جدول می‌سازد:
+ *  · تست‌هایی که فقط مسیر و امضا را می‌سنجند ⇒ تراکنش خوب است (ارزان و تمیز).
+ *  · تستی که جدول می‌سازد ⇒ باید بدون تراکنش باشد، چون جدولِ ساخته‌شده در
+ *    تراکنشِ تست برای اتصالِ جدا نامرئی است.
+ *
+ * این یک بده‌بستانِ آگاهانه است، نه سهل‌انگاری: جدول‌ها را `tearDown` پاک می‌کند.
+ */
+class PluginsTest extends PluginDdlNoTransactionCase
 {
-    use RefreshDatabase;
 
     private string $publicKey;
 
     private string $secretKey;
 
+    /**
+     * پاک‌سازیِ دستی، جایگزینِ `RefreshDatabase`.
+     *
+     * فهرست **صریح** است، چون دیتابیسِ تست مشترک است و یک الگوی کلی می‌تواند
+     * جدولِ تستِ دیگری را ببرد.
+     *
+     * و پاک کردنِ رکوردِ افزونه **لازم** است: بدون `RefreshDatabase` هیچ چیز
+     * برنمی‌گردد و تست بعدی با «پلاگینی با این شناسه قبلاً نصب شده» رد می‌شود.
+     */
+    protected function tearDown(): void
+    {
+        Plugin::query()->delete();
+        DB::table('pishdad_plugin_migrations')->delete();
+        DB::table('plugin_table_prefixes')->delete();
+        Setting::query()->where('group', 'plugin')->delete();
+        Setting::query()->where('key', 'like', 'seal_key_%')->delete();
+
+        // بدون این‌ها تست‌های بعدی با `unique violation` می‌میرند، چون
+        // `RefreshDatabase` دیگر هیچ چیزی را برنمی‌گرداند.
+        //
+        // این را با اجرا پیدا شد: `test_revoked_publisher_key_fails_verification`
+        // با `duplicate key value violates unique constraint
+        // "publisher_keys_slug_unique"` قرمز شد.
+        PublisherKey::query()->delete();
+        DB::table('permissions')->where('name', 'like', 'plugin:%')->delete();
+        DB::table('model_has_permissions')->whereIn(
+            'permission_id',
+            DB::table('permissions')->select('id')->where('name', 'like', 'plugin:%'),
+        )->delete();
+        DB::table('model_has_roles')->delete();
+        DB::table('role_has_permissions')->delete();
+        User::query()->where('email', 'like', '%@example.com')->delete();
+
+        $rows = DB::select(
+            "select tablename from pg_tables where schemaname = current_schema()
+             and (tablename like 'tableplugin\_%' or tablename like 'sampleplugin\_%'
+                  or tablename like 'pluginslug\_%' or tablename = 'posts')"
+        );
+
+        foreach ($rows as $row) {
+            DB::statement('drop table if exists "'.$row->tablename.'" cascade');
+        }
+
+        $sequences = DB::select(
+            "select c.relname as name from pg_class c
+               join pg_namespace n on n.oid = c.relnamespace
+              where c.relkind = 'S' and n.nspname = current_schema()
+                and (c.relname like 'tableplugin\_%' or c.relname like 'sampleplugin\_%')"
+        );
+
+        foreach ($sequences as $row) {
+            DB::statement('drop sequence if exists "'.$row->name.'" cascade');
+        }
+
+        foreach (glob(storage_path('app/plugins/*')) ?: [] as $dir) {
+            if (is_dir($dir) && $this->isWithinTempRoot($dir)) {
+                // `File` نه `removeTree` — متد دستی در `PluginMigratorTest` است و
+                // اینجا وجود نداشت (`Call to undefined method removeTree()`).
+                File::deleteDirectory($dir);
+            }
+        }
+
+        foreach (glob(storage_path('app/plugins/shared/*')) ?: [] as $file) {
+            @unlink($file);
+        }
+
+        parent::tearDown();
+    }
+
+    /** فقط پوشه‌هایی که خودِ این تست ساخته. */
+    private function isWithinTempRoot(string $dir): bool
+    {
+        $name = basename($dir);
+
+        foreach (['tableplugin', 'sampleplugin', 'sample-plugin', 'hooksplugin', 'posts'] as $slug) {
+            if (str_starts_with($name, $slug)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
+
         $kp = sodium_crypto_sign_keypair();
         $this->publicKey = base64_encode(sodium_crypto_sign_publickey($kp));
         $this->secretKey = base64_encode(sodium_crypto_sign_secretkey($kp));
@@ -899,9 +1002,15 @@ class PluginsTest extends TestCase
 
         $this->approveAsOperator('plugin', (int) $id);
 
-        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")
-            ->assertOk()
-            ->assertJsonPath('data.active', true);
+        $activate = $auth->postJson("/api/v1/admin/plugins/{$id}/activate");
+
+        $this->assertSame(
+            200,
+            $activate->status(),
+            'فعال‌سازی باید موفق باشد: '.$activate->getContent()
+        );
+
+        $activate->assertJsonPath('data.active', true);
 
         $this->assertTrue(
             Schema::hasTable('tableplugin_notes'),

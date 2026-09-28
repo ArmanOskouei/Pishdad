@@ -97,6 +97,41 @@ return [
             'sslmode' => 'prefer',
         ],
 
+        'plugin_ddl' => [
+            // K5.12 — اتصال جدا برای DDL افزونه.
+            //
+            // **چرا این اتصال لازم است:** `SET LOCAL ROLE` در PostgreSQL جداسازی
+            // نمی‌دهد. بعد از `SET LOCAL ROLE plugin_ddl` باز `SET ROLE cms`
+            // موفق می‌شود و چون نگهبان روی `current_user` گیت می‌کند، کل دروازه
+            // خاموش می‌شود. با اتصال جدا، `session_user = current_user` و
+            // `SET ROLE cms` با `permission denied` شکست می‌خورد.
+            //
+            // این کاربر عمداً **تکراری** از `pgsql` است به‌جز نام کاربری و رمز.
+            // تکرار عمدی است: اگر `url` را به ارث ببرد، یک تنظیم اشتباه در
+            // `DB_URL` می‌توانست هر دو را با هم بشکند.
+            'driver' => 'pgsql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_DATABASE', 'laravel'),
+            'username' => 'pishdad_plugin_ddl',
+            // ⚠️ این باید `env()` باشد، نه `config('plugins.…')`.
+            //
+            // نسخهٔ اول `config()` بود و `no password supplied` می‌داد. علت
+            // ترتیبِ بارگذاری است: `database.php` **قبل** از `plugins.php` در
+            // شیء `config` ساخته می‌شود، پس `config('plugins.…')` هنوز `null`
+            // است و برای همیشه `null` می‌ماند.
+            //
+            // و تست‌ها هم نمی‌توانند `env` را بازنویسی کنند — که یعنی تست با
+            // رمزِ `.env` وصل می‌شد. پس راه درست این است که رمز از `env` بیاید
+            // ولی **در پیکربندی تست** هم از طریق متغیرِ محیطیِ اجباری تعریف شود.
+            'password' => env('PLUGIN_DDL_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

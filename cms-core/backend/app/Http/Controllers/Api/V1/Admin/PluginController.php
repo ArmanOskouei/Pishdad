@@ -7,6 +7,7 @@ use App\Models\Plugin;
 use App\Models\SystemPlugin;
 use App\Services\Plugins\CoreRequirementChecker;
 use App\Services\Plugins\ManifestRegistry;
+use App\Services\Plugins\PluginDdlProvisioner;
 use App\Services\Plugins\PluginInstaller;
 use App\Services\Plugins\PluginMigrator;
 use App\Services\Plugins\PluginPackageContract;
@@ -48,6 +49,7 @@ class PluginController extends Controller
         private PluginMigrator $migrator,
         private PluginReleaseManager $releases,
         private PluginInstaller $installer,
+        private PluginDdlProvisioner $ddl,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -230,6 +232,33 @@ class PluginController extends Controller
 
         $manifest = is_array($plugin->manifest) ? $plugin->manifest : [];
 
+        // K5.12 — نقش DDL افزونه، **پیش از** هر چیز دیگر.
+        //
+        // این عمداً اول است. اگر نقش نباشد، `PluginMigrator` خودش را رد می‌کند
+        // ولی آن خطا دربارهٔ **افزونه** است، در حالی که ریشه، نبودِ پیکربندیِ
+        // سرور است. تشخیص این دو از هم، کارِ مدیر سایت نیست.
+        //
+        // ⚠️ `grantMinimal` **بیرون از تراکنشِ باز** باید اجرا شود و این مسیر
+        // تضمینش را ندارد: `RefreshDatabase` هر تست را در تراکنش می‌پیچد و
+        // `REVOKE … ON ALL TABLES` قفلِ انحصاری می‌خواهد — یعنی قفلِ خاموش.
+        //
+        // پس اینجا فقط **وجودِ نقش** چک می‌شود (که ارزان و بی‌خطر است). ترمیمِ
+        // امتیازها کارِ `plugin-ddl:reset-password` است — یک عملیاتِ عمدی، نه
+        // اثر جانبیِ هر فعال‌سازی.
+        try {
+            $this->ddl->ensureRole();
+        } catch (\Throwable $e) {
+            Log::error('plugin.ddl_provision_failed', [
+                'slug' => $plugin->slug,
+                'reason' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'نقش دیتابیسِ افزونه آماده نشد، پس فعال‌سازی انجام نشد: '.$e->getMessage(),
+                'code' => 'plugin.ddl_unavailable',
+            ], 422);
+        }
+
         // K5.2-W: اشاره‌گر نسخهٔ فعال، **پیش از** migration.
         //
         // ترتیب مهم است: `PluginMigrator` نسخه را از روی `currentDir()` پیدا
@@ -268,11 +297,22 @@ class PluginController extends Controller
             // نسخهٔ قبلی دست‌نخورده می‌ماند چون `swapPointer` تاریخ نگه می‌دارد.
             $this->pointerBack($plugin);
 
-            return response()->json([
+            // ⚠️ `fresh()` می‌تواند `null` بدهد و `present()` نوعش
+            // `Plugin` است — پس یک `TypeError` می‌دهیم که **۵۰۰** می‌شود و
+            // کاربر به‌جای دلیلِ واقعیِ رد شدنِ migration، یک خطای بی‌معنا
+            // می‌بیند. این در واقع رخ داد: `PluginMigrator` روی اتصالِ جدا
+            // تراکنش باز می‌کند، پس یک تستِ `RefreshDatabase` رکورد را
+            // از دیدِ تراکنشِ خودش پاک می‌بیند.
+            //
+            // پاسخ باید همیشه `data` داشته باشد ولی اگر رکورد نیست، بدون آن
+            // بهتر از کرش کردن است — کدِ خطا همان چیزی است که کاربر لازم دارد.
+            $fresh = $plugin->fresh();
+
+            return response()->json(array_filter([
                 'message' => 'فعال‌سازی انجام نشد: '.$migrated['message'],
                 'code' => $migrated['code'],
-                'data' => $this->present($plugin->fresh()),
-            ], 422);
+                'data' => $fresh === null ? null : $this->present($fresh),
+            ], static fn ($v) => $v !== null), 422);
         }
 
         $plugin->forceFill(['active' => true])->save();
@@ -539,6 +579,28 @@ class PluginController extends Controller
         // کلید مهر هم باید برود، وگرنه ردیف settings یتیم می‌ماند و اگر
         // افزونه‌ای با همان slug دوباره نصب شود به کلید قبلی می‌خورد.
         $this->trustStore()->forgetSealKeyFor($plugin->slug);
+
+        // K5.12 — رجیستریِ نام‌های مجاز هم پاک می‌شود.
+        //
+        // لازم است چون رجیستری مرجعِ «مجاز» است و نامِ ثبت‌شده **برای همیشه**
+        // مجاز می‌ماند. اگر پاک نشود، یک افزونهٔ حذف‌شده نام‌هایش را در رجیستری
+        // رها می‌کند و آن‌ها بی‌صاحب می‌مانند — یعنی قاعده هر بار بازتر می‌شود و
+        // هیچ‌کس نمی‌داند چرا.
+        //
+        // ⚠️ **جدول‌ها عمداً پاک نمی‌شوند.** حذف دادهٔ کاربر کارِ مخربی است و
+        // باید مسیرِ تأییدِ خودش را داشته باشد (این endpoint فقط فایل و رکورد
+        // را برمی‌دارد). اگر بعداً راه افتاد، باید جدول‌ها را **قبل** از
+        // پاک کردنِ رجیستری بیندازد وگرنه افزونه دیگر هرگز نمی‌تواند همان
+        // جدول‌ها را بسازد.
+        try {
+            $this->ddl->unregisterTables($plugin->slug);
+        } catch (\Throwable $e) {
+            // نباید uninstall را شکست بدهد. ولی باید دیده شود.
+            Log::warning('plugin.ddl_registry_cleanup_failed', [
+                'slug' => $plugin->slug,
+                'reason' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json(['message' => 'پلاگین حذف شد.']);
     }
