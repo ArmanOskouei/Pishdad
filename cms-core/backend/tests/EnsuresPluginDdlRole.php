@@ -2,6 +2,8 @@
 
 namespace Tests;
 
+use App\Services\Plugins\PluginDdlConnection;
+
 /**
  * K5.12 — ساختِ نقش DDL و امتیازهایش، مشترک بین همهٔ پایه‌های تست.
  *
@@ -37,7 +39,7 @@ trait EnsuresPluginDdlRole
     /** قطعِ اتصالِ افزونه تا تست بعدی تازه authenticate کند. */
     protected function tearDown(): void
     {
-        app(\App\Services\Plugins\PluginDdlConnection::class)->disconnect();
+        app(PluginDdlConnection::class)->disconnect();
 
         parent::tearDown();
     }
@@ -63,7 +65,7 @@ trait EnsuresPluginDdlRole
             [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION],
         );
 
-        $role = \App\Services\Plugins\PluginDdlConnection::ROLE;
+        $role = PluginDdlConnection::ROLE;
         $quoted = str_replace("'", "''", $password);
 
         $exists = $pdo->prepare('select 1 from pg_roles where rolname = ?');
@@ -80,7 +82,19 @@ trait EnsuresPluginDdlRole
             $pdo->exec(sprintf("ALTER ROLE %s PASSWORD '%s'", $role, $quoted));
         }
 
-        $pdo->exec(sprintf('GRANT CONNECT ON DATABASE %s TO %s', $database, $role));
+        // ── `GRANT CONNECT` عمداً داده نمی‌شود ─────────────────────────
+        //
+        // `PUBLIC` در PostgreSQL به‌طور پیش‌فرض `CONNECT` دارد، پس نقش تازه بدون
+        // هیچ امتیازی وصل می‌شود. دادنِ `CONNECT` صریح فقط یک مشکل می‌سازد:
+        // امتیازی **سطح سرور** که در `pg_database` زندگی می‌کند، پس هر جا این
+        // اجرا شود روی هر دیتابیسی امتیاز می‌ماند و `DROP ROLE` می‌شکند با
+        // `Dependent objects still exist: privileges for database …`.
+        //
+        // و پس‌گرفتنش سه نسخه شکست خورد تا رسید به `to_regrole` — چون
+        // `has_database_privilege` با `PUBLIC` هم true است حتی وقتی امتیاز صریح
+        // نداریم. یعنی فهرستِ دیتابیس‌ها هیچ‌وقت خالی نمی‌شد.
+        //
+        // راه درست: اصلاً نده. `PUBLIC` کافی است و `REVOKE` هم لازم نمی‌شود.
         $pdo->exec(sprintf('REVOKE ALL ON SCHEMA public FROM %s', $role));
         $pdo->exec(sprintf('GRANT USAGE, CREATE ON SCHEMA public TO %s', $role));
         $pdo->exec(sprintf('REVOKE ALL ON ALL TABLES IN SCHEMA public FROM %s', $role));

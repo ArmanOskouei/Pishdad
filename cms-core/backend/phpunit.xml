@@ -37,5 +37,12 @@
         <env name="REVALIDATE_SECRET" value="test-secret" force="true"/>
         <!-- Fixed testing-only key (random 32 bytes). Never use outside tests. -->
         <env name="APP_KEY" value="base64:PR8akB+5eVsv5VdD91nrhoHRsz+bo57kKRpCi3jAJmY=" force="true"/>
+        <!-- K5.12: رمز نقش DDL افزونه (`pishdad_plugin_ddl`). -->
+        <!-- ثابت و `force=true`: `EnsuresPluginDdlRole` این را از محیط می‌خواند -->
+        <!-- چون در `setUpBeforeClass` هنوز اپی ساخته نشده و نمی‌توان از `config()` خواند. -->
+        <!-- -->
+        <!-- ⚠️ این رمز فقط آزمایشی است و به هیچ نصبی تعلق ندارد. نقشِ واقعی در -->
+        <!-- هر نصب رمز خودش را از `PLUGIN_DDL_PASSWORD` می‌گیرد. -->
+        <env name="PLUGIN_DDL_PASSWORD" value="phpunit-ddl-secret-5c1e" force="true"/>
     </php>
 </phpunit>
