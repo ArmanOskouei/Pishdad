@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Central\HardwareKey;
 use App\Models\Media;
 use App\Models\User;
+use App\Services\Plugins\ManifestRegistry;
 use App\Services\Sessions\SessionDeviceParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,7 +39,55 @@ class ProfileController extends Controller
             'bio' => $user->bio,
             'google2fa_enabled' => (bool) $user->google2fa_enabled,
             'roles' => $user->getRoleNames()->all(),
+            // K6.1 — پرمیشن‌های *خودِ همین* مدیر.
+            //
+            // تا پیش از این فقط `roles` برمی‌گشت و هیچ endpointی پرمیشن‌های
+            // کاربر جاری را نمی‌داد. `/v1/admin/permissions` وجود دارد ولی پشت
+            // `perm:users.view` است، پس برای نقش‌هایی که مجاز به مدیریت کاربران
+            // نیستند ۴۰۳ می‌داد — یعنی فرانت هرگز نمی‌توانست بفهمد چه چیزی
+            // برای او باز است. نتیجه: دروازهٔ `permission` در `mergePluginMenu`
+            // fail-closed است و با ورودی خالی همه‌چیز را می‌بست.
+            //
+            // این خودِ کاربر است، نه کاتالوگ کل سیستم: فقط پرمیشن‌هایی که واقعاً
+            // *دارد* برمی‌گردد. کاتالوگ برای صفحهٔ نقش‌ها از مسیر دیگری می‌آید.
+            'permissions' => $this->effectivePermissions($user),
+            'is_super_admin' => (bool) $user->is_super_admin,
         ]]);
+    }
+
+    /**
+     * پرمیشن‌های مؤثر مدیر جاری، نام‌نویسی‌شده به شکل `module.action`.
+     *
+     * ## چرا superadmin فهرست کامل می‌گیرد
+     *
+     * `EnsurePermission` (`:20`) به superadmin همیشه اجازه می‌دهد. اگر اینجا
+     * فهرستش خالی برگردد، فرانت superadmin را هم مثل یک مدیر بدون دسترسی
+     * رندر می‌کند و آیتم‌های منویش ناپدید می‌شوند — در حالی که هر کلیکش در
+     * واقعیت کار می‌کند. یعنی رابط کاربری **دروغ** می‌گفت.
+     *
+     * پس superadmin همهٔ ماژول‌ها × همهٔ اکشن‌ها را می‌گیرد، دقیقاً همان چیزی که
+     * سرور واقعاً قبول می‌کند. نام‌ها از همان رجیستری می‌آید که
+     * `permissionsMatrix` می‌دهد، پس فرانت و بک‌اند یک منبع حقیقت دارند.
+     */
+    private function effectivePermissions(User $user): array
+    {
+        $granted = [];
+
+        foreach (ManifestRegistry::permissionModules() as $module) {
+            $name = is_string($module['name'] ?? null) ? $module['name'] : null;
+
+            if ($name === null || $name === '') {
+                continue;
+            }
+
+            foreach (ManifestRegistry::ACTIONS as $action) {
+                if ($user->can("{$name}.{$action}")) {
+                    $granted[] = "{$name}.{$action}";
+                }
+            }
+        }
+
+        return array_values(array_unique($granted));
     }
 
     public function update(Request $request): JsonResponse

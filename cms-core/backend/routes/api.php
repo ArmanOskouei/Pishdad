@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\Admin\ManagerController;
 use App\Http\Controllers\Api\V1\Admin\MediaController;
 use App\Http\Controllers\Api\V1\Admin\PageController;
 use App\Http\Controllers\Api\V1\Admin\PluginController;
+use App\Http\Controllers\Api\V1\Admin\PluginMenuController;
 use App\Http\Controllers\Api\V1\Admin\ProfileController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\SidePresetController;
@@ -182,6 +183,19 @@ Route::prefix('v1')->group(function () {
             // B5: جستجوی پنل سمت سرور. افزونه‌ها پیاده‌سازی SearchableProvider را از راه
             // نقطهٔ core.service_provider اعلام می‌کنند، نه با fetch از مرورگر.
             Route::get('search', AdminSearchController::class)->middleware('perm:plugins.view');
+
+            // K6.1 — منوی افزونه‌ها برای سایدبار پنل.
+            //
+            // عمداً بدون `perm:*`: آیتم‌ها باید برای **همهٔ** مدیران برگردند تا
+            // فرانت بتواند فیلترشان کند. فیلتر واقعی در `mergePluginMenu`
+            // (fail-closed) و دوباره هنگام اجرای route افزونه اعمال می‌شود.
+            // اگر اینجا `perm:plugins.view` می‌گذاشتیم، منوی هر کسی که آن
+            // پرمیشن را ندارد خالی می‌شد و دروازهٔ فرانت هرگز امتحان نمی‌شد.
+            //
+            // قبل از `plugins/{plugin}` لازم است، وگرنه `show` این دو را
+            // به‌عنوان اسلاگ می‌گیرد و ۴۰۴ می‌دهد.
+            Route::get('plugins/menu', [PluginMenuController::class, 'index']);
+            Route::get('plugins/menu/me', [PluginMenuController::class, 'me']);
 
             Route::get('plugins', [PluginController::class, 'index'])->middleware('perm:plugins.view');
             Route::post('plugins/validate', [PluginController::class, 'validatePackage'])->middleware('perm:plugins.edit');

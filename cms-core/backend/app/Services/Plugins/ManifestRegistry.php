@@ -291,6 +291,122 @@ class ManifestRegistry
     }
 
     /**
+     * آیتم‌های منوی پنل که افزونه‌های فعال اعلام کرده‌اند (K6.1).
+     *
+     * @return list<array{slug: string, key: string, label: string, href: string, icon: string|null, order: int, permission: string|null}>
+     */
+    public static function menuItems(): array
+    {
+        $out = [];
+        $owner = [];
+
+        foreach (self::activeManifests() as $slug => $manifest) {
+            $slug = (string) $slug;
+
+            $items = self::declaredMenuItems($manifest, $slug);
+
+            if ($items === []) {
+                continue;
+            }
+
+            foreach ($items as $item) {
+                // برخورد کلید: اولین افزونه برنده است و بقیه حذف می‌شوند.
+                // `slug.key` است نه `key` تنها — دو افزونه هر دو `key => "reports"`
+                // می‌توانند بگذارند و هر دو باید زنده بمانند، درست مثل
+                // `permissionModules()` که ماژول را namespaced می‌کند.
+                $namespace = $item['key'];
+
+                if (isset($owner[$namespace])) {
+                    self::recordCollision('menu', $namespace, $owner[$namespace], "plugin:{$slug}");
+
+                    continue;
+                }
+
+                $owner[$namespace] = "plugin:{$slug}";
+                $out[] = $item;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * خواندن اعلان‌های منو از دو کانال — همان قاعدهٔ K6.8 برای `page_types`.
+     *
+     *  ۱. `manifest.menu` — کلید سطح‌بالا، الگوی زندهٔ `widgets` و `settings`.
+     *  ۲. `panel.extensions` با `point === 'admin.menu'` — نقطهٔ micro-schema.
+     *
+     * اولی دومی را بازنویسی می‌کند (precedence کانال مستقیم‌تر) و این همان
+     * ترتیبی است که `pageTypes()` دنبال می‌کند.
+     *
+     * اعتبارسنجی کامل در `PluginPackageValidator` انجام می‌شود؛ اینجا فقط
+     * شکل‌بندی و بدیهی‌سازی انجام می‌گیرد تا فرانت بتواند فرض کند `href` رشته
+     * است و `order` عدد — چون `mergePluginMenu` در فرانت به آن‌ها اعتماد دارد.
+     */
+    private static function declaredMenuItems(array $manifest, string $slug): array
+    {
+        $byKey = [];
+
+        // کانال ۲ — `panel.extensions` (کم‌اولویت‌تر).
+        $extensions = $manifest['panel']['extensions'] ?? null;
+        if (is_array($extensions)) {
+            foreach ($extensions as $ext) {
+                if (! is_array($ext) || ($ext['point'] ?? null) !== 'admin.menu') {
+                    continue;
+                }
+
+                $item = self::normalizeMenuItem($ext, $slug);
+                if ($item !== null) {
+                    $byKey[$item['key']] = $item;
+                }
+            }
+        }
+
+        // کانال ۱ — کلید سطح‌بالا (برندهٔ برخورد).
+        $menu = $manifest['menu'] ?? null;
+        if (is_array($menu)) {
+            foreach ($menu as $key => $def) {
+                if (! is_string($key) || ! is_array($def)) {
+                    continue;
+                }
+
+                $item = self::normalizeMenuItem($def + ['key' => $key], $slug);
+                if ($item !== null) {
+                    $byKey[$item['key']] = $item;
+                }
+            }
+        }
+
+        return array_values($byKey);
+    }
+
+    /**
+     * @return array{slug: string, key: string, label: string, href: string, icon: string|null, order: int, permission: string|null}|null
+     */
+    private static function normalizeMenuItem(array $def, string $slug): ?array
+    {
+        $key = $def['key'] ?? null;
+        $label = $def['label'] ?? null;
+        $href = $def['href'] ?? null;
+
+        // سه فیلد اجباری‌اند. اگر یکی نباشد آیتم اصلاً معنا ندارد و ساختنش با
+        // مقدار پیش‌فرض فقط یک آیتم شکسته به منو اضافه می‌کند.
+        if (! is_string($key) || $key === '' || ! is_string($label) || ! is_string($href)) {
+            return null;
+        }
+
+        return [
+            'slug' => $slug,
+            'key' => $key,
+            'label' => $label,
+            'href' => $href,
+            'icon' => is_string($def['icon'] ?? null) ? $def['icon'] : null,
+            'order' => is_int($def['order'] ?? null) ? $def['order'] : 999,
+            'permission' => is_string($def['permission'] ?? null) ? $def['permission'] : null,
+        ];
+    }
+
+    /**
      * انواع صفحه: هسته (config/page_types.php) + مانیفست پلاگین‌های فعال.
      * خروجی: [type => def + source + enabled] — typeهای enabled === false
      * حذف می‌شوند (فرانت فقط همین لیست را تب می‌کند).
@@ -487,8 +603,12 @@ class ManifestRegistry
     public static function activeManifests(): array
     {
         return Cache::remember(self::CACHE_KEY, self::CACHE_TTL, function (): array {
+            // `orderBy('slug')` عمدی است: بدون آن ترتیب بازگشتی PostgreSQL
+            // تضمین نشده، یعنی دو درخواست پشت‌سرهم می‌توانستند منوی متفاوت
+            // بدهند و برخورد «کدام افزونه برنده است» بین دو رندر فرق کند.
             return Plugin::query()
                 ->where('active', true)
+                ->orderBy('slug')
                 ->pluck('manifest', 'slug')
                 ->filter(fn ($m) => is_array($m))
                 ->all();

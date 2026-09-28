@@ -326,6 +326,16 @@ export type ProfileData = {
   bio?: string | null;
   google2fa_enabled: boolean;
   roles: string[];
+  /**
+   * K6.1 — پرمیشن‌های مؤثر *خودِ* مدیر جاری به شکل `module.action`.
+   *
+   * خالی یعنی «هیچ» و دروازهٔ `mergePluginMenu` روی ورودی خالی fail-closed
+   * است. سوپرادمین همهٔ ماژول‌ها × اکشن‌ها را می‌گیرد، چون سرور برای او
+   * `EnsurePermission` را رد می‌کند — اگر فهرستش خالی بود، رابط کاربری او
+   * هم بی‌دلیل محدود می‌شد.
+   */
+  permissions?: string[];
+  is_super_admin?: boolean;
 };
 
 export type TwoFactorMethods = {
