@@ -207,8 +207,80 @@ class ManifestRegistry
             }
         };
 
+        // K6.4 — کانال دوم: `panel.extensions` با `point` برابر
+        // `site.header_widget` یا `site.footer_widget`.
+        //
+        // این نقطه **قبلاً** هیچ‌جا خوانده نمی‌شد، یعنی افزونه می‌توانست ویجت
+        // اعلام کند، اعتبارسنجی هم می‌شد، و باز هرگز به فهرست نمی‌رسید. بدتر
+        // از بی‌پشتوانه بودن است چون نویسنده هیچ پیام خطایی هم نمی‌گیرد.
+        //
+        // دربارهٔ ترتیب merge و چرا با `pageTypes()` فرق دارد، توضیح در پایین
+        // حلقهٔ `activeManifests()` آمده — همان‌جایی که ترتیب واقعاً دیده
+        // می‌شود.
+        $mergePointChannel = function (array $manifest, string $source) use (&$out, &$owner): void {
+            $extensions = $manifest['panel']['extensions'] ?? null;
+            if (! is_array($extensions)) {
+                return;
+            }
+
+            // نگاشت نقطهٔ اتصال به ناحیه. هر چیز دیگری ویجت نیست.
+            $areas = [
+                'site.header_widget' => 'header',
+                'site.footer_widget' => 'footer',
+            ];
+
+            foreach ($extensions as $ext) {
+                if (! is_array($ext)) {
+                    continue;
+                }
+                $area = $areas[$ext['point'] ?? ''] ?? null;
+                if ($area === null) {
+                    continue;
+                }
+
+                $type = $ext['type'] ?? null;
+                if (! is_string($type) || $type === '') {
+                    continue;
+                }
+
+                $key = "{$area}:{$type}";
+                if (isset($owner[$key])) {
+                    self::recordCollision('widget', $key, $owner[$key], $source);
+
+                    continue;
+                }
+
+                $owner[$key] = $source;
+                $out[] = [
+                    'area' => $area,
+                    'type' => $type,
+                    'title' => is_string($ext['title'] ?? null) ? $ext['title'] : $type,
+                    'description' => is_string($ext['description'] ?? null) ? $ext['description'] : null,
+                    // اسکیمای `fields` خالی است (K6.4) ⇒ هر اعلانی `no_schema`
+                    // می‌گیرد و رد می‌شود. پس عملاً همیشه پیش‌فرض خالی است، و
+                    // هسته آن را با `SchemaForm` تخت رندر می‌کند.
+                    'schema' => is_array($ext['schema'] ?? null) ? $ext['schema'] : ['type' => 'object'],
+                    'ui' => is_array($ext['ui'] ?? null) ? $ext['ui'] : [],
+                    'source' => $source,
+                ];
+            }
+        };
+
         foreach (self::activeManifests() as $slug => $manifest) {
-            $merge($manifest, "plugin:{$slug}");
+            $source = "plugin:{$slug}";
+            // ترتیب برعکسِ چیزی است که در نقطهٔ `pageTypes()` می‌بینیم، و این
+            // تناقض ظاهری یک دلیل مشخص دارد: `$owner` اولین ثبت‌کننده را
+            // نگه می‌دارد و بازنده‌ها حذف می‌شوند. اینجا کانال **سطح‌بالا**
+            // اول merge می‌شود پس زودتر ثبت می‌شود و برنده است — و این همان
+            // چیزی است که می‌خواهیم.
+            //
+            // در `pageTypes()` برعکس است چون آنجا `declaredPageTypes()` کانال
+            // سطح‌بالا را با `$out[$type] =` **بازنویسی** می‌کند، نه اینکه
+            // فقط اولین برنده را نگه دارد. یعنی «کانال مستقیم‌تر برنده است» در
+            // هر دو نقطه برقرار است ولی مکانیزمش فرق دارد، و همین تفاوت است
+            // که اگر توضیح داده نشود، بازترتیب‌کردن یک باگ می‌سازد.
+            $merge($manifest, $source);
+            $mergePointChannel($manifest, $source);
         }
 
         $theme = Theme::query()->where('active', true)->first();
