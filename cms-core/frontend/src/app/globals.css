@@ -214,6 +214,16 @@ input, select, textarea { font-family: inherit; }
   background: none; color: var(--text-muted); display: grid; place-items: center; cursor: pointer; position: relative;
   flex-shrink: 0;
 }
+/* K5.8 — شمار خوانده‌نشده‌ها روی زنگ.
+   * `inset-inline-end` و نه `right`: در RTL یعنی چپ، و با تعویض جهت جابه‌جا
+   * نمی‌شود. مطلق جایی می‌نشیند که عدد داخل دکمهٔ ۴۴ پیکسلی جا شود. */
+.bell-count {
+  position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
+  min-inline-size: 17px; block-size: 17px; padding-inline: 4px;
+  border-radius: 999px; background: var(--danger); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 17px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 .crumbs { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px; white-space: nowrap; overflow: hidden; min-inline-size: 0; }
 .crumbs b { color: var(--text); }
 .topbar-search { flex: 1 1 220px; min-inline-size: 160px; max-inline-size: 280px; }

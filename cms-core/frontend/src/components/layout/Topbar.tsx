@@ -5,6 +5,7 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
 import { AdminSearch } from "@/components/search/AdminSearch";
 import { PluginToolsButton } from "@/components/admin/PluginToolsDrawer";
+import { NotificationBell } from "@/components/admin/NotificationBell";
 import type { ProfileData } from "@/lib/domain";
 
 /** تاپ‌بار F1+F2: breadcrumb، جستجو، سوییچ پنل مشتری↔مرکزی (۱.۱)، سوییچ تم، آواتار، خروج. */
@@ -54,6 +55,9 @@ export function Topbar({
             وگرنه `Topbar` به تعداد افزونه‌های نصب‌شده رشد می‌کرد و هر افزونه
             به layout هسته دست می‌زد. افزونه فقط داده می‌دهد. */}
         <PluginToolsButton profile={profile ?? null} />
+        {/* K5.8 — زنگ اعلان. کنار ابزارها، و هر دو از راه داده کار می‌کنند:
+            افزونه به layout هسته دست نمی‌زند. */}
+        <NotificationBell />
         <Link href="/admin/profile" className="icon-btn" aria-label={`پروفایل ${user?.name ?? ""}`} title={user?.name ?? "پروفایل"}>
           {user?.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element

@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\LayoutController;
 use App\Http\Controllers\Api\V1\Admin\ManagerController;
 use App\Http\Controllers\Api\V1\Admin\MediaController;
+use App\Http\Controllers\Api\V1\Admin\NotificationController;
 use App\Http\Controllers\Api\V1\Admin\PageController;
 use App\Http\Controllers\Api\V1\Admin\PluginController;
 use App\Http\Controllers\Api\V1\Admin\PluginMenuController;
@@ -202,6 +203,18 @@ Route::prefix('v1')->group(function () {
 
             // K6.2 — ابزارهای افزونه برای drawer هدر.
             Route::get('plugins/tools', [PluginMenuController::class, 'tools']);
+
+            // K5.8 — سرویس اعلان.
+            //
+            // عمداً **بدون** `perm:*`: اعلان برای خودِ کاربر جاری است و هیچ
+            // داده‌ای از کس دیگری نمی‌دهد. گیت‌کردنش یعنی کاربری که پرمیشنش
+            // نیست زنگ اعلانش را نمی‌بیند و نمی‌فهمد چرا.
+            //
+            // مسیر کامل `read-all` است نه `read`، چون بعدش `{id}` می‌آید و با
+            // هر route پارامتری برخورد می‌کرد.
+            Route::get('notifications', [NotificationController::class, 'index']);
+            Route::post('notifications', [NotificationController::class, 'store']);
+            Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
 
             // K6.7 — تنظیمات افزونه‌ها: اسکیما + مقادیر.
             //
