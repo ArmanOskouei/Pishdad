@@ -84,6 +84,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       // فقط ریشه؛ بقیهٔ مسیر را Shell از رجیستری منو + مسیر جاری می‌سازد.
       crumbs={["پنل"]}
       user={profile ? { name: profile.first_name?.trim() || profile.name, avatarUrl: profile.avatar_url ?? null } : null}
+      // K6.2 — پروفایل کامل برای دروازهٔ پرمیشن ابزارهای افزونه در هدر.
+      // `user` عمداً فقط نام و آواتار است.
+      profile={profile}
     >
       <AdminFavicon href={site?.favicon_url ?? null} />
       {pastDue && !suspended ? (

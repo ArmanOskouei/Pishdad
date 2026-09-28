@@ -66,6 +66,27 @@ class PluginMenuController extends Controller
     }
 
     /**
+     * K6.2 — ابزارهای افزونه برای drawer هدر.
+     *
+     * فقط **فهرست** ابزارها برمی‌گردد، نه `href`. چرا: هسته خودش
+     * `notification_id` را به مسیر تبدیل می‌کند و آن مسیر باید در
+     * `pageRegistry()` ثبت شده باشد. اگر تبدیل اینجا انجام می‌شد، یک افزونه
+     * می‌توانست با یک عدد دلخواه به هر مسیری لینک بدهد — دقیقاً همان چیزی که
+     * قرارداد با `no_href` می‌بندد.
+     *
+     * مجوز ندارد (همان دلیل `index()`): فیلتر نهایی در فرانت و در خود سرور هنگام
+     * اجرای route افزونه است.
+     */
+    public function tools(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'tools' => ManifestRegistry::pluginTools(),
+            ],
+        ]);
+    }
+
+    /**
      * فقط برای خوانایی مسیرها: superadmin چه می‌بیند.
      *
      * این متد دروازهٔ جدیدی معرفی نمی‌کند — `Gate::allows` همان چیزی است که

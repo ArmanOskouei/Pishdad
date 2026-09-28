@@ -396,22 +396,45 @@ test("نگهبانِ no_schema در خودِ validateDeclaration هست", () => 
   assert.match(contractSource, /'no_schema'/, "کدِ خطای no_schema باید وجود داشته باشد");
 });
 
-test("نقطهٔ قراردادِ header/footer_widget در هیچ کدِ runtime بک‌اند مصرف نمی‌شود", () => {
-  // رشتهٔ این دو نقطه فقط در خودِ قرارداد (و در تستِ خودِ بک‌اند که همین
-  // `declared_only` را قفل می‌کند) دیده می‌شود. رجیستریِ واقعی کلیدِ دیگری
-  // می‌خواند، پس ساختنِ مصرف‌کننده در فرانت، مصرف‌کنندهٔ یک کانالِ بی‌مشتری
-  // بود — نه «نیمه‌کاره»، بلکه کاملاً بی‌ربط.
-  assert.ok(
-    !/header_widget/.test(registrySource),
-    "ManifestRegistry نباید به کلیدِ قرارداد ارجاع دهد — کانالِ واقعی manifest.widgets است",
+test("نقطهٔ قراردادِ header/footer_widget حالا مصرف‌کنندهٔ واقعی دارد (K6.4)", () => {
+  // ⚠️ این تست قبلاً **برعکس** بود و می‌گفت `ManifestRegistry` نباید به
+  // `header_widget` ارجاع دهد. آن ادعا روزی درست بود — نقطه اعتبارسنجی می‌شد
+  // ولی هیچ‌جا خوانده نمی‌شد، یعنی افزونه می‌توانست ویجت اعلام کند و بی‌صدا
+  // گم شود.
+  //
+  // K6.4 این را درست کرد: `widgetSchemas()` حالا هر دو کانال را می‌خواند. پس
+  // نگهبان باید ادعای **جدید** را بسنجد: هر دو کانال زنده‌اند و کانال سطح‌بالا
+  // برنده است.
+  assert.match(
+    registrySource,
+    /site\.header_widget/,
+    "نقطهٔ قراردادِ هدر باید در رجیستری خوانده شود",
+  );
+  assert.match(
+    registrySource,
+    /site\.footer_widget/,
+    "نقطهٔ قراردادِ فوتر باید در رجیستری خوانده شود",
   );
   assert.match(
     registrySource,
     /\$manifest\['widgets'\]\s*\?\?\s*null/,
-    "کانالِ واقعیِ ویجت‌های افزونه باید manifest.widgets باشد",
+    "کانال سطح‌بالا باید هم‌چنان خوانده شود",
   );
-  // و LayoutController همان کانال را می‌پذیرد ⇒ بی‌مصرفیِ نقطهٔ قرارداد از
-  // «مصرف‌کننده ندارد» به «مصرف‌کنندهٔ *دیگری* دارد» تبدیل می‌شود.
+
+  // ترتیب merge: سطح‌بالا **اول**، چون `$owner` اولین ثبت‌کننده را نگه می‌دارد
+  // و بازنده‌ها حذف می‌شوند. اگر جابه‌جا شود، کانال صریح‌تر بازنده می‌شود.
+  const seg = registrySource.slice(
+    registrySource.indexOf("public static function widgetSchemas"),
+  );
+  const top = seg.indexOf("$merge($manifest, $source);");
+  const point = seg.indexOf("$mergePointChannel($manifest, $source);");
+  assert.ok(top > -1 && point > -1, "هر دو فراخوانی merge باید باشند");
+  assert.ok(
+    top < point,
+    "کانال سطح‌بالا باید اول merge شود تا `$owner` اولین ثبت‌کننده را نگه دارد",
+  );
+
+  // و LayoutController همان کانال را می‌پذیرد ⇒ مصرف‌کننده فقط رجیستری نیست.
   const layoutSource = readFileSync(
     fileURLToPath(
       new URL(
@@ -423,14 +446,11 @@ test("نقطهٔ قراردادِ header/footer_widget در هیچ کدِ runtim
   );
   assert.match(
     layoutSource,
-    /ManifestRegistry::widgetSchemas\(\)/,
-    "PUT /v1/admin/layouts باید typeهای کانالِ زنده را بپذیرد",
-  );
-  assert.ok(
-    !/header_widget/.test(layoutSource),
-    "LayoutController هم نباید به کلیدِ قرارداد ارجاع دهد",
+    /widgetSchemas/,
+    "LayoutController هم باید همان رجیستری را مصرف کند",
   );
 });
+
 
 test("رندررِ کروم همین یک switch بسته است و تنها گیتِ رندر", () => {
   // اگر روزی رندررِ دومی برای ویجت اضافه شود، قفلِ بخش ۲ بی‌معنا می‌شود چون

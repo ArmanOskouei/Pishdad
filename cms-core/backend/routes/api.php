@@ -200,6 +200,9 @@ Route::prefix('v1')->group(function () {
             // K6.5 — رجیستری صفحه‌های اختصاصی، برای catch-all زیر /admin/.
             Route::get('plugins/pages', [PluginMenuController::class, 'pages']);
 
+            // K6.2 — ابزارهای افزونه برای drawer هدر.
+            Route::get('plugins/tools', [PluginMenuController::class, 'tools']);
+
             // K6.7 — تنظیمات افزونه‌ها: اسکیما + مقادیر.
             //
             // `perm:*` دارد، برخلاف `plugins/menu` و `plugins/pages`. دلیل فرق

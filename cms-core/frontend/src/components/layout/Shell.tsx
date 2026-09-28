@@ -5,6 +5,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { BottomNav } from "./BottomNav";
 import type { MenuGroup } from "@/lib/menu";
+import type { ProfileData } from "@/lib/domain";
 import { crumbsForPath } from "@/lib/crumbs";
 
 const DRAWER_BREAKPOINT = 1100;
@@ -15,11 +16,13 @@ const DRAWER_BREAKPOINT = 1100;
 
 /** شل مشترک F1: سایدبار + تاپ‌بار + BottomNav + Drawer موبایل. */
 export function Shell({
-  groups, brand, crumbs, children, suspended, user,
+  groups, brand, crumbs, children, suspended, user, profile,
 }: {
   groups: MenuGroup[]; brand: { name: string; sub: string; logoUrl?: string | null }; crumbs: string[];
   children: React.ReactNode; suspended?: boolean;
   user?: { name: string; avatarUrl: string | null } | null;
+  // K6.2 — برای دروازهٔ پرمیشن ابزارهای افزونه در هدر لازم است.
+  profile?: ProfileData | null;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -36,7 +39,7 @@ export function Shell({
       <Sidebar groups={groups} brand={brand} suspended={suspended} collapsed={collapsed} user={user} />
       <div className="main">
         <Topbar
-          crumbs={activeCrumbs} user={user}
+          crumbs={activeCrumbs} user={user} profile={profile}
           onMenu={() => {
             if (window.innerWidth <= DRAWER_BREAKPOINT) setDrawer((d) => !d);
             else setCollapsed((c) => !c);

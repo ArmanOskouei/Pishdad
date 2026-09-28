@@ -4,13 +4,18 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
 import { AdminSearch } from "@/components/search/AdminSearch";
+import { PluginToolsButton } from "@/components/admin/PluginToolsDrawer";
+import type { ProfileData } from "@/lib/domain";
 
 /** تاپ‌بار F1+F2: breadcrumb، جستجو، سوییچ پنل مشتری↔مرکزی (۱.۱)، سوییچ تم، آواتار، خروج. */
 export function Topbar({
-  crumbs, onMenu, user,
+  crumbs, onMenu, user, profile,
 }: {
   crumbs: string[]; onMenu: () => void;
   user?: { name: string; avatarUrl: string | null } | null;
+  // K6.2 — فقط برای دروازهٔ پرمیشن ابزارها. `user` عمداً این را ندارد چون
+  // فقط نام و آواتار است و پروژه هر چیز غیرضروری را در props پخش نمی‌کند.
+  profile?: ProfileData | null;
 }) {
   const { theme, toggleMode } = useTheme();
   const { logout } = useAuth();
@@ -45,6 +50,10 @@ export function Topbar({
         <button className="icon-btn" onClick={toggleMode} aria-label="سوییچ روشن/تیره">
           {theme.mode === "dark" ? "☀" : "☾"}
         </button>
+        {/* K6.2 — دکمهٔ ابزارها. یک دکمهٔ واحد، نه یکی به‌ازای هر افزونه:
+            وگرنه `Topbar` به تعداد افزونه‌های نصب‌شده رشد می‌کرد و هر افزونه
+            به layout هسته دست می‌زد. افزونه فقط داده می‌دهد. */}
+        <PluginToolsButton profile={profile ?? null} />
         <Link href="/admin/profile" className="icon-btn" aria-label={`پروفایل ${user?.name ?? ""}`} title={user?.name ?? "پروفایل"}>
           {user?.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element

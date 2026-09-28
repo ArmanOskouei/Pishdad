@@ -578,6 +578,121 @@ class ManifestRegistry
     }
 
     /**
+     * ابزارهای افزونه برای drawer هدر پنل (K6.2).
+     *
+     * ## چرا `notification_id` و نه `href`
+     *
+     * قرارداد این نقطه را `closed` و `cross => ['no_href']` اعلام کرده. دلیلش
+     * ساختاری است: `href` آزاد یعنی هر افزونه می‌تواند به هر مسیری لینک بدهد
+     * — از جمله مسیری که خودش ثبت نکرده، یا حتی `/central/...` که متعلق به
+     * پنل مرکزی است. به‌جایش افزونه یک **شناسه** می‌دهد و هسته خودش به نشانی
+     * تبدیلش می‌کند، پس هر ابزار یک صفحهٔ ثبت‌شده در `pageRegistry()` پشتش
+     * دارد و مسیرش قابل اعتبارسنجی است.
+     *
+     * ## دو کانال، یک قاعده
+     *
+     * `manifest.tools` (سطح‌بالا) و `panel.extensions` با `point === 'admin.plugin_tools'`.
+     * اولی **اول** merge می‌شود تا برنده باشد — همان قاعدهٔ `widgetSchemas()`
+     * (K6.4): `$owner` اولین ثبت‌کننده را نگه می‌دارد.
+     *
+     * @return list<array{slug: string, key: string, title_fa: string, icon: string|null, description: string|null, notification_id: int|null, permission: string|null}>
+     */
+    public static function pluginTools(): array
+    {
+        $out = [];
+        $owner = [];
+
+        foreach (self::activeManifests() as $slug => $manifest) {
+            $slug = (string) $slug;
+            $tools = self::declaredPluginTools($manifest, $slug);
+
+            if ($tools === []) {
+                continue;
+            }
+
+            foreach ($tools as $tool) {
+                if (isset($owner[$tool['key']])) {
+                    self::recordCollision('plugin_tools', $tool['key'], $owner[$tool['key']], "plugin:{$slug}");
+
+                    continue;
+                }
+
+                $owner[$tool['key']] = "plugin:{$slug}";
+                $out[] = $tool;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{slug: string, key: string, title_fa: string, icon: string|null, description: string|null, notification_id: int|null, permission: string|null}>
+     */
+    private static function declaredPluginTools(array $manifest, string $slug): array
+    {
+        $byKey = [];
+
+        // کانال ۲ — نقطهٔ micro-schema (بازنده در برخورد).
+        $extensions = $manifest['panel']['extensions'] ?? null;
+        if (is_array($extensions)) {
+            foreach ($extensions as $ext) {
+                if (! is_array($ext) || ($ext['point'] ?? null) !== 'admin.plugin_tools') {
+                    continue;
+                }
+                $tool = self::normalizePluginTool($ext, $slug);
+                if ($tool !== null) {
+                    $byKey[$tool['key']] = $tool;
+                }
+            }
+        }
+
+        // کانال ۱ — سطح‌بالا (برنده).
+        $tools = $manifest['tools'] ?? null;
+        if (is_array($tools)) {
+            foreach ($tools as $key => $def) {
+                if (! is_string($key) || ! is_array($def)) {
+                    continue;
+                }
+                $tool = self::normalizePluginTool($def + ['key' => $key], $slug);
+                if ($tool !== null) {
+                    $byKey[$tool['key']] = $tool;
+                }
+            }
+        }
+
+        return array_values($byKey);
+    }
+
+    /**
+     * @param  array<string, mixed>  $def
+     * @return array{slug: string, key: string, title_fa: string, icon: string|null, description: string|null, notification_id: int|null, permission: string|null}|null
+     */
+    private static function normalizePluginTool(array $def, string $slug): ?array
+    {
+        $key = $def['key'] ?? null;
+        $title = $def['title_fa'] ?? $def['title'] ?? null;
+
+        // دو فیلد بدون آن‌ها ابزار نیست، فقط یک ردیف بی‌معنا در drawer است.
+        if (! is_string($key) || $key === '' || ! is_string($title) || $title === '') {
+            return null;
+        }
+
+        $id = $def['notification_id'] ?? null;
+
+        return [
+            'slug' => $slug,
+            'key' => $key,
+            'title_fa' => $title,
+            'icon' => is_string($def['icon'] ?? null) ? $def['icon'] : null,
+            'description' => is_string($def['description'] ?? null) ? $def['description'] : null,
+            // فقط `int` معتبر. رشتهٔ عددی رد می‌شود چون بعداً به مسیر تبدیل
+            // می‌شود و نوعش باید قطعی باشد.
+            'notification_id' => is_int($id) && $id > 0 ? $id : null,
+            'permission' => is_string($def['permission'] ?? null) ? $def['permission'] : null,
+        ];
+    }
+
+    /**
      * انواع صفحه: هسته (config/page_types.php) + مانیفست پلاگین‌های فعال.
      * خروجی: [type => def + source + enabled] — typeهای enabled === false
      * حذف می‌شوند (فرانت فقط همین لیست را تب می‌کند).
