@@ -19,9 +19,19 @@ build/
 .env
 .env.local
 
+# کش/استور وابستگی‌ها که به داخل پروژه منتقل شده‌اند (۲۴۱MB npm cache، storeها)
+.local/
+
+# پیکربندی ماشین‌محور npm (مسیر مطلق کش) — قالب قابل‌اشتراک در .npmrc.example
+.npmrc
+**/.npmrc
+
 # پیکربندی تست موقت ایجنت‌های موازی؛ هر کدام دیتابیس محلی خودشان را دارند.
 cms-core/backend/phpunit.agent*.xml
 
 # سیستم
 .DS_Store
 Thumbs.db
+
+# کش افزایشیِ TypeScript — فایل ساخت، نه منبع. تغييرش يعني تغيير کد نيست.
+*.tsbuildinfo

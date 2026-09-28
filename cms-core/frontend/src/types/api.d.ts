@@ -6499,7 +6499,9 @@ export interface components {
             reviewed_at?: string | null;
             /** @description sha256 فایل ZIP */
             checksum?: string;
-            manifest?: Record<string, never> | null;
+            manifest?: {
+                db?: components["schemas"]["PluginManifestDb"];
+            } | null;
         };
         Theme: {
             id?: number;
@@ -6531,12 +6533,27 @@ export interface components {
             signature_valid?: boolean;
             /** Format: date-time */
             submitted_at?: string | null;
-            manifest?: Record<string, never> | null;
+            manifest?: {
+                db?: components["schemas"]["PluginManifestDb"];
+            } | null;
             owner?: {
                 id?: number;
                 name?: string;
                 email?: string;
             } | null;
+        };
+        /** @description بخش اختیاری «db» مانیفست پلاگین (K5.6) — جدول‌هایی که افزونه مالکشان است. هسته پیشوند «{slug}_» را خودش اضافه می‌کند، پس نام خام را اعلام کنید. اگر جدولی ندارید «db» را کلاً حذف کنید. سقف‌ها پیش از اجرای هر DDL سنجیده می‌شوند: ۲۰ جدول در افزونه، ۱۰ ایندکس در هر جدول، ۴۰ نویسه برای نام نهایی، و تداخل با جدول‌های هسته. هر جدولی که یک migration به آن دست بزند باید اینجا اعلام شده باشد؛ ارجاع به جدول اعلام‌نشده کل نصب را رد می‌کند. کلید ناشناخته در این بخش یا در هر آیتمش پذیرفته نمی‌شود. */
+        PluginManifestDb: {
+            /** @description فهرست جدول‌های افزونه — حداکثر ۲۰ جدول. */
+            tables: {
+                /**
+                 * @description نام خام جدول، بدون پیشوند — هسته «{slug}_» را اضافه می‌کند. نوشتن پیشوند خودتان خطای db.table_already_prefixed می‌دهد و نامِ جدول هسته خطای db.table_collides_core. اسلاگی که نقطه یا خط تیره دارد اصلاً نمی‌تواند جدول داشته باشد (db.slug_not_table_safe).
+                 * @example posts
+                 */
+                name: string;
+                /** @description نام ایندکس‌های آن جدول — حداکثر ۱۰ ایندکس **در هر جدول**، نه در کل افزونه. */
+                indexes?: string[];
+            }[];
         };
         LayoutPayload: {
             widgets?: {

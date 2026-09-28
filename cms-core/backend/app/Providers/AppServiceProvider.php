@@ -6,12 +6,17 @@ use App\Services\Billing\PaymentGatewayInterface;
 use App\Services\Billing\ZarinpalStubDriver;
 use App\Services\Chabokan\ChabokanClientInterface;
 use App\Services\Chabokan\StubChabokanDriver;
+// بدون این `use`، PHP این نام را داخل `App\Providers` حل می‌کرد و کل اپ
+// با BindingResolutionException بالا نمی‌آمد (کلاس در `App\Services\Plugins` است).
 use App\Services\Plugins\ServiceProviderRegistry;
 use App\Services\RevalidateSigner;
+use App\Validation\NoMarkup;
+use App\Validation\SafeUrl;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -49,6 +54,33 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // F0.1 / F0.2 — قاعده‌های اعتبارسنجی سراسری.
+        //
+        // اینها «پیش‌فرض امن» را در لحظهٔ نوشتن می‌سازند، نه در لحظهٔ رندر. دلیل:
+        // هر رندرر تازه‌ای که اضافه شود (بلوک پلاگینی، ویجت، ایمیل) به همان
+        // فیلد می‌رسد؛ اگر فقط فرانت پاک‌سازی کند، آن رندرر یا باید sanitize
+        // را به یاد بیاورد یا سوراخ است — و این در بازبینی قابل تشخیص نیست.
+        //
+        // ⚠️ `extend` یک `bool` می‌خواهد. برگرداندن یک شیء `ValidationRule`
+        // یعنی truthy ⇒ **همه‌چیز رد می‌شود** و قاعده بی‌اثر ولی ظاهراً فعال
+        // می‌ماند. برای همین منطق در متدهای استاتیک است و closure فقط صدایش
+        // می‌زند.
+        Validator::extend(
+            'no_markup',
+            fn (string $attribute, mixed $value): bool => NoMarkup::passes($value)
+        );
+        Validator::extend(
+            'safe_href',
+            fn (string $attribute, mixed $value): bool => SafeUrl::passes($value, 'href')
+        );
+        Validator::extend(
+            'safe_src',
+            fn (string $attribute, mixed $value): bool => SafeUrl::passes($value, 'src')
+        );
+        Validator::replacer('no_markup', fn (string $message, string $attribute) => 'این مقدار نباید شامل علامت «<» باشد.');
+        Validator::replacer('safe_href', fn (string $message, string $attribute) => SafeUrl::message('href'));
+        Validator::replacer('safe_src', fn (string $message, string $attribute) => SafeUrl::message('src'));
+
         // API-only: password-reset links go to the Next.js page, not a Blade route.
         // (Default ResetPassword notification needs a `password.reset` named route.)
         ResetPassword::createUrlUsing(function ($user, string $token) {

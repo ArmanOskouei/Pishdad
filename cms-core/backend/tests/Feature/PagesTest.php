@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Page;
 use App\Models\RevalidateLog;
 use App\Models\User;
+use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -15,14 +16,31 @@ class PagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // F0.1: `givePermissionTo` روی پرمیشنِ ناموجود خطا می‌دهد ⇒ نقش‌ها و
+        // پرمیشن‌ها باید ساخته شوند (`RefreshDatabase` سیدرها را اجرا نمی‌کند).
+        $this->seed(RolesPermissionsSeeder::class);
+    }
+
+    /**
+     * F0.1 — مسیرهای نوشتن صفحه `perm:pages.edit` گرفتند، پس fixture باید این
+     * پرمیشن را داشته باشد. قبلاً هر کاربر لاگین‌کرده می‌توانست بنویسد (که خودِ
+     * باگ بود) و تست‌ها ناخواسته همان رفتار را تثبیت کرده بودند.
+     */
     private function user(array $overrides = []): User
     {
-        return User::query()->create(array_merge([
-            'name' => 'مدیر تست',
+        $user = User::query()->create(array_merge([
+            'name' => 'کاربر تست',
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
         ], $overrides));
+
+        $user->givePermissionTo('pages.view', 'pages.edit');
+
+        return $user->fresh();
     }
 
     private function blocks(): array

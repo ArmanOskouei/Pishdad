@@ -6,7 +6,7 @@
 - **Backend:** Laravel 11 (API-only) — همه دیتا و منطق
 - **Frontend:** Next.js 15 (سایت عمومی + پنل /admin) — RTL فارسی + Vazirmatn
 - **DB:** PostgreSQL (ICU fa-IR) + Redis + MinIO
-- **میزبانی:** چابکان (PaaS ایرانی) + آروان استریم
+- **میزبانی:** سرور اختصاصی (VPS/Dedicated) — تصمیم ۲۰۲۶/۰۹؛ طرح اولیه چابکان (PaaS) بود و کنار گذاشته شد
 - **مدل:** اشتراکی (درآمد MRR) + تیربندی Budget/Standard/Enterprise
 
 ## 🧩 معماری کلیدی

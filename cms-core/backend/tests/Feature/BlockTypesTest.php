@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Page;
 use App\Models\User;
+use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -13,14 +14,29 @@ class BlockTypesTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // F0.1: پرمیشن‌ها با سیدر ساخته می‌شوند؛ RefreshDatabase اجرایشان نمی‌کند.
+        $this->seed(RolesPermissionsSeeder::class);
+    }
+
     private function user(): User
     {
-        return User::query()->create([
+        // F0.1: مسیرهای نوشتن صفحه `perm:pages.edit` گرفتند. قبلاً هر کاربر
+        // لاگین‌کرده می‌توانست بنویسد (که خودِ باگ بود) و این fixture ناخواسته
+        // همان رفتار را تثبیت کرده بود.
+        // `->tap()` استفاده نمی‌شود چون `Builder::create()` خودش از `tap()`
+        // داخلی استفاده می‌کند و callback ما را با `Builder` صدا می‌زند.
+        $user = User::query()->create([
             'name' => 'مدیر تست',
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
         ]);
+        $user->givePermissionTo('pages.view', 'pages.edit');
+
+        return $user;
     }
 
     private function newBlocks(): array
