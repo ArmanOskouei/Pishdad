@@ -407,6 +407,105 @@ class ManifestRegistry
     }
 
     /**
+     * صفحه‌های اختصاصی افزونه (K6.5) — مسیرهایی زیر `/admin/` که افزونه‌ها
+     * برایشان یک page descriptor ثبت می‌کنند.
+     *
+     * ## چرا فقط مسیر و نه render
+     *
+     * قرارداد می‌گوید «render از page descriptor می‌آید نه از پلاگین» — یعنی
+     * افزونه می‌گوید «این مسیر مال من است» و هسته رندر می‌کند. دلیلش امنیتی
+     * است: اگر پلاگین JS خودش را تزریق می‌کرد، می‌توانست `localStorage` را بخواند
+     * (توکن آنجاست) یا یک فرم جعلی بسازد. با descriptor، محتوا از مسیر
+     * blockهای هسته می‌آید و هیچ کد دلخواهی وارد باندل نمی‌شود.
+     *
+     * @return list<array{slug: string, path: string, title_fa: string, permission: string|null, layout: string}>
+     */
+    public static function pageRegistry(): array
+    {
+        $out = [];
+        $owner = [];
+
+        foreach (self::activeManifests() as $slug => $manifest) {
+            $slug = (string) $slug;
+
+            $entries = $manifest['pages'] ?? null;
+
+            // کانال دوم `admin.pages` فقط وقتی خوانده می‌شود که کانال اول نبود.
+            // `??` روی `$manifest['admin']['pages']` مستقیم warning می‌داد وقتی
+            // کلید `admin` وجود نداشت، چون `??` کل زنجیره را محافظت نمی‌کند.
+            if ($entries === null && is_array($manifest['admin'] ?? null)) {
+                $entries = $manifest['admin']['pages'] ?? null;
+            }
+
+            if (! is_array($entries)) {
+                continue;
+            }
+
+            foreach ($entries as $key => $def) {
+                if (! is_string($key) || ! is_array($def)) {
+                    continue;
+                }
+
+                $item = self::normalizePageRegistryEntry($def, $slug, $key);
+
+                if ($item === null) {
+                    continue;
+                }
+
+                // مسیر باید یکتا باشد، وگرنه دو افزونه یک URL را می‌گیرند و
+                // اینکه کدام رندر شود به ترتیب بارگذاری بستگی می‌کرد.
+                if (isset($owner[$item['path']])) {
+                    self::recordCollision('page_registry', $item['path'], $owner[$item['path']], "plugin:{$slug}");
+
+                    continue;
+                }
+
+                $owner[$item['path']] = "plugin:{$slug}";
+                $out[] = $item;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{slug: string, path: string, title_fa: string, permission: string|null, layout: string}|null
+     */
+    private static function normalizePageRegistryEntry(array $def, string $slug, string $key): ?array
+    {
+        // مسیر پیش‌فرض از روی کلید ساخته می‌شود، ولی **با ریشهٔ `/admin/`**:
+        // کلید `billing` باید `/admin/billing` بدهد نه `/billing`. نسخهٔ
+        // قبلی `'/' . $key` می‌ساخت و بعد با `str_starts_with('/admin/')`
+        // رد می‌شد — یعنی هر ورودیِ بدون `path` صریح بی‌صدا حذف می‌شد و
+        // افزونه فکر می‌کرد ثبت کرده است.
+        $path = is_string($def['path'] ?? null) && $def['path'] !== ''
+            ? $def['path']
+            : '/admin/'.$key;
+
+        // مسیر باید داخل `/admin/` باشد. بدون این قاعده یک افزونه می‌توانست
+        // `/central/...` را ثبت کند و خودش را جای پنل مرکزی جا بزند.
+        //
+        // نقطهٔ انتهایی **قبل** از این بررسی حذف می‌شود. الگوی فرانت
+        // (`isPluginAdminPath`) نقطهٔ انتهایی را رد می‌کند چون segment آخر باید
+        // محتوا داشته باشد؛ اگر اینجا `rtrim` بعد از بررسی می‌آمد، `/admin/a/`
+        // که معتبر است رد می‌شد ولی `/admin/a` قبول — یعنی دو لایه دو جور
+        // حرف می‌زدند و یک مسیر در بک‌اند می‌مرد و در فرانت زنده می‌شد.
+        $path = rtrim($path, '/');
+
+        if (! str_starts_with($path, '/admin/') || str_contains($path, '..') || str_contains($path, '//')) {
+            return null;
+        }
+
+        return [
+            'slug' => $slug,
+            'path' => rtrim($path, '/'),
+            'title_fa' => is_string($def['title_fa'] ?? null) ? $def['title_fa'] : $key,
+            'permission' => is_string($def['permission'] ?? null) ? $def['permission'] : null,
+            'layout' => is_string($def['layout'] ?? null) ? $def['layout'] : 'default',
+        ];
+    }
+
+    /**
      * انواع صفحه: هسته (config/page_types.php) + مانیفست پلاگین‌های فعال.
      * خروجی: [type => def + source + enabled] — typeهای enabled === false
      * حذف می‌شوند (فرانت فقط همین لیست را تب می‌کند).

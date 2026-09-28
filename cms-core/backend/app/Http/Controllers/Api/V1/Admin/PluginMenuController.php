@@ -39,17 +39,28 @@ class PluginMenuController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        // چیزی که فرانت لازم دارد، و نه بیشتر: فهرست آیتم‌ها + پرمیشن‌های
-        // خودِ همین کاربر تا دروازهٔ سمت کلاینت بتواند تصمیم بگیرد.
-        //
-        // پرمیشن‌ها دوباره اینجا محاسبه نمی‌شوند چون `/v1/admin/profile` همین
-        // را می‌دهد و `admin/layout.tsx` هر دو را موازی می‌خواند — محاسبهٔ
-        // دوباره یعنی دو نقطهٔ حقیقت که با هم می‌روند.
         return response()->json([
             'data' => [
                 'items' => ManifestRegistry::menuItems(),
+            ],
+        ]);
+    }
+
+    /**
+     * K6.5 — رجیستری صفحه‌های اختصاصی افزونه‌ها.
+     *
+     * فرانت این فهرست را می‌گیرد و catch-all زیر `/admin/` با آن تصمیم می‌گیرد که
+     * مسیر متعلق به کدام افزونه است. بدون این مسیر، `/admin/xyz` به رندرکنندهٔ
+     * **سایت عمومی** می‌افتاد و با کروم سایت رندر می‌شد.
+     *
+     * مجوزی ندارد، همان دلیل `index()`: catch-all باید بداند مسیر وجود دارد تا
+     * صفحهٔ «دسترسی ندارید» بدهد، نه صفحهٔ «پیدا نشد».
+     */
+    public function pages(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'pages' => ManifestRegistry::pageRegistry(),
             ],
         ]);
     }

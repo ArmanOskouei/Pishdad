@@ -196,6 +196,8 @@ Route::prefix('v1')->group(function () {
             // به‌عنوان اسلاگ می‌گیرد و ۴۰۴ می‌دهد.
             Route::get('plugins/menu', [PluginMenuController::class, 'index']);
             Route::get('plugins/menu/me', [PluginMenuController::class, 'me']);
+            // K6.5 — رجیستری صفحه‌های اختصاصی، برای catch-all زیر /admin/.
+            Route::get('plugins/pages', [PluginMenuController::class, 'pages']);
 
             Route::get('plugins', [PluginController::class, 'index'])->middleware('perm:plugins.view');
             Route::post('plugins/validate', [PluginController::class, 'validatePackage'])->middleware('perm:plugins.edit');

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Plugin;
 use App\Models\User;
 use App\Services\Plugins\ManifestRegistry;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -23,15 +24,19 @@ use Tests\TestCase;
  */
 class PluginMenuTest extends TestCase
 {
+    /**
+     * `RefreshDatabase` عمدی است.
+     *
+     * بدون آن، افزونه‌های این تست‌ها در دیتابیس می‌مانند و هم منوی تست بعدی
+     * آلوده می‌شود و هم تست‌های دیگری که انتظار جدول خالی دارند می‌شکنند.
+     * پاک‌کردن دستی در `setUp` کافی نبود چون تراکنشِ بازِ تست دیگر را نمی‌بیند.
+     */
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
-
-        // این کلاس `RefreshDatabase` ندارد، پس افزونه‌های تست‌های قبلی در
-        // دیتابیس می‌مانند و منوی تست بعدی را آلوده می‌کنند. تست‌هایی مثل
-        // «منو وقتی هیچ‌کس اعلام نکرده خالی است» بدون این پاک‌سازی **سبز
-        // می‌شدند در حالی که چیزی را نمی‌سنجیدند**.
-        Plugin::query()->delete();
+        // `RefreshDatabase` دیتابیس را خالی می‌کند ولی **کش** مانیفست‌ها را نه.
         ManifestRegistry::flushCache();
     }
 
