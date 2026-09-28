@@ -21,16 +21,17 @@ import { fileURLToPath } from "node:url";
  *  2. **مصرف‌کننده** — حل شد. `ManifestRegistry::pluginSettingsSchemas()` کانال را
  *     به کلید سطح‌بالای مانیفست برد، درست مثل `widgets` و `page_types`. دلیلش
  *     ساختاری است: میکرو-اسکیما سقف عمق ۱ دارد و اسکیمای JSON تودرتو است.
- *  3. **محل سوار شدن** — هنوز نیست. صفحهٔ `/admin/settings` چهارده `useState` دستی
- *     دارد، کارت «اسلات پلاگین»اش (سه input هاردکدِ `readOnly`) حذف شد، ولی
- *     endpoint و مسیر ذخیرهٔ مقدار وجود ندارد. تا وقتی این نباشد، هر فرمی که
- *     ساخته شود جایی رندر نمی‌شود — همان دروغی که K6.10 کارت ویجت داشبورد را
- *     به‌خاطرش حذف کرد.
+ *  3. **محل سوار شدن** — حل شد (K6.7). `PluginSettingsSection` در
+ *     `/admin/settings` سوار شده، `GET /v1/admin/plugins/settings` اسکیما و مقادیر
+ *     را می‌دهد و `PUT /v1/admin/plugins/settings/{slug}` ذخیره می‌کند. اعتبارسنجی
+ *     ورودی **سمت سرور** است (`PluginSettingsValidator`): کلید اعلام‌نشده رد می‌شود،
+ *     نوع دقیق سنجیده می‌شود، و `enum`/`minimum`/`maximum` اجبار می‌شوند. یعنی
+ *     فرم هرچه می‌خواهد می‌فرستد و سرور تعیین تکلیف می‌کند.
  *
- * ⚠️ اگر روزی endpoint و مسیر ذخیره اضافه شد، **این تست‌ها عمداً می‌افتند**.
- * آن‌وقت نگهبان را دستی بردارید و به‌جایش تست رفتار بنویسید: کلیدی که در مانیفست
- * *خوانده* می‌شود با کلیدی که در UI *رندر* می‌شود فرق دارد، و این فایل فقط
- * اولی را می‌سنجد.
+ * ⚠️ دو نگهبانِ این فایل عمداً برداشته و با تست رفتار جایگزین شدند: «صفحهٔ
+ * تنظیمات هیچ دادهٔ پلاگینی نمی‌خواند» و «`SchemaForm` در `SettingsClient`
+ * نیست». هر دو دیگر **غلط** شده بودند، نه فقط کهنه — ولی عبارت‌های مردهٔ
+ * «اسلات پلاگین»/«فقط‌نمایشی» که همان پچ جعلی را ساخته بودند هنوز باید غایب بمانند.
  */
 
 /** ریشهٔ `src/` — از این فایل یک سطح بالاتر (`src/lib` → `src`). */
@@ -51,6 +52,7 @@ const REGISTRY_PATH = fileURLToPath(
 const SETTINGS_CLIENT_PATH = join(SRC_ROOT, "app/(client)/admin/settings/SettingsClient.tsx");
 const SETTINGS_PAGE_PATH = join(SRC_ROOT, "app/(client)/admin/settings/page.tsx");
 const SCHEMA_FORM_PATH = join(SRC_ROOT, "components/ui/SchemaForm.tsx");
+const PLUGIN_SECTION_PATH = join(SRC_ROOT, "components/admin/PluginSettingsSection.tsx");
 
 /**
  * کامنت‌ها و یادداشت‌های فارسی بالای فایل‌ها اسمِ endpoint و متنِ کارتِ حذف‌شده
@@ -173,27 +175,44 @@ test("مصرف‌کننده حالا وجود دارد: رجیستری کلید 
   );
 });
 
-test("صفحهٔ تنظیمات هیچ دادهٔ پلاگینی نمی‌خواند", () => {
+test("صفحهٔ تنظیمات هر دو منبع را می‌خواند: هسته و افزونه‌ها", () => {
   const page = liveCode(readFileSync(SETTINGS_PAGE_PATH, "utf8"));
+  const client = liveCode(readFileSync(SETTINGS_CLIENT_PATH, "utf8"));
 
-  assert.match(page, /\/v1\/admin\/settings\/site/, "تنها منبع دادهٔ این صفحه باید تنظیمات هسته باشد.");
-  assert.equal(
-    /settings\/site[\s\S]{0,200}(plugin|settings_schema)/.test(page),
-    false,
-    "صفحهٔ تنظیمات نباید دنبال دادهٔ پلاگین بگردد — هیچ endpointی برایش وجود ندارد.",
+  assert.match(page, /\/v1\/admin\/settings\/site/, "منبع دادهٔ هسته باید بماند.");
+  assert.match(
+    client,
+    /PluginSettingsSection/,
+    "بخش افزونه‌ها باید در صفحه سوار شده باشد — تا پیش از این هیچ محل سواری نبود.",
   );
 });
 
-test("کارت «اسلات پلاگین» از صفحهٔ تنظیمات حذف شده است", () => {
+test("کارت «اسلات پلاگین» هنوز حذف شده است", () => {
   const client = liveCode(readFileSync(SETTINGS_CLIENT_PATH, "utf8"));
 
-  for (const dead of ["اسلات پلاگین", "فقط‌نمایشی", "نمونه", "SchemaForm", "settings_schema"]) {
+  // عبارت‌هایی که **نباید** برگردند. رندر واقعی در کامپوننت جدید است، نه در
+  // خود صفحه — پس این‌ها همچنان باید غایب بمانند.
+  for (const dead of ["اسلات پلاگین", "فقط‌نمایشی", "نمونه", "settings_schema"]) {
     assert.equal(
       client.includes(dead),
       false,
       `عبارت مرده در صفحهٔ تنظیمات مانده است: ${dead}`,
     );
   }
+});
+
+test("بخش تنظیمات افزونه‌ها به هر دو مسیر وصل است", () => {
+  const section = liveCode(readFileSync(PLUGIN_SECTION_PATH, "utf8"));
+
+  assert.match(section, /\/v1\/admin\/plugins\/settings/, "باید اسکیما و مقادیر را بخواند.");
+  assert.match(section, /method:\s*"PUT"/, "باید مسیر ذخیره داشته باشد.");
+  // قاعدهٔ ضد React #301: بارگذاری داده در `useEffect`، نه شرط در بدنهٔ رندر.
+  assert.match(section, /useEffect\(/, "بارگذاری باید در useEffect باشد.");
+  assert.equal(
+    /if\s*\(\s*!\s*\w+\s*\)\s*void\s+\w+\(/.test(section),
+    false,
+    "شرطِ فراخوانی در بدنهٔ رندر یعنی React #301.",
+  );
 });
 
 test("SchemaForm هنوز فقط یک map تخت را می‌چرخاند", () => {

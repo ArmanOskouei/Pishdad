@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\Admin\MediaController;
 use App\Http\Controllers\Api\V1\Admin\PageController;
 use App\Http\Controllers\Api\V1\Admin\PluginController;
 use App\Http\Controllers\Api\V1\Admin\PluginMenuController;
+use App\Http\Controllers\Api\V1\Admin\PluginSettingsController;
 use App\Http\Controllers\Api\V1\Admin\ProfileController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\SidePresetController;
@@ -198,6 +199,19 @@ Route::prefix('v1')->group(function () {
             Route::get('plugins/menu/me', [PluginMenuController::class, 'me']);
             // K6.5 — رجیستری صفحه‌های اختصاصی، برای catch-all زیر /admin/.
             Route::get('plugins/pages', [PluginMenuController::class, 'pages']);
+
+            // K6.7 — تنظیمات افزونه‌ها: اسکیما + مقادیر.
+            //
+            // `perm:*` دارد، برخلاف `plugins/menu` و `plugins/pages`. دلیل فرق
+            // این است که منو و صفحه فقط **نام** دارند و فیلترشان در فرانت
+            // fail-closed است، ولی اینجا **مقدار** خوانده و نوشته می‌شود — پس
+            // همان مجوزی که روی خودِ فرم در UI ادعا می‌شود باید در مسیر هم
+            // اجبار باشد، وگرنه یک مدیر بدون `settings.edit` می‌توانست با یک
+            // درخواست دستی تنظیمات را عوض کند.
+            Route::get('plugins/settings', [PluginSettingsController::class, 'index'])
+                ->middleware('perm:settings.view');
+            Route::put('plugins/settings/{slug}', [PluginSettingsController::class, 'update'])
+                ->middleware('perm:settings.edit');
 
             Route::get('plugins', [PluginController::class, 'index'])->middleware('perm:plugins.view');
             Route::post('plugins/validate', [PluginController::class, 'validatePackage'])->middleware('perm:plugins.edit');

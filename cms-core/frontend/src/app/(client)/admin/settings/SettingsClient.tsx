@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { authed } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
 import { MediaPicker } from "@/components/ui/MediaPicker";
+import { PluginSettingsSection } from "@/components/admin/PluginSettingsSection";
 import { asPaginator, type PageItem, type SiteSettings } from "@/lib/domain";
 
 /** فرم کارتی تنظیمات سایت + MediaPicker برای لوگو/فاوآیکون. */
@@ -172,6 +173,16 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
         }}
         onClose={() => setPicker(null)}
       />
+
+      {/* K6.7 — تنظیمات افزونه‌ها.
+          *
+          * عمداً **جدا** از فرم بالاست و state خودش را دارد. تنظیمات سایت با
+          * دکمهٔ «ذخیره تنظیمات» بالا ذخیره می‌شود و اگر در همان `useState` بود،
+          * هر تغییر افزونه فرم سایت را dirty می‌کرد و یک دکمه، دو منبع ذخیره
+          * را کنترل می‌کرد. */}
+      <div style={{ marginBlockStart: 28 }}>
+        <PluginSettingsSection />
+      </div>
     </div>
   );
 }
