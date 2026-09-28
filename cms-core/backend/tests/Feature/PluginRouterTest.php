@@ -52,6 +52,18 @@ class PluginRouterTest extends TestCase
                 ->middleware('throttle:60,1');
         });
 
+        // K7.8 — بستهٔ مرکزیِ واقعی را برمی‌داریم.
+        //
+        // این فایل دربارهٔ افزونه‌های **فرضی** است (`demo`, `my-plugin`) و چند
+        // تستش کل جدول route را می‌سنجند — مثلاً
+        // `test_an_inactive_plugin_serves_nothing` انتظار `[]` دارد و
+        // `test_only_core_owned_middleware_is_accepted` انتظار دارد فقط
+        // `demo` بماند.
+        //
+        // رکوردش از migration باقی است، و این تست‌ها باید فقط دربارهٔ چیزی
+        // باشند که خودشان می‌سازند.
+        $this->withoutBundledCentralPlugin();
+
         $this->table = app(PluginRouteTable::class);
         $this->table->flush();
     }
@@ -432,8 +444,20 @@ class PluginRouterTest extends TestCase
         $this->plugin('bad8', [
             ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad8\\Http\\A@show', 'middleware' => ['devmode.gate']],
         ]);
+        // K7.8 — `central.operator` دیگر «مالکِ ناشناخته» نیست.
+        //
+        // پیش از K7.8 رد می‌شد و این تست همان را می‌سنجید. حالا در
+        // `MIDDLEWARE_ALIASES` است چون بستهٔ مرکزیِ واقعی به آن نیاز دارد.
+        //
+        // نکتهٔ امنیتی: این alias **دروازهٔ تازه‌ای باز نکرد**.
+        // `EnsureCentralOperator` خودش فقط `is_super_admin` یا نقش `operator`
+        // را می‌پذیرد و هیچ ورودیِ افزونه‌ای را نمی‌خواند — پس یک بستهٔ بازاری
+        // هم قبل و هم بعد می‌تواند بگوید «مرکزی» و تفاوتی در دسترسی نمی‌بیند.
+        //
+        // چیزی که هنوز رد می‌شود: آرگومان‌دار کردنش. `central.operator:چیزی`
+        // باید رد شود، چون آن شکل دیگری از دور زدن است.
         $this->plugin('bad9', [
-            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9\\Http\\A@show', 'middleware' => ['central.operator']],
+            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9\\Http\\A@show', 'middleware' => ['central.operator:extra']],
         ]);
         // یک میدلور خراب کل routeهای آن افزونه را می‌برد، نه فقط خودش را.
         $this->plugin('bad10', [

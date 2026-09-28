@@ -2,9 +2,9 @@
 
 namespace App\Services\Plugins;
 
-use App\Models\Central\OperatorActivity;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use Pishdad\Plugins\Central\Models\OperatorActivity;
 use Throwable;
 
 /**
@@ -15,7 +15,7 @@ use Throwable;
  * `central_operator_activities` **متعلق به پنل مرکزی است**، و K7.8 آن را به
  * افزونه منتقل می‌کند. یعنی جدولش در آینده‌ای نزدیک از هسته می‌رود.
  *
- * اگر `DevModeUnlock` مستقیم `App\Models\Central\OperatorActivity` را صدا
+ * اگر `DevModeUnlock` مستقیم `Pishdad\Plugins\Central\Models\OperatorActivity` را صدا
  * می‌کرد، `CentralBoundaryTest` درست آن را یک نقض مرز می‌دید — و درست است. آن
  * تست نگهبانِ `App\Models\Central` است در برابر ارجاع از هسته، و اینجا دقیقاً
  * همان ارجاعی بود که می‌خواست جلویش را بگیرد.

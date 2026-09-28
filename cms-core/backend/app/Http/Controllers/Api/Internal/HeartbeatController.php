@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\Internal;
 
 use App\Http\Controllers\Controller;
-use App\Models\Central\Client;
-use App\Models\Central\InstallHeartbeat;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\InstallHeartbeat;
 
 /**
  * تسک ۵.۵ — heartbeat نصب‌ها: توکن per-install + HMAC سبک.

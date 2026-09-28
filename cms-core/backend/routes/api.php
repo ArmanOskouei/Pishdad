@@ -1,17 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\Central\CentralDashboardController;
-use App\Http\Controllers\Api\Central\ChabokanController;
-use App\Http\Controllers\Api\Central\ClientController;
-use App\Http\Controllers\Api\Central\GatewaySettingsController;
-use App\Http\Controllers\Api\Central\InvoiceController as CentralInvoiceController;
-use App\Http\Controllers\Api\Central\MonitoringController;
-use App\Http\Controllers\Api\Central\OperatorController;
-use App\Http\Controllers\Api\Central\PaymentController as CentralPaymentController;
-use App\Http\Controllers\Api\Central\PlanController;
-use App\Http\Controllers\Api\Central\ReviewController;
-use App\Http\Controllers\Api\Central\SubscriptionAdminController;
-use App\Http\Controllers\Api\Central\UpdateController;
 use App\Http\Controllers\Api\Internal\HeartbeatController;
 use App\Http\Controllers\Api\V1\Admin\AdminSearchController;
 use App\Http\Controllers\Api\V1\Admin\BlockSchemaController;
@@ -291,88 +279,6 @@ Route::prefix('v1')->group(function () {
 
 });
 
-// تسک ۱.۳/۱.۴ — پنل مرکزی: فقط operator (+ سوپرادمین مخفی).
-Route::prefix('central')->middleware(['auth:sanctum', 'central.operator'])->group(function () {
-    Route::apiResource('plans', PlanController::class);
-    Route::get('invoices', [CentralInvoiceController::class, 'index']);
-    Route::post('invoices', [CentralInvoiceController::class, 'store']);
-    Route::put('invoices/{invoice}/status', [CentralInvoiceController::class, 'updateStatus']);
-    // دسته ۱ (برابری UI/UX): دکمه یادآوری per-row فاکتور پرداخت‌نشده.
-    Route::post('invoices/{invoice}/remind', [CentralInvoiceController::class, 'remind']);
-    Route::get('payments', [CentralPaymentController::class, 'index']);
-    Route::get('subscriptions/suspended', [SubscriptionAdminController::class, 'suspended']);
-    Route::post('subscriptions/{subscription}/suspend', [SubscriptionAdminController::class, 'suspend']);
-    Route::post('subscriptions/{subscription}/resume', [SubscriptionAdminController::class, 'resume']);
-    Route::post('subscriptions/{subscription}/delete', [SubscriptionAdminController::class, 'destroy']);
-    Route::get('gateway-settings', [GatewaySettingsController::class, 'show']);
-    Route::put('gateway-settings', [GatewaySettingsController::class, 'update']);
-    // دسته ۱ (برابری UI/UX): تست اتصال درگاه (Stub نمایشی).
-    Route::post('gateway-settings/test', [GatewaySettingsController::class, 'test']);
-
-    Route::get('clients', [ClientController::class, 'index']);
-    Route::post('clients', [ClientController::class, 'store']);
-    Route::get('clients/{client}', [ClientController::class, 'show']);
-    Route::post('clients/{client}/upgrade-tier', [ClientController::class, 'upgradeTier']);
-    Route::post('clients/{client}/support-token', [ClientController::class, 'supportToken']);
-    Route::post('clients/{client}/support-token/consume', [ClientController::class, 'consumeSupportToken']);
-    Route::post('clients/{client}/suspend', [ClientController::class, 'suspend']);
-    Route::post('clients/{client}/resume', [ClientController::class, 'resume']);
-    Route::post('clients/{client}/delete', [ClientController::class, 'destroy']);
-    Route::get('clients/{client}/backups', [ClientController::class, 'backups']);
-    Route::post('clients/{client}/backup', [ClientController::class, 'backup']);
-    Route::post('clients/{client}/restore', [ClientController::class, 'restore']);
-
-    // تسک ۳.۲ — داشبورد مرکزی.
-    Route::get('dashboard/stats', [CentralDashboardController::class, 'stats']);
-    Route::get('dashboard/charts', [CentralDashboardController::class, 'charts']);
-    // دسته ۱ (برابری UI/UX): پرونده‌های باز قابل اکشن.
-    Route::get('dashboard/open-cases', [CentralDashboardController::class, 'openCases']);
-
-    // تسک ۳.۳ — مدیریت چابکان (Stub بی‌خطر + لاگ audit).
-    Route::get('chabokan/wallet', [ChabokanController::class, 'wallet']);
-    // دسته UIUX (افزودنی): شارژ کیف پول (ثبت درخواست) + ساخت سرویس آماده.
-    Route::post('chabokan/wallet/charge', [ChabokanController::class, 'charge']);
-    Route::post('chabokan/services/provision', [ChabokanController::class, 'provision']);
-    Route::get('chabokan/services', [ChabokanController::class, 'services']);
-    Route::post('chabokan/services/{name}/start', [ChabokanController::class, 'start']);
-    Route::post('chabokan/services/{name}/stop', [ChabokanController::class, 'stop']);
-    Route::post('chabokan/services/{name}/restart', [ChabokanController::class, 'restart']);
-    Route::post('chabokan/services/{name}/resize', [ChabokanController::class, 'resize']);
-    Route::get('chabokan/deployments', [ChabokanController::class, 'deployments']);
-    Route::post('chabokan/redeploy', [ChabokanController::class, 'redeploy']);
-    Route::get('chabokan/reconciliation', [ChabokanController::class, 'reconciliation']);
-
-    // تسک ۵.۳ — پاسخ اپراتور روی تیکت مشتری.
-    Route::post('tickets/{ticket}/reply', [TicketController::class, 'operatorReply']);
-
-    // تسک ۵.۵ — مانیتورینگ مرکزی.
-    Route::get('monitoring/health', [MonitoringController::class, 'health']);
-    Route::get('monitoring/logs', [MonitoringController::class, 'logs']);
-    // دسته UIUX (افزودنی): آپتایم روزانه هر نصب.
-    Route::get('monitoring/uptime', [MonitoringController::class, 'uptime']);
-
-    // تسک ۵.۶ — آپدیت‌های پلکانی.
-    Route::get('updates', [UpdateController::class, 'index']);
-    // دسته UIUX (افزودنی): رول‌اوت جاری + توقف/ادامه (قبل از installs تا سایه نیفتد).
-    Route::get('updates/rollouts/current', [UpdateController::class, 'current']);
-    Route::post('updates/rollouts/{rollout}/pause', [UpdateController::class, 'pause']);
-    Route::post('updates/rollouts/{rollout}/resume', [UpdateController::class, 'resume']);
-    Route::post('updates/rollout', [UpdateController::class, 'rollout']);
-    Route::post('updates/installs/{install}/rollback', [UpdateController::class, 'rollback']);
-
-    // مورد ۶ — صف بازبینی پلاگین/قالب.
-    Route::get('review/queue', [ReviewController::class, 'queue']);
-    Route::post('review/{type}/{id}/approve', [ReviewController::class, 'approve']);
-    Route::post('review/{type}/{id}/reject', [ReviewController::class, 'reject']);
-
-    // تسک ۵.۷ — پروفایل اپراتور.
-    // دسته UIUX (افزودنی): صدور secret برای ثبت کلید با QR.
-    Route::get('operator/2fa/hardware/setup', [OperatorController::class, 'hardwareSetup']);
-    Route::post('operator/2fa/hardware', [OperatorController::class, 'registerHardwareKey']);
-    Route::post('operator/setup-tokens', [OperatorController::class, 'createSetupToken']);
-    Route::post('operator/kill-switch', [OperatorController::class, 'killSwitch']);
-    Route::get('operator/activity', [OperatorController::class, 'activity']);
-});
 
 // تسک ۵.۵ — heartbeat نصب‌ها (توکن per-install + HMAC، بدون سشن کاربری).
 Route::post('internal/heartbeat', [HeartbeatController::class, 'store'])->middleware('throttle:60,1');

@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\Subscription;
 use App\Models\Page;
 use App\Models\PageRevision;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** کار دوم — صفحه خانه: homepage_page_id در settings + حل عمومی /site/homepage. */

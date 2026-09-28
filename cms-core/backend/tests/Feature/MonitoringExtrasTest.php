@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\CentralLog;
-use App\Models\Central\Client;
-use App\Models\Central\InstallHeartbeat;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\CentralLog;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\InstallHeartbeat;
 use Tests\TestCase;
 
 /** دسته UIUX — مانیتورینگ: جستجوی متنی لاگ + آپتایم ۳۰ روزه. */
@@ -29,14 +29,14 @@ class MonitoringExtrasTest extends TestCase
         CentralLog::query()->create(['level' => 'error', 'message' => 'خطای اتصال دیتابیس', 'site_id' => 'site-a']);
         CentralLog::query()->create(['level' => 'info', 'message' => 'heartbeat موفق', 'site_id' => 'site-b']);
 
-        $res = $auth->getJson('/api/central/monitoring/logs?q='.urlencode('دیتابیس'))
+        $res = $auth->getJson('/api/v1/p/central/monitoring/logs?q='.urlencode('دیتابیس'))
             ->assertOk()->json('data');
         $this->assertSame(1, $res['total']);
         $this->assertSame('خطای اتصال دیتابیس', $res['data'][0]['message']);
 
         // جستجو در site_id هم می‌گردد؛ رفتار قبلی (بدون q) دست‌نخورده.
-        $auth->getJson('/api/central/monitoring/logs')->assertOk();
-        $auth->getJson('/api/central/monitoring/logs?site_id=site-b')->assertOk();
+        $auth->getJson('/api/v1/p/central/monitoring/logs')->assertOk();
+        $auth->getJson('/api/v1/p/central/monitoring/logs?site_id=site-b')->assertOk();
     }
 
     public function test_uptime_returns_daily_series(): void
@@ -51,7 +51,7 @@ class MonitoringExtrasTest extends TestCase
             'version' => '1.0.0', 'last_seen_at' => now(),
         ]);
 
-        $res = $auth->getJson('/api/central/monitoring/uptime?days=30')
+        $res = $auth->getJson('/api/v1/p/central/monitoring/uptime?days=30')
             ->assertOk()->json('data');
 
         $this->assertSame(30, $res['days']);

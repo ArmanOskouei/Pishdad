@@ -330,7 +330,7 @@ final class PluginDdlProvisioningFlowTest extends PluginDdlNoTransactionCase
         ]);
 
         $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/central/review/plugin/{$id}/approve")
+            ->postJson("/api/v1/p/central/review/plugin/{$id}/approve")
             ->assertOk();
 
         $owner = User::query()->where('role', 'admin')->orderBy('id')->firstOrFail();

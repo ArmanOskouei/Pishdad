@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\Invoice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Invoice;
 use Tests\TestCase;
 
 /** دسته ۱ (برابری UI/UX) — دکمه یادآوری per-row فاکتور پرداخت‌نشده. */
@@ -35,7 +35,7 @@ class InvoiceRemindTest extends TestCase
         ]);
 
         $res = $this->actingAs($op, 'sanctum')
-            ->postJson("/api/central/invoices/{$invoice->id}/remind");
+            ->postJson("/api/v1/p/central/invoices/{$invoice->id}/remind");
 
         $res->assertCreated()->assertJsonPath('message', 'یادآوری فاکتور ثبت شد.');
         $this->assertDatabaseHas('central_billing_events', [
@@ -58,7 +58,7 @@ class InvoiceRemindTest extends TestCase
         ]);
 
         $this->actingAs($op, 'sanctum')
-            ->postJson("/api/central/invoices/{$invoice->id}/remind")
+            ->postJson("/api/v1/p/central/invoices/{$invoice->id}/remind")
             ->assertStatus(422)
             ->assertJsonPath('message', 'این فاکتور پرداخت شده و نیازی به یادآوری نیست.');
     }

@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Services\Settings\CachedSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -54,15 +56,15 @@ class NestedLinksTest extends TestCase
 
     private function subscribe(User $owner): void
     {
-        $client = \App\Models\Central\Client::query()->oldest('id')->first();
+        $client = Client::query()->oldest('id')->first();
         if ($client) {
             $client->forceFill(['owner_user_id' => $owner->id])->save();
         } else {
-            $client = \App\Models\Central\Client::query()->create([
+            $client = Client::query()->create([
                 'name' => 'نصب تست', 'site_id' => 'site-test-'.uniqid(),
                 'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $owner->id,
             ]);
-            \App\Models\Central\Subscription::query()->create([
+            Subscription::query()->create([
                 'client_id' => $client->id, 'site_id' => $client->site_id,
                 'status' => 'active', 'due_at' => now()->addDays(30),
             ]);
@@ -205,7 +207,7 @@ class NestedLinksTest extends TestCase
     {
         $user = $this->user();
         $other = $this->user();
-        $shared = $this->page($other, 'shared-n', 'مشترک', );
+        $shared = $this->page($other, 'shared-n', 'مشترک');
         $auth = $this->actingAs($user, 'sanctum');
 
         $auth->putJson('/api/v1/admin/layouts/header', [

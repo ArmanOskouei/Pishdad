@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
 use App\Models\Media;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
 use Tests\TestCase;
 
 /** دسته ۱ (برابری UI/UX) — کارت مصرف فضای پلن + «بازیابی همه» سطل زباله. */

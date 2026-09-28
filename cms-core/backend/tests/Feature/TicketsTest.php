@@ -132,7 +132,7 @@ class TicketsTest extends TestCase
         ]);
 
         $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/central/tickets/{$ticket->id}/reply", ['body' => 'بررسی شد.'])
+            ->postJson("/api/v1/p/central/tickets/{$ticket->id}/reply", ['body' => 'بررسی شد.'])
             ->assertCreated()->assertJsonPath('message', 'پاسخ اپراتور ثبت شد.');
 
         $this->assertDatabaseHas('notifications', [

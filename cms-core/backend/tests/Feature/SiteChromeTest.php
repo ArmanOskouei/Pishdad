@@ -7,6 +7,8 @@ use App\Models\Theme;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -59,15 +61,15 @@ class SiteChromeTest extends TestCase
         ]);
 
         // اشتراک پیش‌فرض نصب را به همین کاربر گره می‌زنیم تا مالک پیدا شود.
-        $client = \App\Models\Central\Client::query()->oldest('id')->first();
+        $client = Client::query()->oldest('id')->first();
         if ($client) {
             $client->forceFill(['owner_user_id' => $user->id])->save();
         } else {
-            $client = \App\Models\Central\Client::query()->create([
+            $client = Client::query()->create([
                 'name' => 'نصب تست', 'site_id' => 'site-test',
                 'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $user->id,
             ]);
-            \App\Models\Central\Subscription::query()->create([
+            Subscription::query()->create([
                 'client_id' => $client->id, 'site_id' => $client->site_id,
                 'status' => 'active', 'due_at' => now()->addDays(30),
             ]);

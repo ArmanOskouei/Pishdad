@@ -146,59 +146,6 @@ class TicketController extends Controller
         ], 201);
     }
 
-    /**
-     * پاسخ اپراتور مرکزی روی تیکت مشتری (فقط operator — مسیر central).
-     *
-     * ## K7.13 — این متد در فهرست استثناست و این **انتخاب** است
-     *
-     * از ۶۱ route بررسی‌شده، این تنها موردی بود که به کنترلر **هسته** می‌رسید
-     * (`routes/api.php` در گروه `central`). گزینه‌ها این‌ها بودند:
-     *
-     *  ۱) **استثنا** — یک خط در فهرست، بدون تغییر رفتار.
-     *  ۲) انتقال به افزونهٔ مرکزی.
-     *  ۳) ادغام در `reply()` با پارامتر `author_type`.
-     *
-     * محصول گزینهٔ ۲ را انتخاب کرد، با این استدلال که از K7.9 گرفته شده:
-     * مرکز یک افزونهٔ معمولی است، پس routeهایش هم باید مال افزونه باشند.
-     * استدلال منسجم است. هزینه‌اش صریحاً این است: افزونهٔ مرکزی باید
-     * `Ticket`، `TicketMessage` و `TicketNotification` هسته را بخواند.
-     *
-     * ## چرا این وابستگی قابل قبول است
-     *
-     * `PluginDbContract::CORE_TABLES` جلوی **ساختن** این جدول‌ها را می‌گیرد، ولی
-     * جلوی **خواندن**شان را نه — و `PluginAutoloader` هم عمداً فقط namespace
-     * افزونه را ثبت می‌کند، نه اینکه دسترسی به `App\Models` را مسدود کند.
-     * یعنی این وابستگی از قبل ممکن بود و صرفاً استفاده‌اش اعلام نشده بود.
-     *
-     * ## چرا بدنهٔ متد این‌قدر کوتاه است و این بد نیست
-     *
-     * تفاوتش با `reply()` فقط `author_type = 'operator'` و نداشتن پیوست است.
-     * هر دو منطق `notifyCreator` را به‌اشتراک می‌گذارند. اگر روزی این متد
-     * منطق یکتایی پیدا کرد — قوانین اپراتور، مسیر تأیید، حسابداری — آن موقع
-     * انتقالش ارزش دارد. تا آن روز، انتقالش فقط کد را جابه‌جا می‌کند.
-     */
-    public function operatorReply(Request $request, Ticket $ticket): JsonResponse
-    {
-        $validated = $request->validate([
-            'body' => 'required|string|max:5000',
-        ], [
-            'body.required' => 'متن پیام الزامی است.',
-        ]);
-
-        $message = $ticket->messages()->create([
-            'user_id' => $request->user()->id,
-            'author_type' => 'operator',
-            'body' => $validated['body'],
-        ]);
-
-        $this->notifyCreator($ticket, $message);
-
-        return response()->json([
-            'message' => 'پاسخ اپراتور ثبت شد.',
-            'data' => $message,
-        ], 201);
-    }
-
     /** ضمیمه باید رسانه موجود نصب باشد (فقط وجود، بدون چک مالکیت). */
     private function attachmentExists(?int $mediaId): void
     {

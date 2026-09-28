@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\HardwareKey;
 use App\Models\Plugin;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
@@ -14,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Pishdad\Plugins\Central\Models\HardwareKey;
 use Tests\TestCase;
 
 /**
@@ -37,19 +37,31 @@ class PluginCoreTicketAccessTest extends TestCase
 
     private function plugin(): Plugin
     {
-        $p = Plugin::query()->create([
-            'slug' => 'central',
-            'name' => 'مرکز',
-            'author' => 'test',
-            'version' => '1.0.0',
-            'signature' => 'x',
-            'public_key' => 'x',
-            'manifest' => [],
-            'active' => true,
-        ]);
+        // `firstOrCreate` نه `create`: از K7.8 بستهٔ مرکزی **واقعی** در
+        // `plugins/central/` وجود دارد و `TestCase` آن را فعال می‌کند.
+        // `create` روی همان slug به `plugins_slug_unique` می‌خورد و کل تست
+        // با `UniqueConstraintViolationException` می‌مرد.
+        //
+        // این تست فقط به «یک افزونهٔ فعال با namespace ثبت‌شده» نیاز دارد، نه به
+        // مانیفست خودش — پس رکورد موجود دقیقاً همان چیزی است که لازم دارد.
+        $p = Plugin::query()->firstOrCreate(
+            ['slug' => 'central'],
+            [
+                'name' => 'مرکز',
+                'version' => '1.0.0',
+                'manifest' => [],
+                'active' => true,
+            ],
+        );
 
         // همان الگوی `registerFromRelease`: prefix از slug مشتق می‌شود، پس
         // افزونه نمی‌تواند namespace دلخواهش را انتخاب کند.
+        //
+        // ⚠️ ریشه اینجا عمداً یک پوشهٔ **خالی** در temp است، نه
+        // `plugins/central/Laravel/src`. تست می‌خواهد ثابت کند بارگذار
+        // namespace را ثبت می‌کند و کلاسِ `App\Models` هنوز در دسترس است —
+        // پس به کدِ افزونه نیازی ندارد، و مسیرِ واقعی فقط آن را به تستِ
+        // وابسته می‌کرد.
         $root = sys_get_temp_dir().'/plugin-central';
         if (! is_dir($root)) {
             mkdir($root, 0o777, true);

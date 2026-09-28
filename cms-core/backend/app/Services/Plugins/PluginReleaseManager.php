@@ -103,13 +103,23 @@ final class PluginReleaseManager
 
     private ?string $resolvedBase = null;
 
+    private ?string $resolvedSourceBase = null;
+
     /**
      * @param  string|null  $basePath  ریشهٔ نصب. `null` یعنی
      *                                 `storage/app/plugins`. تزریق‌پذیر است تا
      *                                 تست بتواند sandbox خودش را بدهد و به
      *                                 `config/plugins.php` وابسته نباشد.
+     * @param  string|null  $sourcePath  ریشهٔ **افزونه‌های داخلی**. `null` یعنی
+     *                                   `base_path('plugins')`. جدا از `basePath`
+     *                                   تزریق می‌شود تا تست بتواند برای
+     *                                   هر دو یک sandbox بسازد و ناخواسته
+     *                                   `plugins/` واقعیِ مخزن را نبیند.
      */
-    public function __construct(private ?string $basePath = null) {}
+    public function __construct(
+        private ?string $basePath = null,
+        private ?string $sourcePath = null,
+    ) {}
 
     // ── چیدمان مسیر ─────────────────────────────────────────────────────────
 
@@ -190,9 +200,33 @@ final class PluginReleaseManager
      * `null` یعنی «افزونه‌ای فعال نیست» و `PluginAutoloader` چیزی ثبت نمی‌کند.
      * اگر پوشهٔ `Laravel/src` نبود (بستهٔ فقط-فرانت‌اند) هم `null` است، وگرنه
      * بارگذار یک ریشهٔ وجود‌نداشتنی ثبت می‌کرد.
+     *
+     * ## ترتیب: **source اول، بعد release**
+     *
+     * دو ریشهٔ متفاوت وجود دارد و هرکدام دلیل خودش را دارد:
+     *
+     *  - `storage/app/plugins/{slug}/releases/…` — افزونهٔ بازاری. کد از ZIP
+     *    امضاشده آمده و نسخه‌بندی دارد.
+     *  - `plugins/{slug}/` — افزونهٔ **داخلی** (K7.8). کد در مخزن است، با
+     *    `git pull` عوض می‌شود، و امضا ندارد چون خودِ مخزن مرجع اعتماد است.
+     *
+     * اگر release اول بررسی می‌شد، یک بستهٔ بازاری با همان slug می‌توانست کدِ
+     * داخلی را زیر خودش پنهان کند — یعنی عملاً یک **tier جدید اعتماد** که
+     * K7.9 صریحاً آن را رد کرده بود. پس source مقدم است.
+     *
+     * نگهبانِ «source مقدم است» تست `PluginReleaseManagerTest` است، و این
+     * نکته یک تصمیم معماری است نه جزئیات پیاده‌سازی: اگر روزی کسی ترتیب را
+     * برعکس کند، هیچ تستِ رفتاریِ دیگری نمی‌شکند.
      */
     public function autoloadRoot(string $slug): ?string
     {
+        $slug = $this->normalizeSlug($slug);
+
+        $fromSource = $this->sourceAutoloadRoot($slug);
+        if ($fromSource !== null) {
+            return $fromSource;
+        }
+
         $current = $this->currentDir($slug);
         if ($current === null) {
             return null;
@@ -208,30 +242,180 @@ final class PluginReleaseManager
         return $this->normalizeSeparators($real);
     }
 
+    // ── افزونه‌های داخلی (K7.8) ────────────────────────────────────────────
+
+    /**
+     * ریشهٔ پوشهٔ source، canonical.
+     *
+     * برخلاف `basePath()` اگر پوشه وجود نداشته باشد `realpath` شکست می‌خورد و
+     * مسیرِ نرمال‌شده برگردانده می‌شود — عمداً، چون نبودنش یک وضعیتِ عادی است
+     * (یک نصب که هیچ افزونهٔ داخلی ندارد) نه خطا.
+     */
+    public function sourceBasePath(): string
+    {
+        if ($this->resolvedSourceBase !== null) {
+            return $this->resolvedSourceBase;
+        }
+
+        $base = $this->sourcePath ?? base_path('plugins');
+        $real = realpath($base);
+
+        if ($real === false) {
+            return $this->normalizeSeparators($base);
+        }
+
+        $this->resolvedSourceBase = $this->normalizeSeparators($real);
+
+        return $this->resolvedSourceBase;
+    }
+
+    /** پوشهٔ source یک slug، یا `null` اگر چنین افزونهٔ داخلی‌ای نباشد. */
+    public function sourceDir(string $slug): ?string
+    {
+        $slug = $this->normalizeSlug($slug);
+        $base = $this->sourceBasePath();
+        $dir = $base.'/'.$slug;
+        $real = realpath($dir);
+
+        if ($real === false || ! is_dir($real) || ! $this->isInside($real, $base)) {
+            return null;
+        }
+
+        return $this->normalizeSeparators($real);
+    }
+
+    /**
+     * آیا این slug **افزونهٔ داخلی** است؟
+     *
+     * تفاوتش با `sourceDir() !== null` عمدی است: `sourceDir` می‌پرسد «پوشه هست؟»
+     * و این می‌پرسد «پوشه یک بستهٔ کامل است؟» — یعنی ریشهٔ PSR-4 دارد.
+     *
+     * همین تفاوت، slugهای رزرو را می‌سازد: یک بستهٔ بازاری نمی‌تواند slugای را
+     * بگیرد که در `plugins/` جای دارد، چون `sourceAutoloadRoot()` همیشه مقدم
+     * می‌ماند و کدِ بازاریِ هم‌نام هرگز بارگذاری نمی‌شد — یعنی نصب می‌شد ولی
+     * بی‌اثر بود.
+     */
+    public function isSourceSlug(string $slug): bool
+    {
+        return $this->sourceAutoloadRoot($slug) !== null;
+    }
+
+    /**
+     * ریشهٔ PSR-4 افزونهٔ داخلی، یا `null`.
+     *
+     * `realpath` + `isInside` همان محافظتی است که شاخهٔ release دارد: یک
+     * `Laravel/src` که با لینکِ نمادین به بیرون از `plugins/{slug}` اشاره کند
+     * رد می‌شود، نه بارگذاری می‌شود.
+     */
+    public function sourceAutoloadRoot(string $slug): ?string
+    {
+        $dir = $this->sourceDir($slug);
+        if ($dir === null) {
+            return null;
+        }
+
+        $src = $this->normalizeSeparators($dir.'/'.self::PSR4_SUBPATH);
+        $real = realpath($src);
+
+        if ($real === false || ! is_dir($real) || ! $this->isInside($real, $dir)) {
+            return null;
+        }
+
+        return $this->normalizeSeparators($real);
+    }
+
+    /**
+     * slugهای افزونهٔ داخلی، از روی دیسک — نه از جدول `plugins`.
+     *
+     * جدول برای **مانیفست** است (فعال/غیرفعال، نام فارسی، مجوزها). مسیر کد از
+     * دیسک می‌آید، دقیقاً مثل بستهٔ بازاری. اگر این را از جدول می‌خواندیم،
+     * افزونه‌ای که رکوردش پاک شده ولی پوشه‌اش هست همچنان کدش بارگذاری می‌شد.
+     */
+    public function sourceSlugs(): array
+    {
+        return $this->sourceSlugsAt($this->sourceBasePath());
+    }
+
+    /**
+     * slugهای افزونهٔ داخلی زیر یک پایهٔ مشخص.
+     *
+     * @return list<string>
+     */
+    public function sourceSlugsAt(string $base): array
+    {
+        $base = $this->normalizeSeparators($base);
+        if (! is_dir($base)) {
+            return [];
+        }
+
+        $slugs = [];
+
+        foreach (scandir($base) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..' || str_starts_with($entry, '.')) {
+                continue;
+            }
+            if (preg_match(self::SLUG_PATTERN, $entry) !== 1) {
+                continue;
+            }
+            if ($this->sourceAutoloadRoot($entry) === null) {
+                continue;
+            }
+            $slugs[] = $entry;
+        }
+
+        sort($slugs);
+
+        return $slugs;
+    }
+
     /**
      * نقشهٔ `slug => مسیر نسبی` برای `PluginAutoloader::registerPackages()`.
      *
      * فقط افزونه‌هایی که **هم** نسخهٔ فعال دارند **هم** ریشهٔ PSR-4. نبودنِ یکی
      * یعنی آن بسته بارگذاری نمی‌شود و باقی بقیه سالم می‌مانند.
      *
-     * @return array<string, string>
+     * ⚠️ **مسیر نسبی دیگر کافی نیست.** نقشهٔ قدیمی مسیر را نسبت به **یک** پایه
+     * حساب می‌کرد، ولی حالا دو پایه داریم: `storage/app/plugins` برای بستهٔ
+     * بازاری و `plugins/` مخزن برای افزونهٔ داخلی. اگر هنوز نسبت به پایهٔ
+     * نخست می‌ساختیم، `substr()` روی مسیرِ پوشهٔ source رشته‌ای می‌داد که به
+     * جایی اشاره می‌کرد که اصلاً وجود ندارد — و بی‌صدا رد می‌شد.
+     *
+     * پس کلید نقشه حالا **ریشهٔ نصب** است و داشته‌ای به‌ازای هر slug درونش.
+     * شکل خروجی عمداً عوض شد و این یک تغییرِ شکننده است: `PluginInstallerTest`
+     * آن را با شکل تازه می‌سنجد.
+     *
+     * @return array<string, array<string, string>> basePath => [slug => مسیر نسبی]
      */
     public function autoloadPackages(): array
     {
-        // `basePath()` ممکن است هنوز canonical نشده باشد (پوشه در این لحظه وجود
-        // ندارد)، ولی `autoloadRoot()` همیشه `realpath` می‌دهد ⇒ پایه را هم
-        // canonical می‌کنیم تا `substr()` روی دو رشّ هم‌ریشه کار کند.
-        $base = realpath($this->basePath());
-        $base = $base === false ? $this->basePath() : $this->normalizeSeparators($base);
         $out = [];
 
-        foreach ($this->installedSlugs() as $slug) {
-            $root = $this->autoloadRoot($slug);
-            if ($root === null) {
-                continue;
+        foreach ([$this->basePath(), $this->sourceBasePath()] as $base) {
+            $real = realpath($base);
+            $base = $real === false ? $this->normalizeSeparators($base) : $this->normalizeSeparators($real);
+
+            foreach (array_merge($this->installedSlugsAt($base), $this->sourceSlugsAt($base)) as $slug) {
+                $root = $this->autoloadRoot($slug);
+                if ($root === null) {
+                    continue;
+                }
+                $relative = ltrim(substr($root, strlen($base)), '/');
+                $out[$base][$slug] = $relative === '' ? '.' : $relative;
             }
-            $relative = ltrim(substr($root, strlen($base)), '/');
-            $out[$slug] = $relative === '' ? '.' : $relative;
+        }
+
+        ksort($out);
+
+        // `array_map('ksort', …)` از PHP 8.0 خطا می‌دهد: `ksort` آرگومان اولش را
+        // **by-reference** می‌گیرد و `array_map` مقدار می‌دهد. یعنی این خط یک
+        // `ErrorException` می‌انداخت و `autoloadPackages()` همیشه می‌مرد.
+        //
+        // `PluginInstallerTest:137` این را گرفت — و فقط چون آن تست شکلِ جدیدِ
+        // خروجی را می‌سنجید. یعنی هر مصرف‌کنندهٔ دیگری هم می‌مرد، ولی اصلاً
+        // مصرف‌کنندهٔ دیگری نبود: این تنها جایی بود که این متد صدا زده می‌شد.
+        foreach ($out as $base => $packages) {
+            ksort($packages);
+            $out[$base] = $packages;
         }
 
         return $out;
@@ -240,7 +424,20 @@ final class PluginReleaseManager
     /** @return list<string> */
     public function installedSlugs(): array
     {
-        $base = $this->basePath();
+        return $this->installedSlugsAt($this->basePath());
+    }
+
+    /**
+     * slugهای نصب‌شده زیر یک پایهٔ مشخص.
+     *
+     * پارامتری شدنش به‌خاطر `autoloadPackages()` است که باید هر دو ریشه را
+     * جداگانه بگردد و در نسبی‌سازی قاطی نشوند.
+     *
+     * @return list<string>
+     */
+    public function installedSlugsAt(string $base): array
+    {
+        $base = $this->normalizeSeparators($base);
         if (! is_dir($base)) {
             return [];
         }

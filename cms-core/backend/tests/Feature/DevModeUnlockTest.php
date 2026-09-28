@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\OperatorActivity;
 use App\Models\User;
 use App\Services\Plugins\DevMode;
 use App\Services\Plugins\DevModeTaps;
@@ -11,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
+use Pishdad\Plugins\Central\Models\OperatorActivity;
 use Tests\TestCase;
 
 /**

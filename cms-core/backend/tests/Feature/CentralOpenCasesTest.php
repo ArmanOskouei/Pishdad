@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\ChabokanDeployment;
-use App\Models\Central\Client;
-use App\Models\Central\Invoice;
-use App\Models\Central\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\ChabokanDeployment;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** دسته ۱ (برابری UI/UX) — پرونده‌های باز قابل اکشن داشبورد مرکزی. */
@@ -55,7 +55,7 @@ class CentralOpenCasesTest extends TestCase
             'status' => Invoice::PENDING, 'due_at' => now()->subDay(),
         ]);
 
-        $res = $auth->getJson('/api/central/dashboard/open-cases');
+        $res = $auth->getJson('/api/v1/p/central/dashboard/open-cases');
 
         $res->assertOk();
         $kinds = collect($res->json('data'))->pluck('kind')->all();
@@ -78,7 +78,7 @@ class CentralOpenCasesTest extends TestCase
         config()->set('chabokan.low_balance_threshold', 1000);
         config()->set('chabokan.stub_statuses', []);
 
-        $this->actingAs($op, 'sanctum')->getJson('/api/central/dashboard/open-cases')
+        $this->actingAs($op, 'sanctum')->getJson('/api/v1/p/central/dashboard/open-cases')
             ->assertOk()->assertJsonPath('data', []);
     }
 }

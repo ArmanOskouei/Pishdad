@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\CoreVersion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\CoreVersion;
 use Tests\TestCase;
 
 /** تسک ۵.۶ — DoD: رول‌اوت پلکانی با confirm + رکورد per-install + rollback. */
@@ -38,7 +38,7 @@ class UpdatesTest extends TestCase
         $this->client('1.0.0');
         $this->client('2.0.0');
 
-        $res = $auth->getJson('/api/central/updates')->assertOk()->json('data');
+        $res = $auth->getJson('/api/v1/p/central/updates')->assertOk()->json('data');
         $this->assertEquals('2.0.0', $res['latest']['version']);
         $this->assertTrue(collect($res['installs'])->firstWhere('current_version', '1.0.0')['update_available']);
         $this->assertFalse(collect($res['installs'])->firstWhere('current_version', '2.0.0')['update_available']);
@@ -52,10 +52,10 @@ class UpdatesTest extends TestCase
         $this->client('1.0.0');
         $this->client('1.0.0');
 
-        $auth->postJson('/api/central/updates/rollout', ['version' => '2.0.0'])
+        $auth->postJson('/api/v1/p/central/updates/rollout', ['version' => '2.0.0'])
             ->assertStatus(422);
 
-        $res = $auth->postJson('/api/central/updates/rollout', [
+        $res = $auth->postJson('/api/v1/p/central/updates/rollout', [
             'version' => '2.0.0', 'batch_size' => 2, 'confirm' => true,
         ])->assertCreated()->json('data');
 
@@ -71,14 +71,14 @@ class UpdatesTest extends TestCase
         CoreVersion::query()->create(['version' => '2.0.0', 'is_latest' => true]);
         $client = $this->client('1.0.0');
 
-        $auth->postJson('/api/central/updates/rollout', [
+        $auth->postJson('/api/v1/p/central/updates/rollout', [
             'version' => '2.0.0', 'confirm' => true,
         ])->assertCreated();
 
         // شبیه‌سازی اعمال روی نصب.
         $client->forceFill(['current_version' => '2.0.0'])->save();
 
-        $auth->postJson("/api/central/updates/installs/{$client->id}/rollback")
+        $auth->postJson("/api/v1/p/central/updates/installs/{$client->id}/rollback")
             ->assertOk()->assertJsonPath('data.current_version', '1.0.0');
 
         $this->assertDatabaseHas('central_update_rollout_items', [
@@ -86,7 +86,7 @@ class UpdatesTest extends TestCase
         ]);
 
         // بازگشت دوم ممکن نیست.
-        $auth->postJson("/api/central/updates/installs/{$client->id}/rollback")
+        $auth->postJson("/api/v1/p/central/updates/installs/{$client->id}/rollback")
             ->assertStatus(422);
     }
 }

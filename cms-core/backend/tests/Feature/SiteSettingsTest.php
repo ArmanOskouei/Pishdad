@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\Subscription;
 use App\Models\Media;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** تسک ۲.۳ — DoD: خواندن/ذخیره تنظیمات سایت + شبکه‌ها (کش‌دار، اعتبارسنجی فارسی، ایزولاسیون). */

@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\Invoice;
-use App\Models\Central\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** تسک ۱.۲ — DoD: دیدن اشتراک/فاکتور + پرداخت Stub + polling عمومی. */
@@ -58,10 +58,10 @@ class SubscriptionTest extends TestCase
             'owner_user_id' => $theirs->id, 'site_id' => 'site-'.$theirs->id,
         ]);
 
-        $this->actingAs($op, 'sanctum')->postJson('/api/central/invoices', [
+        $this->actingAs($op, 'sanctum')->postJson('/api/v1/p/central/invoices', [
             'client_id' => $myClient->id, 'amount' => 100000,
         ])->assertCreated();
-        $this->actingAs($op, 'sanctum')->postJson('/api/central/invoices', [
+        $this->actingAs($op, 'sanctum')->postJson('/api/v1/p/central/invoices', [
             'client_id' => $otherClient->id, 'amount' => 200000,
         ])->assertCreated();
 
@@ -148,7 +148,7 @@ class SubscriptionTest extends TestCase
     {
         $admin = $this->user('admin');
 
-        $this->actingAs($admin, 'sanctum')->getJson('/api/central/plans')
+        $this->actingAs($admin, 'sanctum')->getJson('/api/v1/p/central/plans')
             ->assertForbidden()
             ->assertJsonPath('message', 'دسترسی مجاز نیست. این بخش فقط برای اپراتور مرکزی است.');
     }

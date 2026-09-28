@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Central\Invoice;
-use App\Models\Central\Subscription;
 use App\Models\Media;
 use App\Models\Page;
 use App\Models\Ticket;
 use App\Services\Subscription\ClientSubscriptionResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Subscription;
 
 /**
  * تسک ۲.۲ — داشبورد مشتری: آمار + هشدارها + رجیستری ویجت پلاگین‌ها.

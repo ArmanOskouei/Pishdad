@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Central\Client;
-use App\Models\Central\Invoice;
-use App\Models\Central\Plan;
-use App\Models\Central\Subscription;
 use App\Services\Billing\PaymentGatewayInterface;
 use App\Services\Billing\ZarinpalStubDriver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Plan;
+use Pishdad\Plugins\Central\Models\Subscription;
 
 /**
  * تسک ۱.۲ — «اشتراک من» (سمت نصب مشتری).

@@ -2,14 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\BillingEvent;
-use App\Models\Central\Client;
-use App\Models\Central\Invoice;
-use App\Models\Central\Subscription;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Testing\TestResponse;
+use Pishdad\Plugins\Central\Models\BillingEvent;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Payment;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -35,7 +37,7 @@ class CentralBillingTest extends TestCase
         ]);
     }
 
-    private function webhook(string $ref, string $status): \Illuminate\Testing\TestResponse
+    private function webhook(string $ref, string $status): TestResponse
     {
         $payload = ['ref' => $ref, 'status' => $status, 'gateway' => 'zarinpal-stub'];
         $body = json_encode($payload);
@@ -53,16 +55,16 @@ class CentralBillingTest extends TestCase
         $op = $this->operator();
         $auth = $this->actingAs($op, 'sanctum');
 
-        $created = $auth->postJson('/api/central/plans', [
+        $created = $auth->postJson('/api/v1/p/central/plans', [
             'name' => 'استاندارد', 'slug' => 'standard', 'tier' => 'standard',
             'price_monthly' => 500000,
         ])->assertCreated();
         $id = $created->json('data.id');
 
-        $auth->getJson('/api/central/plans')->assertOk();
-        $auth->putJson("/api/central/plans/{$id}", ['price_monthly' => 600000])
+        $auth->getJson('/api/v1/p/central/plans')->assertOk();
+        $auth->putJson("/api/v1/p/central/plans/{$id}", ['price_monthly' => 600000])
             ->assertOk()->assertJsonPath('data.price_monthly', 600000);
-        $auth->deleteJson("/api/central/plans/{$id}")->assertOk()
+        $auth->deleteJson("/api/v1/p/central/plans/{$id}")->assertOk()
             ->assertJsonPath('message', 'پلن حذف شد.');
     }
 
@@ -71,7 +73,7 @@ class CentralBillingTest extends TestCase
         $op = $this->operator();
         $auth = $this->actingAs($op, 'sanctum');
 
-        $planId = $auth->postJson('/api/central/plans', [
+        $planId = $auth->postJson('/api/v1/p/central/plans', [
             'name' => 'پایه', 'slug' => 'basic', 'tier' => 'budget',
         ])->json('data.id');
 
@@ -81,7 +83,7 @@ class CentralBillingTest extends TestCase
             'plan_id' => $planId, 'status' => 'active', 'due_at' => now()->addDays(5),
         ]);
 
-        $auth->deleteJson("/api/central/plans/{$planId}")->assertStatus(422);
+        $auth->deleteJson("/api/v1/p/central/plans/{$planId}")->assertStatus(422);
     }
 
     public function test_webhook_paid_marks_invoice_and_auto_resumes(): void
@@ -115,9 +117,9 @@ class CentralBillingTest extends TestCase
         // وب‌هوک تکراری (همان ref) idempotent است.
         $again = $this->webhook('STUB-TEST-1', 'paid');
         $again->assertOk()->assertJsonPath('message', 'این پرداخت قبلاً ثبت شده است.');
-        $this->assertSame(1, \App\Models\Central\Payment::query()->where('ref', 'STUB-TEST-1')->count());
+        $this->assertSame(1, Payment::query()->where('ref', 'STUB-TEST-1')->count());
 
-        $this->actingAs($op, 'sanctum')->getJson('/api/central/payments')
+        $this->actingAs($op, 'sanctum')->getJson('/api/v1/p/central/payments')
             ->assertOk()->assertJsonPath('data.total', 1);
     }
 
@@ -145,7 +147,7 @@ class CentralBillingTest extends TestCase
         ]);
 
         $this->actingAs($op, 'sanctum')
-            ->putJson("/api/central/invoices/{$invoice->id}/status", ['status' => 'paid'])
+            ->putJson("/api/v1/p/central/invoices/{$invoice->id}/status", ['status' => 'paid'])
             ->assertOk();
 
         $this->assertSame(Subscription::ACTIVE, $sub->fresh()->status);
@@ -161,7 +163,7 @@ class CentralBillingTest extends TestCase
             'due_at' => now()->subDays(3),
         ]);
 
-        $res = $this->actingAs($op, 'sanctum')->getJson('/api/central/subscriptions/suspended');
+        $res = $this->actingAs($op, 'sanctum')->getJson('/api/v1/p/central/subscriptions/suspended');
 
         $res->assertOk()->assertJsonPath('data.total', 1);
         $this->assertSame(4, $res->json('data.data.0.days_remaining'));
@@ -228,13 +230,13 @@ class CentralBillingTest extends TestCase
         $op = $this->operator();
         $auth = $this->actingAs($op, 'sanctum');
 
-        $auth->putJson('/api/central/gateway-settings', [
+        $auth->putJson('/api/v1/p/central/gateway-settings', [
             'driver' => 'zarinpal-stub',
             'merchant_id' => 'SECRET-123456',
             'sandbox' => true,
         ])->assertOk()->assertJsonPath('message', 'تنظیمات درگاه ذخیره شد.');
 
-        $res = $auth->getJson('/api/central/gateway-settings');
+        $res = $auth->getJson('/api/v1/p/central/gateway-settings');
         $res->assertOk()->assertJsonPath('data.merchant_id_masked', 'SECR****');
         $this->assertStringNotContainsString('SECRET-123456', $res->getContent());
     }
@@ -249,11 +251,11 @@ class CentralBillingTest extends TestCase
             'status' => 'active', 'due_at' => now()->addDays(5),
         ]);
 
-        $auth->postJson("/api/central/subscriptions/{$sub->id}/suspend")
+        $auth->postJson("/api/v1/p/central/subscriptions/{$sub->id}/suspend")
             ->assertOk()->assertJsonPath('message', 'اشتراک معلق شد.');
-        $auth->postJson("/api/central/subscriptions/{$sub->id}/resume")
+        $auth->postJson("/api/v1/p/central/subscriptions/{$sub->id}/resume")
             ->assertOk()->assertJsonPath('message', 'اشتراک بازگشایی شد.');
-        $auth->postJson("/api/central/subscriptions/{$sub->id}/delete")
+        $auth->postJson("/api/v1/p/central/subscriptions/{$sub->id}/delete")
             ->assertOk()->assertJsonPath('message', 'اشتراک حذف شد.');
         $this->assertSame('deleted', $sub->fresh()->status);
     }

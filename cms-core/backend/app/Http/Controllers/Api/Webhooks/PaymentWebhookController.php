@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\Webhooks;
 
 use App\Http\Controllers\Controller;
-use App\Models\Central\Invoice;
 use App\Services\Billing\InvoiceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Pishdad\Plugins\Central\Models\Invoice;
 
 /**
  * وب‌هوک درگاه پرداخت (تسک ۱.۳): تأیید HMAC روی بدنه خام + idempotent با ref.

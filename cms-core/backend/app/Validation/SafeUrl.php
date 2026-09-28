@@ -2,8 +2,7 @@
 
 namespace App\Validation;
 
-use Closure;
-use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * F0.2 — منبع حقیقت allowlist نشانی در سمت بک‌اند.
@@ -117,12 +116,12 @@ final class SafeUrl
      * بررسی و پرتاب مستقیم — برای مسیرهایی که با `validate()` کار نمی‌کنند
      * (مثل تنظیمات دیکودری‌شدهٔ ویجت که کلیدش پویا است).
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws ValidationException
      */
     public static function assertHref(string $field, mixed $value, string $label = 'نشانی پیوند'): void
     {
         if (is_string($value) && $value !== '' && ! self::isAllowedHref($value)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 $field => "{$label} معتبر نیست (فقط مسیر داخلی، https://، یا mailto:/tel:).",
             ]);
         }

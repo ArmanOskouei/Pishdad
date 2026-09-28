@@ -193,7 +193,7 @@ class ThemesTest extends TestCase
         ]);
 
         $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/central/review/{$type}/{$id}/approve")
+            ->postJson("/api/v1/p/central/review/{$type}/{$id}/approve")
             ->assertOk();
 
         // actingAs سراسری است؛ به اولین مشتری برمی‌گردیم تا ادامه تست با مالک باشد.

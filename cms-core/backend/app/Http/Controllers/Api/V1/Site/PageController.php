@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1\Site;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\V1\Admin\SiteSettingsController;
+use App\Http\Controllers\Controller;
 use App\Models\Media;
 use App\Models\Page;
 use App\Models\Setting;
@@ -158,7 +158,7 @@ class PageController extends Controller
      * گالری ← `url_0..N`، پوستر ویدیو ← `poster_url`. فقط افزودنی است؛
      * اگر مدیایی نباشد هیچ کلیدی اضافه نمی‌شود.
      *
-     * @param array<int, mixed> $blocks
+     * @param  array<int, mixed>  $blocks
      * @return array<int, mixed>
      */
     private function withMediaUrls(array $blocks): array

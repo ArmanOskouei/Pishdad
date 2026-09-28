@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\Invoice;
-use App\Models\Central\Plan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Plan;
 use Tests\TestCase;
 
 /** دسته ۱ (برابری UI/UX) — مقایسه پلن‌ها + فاکتور مابه‌التفاوت ارتقا. */

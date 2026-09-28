@@ -3,6 +3,7 @@
 namespace App\Services\Plugins;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -129,7 +130,10 @@ class PluginDispatcher
         $root = $this->releases->autoloadRoot($slug);
 
         if ($root === null) {
-            throw new \RuntimeException("نسخهٔ فعالی برای «{$slug}» روی دیسک نیست.");
+            // پیام «نسخهٔ فعال نیست» دیگر همیشه درست نبود: افزونهٔ داخلی
+            // (K7.8) اصلاً نسخه ندارد، کدش در `plugins/` مخزن است. پس هر دو
+            // حالت را یک جملهٔ درست پوشش می‌دهد.
+            throw new \RuntimeException("بستهٔ «{$slug}» روی دیسک قابل بارگذاری نیست.");
         }
 
         $this->autoloader->register(
@@ -260,9 +264,7 @@ class PluginDispatcher
         $name = $type->getName();
 
         if (! $type->isBuiltin()) {
-            // کلاس هسته یا افزونه — bind کردن مدل‌ها خارج از محدودهٔ این
-            // نقطه است و `int`/`string` تنها تبدیل‌های بی‌خطر اینجا هستند.
-            return $value;
+            return $this->coerceModel($value, $name);
         }
 
         $scalar = match ($name) {
@@ -278,5 +280,65 @@ class PluginDispatcher
         // اگر تبدیل نوع را تغییر نداد، یعنی مقدار با نوع اعلام‌شده نمی‌خواند.
         // همان مقدار خام را می‌دهیم تا خطا از هندلر بیاید نه از اینجا.
         return $scalar;
+    }
+
+    /**
+     * K7.8 — route model binding برای افزونه.
+     *
+     * ## چه چیزی عوض شد
+     *
+     * پیش از این، هر typehint غیربیتی **همان رشتهٔ خام** را می‌گرفت. پس هندلری
+     * که `Client $client` اعلام می‌کرد یک `TypeError` **بی‌پیام** می‌داد.
+     *
+     * این باگ تا K7.8 پنهان بود چون تنها هندلرِ آزمایشیِ افزونه (K7.13) پارامتر
+     * مدل نداشت — `int $id` می‌خواست و coerce معمولی کافی بود. اولین بستهٔ
+     * واقعی، ۲۲ متد با typehintِ مدل داشت و **همه** با `TypeError` می‌افتادند.
+     *
+     * یعنی بدون این تغییر، افزونهٔ مرکزی نه می‌توانست روی یک رکورد کار کند و
+     * نه نویسنده‌اش می‌فهمید چرا: ۵۰۰ عمومی، هیچ پیامی، هیچ سطری از کدش.
+     *
+     * ## چرا `findOrFail` و نه `find`
+     *
+     * `find` با `null` برمی‌گردد و هندلر بعداً `->name` می‌خواند و
+     * `Error: Call to a member function on null` می‌گیریم — باز هم بی‌پیام.
+     * `findOrFail` یک `ModelNotFoundException` می‌دهد که `PluginRouter` آن را
+     * به **۴۰۴** تبدیل می‌کند، دقیقاً مثل هسته.
+     *
+     * ## چرا باز هم یک محدودیت هست
+     *
+     * این **هر** کلاسی نیست. فقط subclassِ `Model` که namespace افزونه را داشته
+     * باشد. یک افزونه نمی‌تواند با typehint کردن یک کلاس دلخواه، سازندهٔ
+     * دلخواه را در هر dispatch اجرا کند — چون مسیری که صدا زده می‌شود فقط
+     * `newInstance()` + `findOrFail()` است، نه `new $class(...$args)`.
+     */
+    private function coerceModel(mixed $value, string $class): mixed
+    {
+        if (! is_string($value) || $value === '') {
+            return $value;
+        }
+
+        if (! class_exists($class)) {
+            return $value;
+        }
+
+        if (! is_subclass_of($class, Model::class)) {
+            return $value;
+        }
+
+        // فقط مدل‌های داخل namespace همین افزونه. مدلِ هسته (`App\Models\…`)
+        // عمداً رد می‌شود: افزونه باید آن را خودش صدا بزند، نه اینکه هسته
+        // برایش کوئری بزند. این تفاوت مرز را نگه می‌دارد.
+        if (! str_starts_with($class, PluginAutoloader::NAMESPACE_ROOT)) {
+            return $value;
+        }
+
+        if (! preg_match('/^\d+$/', $value)) {
+            // شناسه باید عدد باشد. رشتهٔ دیگر یعنی افزونه مسیری اعلام کرده که
+            // `PluginRouteTable` باید ردش می‌کرد — اینجا رد نمی‌شود که خطا
+            // از خودِ مدل بیاید.
+            return $value;
+        }
+
+        return $class::query()->findOrFail((int) $value);
     }
 }

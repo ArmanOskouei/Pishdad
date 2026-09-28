@@ -4,10 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Page;
 use App\Models\PageRevision;
+use App\Models\Theme;
 use App\Models\User;
 use App\Services\Settings\CachedSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -57,15 +60,15 @@ class LayoutLinksTest extends TestCase
 
     private function subscribe(User $owner): void
     {
-        $client = \App\Models\Central\Client::query()->oldest('id')->first();
+        $client = Client::query()->oldest('id')->first();
         if ($client) {
             $client->forceFill(['owner_user_id' => $owner->id])->save();
         } else {
-            $client = \App\Models\Central\Client::query()->create([
+            $client = Client::query()->create([
                 'name' => 'نصب تست', 'site_id' => 'site-test-'.uniqid(),
                 'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $owner->id,
             ]);
-            \App\Models\Central\Subscription::query()->create([
+            Subscription::query()->create([
                 'client_id' => $client->id, 'site_id' => $client->site_id,
                 'status' => 'active', 'due_at' => now()->addDays(30),
             ]);
@@ -234,7 +237,7 @@ class LayoutLinksTest extends TestCase
         $this->subscribe($user);
         $auth = $this->actingAs($user, 'sanctum');
 
-        \App\Models\Theme::query()->create([
+        Theme::query()->create([
             'user_id' => $user->id, 'name' => 'قالب ستونی', 'slug' => 'cols',
             'version' => '1.0.0', 'active' => true,
             'manifest' => [
@@ -281,7 +284,7 @@ class LayoutLinksTest extends TestCase
         $user = $this->user();
         $auth = $this->actingAs($user, 'sanctum');
 
-        \App\Models\Theme::query()->create([
+        Theme::query()->create([
             'user_id' => $user->id, 'name' => 'قالب ساده', 'slug' => 'plain',
             'version' => '1.0.0', 'active' => true,
             'manifest' => ['name' => 'قالب ساده', 'slug' => 'plain', 'version' => '1.0.0'],

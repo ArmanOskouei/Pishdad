@@ -2,14 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\Invoice;
-use App\Models\Central\Subscription;
 use App\Models\Media;
 use App\Models\Page;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** تسک ۲.۲ — DoD: آمار داشبورد + هشدارها + رجیستری خالی ویجت‌ها (تیکت = ۰ تا مرحله ۵). */

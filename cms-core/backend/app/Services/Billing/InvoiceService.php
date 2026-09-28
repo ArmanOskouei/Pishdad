@@ -2,11 +2,11 @@
 
 namespace App\Services\Billing;
 
-use App\Models\Central\BillingEvent;
-use App\Models\Central\Invoice;
-use App\Models\Central\Payment;
-use App\Models\Central\Subscription;
 use Illuminate\Support\Facades\DB;
+use Pishdad\Plugins\Central\Models\BillingEvent;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Payment;
+use Pishdad\Plugins\Central\Models\Subscription;
 
 /**
  * تنها نقطه «paid شدن» فاکتور — هم وب‌هوک درگاه و هم (در آینده) verify دستی

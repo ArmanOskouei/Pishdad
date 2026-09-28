@@ -4,7 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Services\Plugins\PluginDispatcher;
 use App\Services\Plugins\PluginRouteTable;
+use Illuminate\Contracts\Auth\Factory as AuthFactory;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -72,18 +76,163 @@ class PluginRouter extends Controller
      */
     private const NOT_FOUND = 'این مسیر وجود ندارد.';
 
+    /**
+     * پیام ۴۰۱ افزونه.
+     *
+     * همان متنی که میان‌افزارِ `Authenticate` هسته برمی‌گرداند. یک رشتهٔ ثابت
+     * است چون پاسخِ افزونه نباید فرقی با هسته داشته باشد — وگرنه یک رابط
+     * می‌سازیم که از روی متن پاسخ می‌شود تشخیص داد مسیر از افزونه آمده.
+     */
+    private const UNAUTHENTICATED = 'Unauthenticated.';
+
+    /**
+     * `central.operator` → کلاس واقعیِ میان‌افزار.
+     *
+     * رشتهٔ مانیفست **alias** است نه کلاس. `Container::make('central.operator')`
+     * خطای `Target class [central.operator] does not exist` می‌دهد.
+     *
+     * نگاشت از رجیستررِ `Illuminate\Routing\Router` خوانده می‌شود، نه از یک
+     * آرایهٔ محلی — وگرنه دو تعریفِ alias داشتیم و تغییر یکی جای دیگر را
+     * بی‌سروصدا خراب می‌کرد.
+     *
+     * اگر alias در رجیسترر نبود، **کلاس** فرض می‌شود — چون مانیفستِ یک بستهٔ
+     * بازاری ممکن است نام کلاس بدهد و `compileMiddleware` اجازه‌اش می‌دهد.
+     * هر دو حالت به همان `Container::make` می‌رسند، پس تفاوتی در مسیر ندارد.
+     */
+    private function resolvePipe(string $name): object
+    {
+        $router = $this->container->make(Router::class);
+
+        $resolved = method_exists($router, 'getMiddleware')
+            ? ($router->getMiddleware()[$name] ?? null)
+            : null;
+
+        return $this->container->make(is_string($resolved) ? $resolved : $name);
+    }
+
     public function __construct(
         private PluginRouteTable $routes,
         private PluginDispatcher $dispatcher,
+        private Container $container,
     ) {}
 
     public function __invoke(Request $request, string $slug, ?string $any = null): mixed
     {
         $method = strtoupper($request->getMethod());
-        $route = $this->routes->resolve($slug, (string) $any);
 
-        if ($route === null || $route['method'] !== $method) {
+        // K7.8 — متد به `resolve()` داده می‌شود. پیش از این `resolve()` اولین
+        // regex هم‌خوان را برمی‌گرداند و مقایسهٔ متد **بعد** انجام می‌شد، پس هر
+        // مسیری که هم `GET` و هم `POST` داشت فقط به متدِ اول جواب می‌داد:
+        // `POST /clients` ۴۰۴ می‌داد در حالی که `GET /clients` کار می‌کرد.
+        //
+        // این باگ تا K7.8 پنهان بود چون تنها بستهٔ آزمایشیِ افزونه (K7.13) روی
+        // هر مسیر **یک** متد داشت. اولین بستهٔ واقعی، اولین افزونهٔ کاملِ
+        // REST-شکل، آن را لو داد.
+        $route = $this->routes->resolve($slug, (string) $any, $method);
+
+        if ($route === null) {
             return response()->json(['message' => self::NOT_FOUND], 404);
+        }
+
+        // K5.4 — میان‌افزارهای route **اجرا** می‌شوند.
+        //
+        // ⚠️ این تا K7.8 اجرا **نمی‌شدند**. `PluginRouteTable::compileMiddleware()`
+        // رشته‌ها را اعتبارسنجی و در جدول ذخیره می‌کرد، ولی هیچ‌کس آن‌ها را به
+        // pipeline نمی‌داد. یعنی هر افزونه‌ای که `auth:sanctum` اعلام می‌کرد
+        // **بدون احراز هویت** سرو می‌شد.
+        //
+        // چرا پنهان بود: تنها افزونهٔ آزمایشیِ آن زمان (K7.13) هیچ middleware
+        // اعلام نمی‌کرد و خودش دستی `$request->user()` را چک می‌کرد. اولین
+        // افزونهٔ واقعی که `auth:sanctum` + `central.operator` اعلام کرد
+        // (`test_non_operator_is_forbidden`: انتظار ۴۰۳، دریافت ۲۰۰) آن را لو داد.
+        //
+        // این یعنی یک افزونهٔ بازاری می‌توانست با اعلام `auth:sanctum` فکر کند
+        // خودش را محافظت کرده، و در واقع بی‌احراز هویت سرو می‌شد.
+        //
+        // ⚠️ **guard و middleware دو چیز متفاوت‌اند.**
+        //
+        // `auth:sanctum` یک **guard** است: یعنی «احراز هویت کاربر را با این
+        // driver بررسی کن و اگر نشد ۴۰۱ بده». در لاراول guard یک **middleware
+        // نیست** و نمی‌شود در `through()` گذاشت — تلاش اول همین کار را کرد و
+        // `Error: Object of type Illuminate\Auth\AuthManager is not callable`
+        // داد، یعنی هر مسیرِ دارای middleware به ۵۰۰ می‌افتاد.
+        //
+        // پس به ترتیب درست:
+        // ۱. `auth:*` → بررسیِ guard، و ساختِ پاسخِ خودمان.
+        //
+        // ⚠️ **`Guard::authenticate()` پاسخ نمی‌دهد — کاربر را برمی‌گرداند.**
+        //
+        // امضایش `?Authenticatable` است. تلاش اول آن را مثل `Authenticate`ِ
+        // لاراول فرض کرد و `if ($failed) return $failed;` نوشت. نتیجه: هر
+        // مسیرِ دارای `auth:sanctum` **بدنهٔ مدلِ کاربرِ احراز‌هویت‌شده** را
+        // به‌جای پاسخ خودش برمی‌گرداند — JSON کاربر با ۲۰۰.
+        //
+        // این فقط یک تستِ قرمز نبود: یک **نشت داده** بود، روی هر مسیرِ
+        // احراز‌هویت‌شده، برای هر افزونه‌ای که `auth:*` اعلام می‌کرد.
+        //
+        // پس اینجا خودمان پاسخ ۴۰۱ می‌سازیم. متن از `Authenticate` هسته
+        // گرفته شده تا رفتار یکسان بماند.
+        foreach ($route['middleware'] as $entry) {
+            if (! str_starts_with($entry, 'auth:')) {
+                continue;
+            }
+
+            $guard = substr($entry, strlen('auth:'));
+
+            if ($this->container->make(AuthFactory::class)->guard($guard)->guest()) {
+                return response()->json(['message' => self::UNAUTHENTICATED], 401);
+            }
+        }
+
+        //
+        // ⚠️ **`Pipeline` اینجا غلط است و تلاش اول همین اشتباه را کرد.**
+        //
+        // `Illuminate\Pipeline\Pipeline` مخصوصِ زنجیره‌ای است که هر میان‌افزار
+        // `$next($request)` می‌گیرد و **Request** را برمی‌گرداند. ولی
+        // `EnsureCentralOperator::handle` نوعِ بازگشتی‌اش `Response` است و
+        // `return $next($request)` می‌کند.
+        //
+        // نتیجه: `Pipeline` مقدارِ `$request` را با آن Response جایگزین کرد و
+        // گام بعدی — یعنی `dispatch()` — به‌جای درخواست، **کاربر
+        // احراز‌هویت‌شده** را گرفت. پاسخ ۲۰۰ بود با body که JSON کاربر بود.
+        //
+        // این یعنی هر مسیرِ دارای middleware بدنهٔ مدلِ کاربر را به‌جای پاسخِ
+        // خودش برمی‌گرداند — یک نشت داده، نه فقط یک تست قرمز.
+        //
+        // راه درست: زنجیره را **دستی** می‌سازیم و در هر گام Request را از
+        // Response جدا می‌کنیم. اگر چیزی غیر از Request برگشت، میان‌افزار
+        // دارد پاسخ می‌دهد (مثل ۴۰۳) و باید همان برگردد.
+        //
+        // ⚠️ `Container::make('central.operator')` هم کار نمی‌کند: رشتهٔ
+        // مانیفست **alias** است نه کلاس، و resolve‌اش
+        // `Target class [central.operator] does not exist` می‌دهد. نگاشت
+        // alias→کلاس از خودِ `Router` خوانده می‌شود تا تعریفِ دومی نسازیم.
+        // ۲. بقیهٔ میان‌افزارها، به‌ترتیبِ اعلان.
+        //
+        // زنجیره **دستی** ساخته می‌شود نه با `Illuminate\Pipeline\Pipeline`:
+        // آن مخصوصِ زنجیره‌ای است که هر میان‌افزار `$next($request)` می‌گیرد و
+        // **Request** برمی‌گرداند، ولی `EnsureCentralOperator::handle` نوعِ
+        // بازگشتی‌اش `Response` است و `return $next($request)` می‌کند.
+        //
+        // با `Pipeline` مقدارِ `$request` با آن Response جایگزین می‌شد و گام
+        // بعدی به‌جای درخواست، پاسخ می‌گرفت — یعنی `dispatch()` روی یک
+        // `JsonResponse` اجرا می‌شد.
+        $pipes = array_values(array_filter(
+            $route['middleware'],
+            static fn (string $entry): bool => ! str_starts_with($entry, 'auth:'),
+        ));
+
+        foreach ($pipes as $pipe) {
+            $result = $this->resolvePipe($pipe)->handle(
+                $request,
+                fn (Request $passed) => $this->dispatcher->dispatch($passed, $route),
+            );
+
+            if (! $result instanceof Request) {
+                return $result;
+            }
+
+            $request = $result;
         }
 
         // K7.11 — پیش از این، هر مسیر درست ۵۰۱ برمی‌گرداند چون
@@ -104,6 +253,18 @@ class PluginRouter extends Controller
             throw $e;
         } catch (HttpExceptionInterface|SymfonyNotFoundHttpException $e) {
             throw $e;
+        } catch (ModelNotFoundException $e) {
+            // K7.8 — route model binding.
+            //
+            // هندلری که `Client $client` اعلام می‌کند، اگر رکوردی نباشد
+            // `findOrFail` یک `ModelNotFoundException` می‌دهد. این **پاسخ‌دادنی**
+            // است، نه خرابی افزونه — دقیقاً مثل `abort(404)`.
+            //
+            // بدون این شاخه، یک مشتریِ حذف‌شده یک ۵۰۰ عمومی می‌داد و پنل مرکزی
+            // هر بار که روی لینکِ قدیمی کلیک می‌شد خطا نشان می‌داد. ضمناً جزئیات
+            // مدل (`getMessage()`) شامل **نام جدول** است، پس پیام فارسی و کلی
+            // می‌رود.
+            throw new SymfonyNotFoundHttpException;
         } catch (Throwable $e) {
             // جزئیات فقط در لاگ. یک استثنا می‌تواند connection string یا مسیر
             // فایل داشته باشد و مسیر فایل ساختار دیسک را لو می‌دهد.

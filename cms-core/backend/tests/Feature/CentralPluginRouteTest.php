@@ -49,21 +49,26 @@ class CentralPluginRouteTest extends TestCase
     }
 
     /**
-     * افزونهٔ مرکزی را **واقعاً روی دیسک نصب** می‌کند.
+     * افزونهٔ مرکزی را فعال می‌کند، با مانیفستی که **فقط یک مسیر** دارد.
      *
-     * ## چرا `require_once` تنها کافی نیست
+     * ## چرا مانیفست دستی و نه مانیفستِ بستهٔ واقعی
      *
-     * `PluginDispatcher::ensureAutoloaded()` (`:123`) قبل از هر dispatch
-     * `$this->releases->autoloadRoot($slug)` را صدا می‌زند و اگر `null` بدهد
-     * `RuntimeException` می‌اندازد: «نسخهٔ فعالی روی دیسک نیست». یعنی مسیر
-     * افزونه از مانیفست نمی‌آید — از **اشاره‌گر روی دیسک** می‌آید.
+     * این تست یک چیز را می‌سنجد: **dispatch** — از resolve تا اجرا تا اعلان.
+     * مانیفستِ بستهٔ واقعی ۶۳ مسیر دارد که ۲۲ فایلِ تستِ مرکزی جداگانه
+     * می‌سنجند. اگر اینجا هم از آن استفاده می‌کردیم، هر تغییر در آن ۶۳ مسیر
+     * این تست را هم می‌شکست و دو چیزِ متفاوت را به هم گره می‌زد.
      *
-     * تلاش اول فقط `require_once` کرد و ۵۰۰ بی‌پیام گرفت. ریشه‌اش همین بود و
-     * `withoutExceptionHandling` هم آن را نشان نداد چون خطا داخل
-     * `PluginRouter` به یک پاسخ عمومی تبدیل می‌شود.
+     * ## چرا دیگر release نمی‌سازیم
      *
-     * پس اینجا یک release واقعی با اشاره‌گر `.current` ساخته می‌شود — همان
-     * ساختاری که `PluginInstaller` می‌سازد.
+     * پیش از K7.8 اینجا یک release واقعی در `storage/app/plugins/central/`
+     * می‌ساخت، چون `PluginDispatcher` فقط `storage` را می‌دید. حالا بستهٔ
+     * مرکزی در **مخزن** است (`plugins/central/Laravel/src`) و
+     * `AppServiceProvider::bootBundledPlugins()` آن را در هر درخواست ثبت
+     * می‌کند.
+     *
+     * آن روش هم یک پیامِ گمراه‌کننده داشت که حالا دیگر درست نیست:
+     * «مسیر افزونه از **اشاره‌گر روی دیسک** می‌آید» — برای بستهٔ داخلی دیگر
+     * اشاره‌گری در کار نیست.
      */
     private function centralPlugin(): Plugin
     {
@@ -85,69 +90,36 @@ class CentralPluginRouteTest extends TestCase
             ],
         ];
 
-        $plugin = Plugin::query()->create([
-            'name' => 'مرکزی',
-            'slug' => $slug,
-            'active' => true,
-            'review_status' => Plugin::REVIEW_APPROVED,
-            'manifest' => $manifest,
-        ]);
+        // `firstOrCreate` نه `create` — از K7.8 رکوردِ بستهٔ مرکزیِ واقعی در
+        // جدول هست و `TestCase` آن را فعال می‌کند. `create` روی همان slug به
+        // `plugins_slug_unique` می‌خورد.
+        $plugin = Plugin::query()->firstOrCreate(
+            ['slug' => $slug],
+            [
+                'name' => 'مرکزی',
+                'version' => '1.0.0',
+                'active' => true,
+                'review_status' => Plugin::REVIEW_APPROVED,
+                'manifest' => $manifest,
+            ],
+        );
 
-        $this->installOnDisk($slug, $manifest);
+        // K7.8 — `installOnDisk()` حذف شد.
+        //
+        // آن روش یک release ساختگی در `storage/app/plugins/central/` می‌ساخت
+        // چون `PluginDispatcher::ensureAutoloaded()` فقط `storage` را می‌دید.
+        // بستهٔ مرکزی حالا در **مخزن** است (`plugins/central/Laravel/src`) و
+        // `AppServiceProvider::bootBundledPlugins()` آن را در هر درخواست ثبت
+        // می‌کند، پس نه ساختنِ release لازم است و نه کپی کردن فایل‌ها.
+        //
+        // مانیفست کوچکِ بالا فقط یک route دارد و عمداً: این تست می‌خواهد
+        // **dispatch** را جداگانه بسنجد، نه اینکه ۶۳ مسیرِ بستهٔ واقعی را
+        // دوباره تست کند — آن‌ها را ۲۲ فایلِ تستِ مرکزی می‌سنجند.
+        $plugin->forceFill(['manifest' => $manifest])->save();
 
         $this->table->flush();
 
         return $plugin;
-    }
-
-    /**
-     * بستهٔ مرکزی را **واقعاً روی دیسک** می‌سازد.
-     *
-     * ## چرا اصلاً دیسک لازم است
-     *
-     * `PluginDispatcher::ensureAutoloaded()` (`:123`) قبل از هر dispatch
-     * `$this->releases->autoloadRoot($slug)` را صدا می‌زند و اگر `null` بدهد
-     * `RuntimeException` می‌اندازد. یعنی مسیر افزونه از مانیفست DB نمی‌آید — از
-     * **اشاره‌گر روی دیسک** می‌آید.
-     *
-     * تلاش اول فقط `require_once` کرد و ۵۰۰ بی‌پیام گرفت، چون `PluginRouter`
-     * خطا را به پاسخ عمومی تبدیل می‌کند و `withoutExceptionHandling` هم آن را
-     * نشان نمی‌دهد. ریشه‌اش را با اجرای مستقیم `dispatch()` پیدا شد.
-     *
-     * ## سه قالب دقیق که باید رعایت شوند
-     *
-     *  ۱) `.current` **JSON** است، نه متن ساده: `readPointer()` (`:732`) کل
-     *     فایل را `readJson` می‌کند و `$raw['release']` می‌خواند.
-     *  ۲) ریشهٔ PSR-4 = `Laravel/src` (`PSR4_SUBPATH:60`)، نه ریشهٔ release.
-     *  ۳) `manifest.json` داخل release لازم است، وگرنه `isUsable()` (`:376`)
-     *     همان release را مرده می‌گزارد.
-     */
-    private function installOnDisk(string $slug, array $manifest): void
-    {
-        $releases = dirname(__DIR__, 2).'/storage/app/plugins/'.$slug.'/releases';
-        $label = '1.0.0-'.substr(md5($slug), 0, 8);
-        $versionDir = $releases.'/'.$label;
-        $srcDir = $versionDir.'/Laravel/src/Http';
-
-        if (! is_dir($srcDir)) {
-            mkdir($srcDir, 0o777, true);
-            copy(
-                dirname(__DIR__).'/Fixtures/PluginCentral/Http/OperatorReplyController.php',
-                $srcDir.'/OperatorReplyController.php',
-            );
-        }
-
-        // `isUsable()` این را می‌خواهد وگرنه release مرده تلقی می‌شود.
-        file_put_contents(
-            $versionDir.'/manifest.json',
-            json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        );
-
-        // قالب JSON — نسخهٔ اول متن ساده بود و `readJson` آن را نمی‌خواند.
-        file_put_contents(
-            $releases.'/.current',
-            json_encode(['release' => $label], JSON_UNESCAPED_SLASHES),
-        );
     }
 
     private function user(): User

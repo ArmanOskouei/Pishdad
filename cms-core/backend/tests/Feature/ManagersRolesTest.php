@@ -166,7 +166,7 @@ class ManagersRolesTest extends TestCase
             'password' => Hash::make('Operator!1234'), 'role' => 'operator',
         ]);
         $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/central/review/plugin/{$id}/approve")->assertOk();
+            ->postJson("/api/v1/p/central/review/plugin/{$id}/approve")->assertOk();
         $auth = $this->actingAs($owner->fresh(), 'sanctum');
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 

@@ -40,6 +40,12 @@ class PluginPackageValidatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // K7.8 — چند تست این فایل کل جدول `plugins` را می‌سنجند
+        // (`assertDatabaseCount('plugins', 0)`). رکوردِ بستهٔ مرکزی از
+        // migration باقی است، پس باید صریح برداشته شود.
+        $this->withoutBundledCentralPlugin();
+
         $kp = sodium_crypto_sign_keypair();
         config(['plugins.public_key' => base64_encode(sodium_crypto_sign_publickey($kp))]);
         $this->secretKey = base64_encode(sodium_crypto_sign_secretkey($kp));

@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\V1\Admin\SiteSettingsController;
+use App\Models\Media;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Settings\CachedSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -29,15 +33,15 @@ class LogoWidgetTest extends TestCase
 
     private function subscribe(User $owner): void
     {
-        $client = \App\Models\Central\Client::query()->oldest('id')->first();
+        $client = Client::query()->oldest('id')->first();
         if ($client) {
             $client->forceFill(['owner_user_id' => $owner->id])->save();
         } else {
-            $client = \App\Models\Central\Client::query()->create([
+            $client = Client::query()->create([
                 'name' => 'نصب تست', 'site_id' => 'site-test-'.uniqid(),
                 'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $owner->id,
             ]);
-            \App\Models\Central\Subscription::query()->create([
+            Subscription::query()->create([
                 'client_id' => $client->id, 'site_id' => $client->site_id,
                 'status' => 'active', 'due_at' => now()->addDays(30),
             ]);
@@ -90,12 +94,12 @@ class LogoWidgetTest extends TestCase
         $this->subscribe($user);
         $key = 'global';
 
-        $media = \App\Models\Media::query()->create([
+        $media = Media::query()->create([
             'user_id' => $user->id, 'disk' => 's3', 'original_name' => 'logo.png', 'path' => 'u/logo.png',
             'mime' => 'image/png', 'size' => 100,
         ]);
         Setting::set('site', $key, array_merge(
-            \App\Http\Controllers\Api\V1\Admin\SiteSettingsController::SITE_DEFAULTS,
+            SiteSettingsController::SITE_DEFAULTS,
             ['title' => 'سایت من', 'logo_media_id' => $media->id]
         ));
 

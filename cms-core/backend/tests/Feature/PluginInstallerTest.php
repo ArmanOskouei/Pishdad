@@ -134,7 +134,31 @@ class PluginInstallerTest extends TestCase
 
         $this->releases->activate(self::SLUG, self::VERSION, $label);
         $this->assertSame($expected.'/Laravel/src', $this->releases->autoloadRoot(self::SLUG));
-        $this->assertSame(['blog' => 'blog/releases/1.0.0-'.$label.'/Laravel/src'], $this->releases->autoloadPackages());
+
+        // K7.8 — شکلِ خروجی عوض شد: `basePath => [slug => مسیر نسبی]`.
+        //
+        // ریشه‌اش این است که حالا **دو** ریشه داریم: `storage/app/plugins` برای
+        // بستهٔ بازاری و `plugins/` مخزن برای افزونهٔ داخلی. نقشهٔ قدیمی
+        // مسیر را نسبت به **یک** پایه حساب می‌کرد، پس اگر شکلش عوض نشود برای
+        // بستهٔ داخلی رشته‌ای می‌دهد که به هیچ‌جا اشاره نمی‌کند.
+        //
+        // کلیدِ بیرونی، پایهٔ نصبِ همین تست است (sandbox) — و چون sandbox
+        // خالی است جز همین بسته، فقط یک کلید دارد.
+        $packages = $this->releases->autoloadPackages();
+
+        $this->assertArrayHasKey($this->sandboxPath(), $packages, 'پایهٔ sandbox باید کلید باشد.');
+        $this->assertSame(
+            ['blog' => 'blog/releases/1.0.0-'.$label.'/Laravel/src'],
+            $packages[$this->sandboxPath()],
+        );
+    }
+
+    /** پایهٔ نصبِ نرمال‌شدهٔ این تست. */
+    private function sandboxPath(): string
+    {
+        $real = realpath($this->sandbox);
+
+        return str_replace('\\', '/', $real === false ? $this->sandbox : $real);
     }
 
     public function test_the_verification_pass_covers_every_extracted_file(): void

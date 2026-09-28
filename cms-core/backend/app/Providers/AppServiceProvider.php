@@ -8,6 +8,8 @@ use App\Services\Chabokan\ChabokanClientInterface;
 use App\Services\Chabokan\StubChabokanDriver;
 // بدون این `use`، PHP این نام را داخل `App\Providers` حل می‌کرد و کل اپ
 // با BindingResolutionException بالا نمی‌آمد (کلاس در `App\Services\Plugins` است).
+use App\Services\Plugins\PluginAutoloader;
+use App\Services\Plugins\PluginReleaseManager;
 use App\Services\Plugins\ServiceProviderRegistry;
 use App\Services\RevalidateSigner;
 use App\Validation\NoMarkup;
@@ -15,9 +17,12 @@ use App\Validation\SafeUrl;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -54,6 +59,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->bootBundledPlugins();
+
         // F0.1 / F0.2 — قاعده‌های اعتبارسنجی سراسری.
         //
         // اینها «پیش‌فرض امن» را در لحظهٔ نوشتن می‌سازند، نه در لحظهٔ رندر. دلیل:
@@ -117,11 +124,67 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(15, 10)
                 ->by($request->input('email', '').'|'.$request->ip())
                 ->response(function () {
-                    return response()->json(
-                        ['message' => 'تلاش‌های ورود بیش از حد مجاز است. لطفاً دقایقی دیگر تلاش کنید.'],
-                        429
-                    );
+                    return response()->json([
+                        'message' => 'تلاش‌های ورود بیش از حد مجاز است. لطفاً دقایقی دیگر تلاش کنید.',
+                    ], 429);
                 });
         });
+    }
+
+    /**
+     * K7.8 — ثبت PSR-4 افزونه‌های داخلی، در هر درخواست.
+     *
+     * ## چرا اینجا و نه فقط کنار dispatcher
+     *
+     * `PluginDispatcher` بارگذار را **تنبل** صدا می‌زند: فقط وقتی خواسته‌ای به
+     * مسیر افزونه می‌رسد. ولی پس از انتقال مرکز، کدِ هسته هم مدل‌های مرکزی را
+     * صدا می‌زند — `PaymentWebhookController` روی جدول فاکتور می‌نویسد،
+     * `HeartbeatController` به جدول مشتریان می‌خواند، و
+     * `SubscriptionStatusController` به جدول اشتراک‌ها.
+     *
+     * آن مسیرها هرگز از `PluginDispatcher` رد نمی‌شوند، پس namespace افزونه
+     * هنوز ثبت نشده بود و کلاس پیدا نمی‌شد. نتیجه یک `Error: Class not found`
+     * در **heartbeat نصب‌ها** و **callback درگاه** بود — یعنی دقیقاً دو جایی که
+     * نباید بشکنند.
+     *
+     * ثبت زودهنگام این مشکل را حل می‌کند و برای افزونهٔ داخلی **درست** است: این
+     * بسته با `git pull` می‌آید، قابل غیرفعال‌سازی نیست، و هرگز در جدول
+     * `system_plugins` هم نمی‌نشیند چون اصلاً نصب نمی‌شود.
+     *
+     * ## چرا فقط `source` و نه بسته‌های بازاری
+     *
+     * بستهٔ بازاری همچنان تنبل بارگذاری می‌شود. زودهنگام‌کردنش هم هزینهٔ راه‌اندازیِ
+     * هر request را برای افزونه‌هایی می‌پردازد که شاید اصلاً در آن درخواست
+     * استفاده نشوند، و هم بسته‌ای را که کاربر می‌تواند غیرفعال کند عملاً بی‌اختیار
+     * بارگذاری می‌کند — که خلاف قرارداد «افزونهٔ غیرفعال هیچ مسیری ندارد» است.
+     *
+     * @see PluginReleaseManager::sourceAutoloadRoot()
+     */
+    private function bootBundledPlugins(): void
+    {
+        $releases = $this->app->make(PluginReleaseManager::class);
+        $autoloader = $this->app->make(PluginAutoloader::class);
+
+        foreach ($releases->sourceSlugs() as $slug) {
+            $root = $releases->sourceAutoloadRoot($slug);
+            if ($root === null) {
+                continue;
+            }
+
+            try {
+                $autoloader->register(
+                    $slug,
+                    $root,
+                    PluginAutoloader::NAMESPACE_ROOT.Str::studly($slug).'\\',
+                );
+            } catch (InvalidArgumentException $e) {
+                // ثبتِ یک بستهٔ داخلی نباید کل سایت را بالا نیاورد. بستهٔ
+                // ناسالم یک هشدار می‌ماند نه یک صفحهٔ ۵۰۰ برای همه.
+                Log::warning('bundled_plugin_register_failed', [
+                    'slug' => $slug,
+                    'reason' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 }

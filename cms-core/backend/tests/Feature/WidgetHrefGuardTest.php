@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
+use App\Services\Layouts\LinkItems;
 use App\Validation\SafeUrl;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use App\Models\User;
 use Tests\TestCase;
 
 /**
@@ -181,8 +182,8 @@ class WidgetHrefGuardTest extends TestCase
      */
     public function test_link_items_delegates_to_safe_url(): void
     {
-        $this->assertFalse(\App\Services\Layouts\LinkItems::isValidHref('//evil.com'));
-        $this->assertFalse(\App\Services\Layouts\LinkItems::isValidHref('/\evil.com'));
-        $this->assertTrue(\App\Services\Layouts\LinkItems::isValidHref('/about'));
+        $this->assertFalse(LinkItems::isValidHref('//evil.com'));
+        $this->assertFalse(LinkItems::isValidHref('/\evil.com'));
+        $this->assertTrue(LinkItems::isValidHref('/about'));
     }
 }

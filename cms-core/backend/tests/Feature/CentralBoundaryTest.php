@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\Plugins\PluginReleaseManager;
 use Tests\TestCase;
 
 /**
@@ -17,8 +18,17 @@ use Tests\TestCase;
  */
 class CentralBoundaryTest extends TestCase
 {
-    /** مسیرهایی که «مرکزی» هستند و باید از هستهٔ مشتری جدا بمانند. */
+    /**
+     * مسیرهایی که «مرکزی» هستند و باید از هستهٔ مشتری جدا بمانند.
+     *
+     * K7.8 این‌ها را از `App\...` به `Pishdad\Plugins\Central\...` برد. هر دو
+     * فرم در فهرست می‌مانند: فرم قدیمی دیگر وجود ندارد، ولی اگر کسی
+     * `App\Models\Central` را از نو بسازد — مثلاً یک کپی جاافتاده — باید قرمز
+     * شود، نه اینکه بی‌صدا از نگهبان رد شود.
+     */
     private const CENTRAL_NAMESPACES = [
+        'Pishdad\Plugins\Central\Http',
+        'Pishdad\Plugins\Central\Models',
         'App\Http\Controllers\Api\Central',
         'App\Models\Central',
     ];
@@ -29,8 +39,6 @@ class CentralBoundaryTest extends TestCase
      * بیرون می‌آیند.
      */
     private const ALLOWED = [
-        'app/Http/Controllers/Api/Central',
-        'app/Models/Central',
         'app/Http/Middleware/EnsureCentralOperator.php',
         'app/Services/Subscription/ClientSubscriptionResolver.php',
         // K4.5 — تنها نقطهٔ تماس هسته با جدول ردپای مرکزی. عمداً یک adapter مرزی
@@ -171,9 +179,13 @@ class CentralBoundaryTest extends TestCase
     {
         $tables = [];
 
-        foreach (glob(base_path('app/Models/Central/*.php')) ?: [] as $file) {
-            $class = 'App\\Models\\Central\\'.basename($file, '.php');
+        foreach (glob(base_path('plugins/central/Laravel/src/Models/*.php')) ?: [] as $file) {
+            $class = 'Pishdad\\Plugins\\Central\\Models\\'.basename($file, '.php');
 
+            // K7.8: کلاس‌های مدل حالا زیر namespace افزونه‌اند و PSR-4 آن در
+            // `AppServiceProvider::bootBundledPlugins()` ثبت می‌شود. بدون آن ثبت،
+            // `class_exists` همیشه false می‌داد و فهرست جدول‌ها **خالی** می‌شد —
+            // یعنی نگهبان سبز می‌شد در حالی که هیچ جدولی را نمی‌سنجید.
             if (! class_exists($class)) {
                 continue;
             }
@@ -267,6 +279,123 @@ class CentralBoundaryTest extends TestCase
             8,
             count(self::ALLOWED),
             'فهرست استثناها بزرگ شده — یعنی مرز عملاً حذف شده است.'
+        );
+    }
+
+    /**
+     * K7.8 — نگهبانِ معکوس: افزونهٔ مرکزی نباید به هستهٔ مشتری چنگ بزند.
+     *
+     * سه تست بالا همه از یک طرف نگاه می‌کنند: «هسته به مرکزی ارجاع نده.» ولی
+     * بعد از انتقال، خطرِ برعکس هم هست و **دقیقاً همان چیزی است که K7.8 می‌خواست
+     * حل کند**: کد مرکزی به سرویس‌های هسته بچسبد و هسته عملاً بی‌مرز شود.
+     *
+     * بدون این تست، انتقال «موفق» بود ولی هسته یک کوچهٔ فرار به افزونه پیدا
+     * می‌کرد — و هیچ‌کدام از تست‌های موجود نمی‌دیدند، چون همه از سمت هسته
+     * نگاه می‌کردند.
+     *
+     * استثناها محدود و **نام‌بردنی**‌اند، چون بعضی وابستگی‌ها اجتناب‌ناپذیرند:
+     *  - `App\Models\User` — ۶ مدل مرکزی به کاربر رابطه دارند و جدول
+     *    `users` در هسته می‌ماند (K7.12).
+     *  - `App\Http\Controllers\Controller` — کلاس پایهٔ لاراول.
+     *  - اعلان‌ها و مدل تیکت — کانال اعلان هسته را استفاده می‌کند (K7.13 این
+     *    هزینه را آگاهانه پذیرفت).
+     */
+    private const PLUGIN_ALLOWED_CORE = [
+        'App\\Models\\User',
+        'App\\Http\\Controllers\\Controller',
+        'App\\Models\\Ticket',
+        'App\\Models\\TicketMessage',
+        'App\\Notifications\\TicketNotification',
+        // K7.8 — چابکان از راه **رابط** صدا زده می‌شود، نه جدول. و همین رابط
+        // عمداً در هسته ثبت شده تا افزونه بتواند درایورش را تعویض کند
+        // (`AppServiceProvider` → `ServiceProviderRegistry`). پس وابستگی به
+        // افزونه است، نه به هسته.
+        'App\\Services\\Chabokan\\ChabokanClientInterface',
+        // K7.8 — جدول `settings` و مدل‌های `Plugin`/`Theme` در هسته می‌مانند
+        // (K7.12: فقط جداول `central_*` ثابت ماندند، نه همه‌چیز). صفحهٔ
+        // gateway-settings و صف بازبینی هر دو به همین‌ها نیاز دارند.
+        'App\\Models\\Setting',
+        'App\\Models\\Plugin',
+        'App\\Models\\Theme',
+        // K7.8 — `OperatorController::createSetupToken` بدونِ 2FA تازه معنا
+        // ندارد و `AuthController::hasFreshTwoFactor()` تنها پیاده‌سازیِ آن
+        // است. راه‌حل جایگزین یعنی کپی کردنِ منطق احراز هویت در افزونه، که
+        // یعنی دو منبع حقیقت برای یک قاعدهٔ امنیتی.
+        //
+        // وابستگی به یک **سرویس** است نه به جدول، پس مرز دیتابیس را نمی‌شکند.
+        'App\\Http\\Controllers\\Api\\V1\\AuthController',
+    ];
+
+    public function test_the_central_plugin_does_not_reach_into_shared_core(): void
+    {
+        $violations = [];
+
+        foreach (glob(base_path('plugins/central/Laravel/src/**/*.php')) ?: [] as $file) {
+            $source = (string) file_get_contents($file);
+
+            preg_match_all('/\bApp\\\\[A-Za-z0-9_]+(?:\\\\[A-Za-z0-9_]+)+/', $source, $hits);
+
+            foreach (array_unique($hits[0]) as $fqcn) {
+                $allowed = false;
+                foreach (self::PLUGIN_ALLOWED_CORE as $exception) {
+                    if ($fqcn === $exception || str_starts_with($fqcn, $exception.'\\')) {
+                        $allowed = true;
+                        break;
+                    }
+                }
+
+                if (! $allowed) {
+                    $violations[] = str_replace('\\', '/', basename($file)).' → '.$fqcn;
+                }
+            }
+        }
+
+        sort($violations);
+
+        $this->assertSame(
+            [],
+            $violations,
+            "افزونهٔ مرکزی به هستهٔ مشتری چنگ می‌زند. هر مورد تازه یعنی مرزی که\n"
+            ."K7.8 آمده بود حذفش کند و به‌جایش بستگی ساخته:\n"
+            .implode("\n", $violations)
+        );
+    }
+
+    /**
+     * فهرست استثناهای افزونه هم نباید بزرگ شود.
+     *
+     * سقف ۱۰ است در برابر ۳۱ فایلِ منتقل‌شده. یعنی **کمتر از یک‌سوم** وابستگی‌ها
+     * مجازند — و اگر روزی به ۱۱ رسید، تقریباً قطعی است که مرز دارد آب می‌شود،
+     * نه اینکه فقط یک موردِ مجازِ تازه اضافه شده باشد.
+     */
+    public function test_the_plugin_allowlist_has_not_swallowed_the_boundary(): void
+    {
+        $this->assertLessThanOrEqual(
+            10,
+            count(self::PLUGIN_ALLOWED_CORE),
+            'فهرست استثناهای افزونه بزرگ شده — یعنی مرز عملاً حذف شده است.'
+        );
+    }
+
+    /**
+     * افزونهٔ مرکزی باید **واقعاً** روی دیسک باشد و loader آن را ببیند.
+     *
+     * بدون این تست، یک انتقال ناقص که `plugins/central/` را جا گذاشته بود
+     * همهٔ تست‌های بالا را سبز نگه می‌داشت — چون هیچ‌کدام بارگذاری را
+     * نمی‌سنجیدند. ولی هر request می‌افتاد و پنل مرکزی ۴۰۴ می‌داد.
+     */
+    public function test_the_central_plugin_is_loadable_from_source(): void
+    {
+        $releases = app(PluginReleaseManager::class);
+
+        $this->assertTrue(
+            $releases->isSourceSlug('central'),
+            'بستهٔ مرکزی زیر plugins/central/Laravel/src پیدا نشد — loader آن را نمی‌بیند.'
+        );
+
+        $this->assertNotNull(
+            $releases->sourceAutoloadRoot('central'),
+            'ریشهٔ PSR-4 بستهٔ مرکزی قابل استخراج نیست.'
         );
     }
 }

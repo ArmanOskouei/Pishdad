@@ -26,9 +26,9 @@ interface SearchableProvider
     public function key(): string;
 
     /**
-     * @param  string  $query            کوئری خام کاربر (trim شده)
+     * @param  string  $query  کوئری خام کاربر (trim شده)
      * @param  string  $normalizedQuery  کوئری نرمال‌شده فارسی‌دوست
-     * @param  int  $limit               سقف نتایج این provider
+     * @param  int  $limit  سقف نتایج این provider
      * @return array<int, array{title: string, slug: string, snippet: string, type: string, updated_at: ?string}>
      */
     public function search(string $query, string $normalizedQuery, int $limit): array;

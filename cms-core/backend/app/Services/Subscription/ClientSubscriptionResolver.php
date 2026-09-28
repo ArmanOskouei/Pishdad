@@ -2,10 +2,11 @@
 
 namespace App\Services\Subscription;
 
-use App\Models\Central\Client;
-use App\Models\Central\Subscription;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\Settings\CachedSettings;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Subscription;
 
 /**
  * تک‌منبع وضعیت اشتراک (مرحله ۱ + تسک‌های ۲.۲ / ۴.۳).
@@ -69,7 +70,7 @@ final class ClientSubscriptionResolver
         $userId = $ownerUserId ?? $subscription->client?->owner_user_id;
         if ($userId) {
             // مشترک نصب: عنوان از تنظیمات سراسری (کلید global).
-            $site = CachedSettings::remember('site', 'global', 300, fn () => \App\Models\Setting::get('site', 'global', []));
+            $site = CachedSettings::remember('site', 'global', 300, fn () => Setting::get('site', 'global', []));
             if (! empty($site['title'])) {
                 $brand = $site['title'];
             }

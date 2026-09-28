@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Plugin;
 use App\Models\User;
 use App\Services\Plugins\PluginSignatureVerifier;
 use Database\Seeders\RolesPermissionsSeeder;
@@ -92,12 +93,12 @@ class ReviewModerationTest extends TestCase
             ->assertStatus(422);
 
         $op = $this->actingAs($this->operator(), 'sanctum');
-        $op->getJson('/api/central/review/queue')->assertOk();
+        $op->getJson('/api/v1/p/central/review/queue')->assertOk();
 
-        $queue = $op->getJson('/api/central/review/queue')->json('data');
+        $queue = $op->getJson('/api/v1/p/central/review/queue')->json('data');
         $this->assertTrue(collect($queue)->contains(fn ($i) => $i['type'] === 'plugin' && (int) $i['id'] === $id));
 
-        $op->postJson("/api/central/review/plugin/{$id}/approve")->assertOk();
+        $op->postJson("/api/v1/p/central/review/plugin/{$id}/approve")->assertOk();
 
         $me = $this->actingAs(User::query()->where('role', 'admin')->first(), 'sanctum');
         $me->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
@@ -116,9 +117,9 @@ class ReviewModerationTest extends TestCase
         $op = $this->actingAs($this->operator(), 'sanctum');
 
         // رد بدون note = 422.
-        $op->postJson("/api/central/review/plugin/{$id}/reject", [])->assertStatus(422);
+        $op->postJson("/api/v1/p/central/review/plugin/{$id}/reject", [])->assertStatus(422);
 
-        $op->postJson("/api/central/review/plugin/{$id}/reject", ['note' => 'کد ناامن: اجرای مستقیم ورودی کاربر.'])
+        $op->postJson("/api/v1/p/central/review/plugin/{$id}/reject", ['note' => 'کد ناامن: اجرای مستقیم ورودی کاربر.'])
             ->assertOk()
             ->assertJsonPath('data.review_status', 'rejected');
 
@@ -135,10 +136,16 @@ class ReviewModerationTest extends TestCase
             ->assertStatus(422);
 
         // حذف برای آزادسازی فضا آزاد است.
+        // K7.8 — slug را **قبل** از uninstall می‌خوانیم، چون بعدش ردیفی نیست.
+        $slug = Plugin::query()->findOrFail($id)->slug;
+
         $this->actingAs($owner->fresh(), 'sanctum')
             ->postJson("/api/v1/admin/plugins/{$id}/uninstall")
             ->assertOk();
-        $this->assertDatabaseCount('plugins', 0);
+
+        // به‌جای «جدول خالی»، فقط همان بسته باید رفته باشد. این تست مسیرِ
+        // افزونهٔ مرکزی را هم می‌زند، پس رکوردش فعال است و «۰ ردیف» معنی ندارد.
+        $this->assertNotContains($slug, $this->pluginSlugs());
     }
 
     public function test_theme_moderation_flow_and_delete(): void
@@ -156,7 +163,7 @@ class ReviewModerationTest extends TestCase
         $me->postJson("/api/v1/admin/themes/{$upload['id']}/activate")->assertStatus(422);
 
         $op = $this->actingAs($this->operator(), 'sanctum');
-        $op->postJson("/api/central/review/theme/{$upload['id']}/reject", ['note' => 'استایل‌ها با توکن‌های طراحی هم‌خوان نیست.'])
+        $op->postJson("/api/v1/p/central/review/theme/{$upload['id']}/reject", ['note' => 'استایل‌ها با توکن‌های طراحی هم‌خوان نیست.'])
             ->assertOk();
 
         $this->actingAs($owner->fresh(), 'sanctum')
@@ -194,14 +201,14 @@ class ReviewModerationTest extends TestCase
         $op->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 
         // صف مرکزی برای مشتری عادی خالی از این مورد است (approved).
-        $queue = $op->getJson('/api/central/review/queue')->assertOk()->json('data');
+        $queue = $op->getJson('/api/v1/p/central/review/queue')->assertOk()->json('data');
         $this->assertFalse(collect($queue)->contains(fn ($i) => $i['type'] === 'plugin' && (int) $i['id'] === $id));
     }
 
     public function test_review_queue_requires_operator(): void
     {
         $this->actingAs($this->owner(), 'sanctum')
-            ->getJson('/api/central/review/queue')
+            ->getJson('/api/v1/p/central/review/queue')
             ->assertForbidden();
     }
 }

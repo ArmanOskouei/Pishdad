@@ -2,14 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\Invoice;
-use App\Models\Central\Payment;
-use App\Models\Central\Plan;
-use App\Models\Central\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Payment;
+use Pishdad\Plugins\Central\Models\Plan;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** تسک ۳.۲ — DoD: آمار مرکزی (فعال/معلق/MRR/سررسیده) + سری ۱۲ ماهه درآمد/مشتری. */
@@ -68,7 +68,7 @@ class CentralDashboardTest extends TestCase
             'status' => Invoice::PENDING, 'due_at' => now()->subDays(3),
         ]);
 
-        $res = $this->actingAs($op, 'sanctum')->getJson('/api/central/dashboard/stats');
+        $res = $this->actingAs($op, 'sanctum')->getJson('/api/v1/p/central/dashboard/stats');
 
         $res->assertOk()
             ->assertJsonPath('data.active_clients', 3)
@@ -89,7 +89,7 @@ class CentralDashboardTest extends TestCase
             'ref' => 'ref-'.uniqid(), 'amount' => 300000, 'status' => 'paid',
         ])->forceFill(['created_at' => now()->subMonths(2)])->save();
 
-        $res = $this->actingAs($op, 'sanctum')->getJson('/api/central/dashboard/charts');
+        $res = $this->actingAs($op, 'sanctum')->getJson('/api/v1/p/central/dashboard/charts');
 
         $res->assertOk();
         $this->assertCount(12, $res->json('data.revenue_12m'));
@@ -105,9 +105,9 @@ class CentralDashboardTest extends TestCase
     {
         $admin = $this->admin();
 
-        $this->actingAs($admin, 'sanctum')->getJson('/api/central/dashboard/stats')
+        $this->actingAs($admin, 'sanctum')->getJson('/api/v1/p/central/dashboard/stats')
             ->assertForbidden();
-        $this->actingAs($admin, 'sanctum')->getJson('/api/central/dashboard/charts')
+        $this->actingAs($admin, 'sanctum')->getJson('/api/v1/p/central/dashboard/charts')
             ->assertForbidden();
     }
 }

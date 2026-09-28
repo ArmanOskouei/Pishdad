@@ -162,6 +162,31 @@ final class PluginRouteTable
         'throttle' => '/^\d{1,5}(?:,\d{1,4})?$/',
     ];
 
+    /**
+     * نام‌های کاملِ میان‌افزارهایی که **بدون آرگومان** مجازند.
+     *
+     * ⚠️ کلید کامل است، نه alias. چون `explode(':', 'central.operator')` می‌دهد
+     * `['central', 'operator']` — یعنی alias برابر `central` و آرگومان برابر
+     * `operator`.
+     *
+     * تلاش اول `['central']` را در فهرست گذاشت و فکر می‌کرد درست است؛ نتیجه
+     * `middleware_not_core_owned` روی هر ۶۳ مسیر و جدول route خالی. درس: این
+     * فهرست را باید **از روی همان رشته‌ای** نوشت که افزونه‌نویس در مانیفست
+     * می‌نویسد، نه از روی تصورِ alias بودنش.
+     *
+     * ## چرا این امن است
+     *
+     * فهرست **بسته** است، نه الگو، و آرگومانی هم نمی‌پذیرد. یعنی یک افزونهٔ
+     * بازاری می‌تواند بگوید «central.operator» و از درِ هسته رد شود — ولی این
+     * **قبلاً هم** می‌توانست: `EnsureCentralOperator` خودش فقط `is_super_admin`
+     * یا نقش `operator` را می‌پذیرد و هیچ ورودیِ افزونه‌ای را نمی‌خواند. این
+     * alias دروازهٔ تازه‌ای باز نمی‌کند؛ فقط اجازه می‌دهد افزونه‌ای که *قبلاً*
+     * می‌توانست، این را اعلام کند.
+     */
+    private const MIDDLEWARE_ALIASES = [
+        'central.operator',
+    ];
+
     /** باقی‌ماندهٔ نام پرمیشن پس از `plugin:{slug}:` — دقیقاً شکلی که خود هسته می‌سازد. */
     private const PERMISSION_TAIL_PATTERN = '/^[a-z0-9_-]{2,40}\.[a-z]{1,16}$/';
 
@@ -204,7 +229,7 @@ final class PluginRouteTable
      * @param  string  $path  باقی‌ماندهٔ مسیر از `{any?}`؛ می‌تواند تهی باشد
      * @return array<string, mixed>|null اعلان route، یا null اگر هیچ routeای نخواند
      */
-    public function resolve(string $slug, string $path): ?array
+    public function resolve(string $slug, string $path, ?string $method = null): ?array
     {
         if (! self::isValidSlug($slug)) {
             return null;
@@ -222,7 +247,28 @@ final class PluginRouteTable
             return null;
         }
 
+        $wanted = $method === null ? null : strtoupper($method);
+
+        // ⚠️ **متد باید داخل حلقهٔ جست‌وجو باشد، نه بعد از آن.**
+        //
+        // نسخهٔ قبلی اولین regex هم‌خوان را برمی‌گرداند و `PluginRouter` متد را
+        // **بعداً** می‌سنجید و ۴۰۴ می‌داد. برای بسته‌ای که روی هر مسیر فقط یک
+        // متد داشت هیچ‌وقت دیده نمی‌شد — ولی هر افزونهٔ واقعی روی یک مسیر
+        // `GET` و `POST` دارد.
+        //
+        // نتیجه: `POST /clients` همیشه ۴۰۴ می‌داد در حالی که `GET /clients`
+        // کار می‌کرد. و بدتر، خطایی که می‌دیدیم «این مسیر وجود ندارد» بود —
+        // یعنی کاربر و نویسنده هر دو فکر می‌کردند مسیر غلط است، در حالی که
+        // مسیر درست بود و فقط متد اشتباه بود.
+        //
+        // اولویت با **ترتیبِ اعلان** است، نه الفبای متد: اگر افزونه‌نویس عمداً
+        // یک مسیر را دوبار با متد متفاوت اعلام کند، همان ترتیبِ فایل مانیفست
+        // برنده است — که قابل پیش‌بینی است، برخلاف مرتب‌سازی.
         foreach ($entry['routes'] as $route) {
+            if ($wanted !== null && $route['method'] !== $wanted) {
+                continue;
+            }
+
             if (preg_match($route['regex'], implode('/', $segments), $params) !== 1) {
                 continue;
             }
@@ -578,6 +624,27 @@ final class PluginRouteTable
             }
 
             $rule = self::MIDDLEWARE_RULES[$alias] ?? null;
+
+            // میان‌افزارِ کاملِ بدون-آرگومان، مثل `central.operator`.
+            //
+            // مقایسه روی **رشتهٔ کامل** است نه alias. اگر با alias می‌سنجیدیم،
+            // `central.operator` با `['central', 'operator']` تجزیه می‌شد و alias
+            // برابر `central` می‌شد، پس `in_array` هیچ‌وقت true نمی‌شد.
+            //
+            // شرطِ `argument === null` عمدی است: اگر alias در فهرست باشد ولی
+            // آرگومانی هم بدهد، یعنی کسی دارد چیزی را طور دیگری جا می‌زند و
+            // نباید بی‌صدا به همان کلاس برسد.
+            if (in_array($entry, self::MIDDLEWARE_ALIASES, true)) {
+                if ($argument !== null) {
+                    $this->reject($slug, 'middleware_takes_no_argument', ['middleware' => $entry]);
+
+                    return null;
+                }
+
+                $out[] = $entry;
+
+                continue;
+            }
 
             if ($rule === null || ! is_string($argument) || preg_match($rule, $argument) !== 1) {
                 $this->reject($slug, 'middleware_not_core_owned', ['middleware' => $entry]);

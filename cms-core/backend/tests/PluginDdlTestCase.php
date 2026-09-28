@@ -2,6 +2,8 @@
 
 namespace Tests;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
 /**
  * K5.12 — پایهٔ تست‌هایی که به **نقشِ DDL افزونه** نیاز دارند.
  *
@@ -35,7 +37,7 @@ namespace Tests;
 abstract class PluginDdlTestCase extends TestCase
 {
     use EnsuresPluginDdlRole;
-    use \Illuminate\Foundation\Testing\RefreshDatabase;
+    use RefreshDatabase;
 
     protected function afterRefreshingDatabase(): void
     {

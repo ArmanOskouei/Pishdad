@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Backup;
+use Pishdad\Plugins\Central\Models\Client;
 use Tests\TestCase;
 
 /** تسک ۱.۴ — DoD: CRUD + ارتقا تیر + توکن یکبارمصرف + تعلیق + بکاپ Stub. */
@@ -33,7 +34,7 @@ class CentralClientsTest extends TestCase
     {
         $op = $this->operator();
 
-        $res = $this->actingAs($op, 'sanctum')->postJson('/api/central/clients', [
+        $res = $this->actingAs($op, 'sanctum')->postJson('/api/v1/p/central/clients', [
             'name' => 'شرکت آلفا',
             'domain' => 'alpha.example.com',
         ]);
@@ -51,10 +52,10 @@ class CentralClientsTest extends TestCase
         $this->client(['tier' => 'enterprise', 'status' => 'suspended']);
         $target = $this->client(['tier' => 'standard', 'status' => 'active']);
 
-        $auth->getJson('/api/central/clients?tier=standard')->assertOk()->assertJsonPath('data.total', 1);
-        $auth->getJson('/api/central/clients?status=suspended')->assertOk()->assertJsonPath('data.total', 1);
+        $auth->getJson('/api/v1/p/central/clients?tier=standard')->assertOk()->assertJsonPath('data.total', 1);
+        $auth->getJson('/api/v1/p/central/clients?status=suspended')->assertOk()->assertJsonPath('data.total', 1);
 
-        $detail = $auth->getJson("/api/central/clients/{$target->id}");
+        $detail = $auth->getJson("/api/v1/p/central/clients/{$target->id}");
         $detail->assertOk()->assertJsonPath('data.health_status', 'healthy');
     }
 
@@ -65,16 +66,16 @@ class CentralClientsTest extends TestCase
         $client = $this->client(['tier' => 'budget']);
 
         // پرش دو پله ممنوع.
-        $auth->postJson("/api/central/clients/{$client->id}/upgrade-tier", ['tier' => 'enterprise'])
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/upgrade-tier", ['tier' => 'enterprise'])
             ->assertStatus(422)
             ->assertJsonPath('message', 'ارتقا فقط یک پله رو به جلو مجاز است (Budget→Standard→Enterprise).');
 
         // بازگشت ممنوع.
-        $auth->postJson("/api/central/clients/{$client->id}/upgrade-tier", ['tier' => 'budget'])
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/upgrade-tier", ['tier' => 'budget'])
             ->assertStatus(422);
 
         // یک پله مجاز + لاگ.
-        $auth->postJson("/api/central/clients/{$client->id}/upgrade-tier", ['tier' => 'standard'])
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/upgrade-tier", ['tier' => 'standard'])
             ->assertOk()->assertJsonPath('message', 'تیر مشتری ارتقا یافت.');
         $this->assertSame('standard', $client->fresh()->tier);
         $this->assertDatabaseHas('central_billing_events', [
@@ -88,7 +89,7 @@ class CentralClientsTest extends TestCase
         $auth = $this->actingAs($op, 'sanctum');
         $client = $this->client();
 
-        $issued = $auth->postJson("/api/central/clients/{$client->id}/support-token")
+        $issued = $auth->postJson("/api/v1/p/central/clients/{$client->id}/support-token")
             ->assertCreated();
         $plain = $issued->json('data.token');
         $this->assertNotEmpty($plain);
@@ -96,16 +97,16 @@ class CentralClientsTest extends TestCase
         $this->assertDatabaseMissing('central_support_tokens', ['token_hash' => $plain]);
 
         // مصرف اول موفق.
-        $auth->postJson("/api/central/clients/{$client->id}/support-token/consume", ['token' => $plain])
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/support-token/consume", ['token' => $plain])
             ->assertOk()->assertJsonPath('message', 'توکن پذیرفته شد.');
 
         // مصرف دوم ناموفق (410).
-        $auth->postJson("/api/central/clients/{$client->id}/support-token/consume", ['token' => $plain])
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/support-token/consume", ['token' => $plain])
             ->assertStatus(410)
             ->assertJsonPath('message', 'توکن نامعتبر، منقضی یا قبلاً مصرف شده است.');
 
         // توکن غریبه هم نامعتبر.
-        $auth->postJson("/api/central/clients/{$client->id}/support-token/consume", ['token' => 'sup_wrong'])
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/support-token/consume", ['token' => 'sup_wrong'])
             ->assertStatus(410);
     }
 
@@ -115,11 +116,11 @@ class CentralClientsTest extends TestCase
         $auth = $this->actingAs($op, 'sanctum');
         $client = $this->client();
 
-        $plain = $auth->postJson("/api/central/clients/{$client->id}/support-token")->json('data.token');
+        $plain = $auth->postJson("/api/v1/p/central/clients/{$client->id}/support-token")->json('data.token');
 
         $this->travel(16)->minutes();
 
-        $auth->postJson("/api/central/clients/{$client->id}/support-token/consume", ['token' => $plain])
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/support-token/consume", ['token' => $plain])
             ->assertStatus(410);
     }
 
@@ -129,15 +130,15 @@ class CentralClientsTest extends TestCase
         $auth = $this->actingAs($op, 'sanctum');
         $client = $this->client();
 
-        $auth->postJson("/api/central/clients/{$client->id}/suspend")
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/suspend")
             ->assertOk()->assertJsonPath('message', 'مشتری معلق شد.');
         $this->assertSame('suspended', $client->fresh()->status);
 
-        $auth->postJson("/api/central/clients/{$client->id}/resume")
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/resume")
             ->assertOk()->assertJsonPath('message', 'مشتری بازگشایی شد.');
         $this->assertSame('active', $client->fresh()->status);
 
-        $auth->postJson("/api/central/clients/{$client->id}/delete")
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/delete")
             ->assertOk()->assertJsonPath('message', 'مشتری حذف شد.');
         $this->assertSame('deleted', $client->fresh()->status);
     }
@@ -148,17 +149,17 @@ class CentralClientsTest extends TestCase
         $auth = $this->actingAs($op, 'sanctum');
         $client = $this->client();
 
-        $backup = $auth->postJson("/api/central/clients/{$client->id}/backup")
+        $backup = $auth->postJson("/api/v1/p/central/clients/{$client->id}/backup")
             ->assertCreated();
         $backupId = $backup->json('data.id');
         $this->assertStringStartsWith('stub://', $backup->json('data.path'));
 
-        $auth->getJson("/api/central/clients/{$client->id}/backups")
+        $auth->getJson("/api/v1/p/central/clients/{$client->id}/backups")
             ->assertOk()->assertJsonPath('data.total', 1);
 
-        $auth->postJson("/api/central/clients/{$client->id}/restore", ['backup_id' => $backupId])
+        $auth->postJson("/api/v1/p/central/clients/{$client->id}/restore", ['backup_id' => $backupId])
             ->assertOk()->assertJsonPath('message', 'ریستور آغاز شد (Stub).');
-        $this->assertSame('restoring', \App\Models\Central\Backup::query()->find($backupId)->status);
+        $this->assertSame('restoring', Backup::query()->find($backupId)->status);
     }
 
     public function test_superadmin_is_never_listed_but_can_operate_central(): void
@@ -173,6 +174,6 @@ class CentralClientsTest extends TestCase
         $this->assertSame(0, User::query()->visible()->where('is_super_admin', true)->count());
 
         // اما گیت مرکزی را پاس می‌کند.
-        $this->actingAs($super, 'sanctum')->getJson('/api/central/plans')->assertOk();
+        $this->actingAs($super, 'sanctum')->getJson('/api/v1/p/central/plans')->assertOk();
     }
 }

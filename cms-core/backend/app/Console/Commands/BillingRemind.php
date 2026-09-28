@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Central\BillingEvent;
-use App\Models\Central\Invoice;
-use App\Models\Central\Subscription;
 use Illuminate\Console\Command;
+use Pishdad\Plugins\Central\Models\BillingEvent;
+use Pishdad\Plugins\Central\Models\Invoice;
+use Pishdad\Plugins\Central\Models\Subscription;
 
 /**
  * یادآوری D-7 تا D-0 (PLAN.md فاز ۱): برای هر اشتراک فعال با فاکتور پرداخت‌نشده

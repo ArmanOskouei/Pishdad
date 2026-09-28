@@ -19,7 +19,7 @@ class GatewayConnectionTest extends TestCase
             'password' => Hash::make('Secret!123'), 'role' => 'operator',
         ]);
 
-        $res = $this->actingAs($op, 'sanctum')->postJson('/api/central/gateway-settings/test');
+        $res = $this->actingAs($op, 'sanctum')->postJson('/api/v1/p/central/gateway-settings/test');
 
         $res->assertOk()->assertJsonPath('data.ok', true);
         $this->assertNotEmpty($res->json('data.driver'));

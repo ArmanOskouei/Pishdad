@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Central\BillingEvent;
-use App\Models\Central\Subscription;
 use Illuminate\Console\Command;
+use Pishdad\Plugins\Central\Models\BillingEvent;
+use Pishdad\Plugins\Central\Models\Subscription;
 
 /**
  * حذف D+7 (PLAN.md فاز ۳): اشتراکی که ≥۷ روز در تعلیق مانده → deleted

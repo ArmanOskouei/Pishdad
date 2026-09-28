@@ -24,10 +24,10 @@ class ChabokanExtrasTest extends TestCase
     {
         $auth = $this->actingAs($this->operator(), 'sanctum');
 
-        $auth->postJson('/api/central/chabokan/wallet/charge', ['amount' => 100])
+        $auth->postJson('/api/v1/p/central/chabokan/wallet/charge', ['amount' => 100])
             ->assertStatus(422);
 
-        $auth->postJson('/api/central/chabokan/wallet/charge', ['amount' => 500000])
+        $auth->postJson('/api/v1/p/central/chabokan/wallet/charge', ['amount' => 500000])
             ->assertCreated()
             ->assertJsonPath('data.amount', 500000);
 
@@ -40,10 +40,10 @@ class ChabokanExtrasTest extends TestCase
     {
         $auth = $this->actingAs($this->operator(), 'sanctum');
 
-        $auth->postJson('/api/central/chabokan/services/provision', ['name' => 'BAD NAME!'])
+        $auth->postJson('/api/v1/p/central/chabokan/services/provision', ['name' => 'BAD NAME!'])
             ->assertStatus(422);
 
-        $auth->postJson('/api/central/chabokan/services/provision', [
+        $auth->postJson('/api/v1/p/central/chabokan/services/provision', [
             'name' => 'ready-pool-1', 'size' => 'small',
         ])->assertCreated()->assertJsonPath('message', 'ساخت سرویس آماده ثبت شد.');
 

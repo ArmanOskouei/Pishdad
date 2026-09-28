@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1\Site;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\V1\Admin\SiteSettingsController;
+use App\Http\Controllers\Controller;
 use App\Models\Media;
 use App\Models\Page;
 use App\Models\Setting;
@@ -70,9 +70,9 @@ class SiteChromeController extends Controller
             $homepageId = $site['homepage_page_id'] ?? null;
             $homepageSlug = null;
             if (is_numeric($homepageId) && (int) $homepageId > 0) {
-                $homepageSlug = \App\Models\Page::query()
+                $homepageSlug = Page::query()
                     ->where('id', (int) $homepageId)
-                    ->where('status', \App\Models\Page::STATUS_PUBLISHED)
+                    ->where('status', Page::STATUS_PUBLISHED)
                     ->whereNotNull('published_revision_id')
                     ->value('slug');
             }

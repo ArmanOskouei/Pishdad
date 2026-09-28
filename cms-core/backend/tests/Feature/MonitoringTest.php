@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\CentralLog;
-use App\Models\Central\Client;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\CentralLog;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\InstallHeartbeat;
 use Tests\TestCase;
 
 /** تسک ۵.۵ — DoD: تشخیص نصب ساکت + لاگ متمرکز با فیلتر. */
@@ -80,15 +81,15 @@ class MonitoringTest extends TestCase
         $hb = $this->signedHeartbeat($client);
         $this->withHeaders($hb['headers'])->postJson('/api/internal/heartbeat', $hb['body']);
 
-        $grid = $auth->getJson('/api/central/monitoring/health')->assertOk()->json('data.grid');
+        $grid = $auth->getJson('/api/v1/p/central/monitoring/health')->assertOk()->json('data.grid');
         $this->assertEquals('online', collect($grid)->firstWhere('site_id', $client->site_id)['state']);
 
         // عقب بردن last_seen → ساکت.
-        \App\Models\Central\InstallHeartbeat::query()
+        InstallHeartbeat::query()
             ->where('site_id', $client->site_id)
             ->update(['last_seen_at' => now()->subMinutes(20)]);
 
-        $res = $auth->getJson('/api/central/monitoring/health')->assertOk()->json('data');
+        $res = $auth->getJson('/api/v1/p/central/monitoring/health')->assertOk()->json('data');
         $this->assertEquals('silent', collect($res['grid'])->firstWhere('site_id', $client->site_id)['state']);
         $this->assertNotEmpty($res['silent']);
     }
@@ -105,11 +106,11 @@ class MonitoringTest extends TestCase
         ]);
         CentralLog::query()->where('id', $old->id)->update(['created_at' => now()->subDays(31)]);
 
-        $auth->getJson('/api/central/monitoring/logs?level=error')->assertOk()
+        $auth->getJson('/api/v1/p/central/monitoring/logs?level=error')->assertOk()
             ->assertJsonPath('data.total', 2);
-        $auth->getJson('/api/central/monitoring/logs?site_id=s2')->assertOk()
+        $auth->getJson('/api/v1/p/central/monitoring/logs?site_id=s2')->assertOk()
             ->assertJsonPath('data.total', 1);
-        $auth->getJson('/api/central/monitoring/logs')->assertOk()
+        $auth->getJson('/api/v1/p/central/monitoring/logs')->assertOk()
             ->assertJsonPath('data.total', 3);
     }
 
@@ -121,6 +122,6 @@ class MonitoringTest extends TestCase
         ]);
 
         $this->actingAs($user, 'sanctum')
-            ->getJson('/api/central/monitoring/health')->assertForbidden();
+            ->getJson('/api/v1/p/central/monitoring/health')->assertForbidden();
     }
 }

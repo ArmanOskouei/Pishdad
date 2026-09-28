@@ -2,8 +2,6 @@
 
 namespace Tests\Feature;
 
-
-use Tests\PluginDdlNoTransactionCase;
 use App\Http\Controllers\Api\V1\Admin\PluginController;
 use App\Http\Middleware\GateDevModeUpload;
 use App\Models\Plugin;
@@ -26,6 +24,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
+use Tests\PluginDdlNoTransactionCase;
 use ZipArchive;
 
 /**
@@ -48,7 +47,6 @@ use ZipArchive;
  */
 class PluginsTest extends PluginDdlNoTransactionCase
 {
-
     private string $publicKey;
 
     private string $secretKey;
@@ -139,6 +137,14 @@ class PluginsTest extends PluginDdlNoTransactionCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // K7.8 — رکوردِ بستهٔ مرکزی را برمی‌داریم چون هشت تستِ این فایل
+        // `assertDatabaseCount('plugins', 0)` می‌زنند.
+        //
+        // اما یک helper (`approvePlugin`, خط ۵۵۶) مسیرِ **افزونهٔ مرکزی** را
+        // صدا می‌زند و آن باید فعال باشد. پس خودِ آن helper دوباره فعالش
+        // می‌کند — اینجا فقط برای تست‌هایی که کل جدول را می‌سنجند پاک است.
+        $this->withoutBundledCentralPlugin();
 
         $kp = sodium_crypto_sign_keypair();
         $this->publicKey = base64_encode(sodium_crypto_sign_publickey($kp));
@@ -384,8 +390,25 @@ class PluginsTest extends PluginDdlNoTransactionCase
         ])->assertStatus(422);
 
         $auth->postJson("/api/v1/admin/plugins/{$id}/deactivate")->assertOk();
+
+        // K7.8 — slug را **قبل** از uninstall می‌خوانیم، چون بعدش ردیف نیست.
+        $slug = Plugin::query()->findOrFail($id)->slug;
+
         $auth->postJson("/api/v1/admin/plugins/{$id}/uninstall")->assertOk();
-        $this->assertDatabaseCount('plugins', 0);
+
+        // به‌جای «جدول خالی»، **فقط همان بسته** باید رفته باشد.
+        //
+        // `setUp` رکوردِ بستهٔ مرکزی را پاک می‌کند، ولی `approveAsOperator`
+        // در همین تست آن را دوباره فعال کرده (لازم بود چون مسیر افزونه را
+        // می‌زند). پس «۰ ردیف» دیگر معنی درستی ندارد.
+        //
+        // assertion صریح بهتر است چون **دقیقاً** همان چیزی را می‌گوید که این
+        // تست ادعا می‌کند: uninstall همان بسته را برداشت.
+        $this->assertNotContains(
+            $slug,
+            $this->pluginSlugs(),
+            'uninstall باید همان بسته را از جدول بردارد.',
+        );
     }
 
     /**
@@ -542,13 +565,21 @@ class PluginsTest extends PluginDdlNoTransactionCase
     /** تأیید مرکزی یک مورد به‌عنوان اپراتور و بازگشت به کاربر مالک (مورد ۶). */
     private function approveAsOperator(string $type, int $id): void
     {
+        // K7.8 — `setUp` رکوردِ بستهٔ مرکزی را پاک کرده (هشت تستِ این فایل کل
+        // جدول `plugins` را می‌سنجند). این helper اما مسیرِ افزونه را صدا می‌زند
+        // و بدون رکورد، ۴۰۴ می‌گیرد.
+        //
+        // فعال‌سازی اینجا و نه در `setUp` چون فقط همین چند تست به آن نیاز دارند —
+        // و فعال‌کردنش برای همه، هشت assertionِ «جدول خالی» را می‌شکند.
+        $this->serveCentralPlugin();
+
         $operator = User::query()->create([
             'name' => 'اپراتور', 'email' => uniqid().'@example.com',
             'password' => Hash::make('Operator!1234'), 'role' => 'operator',
         ]);
 
         $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/central/review/{$type}/{$id}/approve")
+            ->postJson($this->centralUrl("review/{$type}/{$id}/approve"))
             ->assertOk();
 
         // actingAs سراسری است؛ به اولین مالک برمی‌گردیم تا ادامه تست با مالک باشد.

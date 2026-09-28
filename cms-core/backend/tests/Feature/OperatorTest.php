@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\KillSwitch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\KillSwitch;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
@@ -45,13 +45,13 @@ class OperatorTest extends TestCase
 
         // بدون 2FA تازه → 403.
         $this->actingAs($operator, 'sanctum')
-            ->postJson('/api/central/operator/setup-tokens', ['purpose' => 'نصب جدید'])
+            ->postJson('/api/v1/p/central/operator/setup-tokens', ['purpose' => 'نصب جدید'])
             ->assertForbidden();
 
         $this->freshLogin($operator);
 
         $res = $this->actingAs($operator->fresh(), 'sanctum')
-            ->postJson('/api/central/operator/setup-tokens', ['purpose' => 'نصب جدید'])
+            ->postJson('/api/v1/p/central/operator/setup-tokens', ['purpose' => 'نصب جدید'])
             ->assertCreated();
 
         $this->assertEquals(48, strlen($res->json('data.token')));
@@ -64,11 +64,11 @@ class OperatorTest extends TestCase
         $secret = (new Google2FA)->generateSecretKey();
         $code = (new Google2FA)->getCurrentOtp($secret);
 
-        $auth->postJson('/api/central/operator/2fa/hardware', [
+        $auth->postJson('/api/v1/p/central/operator/2fa/hardware', [
             'name' => 'کلید یدکی', 'secret' => $secret, 'code' => '000000',
         ])->assertStatus(422);
 
-        $auth->postJson('/api/central/operator/2fa/hardware', [
+        $auth->postJson('/api/v1/p/central/operator/2fa/hardware', [
             'name' => 'کلید یدکی', 'secret' => $secret, 'code' => $code,
         ])->assertCreated()->assertJsonPath('message', 'کلید سخت‌افزاری ثبت شد.');
     }
@@ -80,13 +80,13 @@ class OperatorTest extends TestCase
         $auth = $this->actingAs($operator->fresh(), 'sanctum');
 
         // بدون دلیل و بدون confirm → رد.
-        $auth->postJson('/api/central/operator/kill-switch', ['confirm' => true])
+        $auth->postJson('/api/v1/p/central/operator/kill-switch', ['confirm' => true])
             ->assertStatus(422);
-        $auth->postJson('/api/central/operator/kill-switch', [
+        $auth->postJson('/api/v1/p/central/operator/kill-switch', [
             'reason' => 'نفوذ تأییدشده به زیرساخت', 'confirm' => false,
         ])->assertStatus(422);
 
-        $auth->postJson('/api/central/operator/kill-switch', [
+        $auth->postJson('/api/v1/p/central/operator/kill-switch', [
             'reason' => 'نفوذ تأییدشده به زیرساخت', 'confirm' => true,
         ])->assertOk();
 
@@ -106,9 +106,9 @@ class OperatorTest extends TestCase
         $this->freshLogin($operator);
         $auth = $this->actingAs($operator->fresh(), 'sanctum');
 
-        $auth->postJson('/api/central/operator/setup-tokens', ['purpose' => 'x'])->assertCreated();
+        $auth->postJson('/api/v1/p/central/operator/setup-tokens', ['purpose' => 'x'])->assertCreated();
 
-        $auth->getJson('/api/central/operator/activity')->assertOk()
+        $auth->getJson('/api/v1/p/central/operator/activity')->assertOk()
             ->assertJsonFragment(['action' => 'operator.setup_token']);
     }
 }

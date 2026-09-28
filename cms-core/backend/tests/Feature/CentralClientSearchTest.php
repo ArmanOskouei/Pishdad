@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
 use Tests\TestCase;
 
 /** دسته ۱ (برابری UI/UX) — جستجوی متنی مشتریان (نام/دامنه/site_id/ایمیل مالک). */
@@ -39,16 +39,16 @@ class CentralClientSearchTest extends TestCase
         ]);
         $auth = $this->actingAs($op, 'sanctum');
 
-        $auth->getJson('/api/central/clients?search='.urlencode('فروشگاه'))
+        $auth->getJson('/api/v1/p/central/clients?search='.urlencode('فروشگاه'))
             ->assertOk()->assertJsonPath('data.total', 1);
-        $auth->getJson('/api/central/clients?search=shop.example')
+        $auth->getJson('/api/v1/p/central/clients?search=shop.example')
             ->assertOk()->assertJsonPath('data.total', 1);
-        $auth->getJson('/api/central/clients?search=site-beta-2')
+        $auth->getJson('/api/v1/p/central/clients?search=site-beta-2')
             ->assertOk()->assertJsonPath('data.total', 1);
-        $auth->getJson('/api/central/clients?search=owner-search@example.com')
+        $auth->getJson('/api/v1/p/central/clients?search=owner-search@example.com')
             ->assertOk()->assertJsonPath('data.total', 1);
         // ترکیب با فیلتر موجود tier.
-        $auth->getJson('/api/central/clients?search='.urlencode('کلینیک').'&tier=budget')
+        $auth->getJson('/api/v1/p/central/clients?search='.urlencode('کلینیک').'&tier=budget')
             ->assertOk()->assertJsonPath('data.total', 0);
     }
 }

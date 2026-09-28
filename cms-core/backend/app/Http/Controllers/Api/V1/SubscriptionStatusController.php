@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\Central\Subscription;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Pishdad\Plugins\Central\Models\Subscription;
 
 /**
  * وضعیت اشتراک برای polling نصب مشتری (عمومی، سبک، بدون احراز هویت).

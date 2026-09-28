@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Central\HardwareKey;
 use App\Models\Media;
 use App\Models\User;
 use App\Services\Plugins\ManifestRegistry;
@@ -13,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Pishdad\Plugins\Central\Models\HardwareKey;
 use PragmaRX\Google2FA\Google2FA;
 
 /**

@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Central\Client;
-use App\Models\Central\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Pishdad\Plugins\Central\Models\Client;
+use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** تسک ۴.۳ — DoD: وضعیت عمومی سبک (active|suspended + پیام برند) از تک‌منبع اشتراک مرحله ۱. */
