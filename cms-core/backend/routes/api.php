@@ -38,6 +38,8 @@ use App\Http\Controllers\Api\V1\Site\SiteStatusController;
 use App\Http\Controllers\Api\V1\SubscriptionStatusController;
 use App\Http\Controllers\Api\V1\UiSettingsController;
 use App\Http\Controllers\Api\Webhooks\PaymentWebhookController;
+use App\Http\Controllers\PluginRouter;
+use App\Services\Plugins\PluginRouteTable;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -67,14 +69,19 @@ Route::prefix('v1')->group(function () {
         Route::put('ui-settings', [UiSettingsController::class, 'update']);
 
         // تسک ۱.۱ — صفحات + فایل (مشترک نصب: همه مدیران همه داده را می‌بینند).
+        // F0.1: مسیرهای نوشتن `perm:pages.edit` گرفتند. قبلاً فقط `destroy` محافظت
+        // داشت، یعنی هر مدیر لاگین‌کرده (حتی viewer) می‌توانست عنوان و بلوک‌های
+        // صفحهٔ منتشرشده را بازنویسی کند — و عنوان همان ورودیِ JSON-LD صفحهٔ
+        // عمومی است (XSS ذخیره‌شده). «مشترک بودن نصب» یعنی همه مدیران *همه
+        // داده را می‌بینند*، نه اینکه همه بتوانند *بنویسند*.
         Route::prefix('admin')->group(function () {
             Route::get('pages', [PageController::class, 'index']);
-            Route::post('pages', [PageController::class, 'store']);
+            Route::post('pages', [PageController::class, 'store'])->middleware('perm:pages.edit');
             Route::get('pages/{page}', [PageController::class, 'show']);
-            Route::put('pages/{page}', [PageController::class, 'update']);
+            Route::put('pages/{page}', [PageController::class, 'update'])->middleware('perm:pages.edit');
             Route::delete('pages/{page}', [PageController::class, 'destroy'])->middleware('perm:pages.delete');
-            Route::post('pages/{page}/publish', [PageController::class, 'publish']);
-            Route::post('pages/{page}/restore/{revision}', [PageController::class, 'restore']);
+            Route::post('pages/{page}/publish', [PageController::class, 'publish'])->middleware('perm:pages.edit');
+            Route::post('pages/{page}/restore/{revision}', [PageController::class, 'restore'])->middleware('perm:pages.edit');
             Route::get('pages/{page}/revisions', [PageController::class, 'revisions']);
             Route::get('blocks/schema', [BlockSchemaController::class, 'index']);
 
@@ -208,6 +215,34 @@ Route::prefix('v1')->group(function () {
 
     // تسک ۱.۲ — polling سبک نصب مشتری (عمومی).
     Route::get('subscription-status', [SubscriptionStatusController::class, 'show']);
+
+    // K5.4 + K7.11 — catch-all مالک هسته برای routeهای افزونه.
+    //
+    // این **تنها** route واقعی هسته برای افزونه‌هاست و بقیه داخل PluginRouter
+    // dispatch می‌شوند. ->where عمداً سست است و قاعدهٔ واقعی slug داخل
+    // PluginRouteTable است — کنترلر باید خودش مرز امنیتی باشد، نه اینکه به
+    // تنظیم route تکیه کند؛ قاعدهٔ سفت‌تر یعنی تست نمی‌تواند مسیر بد را تا
+    // کنترلر دنبال کند.
+    //
+    // 	hrottle:plugin معماری را دنبال نکرد چون چنین limiterای ثبت نشده؛ عددی‌اش
+    // همان کار را می‌کند و حتماً resolve می‌شود.
+    Route::match(PluginRouteTable::METHODS, 'p/{slug}/{any?}', PluginRouter::class)
+        ->where('slug', '[^/]+')
+        ->where('any', '.*')
+        ->name(PluginRouter::ROUTE_NAME)
+        ->middleware('throttle:60,1');
+
+    // K5.4 + K7.11 — catch-all مالک هسته برای routeهای افزونه.
+    //
+    // این **تنها** route واقعی هسته برای افزونه‌هاست و بقیه داخل `PluginRouter`
+    // dispatch می‌شوند. `->where` عمداً سست است و قاعدهٔ واقعی slug داخل
+    // `PluginRouteTable` است — کنترلر باید خودش مرز امنیتی باشد، نه اینکه به
+    // تنظیم route تکیه کند؛ قاعدهٔ سفت‌تر یعنی تست نمی‌تواند مسیر بد را تا
+    // کنترلر دنبال کند.
+    //
+    // `throttle:plugin` معماری را دنبال نکرد چون چنین limiterای ثبت نشده؛ عددی‌اش
+    // همان کار را می‌کند و حتماً resolve می‌شود.
+
 });
 
 // تسک ۱.۳/۱.۴ — پنل مرکزی: فقط operator (+ سوپرادمین مخفی).
