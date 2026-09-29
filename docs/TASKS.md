@@ -35,7 +35,7 @@
 | `E12` | قفل جهت بصری نهایی | `blocked` | آنچه فاز ۰ عملاً تغییر داد (برای مراجعه بعدی) |
 | `E13` | ری‌استارت opencode برای ساب‌ایجنت‌های تخصصی | `blocked` | آنچه فاز ۰ عملاً تغییر داد (برای مراجعه بعدی) |
 | `K7.4` | تصمیم محصول دربارهٔ `now()->addDays(30)` | `blocked` | گام‌ها |
-| `K7.13` | تصمیم فرانت — ⭐ **گزینهٔ ۱ الان، گزینهٔ ۲ به‌عنوان هدف** | `blocked` | گام‌ها |
+| `K7.13-b` | تصمیم فرانت — ⭐ **گزینهٔ ۱ الان، گزینهٔ ۲ به‌عنوان هدف** | `blocked` | گام‌ها |
 | `Q1` | 🔴 **ابهام D5:** «نصب» یعنی کاربر یا سایت؟ `ClientSubscriptionResolver:23` روی… | `blocked` | پرسش‌های باز (منتظر تصمیم مالک) |
 | `Q2` | سهمیهٔ فضای فایل در نبود پلاگین: نامحدود (`0`) یا ثابت «رایگان»؟ | `blocked` | پرسش‌های باز (منتظر تصمیم مالک) |
 | `Q3` | آیا `NEXT_PUBLIC_SITE_ID` در نصب واقعی ست می‌شود؟ اگر بله، تصمیم ۴۰۴-در-برابر-… | `blocked` | پرسش‌های باز (منتظر تصمیم مالک) |
@@ -85,7 +85,7 @@
 | `E10` | دیپلوی production | `pending` | آنچه فاز ۰ عملاً تغییر داد (برای مراجعه بعدی) |
 | `E11` | installer | `pending` | آنچه فاز ۰ عملاً تغییر داد (برای مراجعه بعدی) |
 | `K3.9` | schema بقیهٔ نقاط — **فقط بعد از ساخت renderer هرکدام** | `pending` | گام‌ها |
-| `K3.11` | `admin.plugin_tools` — نقطهٔ drawer هدر پنل (تصمیم C1) | `pending` | گام‌ها |
+| `K3.11` | `admin.plugin_tools` — نقطهٔ drawer هدر پنل (تصمیم C1-b) | `pending` | گام‌ها |
 | `K8.1` | ثبت ناشر + trust store عمومی | `pending` | ⚪ K8 — بازار و فروش (بعد از K5) |
 | `K8.2` | آپلود به بازبینی + تأیید/رد | `pending` | ⚪ K8 — بازار و فروش (بعد از K5) |
 | `K8.3` | `yanked` — **غیرقابل حذف**، برای incident امنیتی | `pending` | ⚪ K8 — بازار و فروش (بعد از K5) |
@@ -93,7 +93,7 @@
 | `K8.5` | سفارش + لایسنس + ledger تسویه + payout دستی | `pending` | ⚪ K8 — بازار و فروش (بعد از K5) |
 | `L-B3` | 🔴 `upgrade()` پلاگین سیستمی را با کلید هر ناشر تأییدشده‌ای تصاحب می‌کند (publ… | `pending` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
 | **— waiting (22) —** | | | |
-| `I1` | ⭐ `panel.extensions` را تنها شکل کن | `waiting` | نامطمئن‌ها |
+| `I1-b` | ⭐ `panel.extensions` را تنها شکل کن | `waiting` | نامطمئن‌ها |
 | `I1.1` | `manifest.widgets.*` → `site.header_widget` / `site.footer_widget` | `waiting` | نامطمئن‌ها |
 | `I1.2` | `manifest.page_types` → `site.page_type` | `waiting` | نامطمئن‌ها |
 | `I1.3` | `manifest.permissions` → نقطهٔ مستقل یا فیلد مجزا | `waiting` | نامطمئن‌ها |
@@ -110,8 +110,8 @@
 | `K7.6` | مهاجرت داده برای نصب‌های موجود | `waiting` | گام‌ها |
 | `K7.7` | تست grep برای ۴۰+ ارجاع رشته‌ای | `waiting` | گام‌ها |
 | `K7.10` | ⛔ `EnsureCentralOperator` **در هسته بماند** | `waiting` | گام‌ها |
-| `K7.11` | ⛔ `tickets` + `operatorReply` **در هسته بماند** | `waiting` | گام‌ها |
-| `K7.12` | ⛔ `PaymentWebhookController` **در هسته بماند** | `waiting` | گام‌ها |
+| `K7.11-b` | ⛔ `tickets` + `operatorReply` **در هسته بماند** | `waiting` | گام‌ها |
+| `K7.12-b` | ⛔ `PaymentWebhookController` **در هسته بماند** | `waiting` | گام‌ها |
 | `K7.14` | اگر گزینهٔ ۲: ۴ شرط تست‌شدنی استثنا | `waiting` | گام‌ها |
 | `K7.15` | داده‌محور کردن `lib/menu.ts:44-47` و `Topbar.tsx:34-37` | `waiting` | گام‌ها |
 | `K7.16` | نمایش `dev_mode`/قفل‌های مرکزی به‌صورت داده‌محور | `waiting` | گام‌ها |
@@ -208,8 +208,8 @@
 | `K1.6.4` | صفحهٔ «تحلیل بسته» در UI + پیشنهاد محل درست + ارجاع به راهنما | `done` | K1.6 — فاز ۱.۵ (جدید، بیشترین بازده) ✅ |
 | `J1` | امکان‌سنجی تبدیل مرکزی به پلاگین | `done` | آنچه فاز ۰ عملاً تغییر داد (برای مراجعه بعدی) |
 | `E14` | انتشار پوشهٔ پروژه در گیت‌هاب | `done` | آنچه فاز ۰ عملاً تغییر داد (برای مراجعه بعدی) |
-| `B1` | 🔴 تشخیص نشت کلید فقط سطح‌بالا را می‌گیرد. مانیفست تودرتو است، پس `{"publisher… | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
-| `B2` | 🔴 `slug` فارسی → رشتهٔ خالی. `Str::slug('پنل')` → `''` ⇒ ردیف با `slug=''` و … | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
+| `B1-b` | 🔴 تشخیص نشت کلید فقط سطح‌بالا را می‌گیرد. مانیفست تودرتو است، پس `{"publisher… | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
+| `B2-b` | 🔴 `slug` فارسی → رشتهٔ خالی. `Str::slug('پنل')` → `''` ⇒ ردیف با `slug=''` و … | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
 | `B3` | 🔴 `dev_mode` اصلاً وجود ندارد. `upload()` و `upgrade()` هیچ بررسی سمت سرور ند… | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
 | `B4` | 🔴 `/api/proxy` فهرست مسیر مجاز ندارد. `$target = ${UPSTREAM}/${path.join("/")… | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
 | `B5` | 🔴 رجیستری جستجوی کلاینت دقیقاً K1.5.8 را دور می‌زند: `registerSearchSource({f… | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
@@ -240,8 +240,8 @@
 | `B30` | 🟠 `ManifestRegistry` برخورد `type` را بی‌صدا `continue` می‌کند. پلاگینی که `t… | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
 | `B31` | 🟠 ۴ نقطه از ۶ `example` ندارند و `example` هیچ‌کدام رندر نمی‌شود | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
 | `B32` | 🟡 تصحیح اولویت B17: در `Validator.php:43-45` مقدار `$manifest` برابر `null` ا… | `done` | 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) |
-| `C1` | هدر پنل | `done` | تصمیم‌های کارفرما (۱۴۰۵/۰۶/۰۴) |
-| `C2` | `Next.js/panel.json` | `done` | تصمیم‌های کارفرما (۱۴۰۵/۰۶/۰۴) |
+| `C1-b` | هدر پنل | `done` | تصمیم‌های کارفرما (۱۴۰۵/۰۶/۰۴) |
+| `C2-b` | `Next.js/panel.json` | `done` | تصمیم‌های کارفرما (۱۴۰۵/۰۶/۰۴) |
 | `C3` | میزان بازی schema | `done` | تصمیم‌های کارفرما (۱۴۰۵/۰۶/۰۴) |
 | `K3.0` | ⭐ **enforce کردن `requires.core`** | `done` | گام‌ها |
 | `K3.1` | ⭐ اصلاح `example` غلط `admin.menu` | `done` | گام‌ها |
@@ -343,19 +343,6 @@
 | `K100` | ثبت route در `routes/api.php` | `done` | گروه K95 — پیگیری‌های باز مربوط به K5.4 و K5.5 (کشف‌شده حین اجرا) |
 | `K101` | domain.ts فیلد مردهٔ hooks_count را نگه داشته | `done` | گروه K95 — پیگیری‌های باز مربوط به K5.4 و K5.5 (کشف‌شده حین اجرا) |
 | `K102` | .gitattributes برای *.php text eol=lf ندارد | `done` | گروه K95 — پیگیری‌های باز مربوط به K5.4 و K5.5 (کشف‌شده حین اجرا) |
-
-### ⚠️ شناسه‌های تکراری — عمداً ادغام نشده‌اند
-
-| شناسه | ردیف اول | ردیف دوم | یادداشت |
-|---|---|---|---|
-| `B1` | L375 · گروه B — هدر پنل (اولویت ۲) · `done` | L670 · 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) · `done` | وضعیت یکسان است ولی **دو کار متفاوت‌اند** — ادغام نکن. |
-| `B2` | L376 · گروه B — هدر پنل (اولویت ۲) · `done` | L671 · 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز) · `done` | وضعیت یکسان است ولی **دو کار متفاوت‌اند** — ادغام نکن. |
-| `C1` | L382 · گروه C — موبایل (اولویت ۳) · `done` | L752 · تصمیم‌های کارفرما (۱۴۰۵/۰۶/۰۴) · `done` | وضعیت یکسان است ولی **دو کار متفاوت‌اند** — ادغام نکن. |
-| `C2` | L383 · گروه C — موبایل (اولویت ۳) · `done` | L753 · تصمیم‌های کارفرما (۱۴۰۵/۰۶/۰۴) · `done` | وضعیت یکسان است ولی **دو کار متفاوت‌اند** — ادغام نکن. |
-| `I1` | L429 · گروه I — تسک جدید ۲۰۲۶-۰۹-۲۵ (اولویت ۱) · `done` | L890 · نامطمئن‌ها · `waiting` | **وضعیت‌ها متناقض‌اند** — نیاز به تصمیم مالک. |
-| `K7.11` | L1037 · گام‌ها · `done` | L1043 · گام‌ها · `waiting` | **وضعیت‌ها متناقض‌اند** — نیاز به تصمیم مالک. |
-| `K7.12` | L1038 · گام‌ها · `done` | L1044 · گام‌ها · `waiting` | **وضعیت‌ها متناقض‌اند** — نیاز به تصمیم مالک. |
-| `K7.13` | L1039 · گام‌ها · `done` | L1045 · گام‌ها · `blocked` | **وضعیت‌ها متناقض‌اند** — نیاز به تصمیم مالک. |
 ## وضعیت فعلی — ۲۰۲۶-۰۹-۲۵
 
 ### گروه A — باگ‌های گزارش‌شده (اولویت ۱)
@@ -662,12 +649,12 @@
 
 # 🔴 K2 — باگ‌های امنیتی و صحت (پیش‌نیاز همه‌چیز)
 
-> هیچ فاز دیگری نباید قبل از این شروع شود. B4 و B5 امنیتی‌اند و B2 با پایهٔ کاربر ایرانی محتمل است.
+> هیچ فاز دیگری نباید قبل از این شروع شود. B4 و B5 امنیتی‌اند و B2-b با پایهٔ کاربر ایرانی محتمل است.
 
 | ID | کار | فایل/محل | یادداشت | وضعیت |
 |---|---|---|---|---|
-| **B1** | 🔴 تشخیص نشت کلید فقط سطح‌بالا را می‌گیرد. مانیفست تودرتو است، پس `{"publisher":{"private_key":"…"}}` رد می‌شود. تناقض با خود کد: `PluginTrustStore.php:107` کلید را از `$manifest['publisher']['key_id']` می‌خواند. regex فعلی `api_key`/`token`/`password`/`salt`/`webhook_secret` را هم نمی‌گیرد | `PluginPackageValidator.php:233-240` | اسکن **بازگشتی** + فهرست کامل | done |
-| **B2** | 🔴 `slug` فارسی → رشتهٔ خالی. `Str::slug('پنل')` → `''` ⇒ ردیف با `slug=''` و prefix بی‌نام | `PluginController.php:103` · `Validator.php:210-217` | `^[a-z0-9][a-z0-9._-]{1,39}$` با **خطا** | done |
+| **B1-b** | 🔴 تشخیص نشت کلید فقط سطح‌بالا را می‌گیرد. مانیفست تودرتو است، پس `{"publisher":{"private_key":"…"}}` رد می‌شود. تناقض با خود کد: `PluginTrustStore.php:107` کلید را از `$manifest['publisher']['key_id']` می‌خواند. regex فعلی `api_key`/`token`/`password`/`salt`/`webhook_secret` را هم نمی‌گیرد | `PluginPackageValidator.php:233-240` | اسکن **بازگشتی** + فهرست کامل | done |
+| **B2-b** | 🔴 `slug` فارسی → رشتهٔ خالی. `Str::slug('پنل')` → `''` ⇒ ردیف با `slug=''` و prefix بی‌نام | `PluginController.php:103` · `Validator.php:210-217` | `^[a-z0-9][a-z0-9._-]{1,39}$` با **خطا** | done |
 | **B3** | 🔴 `dev_mode` اصلاً وجود ندارد. `upload()` و `upgrade()` هیچ بررسی سمت سرور ندارند | `PluginController.php:64,175` | middleware روی هر دو route | done |
 | **B4** | 🔴 `/api/proxy` فهرست مسیر مجاز ندارد. `$target = ${UPSTREAM}/${path.join("/")}` بدون بررسی ⇒ از مرورگر مدیر با کوکی، **هر `/api/*`** قابل فراخوانی است — از جمله `central/*` و `internal/heartbeat`. **همین مسیر دلیل رد کامپوننت پلاگین است (K1.5.8) و مرز امنیتی‌اش allowlist ندارد** | `api/proxy/[...path]/route.ts:9` · `lib/server-api.ts:23` | `if (path[0] !== 'v1') return 403` + فهرست بستهٔ prefix | done |
 | **B5** | 🔴 رجیستری جستجوی کلاینت دقیقاً K1.5.8 را دور می‌زند: `registerSearchSource({fetchItems})` روی `window.__ADMIN_SEARCH__` و نمونه‌اش `fetch('/api/proxy/v1/admin/blog/posts')` | `lib/search-registry.ts:111,336-361` · `docs/SEARCH-PLUGIN-CONTRACT.md` | حذف + انتقال به بک‌اند | done |
@@ -711,7 +698,7 @@
 
 ---
 
-# 🟠 K3 — چارچوب قرارداد نقاط اتصال (I1 + اصل جدید کارفرما)
+# 🟠 K3 — چارچوب قرارداد نقاط اتصال (I1-b + اصل جدید کارفرما)
 
 ## اصل کارفرما (۱۴۰۵/۰۶/۰۴)
 
@@ -748,11 +735,11 @@
 
 | ID | کار | فایل/محل | یادداشت | وضعیت |
 |---|---|---|---|---|
-| C1 | هدر پنل |  | ✅ **گزینهٔ سوم کارفرما:** یک دکمهٔ «ابزارهای پلاگین» در هدر، که drawer باز می‌کند و **هر پلاگین یک کادر مستطیل مستقل** می‌گیرد. نوار اصلی دست‌نخورده می‌ماند ⇒ مشکل فیشینگ حل شد تصمیم ثبت و اجرا شد (دکمهٔ «ابزارهای پلاگین» در هدر + drawer). | done |
-| C2 | `Next.js/panel.json` |  | ✅ **حذف کامل** — کپی دومی بود که فقط می‌توانست drift کند. مانیفست تنها منبع حقیقت. امضا سالم می‌ماند چون `manifest.json` در ریشه است تصمیم ثبت و اجرا شد؛ `Next.js/panel.json` حذف کامل شد (K3.5). | done |
+| C1-b | هدر پنل |  | ✅ **گزینهٔ سوم کارفرما:** یک دکمهٔ «ابزارهای پلاگین» در هدر، که drawer باز می‌کند و **هر پلاگین یک کادر مستطیل مستقل** می‌گیرد. نوار اصلی دست‌نخورده می‌ماند ⇒ مشکل فیشینگ حل شد تصمیم ثبت و اجرا شد (دکمهٔ «ابزارهای پلاگین» در هدر + drawer). | done |
+| C2-b | `Next.js/panel.json` |  | ✅ **حذف کامل** — کپی دومی بود که فقط می‌توانست drift کند. مانیفست تنها منبع حقیقت. امضا سالم می‌ماند چون `manifest.json` در ریشه است تصمیم ثبت و اجرا شد؛ `Next.js/panel.json` حذف کامل شد (K3.5). | done |
 | C3 | میزان بازی schema |  | ✅ **بسته با واژگان باز** — گرامر بسته، نام فیلدها دلخواه تصمیم ثبت و اجرا شد (بستهٔ micro-schema با واژگان باز). | done |
 
-> **قید C1:** داخل کادر، پلاگین **همان سطح ۰** را دارد — داده و schema، نه React. وگرنه همان K1.5.8 می‌شود.
+> **قید C1-b:** داخل کادر، پلاگین **همان سطح ۰** را دارد — داده و schema، نه React. وگرنه همان K1.5.8 می‌شود.
 
 ## سه لایهٔ schema
 
@@ -794,7 +781,7 @@
 | `site.footer_widget` | **schema_defined** | همان | declared_only | همان |
 | `admin.settings_schema` | **schema_defined** | `SchemaForm` آماده است؛ فقط صفحهٔ میزبان کم است | declared_only | `key!` `title_fa!` `group!` `schema!`(L3) |
 | `admin.data_collection` | **schema_defined** | `DataTable.tsx:5` ستون‌اش **تابع** می‌خواهد ⇒ تا اعلانی نشده روی کاغذ است | declared_only | `entity!` `title_fa!` `table!` `columns!`(L3) |
-| `admin.plugin_tools` | **closed** | 🆕 کادرهای drawer هدر پنل (تصمیم C1). خروجی = یک کادر با عنوان و محتوای schema-driven | 🆕 | `key!` `title_fa!` `icon?` `order?` `body!`(L2) |
+| `admin.plugin_tools` | **closed** | 🆕 کادرهای drawer هدر پنل (تصمیم C1-b). خروجی = یک کادر با عنوان و محتوای schema-driven | 🆕 | `key!` `title_fa!` `icon?` `order?` `body!`(L2) |
 | `admin.page_registry` | **schema_defined** | 🆕 صفحهٔ اختصاصی. فقط مسیر + پرمیشن؛ render از page descriptor | 🆕 | `path!` `title_fa!` `permission!` `layout!`(enum) |
 | `admin.dashboard_slot` | ⛔ **deferred** | نه primitive دارد نه مصرف‌کننده. **schema بدون renderer = دروغ ساختاریافته** | ❌ | — |
 
@@ -857,13 +844,13 @@
 | **K3.2** | اصلاح `extensionPoints()` که فیلدها را drop می‌کند |  | 🔴 `Contract.php:137` یک map **دستی** است. هر فیلد تازهٔ قرارداد که دستی اضافه نشود **بی‌صدا از پاسخ API حذف می‌شود** و UI نشانش نمی‌دهد | done |
 | **K3.3** | ⭐ `openness` + `status` + `since` + `schema_version` + `forbidden` + `max` |  | ⏳ — ✅ **از قبل انجام شده بود — فهرست کهنه بود.** `openness` · `status` · `since` · `schema_version` · `forbidden` همگی در `PluginPackageContract` موجودند ⚠️ سلول وضعیتِ متناقض داشت: هم‌زمان `done` و `⏳`. یادداشت خودِ ردیف می‌گوید «از قبل انجام شده بود — فهرست کهنه بود» ⇒ `done` غلب کرد. | done |
 | **K3.4** | `validateDeclaration()` — متد خالص، دستی، fail-closed |  | ✅ **از قبل انجام شده بود — فهرست کهنه بود.** `validateDeclaration()` در `PluginPackageContract.php` موجود است ⚠️ همان تناقض K3.3: دو سلول `done`. `done` درست است. | done |
-| **K3.5** | 🔴 حذف `Next.js/panel.json` از `ALLOWED_PATHS` + حذف `panelFileChecks` + رفع وابستگی تست |  | تصمیم C2 | done |
+| **K3.5** | 🔴 حذف `Next.js/panel.json` از `ALLOWED_PATHS` + حذف `panelFileChecks` + رفع وابستگی تست |  | تصمیم C2-b | done |
 | **K3.6** | ⛔ حذف فلگ `json` |  | سیگنال **ضدّهمبسته با واقعیت**: تنها نقطهٔ زنده (`site.page_type`) این فلگ را ندارد ولی ۵ نقطهٔ مرده دارند | done |
 | **K3.7** | `example_ok` + `example_bad` برای هر نقطه |  | تست و راهنما هر دو از آن استفاده می‌کنند | done |
 | **K3.8** | ⭐ schema فقط برای `admin.menu` (بسته) + `site.page_type` (باز) |  | **این دو همهٔ چهار درجه را با دو نمونه ثابت می‌کنند.** نوشتن ۱۰ schema برای ۱۰ renderer غایب = ۱۰ منبع حقیقت که در سه ماه دروغ می‌گویند | done |
 | **K3.9** | schema بقیهٔ نقاط — **فقط بعد از ساخت renderer هرکدام** |  | ⏳ | pending |
 | **K3.10** | کدهای خطای schema تولیدشده از خود قرارداد |  | `CODE_FA` در `PackageAnalyzer.tsx:46` دستی است ⇒ ۱۰ کد تازه بدون ترجمه، `issue.code` خام در UI می‌افتد | done |
-| **K3.11** | `admin.plugin_tools` — نقطهٔ drawer هدر پنل (تصمیم C1) |  | ⏳ | pending |
+| **K3.11** | `admin.plugin_tools` — نقطهٔ drawer هدر پنل (تصمیم C1-b) |  | ⏳ | pending |
 
 ## چیزهایی که با خواستهٔ کارفرما مخالف شد
 
@@ -872,21 +859,21 @@
 | **X1** | `admin.topbar` به‌عنوان نقطهٔ اتصال ❌ |  | `Topbar.tsx:20-73` نوار **affordanceهای اصلی** است. افزودنی که آنجا بنشیند یا نامرئی است یا بردار فیشینگ. **⇒ راه‌حل کارفرما (drawer) جایگزین بهتری است و پذیرفته شد** تأیید در کد: `admin.topbar` هیچ‌جا در فرانت و بک‌اند وجود ندارد ⇒ نقطهٔ اتصال ساخته نشد. | done |
 | **X2** | `admin.dashboard_slot` به `DEFERRED` |  | **schema این بدافزار را بدتر می‌کند:** مثال معتبر + validator سبز + نصب موفق + بعد هیچی رندر نمی‌شود = دروغ ساختاریافته تأیید در کد: `admin.dashboard_slot` در `PluginPackageContract.php:250` هست ولی `deferred`/`closed`، و `dashboard-widget-card.test.ts:59` همین را نگهبانی می‌کند. | done |
 | **X3** | ۱۰ schema همزمان ننویس |  | ۴ نقطه مصرف‌کننده ندارند اجرا شد: K3.8 فقط برای `admin.menu` و `site.page_type` schema نوشت. | done |
-| **X4** | `panel.json` حذف شود نه هم‌سان‌سازی |  | تصمیم C2 پذیرفته شد اجرا شد: تصمیم C2 پذیرفته و `panel.json` حذف شد. | done |
+| **X4** | `panel.json` حذف شود نه هم‌سان‌سازی |  | اجرا شد: تصمیم C2-b پذیرفته و `panel.json` حذف شد. | done |
 | **X5** | درجهٔ `free_form` ساخته نشود |  | تنها راهی که ممکن است K1.5.8 را دور بزند تأیید در کد: تست `test_free_form_grade_does_not_exist` (`PluginPackageValidatorTest.php:1174`) صریحاً نبودنش را نگهبانی می‌کند. | done |
 
 ## نامطمئن‌ها
 
 | مورد | چطور بفهمیم |
 |---|---|
-| آیا `panel.json` باید کل اعلان را برساند یا فقط کلیدها؟ | **حذف شد (C2) ⇒ بی‌موضوع** |
+| آیا `panel.json` باید کل اعلان را برساند یا فقط کلیدها؟ | **حذف شد (C2-b) ⇒ بی‌موضوع** |
 | آیا `richtext` در micro-grammar بماند؟ | تصمیم محصول: `SchemaForm.tsx:95` روی کلید `body` شرطی است، پس فقط یک شکل خاص پشتیبانی می‌شود |
 | رفتار `admin.page_registry` با `next/dynamic` | `K3.9` آن را برای افزونهٔ عمومی رد کرده ⇒ قبل از schema باید تکلیفش روشن شود |
 
 
 | ID | کار | فایل/محل | یادداشت | وضعیت |
 |---|---|---|---|---|
-| **I1** | ⭐ `panel.extensions` را تنها شکل کن |  | `widgets` / `page_types` / `permissions` / `hooks` مهاجرت کنند. `ManifestRegistry` از `panel.extensions` بخواند. مهاجرت تدریجی با dual-read ⏳ | waiting |
+| **I1-b** | ⭐ `panel.extensions` را تنها شکل کن |  | `widgets` / `page_types` / `permissions` / `hooks` مهاجرت کنند. `ManifestRegistry` از `panel.extensions` بخواند. مهاجرت تدریجی با dual-read ⏳ | waiting |
 | **I1.1** | `manifest.widgets.*` → `site.header_widget` / `site.footer_widget` |  | `ManifestRegistry.php:86-117` ⏳ | waiting |
 | **I1.2** | `manifest.page_types` → `site.page_type` |  | `ManifestRegistry.php:146-160` ⏳ | waiting |
 | **I1.3** | `manifest.permissions` → نقطهٔ مستقل یا فیلد مجزا |  | `ManifestRegistry.php:271-305` ⏳ | waiting |
@@ -1039,9 +1026,9 @@
 | K7.8 | انتقال کنترلرها/مدل‌های مرکزی به افزونه |  | ⚠️ **اعداد ردیف غلط بود و اصلاح شد:** کنترلرها **۱۲** تا نه ۱۳، مدل‌ها **۱۹** تا نه ۱۲ (تأیید: دیتابیس زنده ۱۹ جدول + کامنت `2026_10_05_000001:15` + خودِ ردیف U93 که «۱۹ جدول» می‌گوید). **و `InvoiceService` جهتِ برعکس است:** هیچ کنترلر مرکزی آن را صدا نمی‌زند؛ خودش سرویسِ هسته است که به ۴ مدل مرکزی چسبیده (`InvoiceService.php:5-8`) ⇒ انتقالش هسته را بی‌مرز می‌کند نه افزونه را مستقل. **«کار مکانیکی» نیست:** ۲۵ جفت‌شدگی خارجی + ۸ FK به `users` + یک route که به کنترلر *هسته* می‌رود **نگهبانِ همین مهاجرت (K7.7) تعمیر شد:** `CentralBoundaryTest` فهرست جدول‌هایش دستی و **سه نام غلط** داشت (`central_reviews` و `central_updates` هرگز جدول نبودند، `central_hardware_units` نام اشتباه `central_operator_hardware_keys` بود) و در عوض **۱۱ جدول واقعی** را نمی‌دید. یعنی نگهبانی که باید K7.8 را ایمن کند، خودش سه‌جدول متروک و یازده جدول غایب را می‌سنجید: سبز بود بی‌آنکه چیزی را تضمین کند. حالا فهرست از خود مدل‌ها با `getTable()` استخراج می‌شود و یک تست دیگر خودِ نگهبان را نگهبانی می‌کند (هیچ جدول واقعی غایب، هیچ نام مرده). همان تست همان روز `central_logs` را گرفت که پارس دستی از قلم افتاده بود. اسلات مردهٔ `app/Services/Central` هم حذف شد — پوشه وجود ندارد. **✅ انجام شد در `3e4cfbe`.** کد در `cms-core/backend/plugins/central/` نشست (نه storage) ⇒ source-first در `PluginReleaseManager` و ثبت زودهنگام در `AppServiceProvider::bootBundledPlugins()`. **«بدون tier جدید» یعنی چه:** تفاوت source و release یک لایهٔ اعتماد تازه نیست، یک **اولویت** است — source همیشه مقدم می‌آید تا بستهٔ بازاری نتواند کد مرکزی را shadow کند. بدترین حالت مهاجرت: کد مرکزی توسط یک ZIP مخرب بازنویسی می‌شد و هیچ‌کس نمی‌فهمید. **سه سرویس (`InvoiceService`, `ClientSubscriptionResolver`, `DevModeAudit`) عمداً core ماندند** — adapter هستند نه دارایی افزونه. **دو باگ که مهاجرت آشکار کرد و رفع شد:** (۱) `PluginRouteTable::resolve()` به method بی‌تفاوت بود ⇒ هر ۶۳ route به `null` می‌رسیدند و dispatch ۴۰۴ می‌داد؛ (۲) `PluginRouter` هیچ middlewareای اجرا نمی‌کرد ⇒ `auth:sanctum` و `central.operator` هر دو تزئینی بودند. ۱۹ مدل + ۱۲ کنترلر جابه‌جا شد. **۸۲۹ تست / ۳۵۰۷ assertion** روی هر دو دیتابیس تست، Pint پاک | done |
 | K7.9 | انتقال ۶۱ route به افزونه |  | **تصمیم مال محصول ۲۰۲۶-۰۹-۲۸: مرکز یک افزونهٔ معمولی است و زیر `/api/v1/p/central/` سرو می‌شود** — نه prefix اختصاصی، نه catch-all ویژه. یعنی بدون tier جدید اعتماد. هزینه‌اش تغییر URL در فرانت است که محدود و مکانیکی است. زیرساختش آماده شد: K7.11 کد را اجرا می‌کند و K100 route را ثبت کرده. **✅ انجام شد در `bb92dc0`** (شمار ۶۱ در این ردیف کهنه بود — مانیفست ۶۳ route دارد). ۵۳ call site در ۱۴ فایل + `openapi.yaml` + `api.d.ts`. **بخش سخت این نبود که rename کنیم، این بود که چه چیزی را باز نگه داریم:** `/v1/p/{slug}` سطح عمومی dispatch است و هر بستهٔ نصب‌شده مجوز خودش را در مانیفست اعلام می‌کند ⇒ پروکسی نمی‌تواند به آن اعتماد کند. پس فقط `central` باز ماند، و **فرقش provenance است نه tier تازه**: در خود ریپو، با `git pull` می‌آید، غیرقابل غیرفعال‌سازی است، و خودِ پروژه بازبینی‌اش می‌کند. `slug` روی این مسیر اصلاً validation نداشت. **تست mutation-verify شد:** هر ۱۶۶ تست موجود، هم وقتی پنل مرکزی از مرورگر دست‌نیافتنی بود و هم وقتی allowlist را به همهٔ افزونه‌ها باز کردیم، سبز می‌شدند — هیچ خطایی، فقط درخواست‌ها بی‌صدا می‌شکستند. الان ۱۷۲ تست، `tsc` پاک، build موفق | done |
 | **K7.10** | ⛔ `EnsureCentralOperator` **در هسته بماند** |  | `app/Http/Middleware/EnsureCentralOperator.php:13-27`. **نگهبانِ نگهبان در هسته می‌ماند** — اگر داخل پلاگین باشد، یک پلاگین بد می‌تواند خودش را operator کند ⏳ | waiting |
-| **K7.11** | ⛔ `tickets` + `operatorReply` **در هسته بماند** |  | `routes/api.php:260` مسیر مرکزی به کنترلر **مشتری** اشاره می‌کند. سیستم تیکت دادهٔ هسته است — این یک الگوی درست است: پلاگین روی دادهٔ هسته کار می‌کند ⏳ | waiting |
-| **K7.12** | ⛔ `PaymentWebhookController` **در هسته بماند** |  | **عمدی.** callback درگاه باید همیشه زنده باشد. پلاگین مالک *invoice* است نه *مسیر callback*. باید fail-closed با پیام فارسی و retry باشد ⏳ | waiting |
-| **K7.13** | تصمیم فرانت — ⭐ **گزینهٔ ۱ الان، گزینهٔ ۲ به‌عنوان هدف** |  | استثنای `SystemPlugin` **فقط سمت بک‌اند جواب می‌دهد.** فرانت: ⛔ هیچ `next/dynamic`، هیچ registry، هیچ catch-all. ۲۰۶۰ خط TSX بدون سازوکار.<br>**۱) پوستهٔ نازک در هسته** — ۳ روز، ۸۰٪ ارزش، هدف K1.0 کامل نیست<br>**۲) پوشهٔ vendorشده** `frontend/src/plugins-vendor/{slug}/` — ۲ روز + هزیز مستمر، ۱۰۰٪<br>**۳) بازسازی اعلانی** — ۶–۱۰ روز، ۶۰٪. ❌ **پیشنهاد نمی‌کنم**: ۲۰۰۰ خط UI خوب را دور می‌ریزید ⏳ منتظر تصمیم | blocked |
+| **K7.11-b** | ⛔ `tickets` + `operatorReply` **در هسته بماند** |  | `routes/api.php:260` مسیر مرکزی به کنترلر **مشتری** اشاره می‌کند. سیستم تیکت دادهٔ هسته است — این یک الگوی درست است: پلاگین روی دادهٔ هسته کار می‌کند ⏳ | waiting |
+| **K7.12-b** | ⛔ `PaymentWebhookController` **در هسته بماند** |  | **عمدی.** callback درگاه باید همیشه زنده باشد. پلاگین مالک *invoice* است نه *مسیر callback*. باید fail-closed با پیام فارسی و retry باشد ⏳ | waiting |
+| **K7.13-b** | تصمیم فرانت — ⭐ **گزینهٔ ۱ الان، گزینهٔ ۲ به‌عنوان هدف** |  | استثنای `SystemPlugin` **فقط سمت بک‌اند جواب می‌دهد.** فرانت: ⛔ هیچ `next/dynamic`، هیچ registry، هیچ catch-all. ۲۰۶۰ خط TSX بدون سازوکار.<br>**۱) پوستهٔ نازک در هسته** — ۳ روز، ۸۰٪ ارزش، هدف K1.0 کامل نیست<br>**۲) پوشهٔ vendorشده** `frontend/src/plugins-vendor/{slug}/` — ۲ روز + هزیز مستمر، ۱۰۰٪<br>**۳) بازسازی اعلانی** — ۶–۱۰ روز، ۶۰٪. ❌ **پیشنهاد نمی‌کنم**: ۲۰۰۰ خط UI خوب را دور می‌ریزید ⏳ منتظر تصمیم | blocked |
 | **K7.14** | اگر گزینهٔ ۲: ۴ شرط تست‌شدنی استثنا |  | ۱) دامنهٔ slug: CI fail شود اگر `plugins-vendor/` چیزی غیر از `system_plugins` داشته باشد. ۲) فقط `frontend/src/plugins-vendor/{slug}/`. ۳) قاعدهٔ هم‌commit در `AGENTS.md`. ۴) تست کامپایل. **بدون ۳ و ۴، استثنا یک کانال جانبی بدون نگهدارنده است** ⏳ | waiting |
 | **K7.15** | داده‌محور کردن `lib/menu.ts:44-47` و `Topbar.tsx:34-37` |  | سوییچ مشتری/مرکزی الان هاردکد است. حذف پلاگین باید این دو را بردارد ⇒ باید داده‌محور شوند ⏳ | waiting |
 | **K7.16** | نمایش `dev_mode`/قفل‌های مرکزی به‌صورت داده‌محور |  | `kill_switches` و `AppServiceProvider`/`routes/api.php:284-288` دستی هاردکد شده‌اند ⏳ | waiting |
@@ -1149,7 +1136,7 @@
 | **F0.2** | 🔴 XSS ویجت CTA هدر/فوتر + یکسان‌سازی sanitizer |  | **امنیت (S2):** `Chrome.tsx:53` بدون `safeHref`. ریشه: `LayoutController.php:69-77` فقط `nav`/`links` را validate می‌کند، `cta` نه. **راه‌حل معماری:** کلاس `App\Validation\SafeUrl` در بک‌اند به‌عنوان منبع حقیقت + استخراج `safeHref` به `lib/sanitize.ts`. اعتبارسنجی بر اساس `config/widgets.php` نه `if type==='cta'` ⇒ ویجت پلاگینی هم خودکار امن. M ⏸️✅ | done |
 | **F0.3** | 🔴 تصاحب پلاگین سیستمی در `upgrade()` |  | **امنیت (S3):** تأیید شد. `key_id` از مانیفست جدید خوانده می‌شود (`:242`) و `publisher_key_id` بازنویسی می‌شود (`:293`). ⇒ RCE + ماندگار (سیستمی حذف‌ناپذیر است). راه‌حل: پین ناشر در `system_plugins.publisher_key_fingerprint` + گارد در `upload()` و `upgrade()` **قبل از `storePackage`**. **۴ تست** شامل اثبات «فایل جدید روی دیسک نوشته نشد». S ⏸️ | deferred |
 | **F0.4** | 🔴 دروغ پیامک در `sms/request` |  | **امنیت (S4):** تأیید شد + یافتهٔ زنجیره‌ای: کاربر با کدی که **هرگز از SMS نگرفته** شماره را «تأییدشده» می‌کند و ۹۰ روز می‌ماند (`:422,:424`). **تصمیم مالک: گزینهٔ (ب)** — صریح به کاربر اعلام شود «هنوز فعال نیست» + UI «نمایش‌با-غیرفعال» (نه حذف؛ پروژه الگوی «شفافیت صادقانه» را در `PluginController:196` و `page.tsx:9` رعایت کرده). S ⏸️ | deferred |
-| **F0.5** | 🔴 جداکردن هسته از `central_subscriptions` |  | **بک‌اند (C1):** ۵ مصرف‌کنندهٔ `ClientSubscriptionResolver` + ۱۰ ارجاع `Central\` (همه در `CentralBoundaryTest::KNOWN_VIOLATIONS`). راه‌حل: `SubscriptionSource` interface + `SubscriptionState` value-object + `NullSubscriptionSource` پیش‌فرض. **`/v1/site/status` زیر Null باید `200 {status:"active"}` بدهد نه 404** (وگرنه خانهٔ سایت ۴۰۴ می‌شود). یافته: `SiteChromeController.php:29-32` متغیر استفاده‌نشده ⇒ حذف ۴ خط. **XL — ۲۱ فایل** ⏸️ | deferred |
+| **F0.5** | 🔴 جداکردن هسته از `central_subscriptions` |  | **بک‌اند (C1-b):** ۵ مصرف‌کنندهٔ `ClientSubscriptionResolver` + ۱۰ ارجاع `Central\` (همه در `CentralBoundaryTest::KNOWN_VIOLATIONS`). راه‌حل: `SubscriptionSource` interface + `SubscriptionState` value-object + `NullSubscriptionSource` پیش‌فرض. **`/v1/site/status` زیر Null باید `200 {status:"active"}` بدهد نه 404** (وگرنه خانهٔ سایت ۴۰۴ می‌شود). یافته: `SiteChromeController.php:29-32` متغیر استفاده‌نشده ⇒ حذف ۴ خط. **XL — ۲۱ فایل** ⏸️ | deferred |
 
 | ID | کار | فایل/محل | یادداشت | وضعیت |
 |---|---|---|---|---|
@@ -1246,14 +1233,14 @@
 |---|---|---|---|---|
 | **F0-B0** | 🔴 **اپ بوت نمی‌شود**: `AppServiceProvider` کلاس `ServiceProviderRegistry` را بدون `use` صدا می‌زد ⇒ PHP آن را در `App\Providers` حل می‌کرد در حالی که کلاس در `App\Services\Plugins` است ⇒ `BindingResolutionException` در هر درخواست. **از کامیت `e291945` (K5.0) — نه از F0.1** | `AppServiceProvider.php:36` | ضمن F0.1 در F0.1 ادغام و حل شد. | done |
 | **F0-B1** | 🔴 ناسازگاری allowlist بک‌اند/فرانت: `LinkItems.php:219` `//evil.com` را قبول می‌کرد ولی `HREF_OK` رد می‌کرد | `LinkItems.php:219` | S2 — ✅ در F0.2 بسته شد در F0.2 بسته شد. | done |
-| **F0-B2** | 🔴 `ServiceProviderRegistry` در `OVERRIDABLE_INTERFACES` عدد ۳ دارد ⇒ پلاگینی که ۴ رابط اعلام کند `too_many_declarations` می‌خورد | `PluginPackageContract.php:401` | C1 گام ۷ در C1 گام ۷ حل شد. | done |
+| **F0-B2** | 🔴 `ServiceProviderRegistry` در `OVERRIDABLE_INTERFACES` عدد ۳ دارد ⇒ پلاگینی که ۴ رابط اعلام کند `too_many_declarations` می‌خورد | `PluginPackageContract.php:401` | در `C1-b` گام ۷ حل شد. | done |
 | **F0-B3** | 🟠 `relativeFa` فقط دقت روز دارد ⇒ برای فید اعلان بی‌مصرف | `lib/fa.ts:31` | UI/UX مورد UI/UX — در رجیستری فاز ۱ بدون وضعیت رها شده بود. | deferred |
 | **F0-B4** | 🟠 باگ RTL سوییچ: `translateX(-18px)` در RTL کلید را به چپ می‌برد | `globals.css:454` | UI/UX مورد UI/UX. | deferred |
 | **F0-B5** | 🟠 کلاس `.dot` (نشان اعلان) هیچ قاعدهٔ CSS ندارد | `globals.css` | UI/UX مورد UI/UX. | deferred |
 | **F0-B6** | 🟡 `Stepper` فقط ۴ مرحلهٔ هاردکد دارد و حالت `failed/locked/skipped` ندارد | `primitives.tsx:40` | UI/UX مورد UI/UX. | deferred |
 | **F0-B7** | 🟡 بلوک `prefers-reduced-motion` فقط `.topbar-action` را پوشش می‌دهد | `globals.css:701` | UI/UX مورد UI/UX. | deferred |
 | **F0-B8** | 🟠 `REVALIDATE_SECRET` پیش‌فرض `change-me-in-production` ⇒ HMAC قابل جعل اگر env ست نشود | `config/revalidate.php:8` | C3 در C3 حل شد. | done |
-| **F0-B9** | 🟠 `CachedSettings::flushTag()` روی درایور `database` **کاملاً مرده** است | `CachedSettings.php:46-53` | C2 در C2 حل شد. | done |
+| **F0-B9** | 🟠 `CachedSettings::flushTag()` روی درایور `database` **کاملاً مرده** است | `CachedSettings.php:46-53` | در `C2-b` حل شد. | done |
 | **F0-B10** | ⚠️ **۱۵ تست از قبل شکسته‌اند** — `MonitoringTest` · `MonitoringExtrasTest` · `OperatorTest` · `OperatorHardwareSetupTest` · `ProfileTest` · `ProfileExtrasTest` · `UpdatesTest` · `UpdatesExtrasTest`. علت: مهاجرت **commit‌نشدهٔ** `2026_10_05_000001_prefix_central_tables.php` جدول‌های `core_versions` / `operator_hardware_keys` / `install_heartbeats` را به `central_*` تغییر نام داده ولی مدل‌ها و تست‌های دیگر هنوز نام قدیمی را می‌خواهند. **با `git stash` کل کار F0.1/F0.2 کنار گذاشته شد و همان ۱۵ تست همچنان شکست خوردند ⇒ تأیید‌شده که ربطی به این فاز ندارد.** | — | کنترل رگرسیون F0.1 کنترل رگرسیون F0.1 انجام شد. | done |
 
 ---
@@ -1333,7 +1320,7 @@
 | ترتیب | گام | چرا اینجا |
 |---|---|---|
 | ۱ | **K2** — باگ‌های امنیتی | B4 و B5 امنیتی‌اند؛ B6 یعنی مسیر اصلی کاربر خراب است؛ B2 با پایهٔ کاربر ایرانی محتمل است |
-| ۲ | **K3 / I1** — `panel.extensions` مرجع شود | تا این حل نشود، هر نقطهٔ اتصالی روی دو جهان موازی ساخته می‌شود |
+| ۲ | **K3 / I1-b** — `panel.extensions` مرجع شود | تا این حل نشود، هر نقطهٔ اتصالی روی دو جهان موازی ساخته می‌شود |
 | ۳ | **K5.0** — `core.service_provider` | کوچک‌ترین کار، بیشترین بازگشت. بازکنندهٔ `SearchableProvider`، `SubscriptionSource`، `PaymentGatewayInterface` |
 | ۴ | **K4** — حالت توسعه‌دهنده | با enforce سمت سرور. on-ramp توسعه‌دهنده، پیش‌نیاز بازار |
 | ۵ | **K6.1 + K6.2 + K6.3** — منو، drawer ابزارها، block_type | نقطه‌هایی که واقعاً مصرف‌کننده دارند. **اول ۵ تای موجود را واقعی کن، بعد دهمی** |
