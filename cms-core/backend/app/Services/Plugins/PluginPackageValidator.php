@@ -331,6 +331,16 @@ class PluginPackageValidator
             ];
         }
 
+        // K7.18 — محتوای اعلانی صفحهٔ پنل. fail-closed در **نصب**: صفحه‌ای که
+        // `type` غیرمجاز یا `data` بد دارد باید همین‌جا رد شود، نه هفتهٔ بعد
+        // هنگام بازدیدِ ادمین که رندرر آن را خالی می‌بیند و منشأ سکوت نامرئی است.
+        //
+        // `admin.pages` هم خوانده می‌شود (`ManifestRegistry.php:508-510`) ولی
+        // `pages` کانال رسمی است و همان است که نرمالایزر می‌خواند.
+        foreach (PluginPageContract::check($manifest['pages'] ?? null) as $issue) {
+            $issues[] = $issue;
+        }
+
         return $issues;
     }
 

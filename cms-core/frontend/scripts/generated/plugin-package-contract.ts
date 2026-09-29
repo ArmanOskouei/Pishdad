@@ -7,11 +7,11 @@
  * بازتولید:    `npm run gen:plugin-contract`
  * بررسی drift: `npm run gen:plugin-contract:check`  ← روی drift غیرصفر می‌دهد
  *
- * اثر انگشت قرارداد: `b666dbfc84d8198a`
+ * اثر انگشت قرارداد: `4993e7386fdaafd8`
  * (روی تغییر معنایی قرارداد عوض می‌شود؛ روی تغییر کامنت نه)
  */
 
-export type PluginPointStatus = "live" | "declared_only" | "deferred";
+export type PluginPointStatus = "live" | "declared_only" | "deferred" | "deprecated";
 
 export type PluginPointOpenness = "closed" | "schema_defined" | "open_vocabulary";
 
@@ -46,6 +46,11 @@ export interface PluginExtensionPoint {
   openness: PluginPointOpenness;
   openness_why: string;
   since: string;
+  /**
+   * فقط برای نقطه‌های منسوخ: نسخه‌ای که منسوخ شدند، جایگزینشان چیست، و چرا.
+   * نگهبان بالا اجازه نمی‌دهد حالت deprecated بدون replaced_by باشد.
+   */
+  deprecated?: { since: string; replaced_by: string; reason_fa: string };
   schema_version: number;
   max: { declarations: number; bytes: number; depth: number; properties: number };
   schema: { fields: Record<string, PluginFieldSpec>; cross: string[] };
@@ -83,7 +88,7 @@ export interface PluginPackageContractData {
 }
 
 export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
-  contractFingerprint: "b666dbfc84d8198a",
+  contractFingerprint: "4993e7386fdaafd8",
   source: "cms-core/backend/app/Services/Plugins/PluginPackageContract.php",
   package: {
     manifestName: "manifest.json",
@@ -338,11 +343,16 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
     {
       key: "admin.settings_schema",
       label_fa: "فرم تنظیمات اختصاصی",
-      desc_fa: "افزودن صفحهٔ تنظیمات که از روی JSON Schema رندر می‌شود (بدون کد فرانت).",
-      status: "declared_only",
+      desc_fa: "افزودن صفحهٔ تنظیمات که از روی JSON Schema رندر می‌شود (بدون کد فرنت).",
+      status: "deprecated",
       openness: "schema_defined",
-      openness_why: "SchemaForm آماده است و فقط یک map تخت را می‌چرخاند؛ پس نام فیلد قفل و ساختار بسته است.",
+      openness_why: "حذف‌شده: به کلید سطح‌بالای `settings` در مانیفست منتقل شد (`ManifestRegistry::pluginSettingsSchemas()`)، چون میکرو-اسکیمای اینجا با `max_depth => 1` اسکیمای JSON تودرتو را حمل نمی‌کند.",
       since: "1.2.0",
+      deprecated: {
+        since: "1.6.0",
+        replaced_by: "manifest.settings",
+        reason_fa: "اعلان از راه `panel.extensions` برای اسکیمای تودرتو ناممکن بود. از `1.6.0` به‌جای این نقطه، کلید سطح‌بالای `settings` را در مانیفست بنویسید."
+      },
       schema_version: 1,
       max: {
         declarations: 10,
@@ -358,13 +368,7 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
         ]
       },
       open_schema: false,
-      example_ok: [
-        {
-          key: "general",
-          title_fa: "تنظیمات عمومی",
-          group: "عمومی"
-        }
-      ],
+      example_ok: [],
       example_bad: [
         {
           why: "هر چیزی که به کاربر نشان داده می‌شود `title_fa` لازم دارد، وگرنه UI متن خالی می‌خواند.",
@@ -409,12 +413,7 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
         ]
       },
       open_schema: false,
-      example_ok: [
-        {
-          entity: "blog_post",
-          title_fa: "نوشته‌ها"
-        }
-      ],
+      example_ok: [],
       example_bad: [
         {
           why: "نام جدول باید دقیقاً {manifest.slug}_{x} باشد، وگرنه نقض K1.5.3 می‌شود.",
@@ -459,12 +458,7 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
         ]
       },
       open_schema: false,
-      example_ok: [
-        {
-          type: "trust_bar",
-          title_fa: "نوار اعتماد"
-        }
-      ],
+      example_ok: [],
       example_bad: [
         {
           why: "برخورد با نام هسته بی‌صدا رد می‌شود، پس باید خطا بدهد نه اینکه نصب شود و دیده نشود.",
@@ -517,12 +511,7 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
         ]
       },
       open_schema: false,
-      example_ok: [
-        {
-          type: "partners",
-          title_fa: "همکاران"
-        }
-      ],
+      example_ok: [],
       example_bad: [
         {
           why: "برخورد با ویجت هسته نصب را سبز نشان می‌دهد ولی ویجت اصلاً رندر نمی‌شود.",
@@ -658,12 +647,7 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
         ]
       },
       open_schema: false,
-      example_ok: [
-        {
-          type: "price_table",
-          title_fa: "جدول قیمت"
-        }
-      ],
+      example_ok: [],
       example_bad: [
         {
           why: "BlockRenderer برخورد `type` را بی‌صدا `continue` می‌کند؛ باید خطا بدهد.",

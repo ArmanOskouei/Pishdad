@@ -603,11 +603,25 @@ function readContract(contractPath) {
         throw new ContractError(`نقطهٔ «${key}» کلید «${required}» را ندارد`);
       }
     }
-    if (!["live", "declared_only", "deferred"].includes(built.status)) {
+    if (!["live", "declared_only", "deferred", "deprecated"].includes(built.status)) {
       throw new ContractError(`نقطهٔ «${key}» وضعیت ناشناخته «${built.status}» دارد`);
     }
     if (!["closed", "schema_defined", "open_vocabulary"].includes(built.openness)) {
       throw new ContractError(`نقطهٔ «${key}» درجهٔ بازی ناشناخته «${built.openness}» دارد`);
+    }
+    // `deprecated` بدون `replaced_by` یعنی نویسنده راه‌حل را حذف کرده ولی
+    // جایگزین را نگفته — که عملاً یعنی مهاجرتی بدون مقصد. خودِ ساختار
+    // قرارداد این را ممکن می‌کند، پس نگهبان باید جلویش را بگیرد.
+    //
+    // توجه به ساختار: `replaced_by` **داخل** بلوک `deprecated` است، نه
+    // هم‌سطح `status`. این را از روی `PluginPackageContract.php:294-298` گرفته‌ام.
+    if (built.status === "deprecated") {
+      const dep = built.deprecated ?? {};
+      if (typeof dep.replaced_by !== "string" || dep.replaced_by === "") {
+        throw new ContractError(
+          "نقطهٔ " + key + " وضعیت deprecated دارد ولی deprecated.replaced_by ندارد — مهاجرت بدون مقصد است",
+        );
+      }
     }
     void meta;
   }
@@ -633,7 +647,7 @@ const HEADER = `/* eslint-disable */
 `;
 
 const PREAMBLE = `
-export type PluginPointStatus = "live" | "declared_only" | "deferred";
+export type PluginPointStatus = "live" | "declared_only" | "deferred" | "deprecated";
 
 export type PluginPointOpenness = "closed" | "schema_defined" | "open_vocabulary";
 
@@ -668,6 +682,11 @@ export interface PluginExtensionPoint {
   openness: PluginPointOpenness;
   openness_why: string;
   since: string;
+  /**
+   * فقط برای نقطه‌های منسوخ: نسخه‌ای که منسوخ شدند، جایگزینشان چیست، و چرا.
+   * نگهبان بالا اجازه نمی‌دهد حالت deprecated بدون replaced_by باشد.
+   */
+  deprecated?: { since: string; replaced_by: string; reason_fa: string };
   schema_version: number;
   max: { declarations: number; bytes: number; depth: number; properties: number };
   schema: { fields: Record<string, PluginFieldSpec>; cross: string[] };

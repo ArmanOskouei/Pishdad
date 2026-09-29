@@ -15,6 +15,10 @@ const entry = (path: string, permission: string | null = null): PluginPageEntry 
   title_fa: "تیتر",
   permission,
   layout: "default",
+  // K7.19: صفحه‌ای که محتوا اعلام نکرده بلوک خالی دارد — نه `undefined`.
+  // رندرر روی `length` شرط می‌گذارد، پس `undefined` یعنی دسترسی به خصوصیت
+  // یک مقدار غایب در runtime.
+  blocks: [],
 });
 
 const profile = (permissions?: string[]): ProfileData =>

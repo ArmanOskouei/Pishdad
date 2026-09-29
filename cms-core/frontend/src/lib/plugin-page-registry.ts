@@ -18,6 +18,20 @@
  */
 import type { ProfileData } from "./domain.ts";
 import { isPluginAdminPath } from "./plugin-admin-path.ts";
+import { isBuiltinBlockType } from "./block-type.ts";
+
+/**
+ * یک بلوکِ اعلامی. `type` **فقط** می‌تواند از واژگان هسته باشد.
+ *
+ * K7.18 — این نوع عمداً هیچ راهی برای ارجاع به کد ندارد. نه `component`، نه
+ * `import`، نه نام یک ماژول. تنها چیزی که تعیین می‌کند کدام بخش از رندرکنندهٔ
+ * هسته اجرا شود، همین رشتهٔ `type` است — و آن هم از فهرست بسته می‌آید.
+ */
+export type PluginPageBlock = {
+  type: string;
+  data: Record<string, unknown>;
+  _enabled?: false;
+};
 
 export type PluginPageEntry = {
   slug: string;
@@ -25,12 +39,65 @@ export type PluginPageEntry = {
   title_fa: string;
   permission?: string | null;
   layout?: string;
+  /**
+   * محتوای اعلامی صفحه. ممکن است خالی باشد — یعنی صفحه فقط عنوان دارد، که
+   * همان رفتارِ پیش از K7.19 است و خطا نیست.
+   */
+  blocks: PluginPageBlock[];
 };
+
+/** سقف بلوک، هم‌ردهٔ `PluginPageContract::MAX_BLOCKS_PER_PAGE` در بک‌اند. */
+export const MAX_PLUGIN_PAGE_BLOCKS = 24;
 
 export type PluginPageDecision =
   | { kind: "render"; entry: PluginPageEntry }
   | { kind: "forbidden"; entry: PluginPageEntry }
   | { kind: "not-registered" };
+
+/**
+ * بلوک‌های یک صفحهٔ افزونه، با همان فیلتر fail-closed که بک‌اند می‌زند.
+ *
+ * ## چرا این لایه تکرار است، نه افزونگی
+ *
+ * بک‌اند در `PluginPageContract` و `ManifestRegistry` همین‌ها را فیلتر می‌کند.
+ * ولی این داده از یک `fetch` می‌آید، یعنی از شبکه. یک پروکسی، یک extension
+ * مرورگر، یا هر چیزی بین ادمین و سرور می‌تواند JSON را عوض کند. پوسته نباید
+ * به «بک‌اند قبلاً پاکش کرده» تکیه کند — اگر تکیه کند، یک بدجوابِ کوچک به
+ * رندر کدی تبدیل می‌شود که هیچ‌کس اجازهٔ اجرایش را نداده.
+ *
+ * همان دلیلی که `isPluginAdminPath` اینجا تکرار می‌شود و قرض گرفته نمی‌شود
+ * (خط ۵۶): «دو الگوی جدا یعنی جایی که یکی رد کند و دیگری قبول».
+ */
+export function normalizePluginPageBlocks(raw: unknown): PluginPageBlock[] {
+  if (!Array.isArray(raw)) return [];
+
+  const out: PluginPageBlock[] = [];
+
+  for (const item of raw) {
+    if (out.length >= MAX_PLUGIN_PAGE_BLOCKS) break;
+    if (item === null || typeof item !== "object") continue;
+
+    const b = item as Record<string, unknown>;
+    const type = b.type;
+
+    // تنها دروازهٔ امنیتی این فایل. `isBuiltinBlockType` فهرست بستهٔ هسته است،
+    // پس یک نوع ناشناس یعنی «هیچ کدی برای اجرا وجود ندارد» — و `BlockRenderer`
+    // در آن حالت شاخهٔ `default` را می‌گیرد که هرگز throw نمی‌کند.
+    if (typeof type !== "string" || !isBuiltinBlockType(type)) continue;
+
+    const data = b.data;
+    if (data === null || typeof data !== "object" || Array.isArray(data)) continue;
+
+    const entry: PluginPageBlock = { type, data: data as Record<string, unknown> };
+
+    // فقط `false` معتبر است. رشتهٔ تصادفی نباید بتواند یک بلوک را بی‌صدا حذف کند.
+    if (b._enabled === false) entry._enabled = false;
+
+    out.push(entry);
+  }
+
+  return out;
+}
 
 /** همان الگوی `admin.menu` — کلید مسیر باید یکتا باشد. */
 export function normalizePluginPages(raw: unknown): PluginPageEntry[] {
@@ -65,6 +132,7 @@ export function normalizePluginPages(raw: unknown): PluginPageEntry[] {
       title_fa: typeof e.title_fa === "string" && e.title_fa !== "" ? e.title_fa : path,
       permission: typeof e.permission === "string" ? e.permission : null,
       layout: typeof e.layout === "string" ? e.layout : "default",
+      blocks: normalizePluginPageBlocks(e.blocks),
     });
   }
 

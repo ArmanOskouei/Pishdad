@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { serverOne } from "@/lib/server-api";
 import { decidePluginPage, normalizePluginPages, type PluginPageEntry } from "@/lib/plugin-page-registry";
 import { PLUGIN_ADMIN_ROOT } from "@/lib/plugin-admin-path";
+import { BlockRenderer } from "@/components/site/BlockRenderer";
+import type { BlockValue } from "@/lib/domain";
 import type { ProfileData } from "@/lib/domain";
 
 /**
@@ -63,12 +65,25 @@ export default async function PluginAdminPage({ params }: Props) {
 
   // descriptor از رجیستری می‌آید و هسته رندرش می‌کند. `pageId` یعنی «از دیتابیس
   // بخوان» نه «از پلاگین اجرا کن» — این تفاوت، مرز امنیتی این تسک است.
+  //
+  // K7.19 — به‌جای placeholder، بلوک‌های اعلامی با همان `BlockRenderer` هسته
+  // رندر می‌شوند. هیچ `next/dynamic`، هیچ `import()` پویا، هیچ کد پلاگینی در
+  // مرورگر. تنها چیزی که از افزونه می‌آید داده است و `normalizePluginPageBlocks`
+  // فیلترش کرده: `type` فقط از واژگان بستهٔ هسته (`isBuiltinBlockType`).
+  //
+  // بلوک خالی یعنی افزونه محتوا اعلام نکرده. آن وقت فقط عنوان می‌ماند — نه پیام
+  // خطا، چون نبودِ محتوا اشکال نیست و قبل از K7.19 هم همین اتفاق می‌افتاد.
+  const blocks = decision.entry.blocks as BlockValue[];
+
   return (
-    <div className="page-head">
-      <div>
-        <h1>{decision.entry.title_fa}</h1>
-        <p>افزونه: {decision.entry.slug}</p>
+    <>
+      <div className="page-head">
+        <div>
+          <h1>{decision.entry.title_fa}</h1>
+          <p>افزونه: {decision.entry.slug}</p>
+        </div>
       </div>
-    </div>
+      {blocks.length > 0 ? <BlockRenderer blocks={blocks} /> : null}
+    </>
   );
 }

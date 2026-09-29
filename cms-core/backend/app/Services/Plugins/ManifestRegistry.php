@@ -568,13 +568,91 @@ class ManifestRegistry
             return null;
         }
 
+        $layout = is_string($def['layout'] ?? null) ? $def['layout'] : PluginPageContract::DEFAULT_LAYOUT;
+
+        // K7.18 — `layout` دیگر رشتهٔ آزاد نیست. اگر مقداری خارج از allowlist
+        // بیاید، **خودِ مقدار** حفظ می‌شود ولی صفحه `null` می‌شود: بازگشت به
+        // پیش‌فرض یعنی رندر یک چیزی که نویسندهٔ افزونه درخواستش نکرده بود.
+        //
+        // این برای افزونه‌های نصب‌شدهٔ قبلی هم fail-closed است — دروازهٔ نصب
+        // (`PluginPackageContract`-level, در `PluginPackageValidator::pageChecks`)
+        // ممکن است تازه باشد و آن‌ها از آن رد نشده باشند.
+        if (! in_array($layout, PluginPageContract::LAYOUTS, true)) {
+            return null;
+        }
+
         return [
             'slug' => $slug,
             'path' => rtrim($path, '/'),
             'title_fa' => is_string($def['title_fa'] ?? null) ? $def['title_fa'] : $key,
             'permission' => is_string($def['permission'] ?? null) ? $def['permission'] : null,
-            'layout' => is_string($def['layout'] ?? null) ? $def['layout'] : 'default',
+            'layout' => $layout,
+            'blocks' => self::normalizePageBlocks($def['blocks'] ?? null),
         ];
+    }
+
+    /**
+     * K7.18 — بلوک‌های اعلانی صفحه، فقط از واژگان هسته.
+     *
+     * ## چرا این هم fail-closed است
+     *
+     * دروازهٔ نصب بلوک‌ها را می‌سنجد، ولی افزونه‌های *نصب‌شدهٔ قبلی* از آن رد
+     * نشده‌اند. پس اینجا هم باید باشد — وگرنه یک مانیفست قدیمی با
+     * `"type": "evil"` یا `data` غیرآرایه، به `BlockRenderer` می‌رسد و آنجا
+     * شاخهٔ `default` فقط یک لاگ می‌نویسد و چیزی رندر نمی‌کند.
+     *
+     * ## چرا `data` کامل دور ریخته نمی‌شود
+     *
+     * `data` آبجکت آزاد است و `SchemaForm`/`BlockRenderer` خودشان به آن
+     * نگاه می‌کنند؛ ما فقط **شکل** را تضمین می‌کنیم (آرایهٔ خطی نباشد). پس
+     * اینجا `array_filter` روی `data` می‌کنیم و مقدارش را دست‌نخورده می‌گذاریم —
+     * تنها چیزی که فیلتر می‌شود نوع بلوک است، چون همان چیزی است که تعیین می‌کند
+     * کدام کد اجرا شود.
+     *
+     * @return list<array{type: string, data: array<string, mixed>}>
+     */
+    private static function normalizePageBlocks(mixed $blocks): array
+    {
+        if (! is_array($blocks) || ! array_is_list($blocks)) {
+            return [];
+        }
+
+        $allowed = PluginPageContract::allowedBlockTypes();
+        $out = [];
+
+        foreach ($blocks as $block) {
+            if (! is_array($block) || array_is_list($block)) {
+                continue;
+            }
+
+            $type = $block['type'] ?? null;
+            if (! is_string($type) || ! in_array($type, $allowed, true)) {
+                continue;
+            }
+
+            $data = $block['data'] ?? null;
+            if (! is_array($data) || (array_is_list($data) && $data !== [])) {
+                continue;
+            }
+
+            $entry = ['type' => $type, 'data' => $data];
+
+            // `_enabled` ریزدانگه‌ای است که `BlockRenderer.tsx:63` به آن نگاه
+            // می‌کند؛ اگر از مانیفست بیاید و صفر باشد، بلوک رندر نمی‌شود.
+            // فقط `false` معتبر است — هر مقدار دیگری نادیده گرفته می‌شود تا
+            // یک رشتهٔ تصادفی نتواند بلوک را بی‌صدا حذف کند.
+            if (array_key_exists('_enabled', $block) && $block['_enabled'] === false) {
+                $entry['_enabled'] = false;
+            }
+
+            $out[] = $entry;
+
+            if (count($out) >= PluginPageContract::MAX_BLOCKS_PER_PAGE) {
+                break;
+            }
+        }
+
+        return $out;
     }
 
     /**
