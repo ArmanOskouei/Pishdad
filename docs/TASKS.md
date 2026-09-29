@@ -22,7 +22,7 @@
 > `done` · `partial` · `active` · `pending` · `waiting` · `blocked` · `deferred` · `cancelled`
 > هر توضیحی در سلول وضعیت به ستون `یادداشت` منتقل شده تا سلول وضعیت قابل‌خواندن بماند.
 
-**309 ردیف تسک.** `blocked` 19 · `active` 2 · `partial` 3 · `pending` 38 · `waiting` 22 · `deferred` 38 · `cancelled` 2 · `done` 185
+**309 ردیف تسک.** `blocked` 19 · `active` 2 · `partial` 4 · `pending` 44 · `waiting` 22 · `deferred` 30 · `cancelled` 2 · `done` 186
 
 | ID | کار | وضعیت | بخش |
 |---|---|---|---|
@@ -49,11 +49,12 @@
 | **— active (2) —** | | | |
 | `K1.6.1` | قرارداد بسته: `panel.json` schema + بستهٔ ۷ پیشوند + رجیستری نقاط اتصال **به‌ص… | `active` | K1.6 — فاز ۱.۵ (جدید، بیشترین بازده) ✅ |
 | `K1.6.3` | `POST /v1/admin/plugins/validate` — تابع خالص روی فهرست ZIP، بدون استخراج و بد… | `active` | K1.6 — فاز ۱.۵ (جدید، بیشترین بازده) ✅ |
-| **— partial (3) —** | | | |
+| **— partial (4) —** | | | |
 | `K5.0-W` | `PluginAutoloader` ساخته شد ولی **هیچ‌جا صدا زده نمی‌شود** | `partial` | کارهای پیدا‌شده حین اجرا (خارج از رجیستری اصلی) |
 | `K1.8` | موازی (کندلی ۱-۲ روزه) | `partial` | K1 — فازبندی اجرایی (بر اساس گزارش متخصص) |
 | `K5.1` | `PluginExtractor` — ۱۱ کنترل استخراج امن | `partial` | 🟠 K5 — هستهٔ اجرایی پلاگین (K1.1) |
-| **— pending (38) —** | | | |
+| `L-B7` | 🟠 `themeVars()` هیچ مصرف‌کننده‌ای ندارد — سایت ۱۰۰٪ از توکن‌های **پنل** استای… | `partial` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
+| **— pending (44) —** | | | |
 | `K5.2-W` | `ensureSealKeyFor` در `upload()` صدا زده می‌شود ولی **مهر زدن روی فایل** ندارد | `pending` | کارهای پیدا‌شده حین اجرا (خارج از رجیستری اصلی) |
 | `K1.5-B` | `activeManifests()` فقط `active` را چک می‌کند، نه `review_status` | `pending` | کارهای پیدا‌شده حین اجرا (خارج از رجیستری اصلی) |
 | `K1.1` | فاز ۱ — هسته اجرایی | `pending` | K1 — فازبندی اجرایی (بر اساس گزارش متخصص) |
@@ -92,6 +93,12 @@
 | `K8.4` | نصب از بازار (بدون پول) | `pending` | ⚪ K8 — بازار و فروش (بعد از K5) |
 | `K8.5` | سفارش + لایسنس + ledger تسویه + payout دستی | `pending` | ⚪ K8 — بازار و فروش (بعد از K5) |
 | `L-B3` | 🔴 `upgrade()` پلاگین سیستمی را با کلید هر ناشر تأییدشده‌ای تصاحب می‌کند (publ… | `pending` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
+| `L-B4` | 🔴 مسیر عمومی سایت بدون جداول مرکزی ۵۰۰ می‌دهد ⇒ صفحهٔ خانه ۴۰۴ | `pending` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
+| `L-B5` | 🔴 `vendor/` از allowlist پلاگین دور می‌زند (`Laravel/src/vendor/**` مجاز است) | `pending` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
+| `L-B6` | 🔴 `sms/request` به کاربر می‌گوید پیامک ارسال شد، در حالی که هیچ‌چیز ارسال نمی… | `pending` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
+| `L-B8` | 🟠 `site-chrome` در allowlist محلی revalidate نیست ⇒ فعال‌سازی قالب کروم را پا… | `pending` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
+| `L-B9` | 🟠 `site-status`/`site-homepage` هرگز dispatch نمی‌شوند ⇒ تعلیق فقط با انقضای … | `pending` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
+| `L-B10` | 🟠 کنترل symlink فقط `S_IFLNK` را می‌گیرد؛ char/block/FIFO/socket رد نمی‌شوند | `pending` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
 | **— waiting (22) —** | | | |
 | `I1-b` | ⭐ `panel.extensions` را تنها شکل کن | `waiting` | نامطمئن‌ها |
 | `I1.1` | `manifest.widgets.*` → `site.header_widget` / `site.footer_widget` | `waiting` | نامطمئن‌ها |
@@ -115,17 +122,9 @@
 | `K7.14` | اگر گزینهٔ ۲: ۴ شرط تست‌شدنی استثنا | `waiting` | گام‌ها |
 | `K7.15` | داده‌محور کردن `lib/menu.ts:44-47` و `Topbar.tsx:34-37` | `waiting` | گام‌ها |
 | `K7.16` | نمایش `dev_mode`/قفل‌های مرکزی به‌صورت داده‌محور | `waiting` | گام‌ها |
-| **— deferred (38) —** | | | |
+| **— deferred (30) —** | | | |
 | `K0.6` | بازار federated یا تک‌مرکزی | `deferred` | K0 — تصمیم‌های محصول/کسب‌وکار ✅ پاسخ داده شد (۱۴۰۵/۰۶/۰۴) |
 | `K8.6` | درگاه | `deferred` | ⚪ K8 — بازار و فروش (بعد از K5) |
-| `L-B4` | 🔴 مسیر عمومی سایت بدون جداول مرکزی ۵۰۰ می‌دهد ⇒ صفحهٔ خانه ۴۰۴ | `deferred` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
-| `L-B5` | 🔴 `vendor/` از allowlist پلاگین دور می‌زند (`Laravel/src/vendor/**` مجاز است) | `deferred` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
-| `L-B6` | 🔴 `sms/request` به کاربر می‌گوید پیامک ارسال شد، در حالی که هیچ‌چیز ارسال نمی… | `deferred` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
-| `L-B7` | 🟠 `themeVars()` هیچ مصرف‌کننده‌ای ندارد — سایت ۱۰۰٪ از توکن‌های **پنل** استای… | `deferred` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
-| `L-B8` | 🟠 `site-chrome` در allowlist محلی revalidate نیست ⇒ فعال‌سازی قالب کروم را پا… | `deferred` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
-| `L-B9` | 🟠 `site-status`/`site-homepage` هرگز dispatch نمی‌شوند ⇒ تعلیق فقط با انقضای … | `deferred` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
-| `L-B10` | 🟠 کنترل symlink فقط `S_IFLNK` را می‌گیرد؛ char/block/FIFO/socket رد نمی‌شوند | `deferred` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
-| `L-B11` | 🟡 `HREF_OK`/`SRC_OK`/`LinkItems` با `/\evil.com` دور زده می‌شوند (open-redire… | `deferred` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
 | `F0.3` | 🔴 تصاحب پلاگین سیستمی در `upgrade()` | `deferred` | فاز ۰ — بستن ریسک‌های زنده |
 | `F0.4` | 🔴 دروغ پیامک در `sms/request` | `deferred` | فاز ۰ — بستن ریسک‌های زنده |
 | `F0.5` | 🔴 جداکردن هسته از `central_subscriptions` | `deferred` | فاز ۰ — بستن ریسک‌های زنده |
@@ -157,7 +156,7 @@
 | **— cancelled (2) —** | | | |
 | `E1` | درگاه واقعی زرین‌پال | `cancelled` | آنچه فاز ۰ عملاً تغییر داد (برای مراجعه بعدی) |
 | `F5.3` | Web Push — **رد شد** (iOS + نبود queue + بازگشتی بودن برای سایتی که RSS/تلگرام… | `cancelled` | فاز ۵ — PWA |
-| **— done (185) —** | | | |
+| **— done (186) —** | | | |
 | `A1` | تغییرات هدر/فوتر روی سایت عمومی اعمال نمی‌شود | `done` | گروه A — باگ‌های گزارش‌شده (اولویت ۱) |
 | `A2` | درگ‌انددراپ در تنظیمات هدر/فوتر فعال نیست | `done` | گروه A — باگ‌های گزارش‌شده (اولویت ۱) |
 | `A3` | نمایش واضح اینکه هر ویجت در کدام ستون فوتر است | `done` | گروه A — باگ‌های گزارش‌شده (اولویت ۱) |
@@ -299,6 +298,7 @@
 | `K7.9` | انتقال ۶۱ route به افزونه | `done` | گام‌ها |
 | `L-B1` | 🔴 XSS ذخیره‌شده در JSON-LD — `JSON.stringify` اسلش را escape نمی‌کند | `done` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
 | `L-B2` | 🔴 XSS ویجت CTA هدر/فوتر — بدون `safeHref` و بدون اعتبارسنجی سرور | `done` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
+| `L-B11` | 🟡 `HREF_OK`/`SRC_OK`/`LinkItems` با `/\evil.com` دور زده می‌شوند (open-redire… | `done` | باگ‌های تازه کشف‌شده در فاز ۱ (ثبت می‌شوند، شماره‌گذاری بعد از تأیید) |
 | `F0.1` | 🔴 XSS ذخیره‌شده در JSON-LD صفحهٔ عمومی | `done` | فاز ۰ — بستن ریسک‌های زنده |
 | `F0.2` | 🔴 XSS ویجت CTA هدر/فوتر + یکسان‌سازی sanitizer | `done` | فاز ۰ — بستن ریسک‌های زنده |
 | `F0-B0` | 🔴 **اپ بوت نمی‌شود**: `AppServiceProvider` کلاس `ServiceProviderRegistry` را … | `done` | باگ‌های تازهٔ کشف‌شده در مشورت (ثبت، اجرا در فاز ۳) |
@@ -1079,14 +1079,14 @@
 | **L-B1** | 🔴 XSS ذخیره‌شده در JSON-LD — `JSON.stringify` اسلش را escape نمی‌کند | `app/[...path]/page.tsx:118` | 🔴 عمومی، بی‌احرازهویت ⏸️ اثبات در کد: `lib/sanitize.ts` با `safeHref`/`safeSrc`/`safeHtml` ساخته شد و `Chrome.tsx` و `BlockRenderer.tsx` هر دو از آن استفاده می‌کنند — همان راه‌حلی که F0.2 پیشنهاد داده بود. رجیستری L-B کهنه بود. | done |
 | **L-B2** | 🔴 XSS ویجت CTA هدر/فوتر — بدون `safeHref` و بدون اعتبارسنجی سرور | `components/site/Chrome.tsx:53` | 🔴 عمومی ⏸️ همان ریشهٔ L-B1؛ با F0.1/F0.2 بسته شد. | done |
 | **L-B3** | 🔴 `upgrade()` پلاگین سیستمی را با کلید هر ناشر تأییدشده‌ای تصاحب می‌کند (publish-confusion) | `PluginController.php:226-233,266` | 🔴 ⏸️ هنوز باز است: پین ناشر در `system_plugins.publisher_key_fingerprint` پیاده نشده (جست‌وجو در `PluginTrustStore` و `PluginController`: صفر تطابق). | pending |
-| **L-B4** | 🔴 مسیر عمومی سایت بدون جداول مرکزی ۵۰۰ می‌دهد ⇒ صفحهٔ خانه ۴۰۴ | `Site/PageController.php:59` + ۲ کنترلر دیگر | 🔴 تولید فعال ⏸️ | deferred |
-| **L-B5** | 🔴 `vendor/` از allowlist پلاگین دور می‌زند (`Laravel/src/vendor/**` مجاز است) | `PluginPackageContract.php:471-474` | 🔴 زنجیرهٔ تأمین ⏸️ | deferred |
-| **L-B6** | 🔴 `sms/request` به کاربر می‌گوید پیامک ارسال شد، در حالی که هیچ‌چیز ارسال نمی‌شود | `ProfileController.php:381-402` | 🔴 دروغ به کاربر ⏸️ | deferred |
-| **L-B7** | 🟠 `themeVars()` هیچ مصرف‌کننده‌ای ندارد — سایت ۱۰۰٪ از توکن‌های **پنل** استایل می‌گیرد | `Chrome.tsx:12` + `globals.css:594` | 🟠 نشت تم ⏸️ | deferred |
-| **L-B8** | 🟠 `site-chrome` در allowlist محلی revalidate نیست ⇒ فعال‌سازی قالب کروم را پاک نمی‌کند | `api/revalidate/route.ts:18` | 🟠 کهنگی ۳۰۰ث ⏸️ | deferred |
-| **L-B9** | 🟠 `site-status`/`site-homepage` هرگز dispatch نمی‌شوند ⇒ تعلیق فقط با انقضای ISR | `RevalidateDispatcher` call-sites | 🟠 ⏸️ | deferred |
-| **L-B10** | 🟠 کنترل symlink فقط `S_IFLNK` را می‌گیرد؛ char/block/FIFO/socket رد نمی‌شوند | `PluginPackageValidator.php:516` | 🟠 ⏸️ | deferred |
-| **L-B11** | 🟡 `HREF_OK`/`SRC_OK`/`LinkItems` با `/\evil.com` دور زده می‌شوند (open-redirect) | `BlockRenderer.tsx:21,27` | 🟡 ⏸️ | deferred |
+| **L-B4** | 🔴 مسیر عمومی سایت بدون جداول مرکزی ۵۰۰ می‌دهد ⇒ صفحهٔ خانه ۴۰۴ | `Site/PageController.php:59` + ۲ کنترلر دیگر | 🔴 تولید فعال ⏸️ 🔴 باز — با اجرا اثبات شد. پایه: `GET /v1/site/status` → ۲۰۰. بعد از `ALTER TABLE central_subscriptions RENAME` (شبیه‌سازی نصب مشتری بدون جدول مرکزی): `QueryException: SQLSTATE[42P01] Undefined table: relation "central_subscriptions" does not exist` ⇒ ۵۰۰. `ClientSubscriptionResolver` نه `try/catch` دارد نه `hasTable`، و مستقیم `firstOrCreate` می‌زند. راه‌حلِ تجویزشده (`SubscriptionSource` + `NullSubscriptionSource`) صفر تطابق دارد. هر ۳ کنترلر عمومی مصرف‌کننده‌اند: `Site/PageController.php:55`، `SiteChromeController.php:31`، `SiteStatusController.php:23`. | pending |
+| **L-B5** | 🔴 `vendor/` از allowlist پلاگین دور می‌زند (`Laravel/src/vendor/**` مجاز است) | `PluginPackageContract.php:471-474` | 🔴 زنجیرهٔ تأمین ⏸️ 🔴 باز — با اجرا اثبات شد. `PluginPackageContract.php:91` فقط `Laravel/src` را به‌عنوان مقصد پوشه‌ای فهرست می‌کند و `isAllowedPath()` (`:616`) هر چیزی زیرش را قبول می‌کند: `isAllowedPath('Laravel/src/vendor/acme/lib/src/Evil.php')` → **ALLOWED** (و `Next.js/panel/vendor/evil.js` هم). هیچ گارد جداگانه‌ای برای `vendor` نه در قرارداد هست، نه در `PluginInstaller`، نه در هیچ تستی. شمارهٔ خط ادعای قدیمی (`PluginPackageContract.php:471-474`) کهنه است — فایل حالا ۱۳۴۵ خط دارد و ذکری از `vendor` ندارد. | pending |
+| **L-B6** | 🔴 `sms/request` به کاربر می‌گوید پیامک ارسال شد، در حالی که هیچ‌چیز ارسال نمی‌شود | `ProfileController.php:381-402` | 🔴 دروغ به کاربر ⏸️ 🔴 باز — در `ProfileController::smsRequest` (`:430`، نه ۳۸۱-۴۰۲) هیچ فراخوانی به provider نیست: کد ساخته و در `sms_pending` کش می‌شود و بعد `['message' => 'کد تأیید پیامکی ارسال شد (۵ دقیقه اعتبار دارد).']` برگردانده می‌شود. یعنی دقیقاً همان دروغ. `debug_code` فقط در غیر-production اضافه می‌شود، پس در production کاربر هیچ راهی برای گرفتن کد ندارد. | pending |
+| **L-B7** | 🟠 `themeVars()` هیچ مصرف‌کننده‌ای ندارد — سایت ۱۰۰٪ از توکن‌های **پنل** استایل می‌گیرد | `Chrome.tsx:12` + `globals.css:594` | 🟠 نشت تم ⏸️ 🟠 نیمه‌رفع. **ادعای `themeVars()` غلط شد:** حالا ۸ فراخوانی واقعی دارد — `page.tsx:31,64,88,117`، `LayoutsClient.tsx:413` و تعریف در `Chrome.tsx:28`. **ولی نشت توکن پابرجاست:** توکن‌ها در `globals.css:6` روی `:root` تعریف شده‌اند، `applyTheme` در `theme.tsx` مقدار `data-theme`/`data-accent`/`data-radius` را روی `document.documentElement` می‌نویسد، `ThemeProvider` در `layout.tsx:36` (ریشه) mount است و سایت عمومی هیچ فایل توکن خودش ندارد — تنها `globals.css` با ۴۲ اعلان `--primary/--bg/--text/--surface` مشترک است. یعنی تم پنل مدیر به سایت عمومی می‌رسد. | partial |
+| **L-B8** | 🟠 `site-chrome` در allowlist محلی revalidate نیست ⇒ فعال‌سازی قالب کروم را پاک نمی‌کند | `api/revalidate/route.ts:18` | 🟠 کهنگی ۳۰۰ث ⏸️ 🟠 باز — `src/app/api/revalidate/route.ts:18` هنوز `ALLOWED_LOCAL_TAGS = new Set(["pages", "theme"])`. `site-chrome` در آن نیست، پس فعال‌سازی قالب کروم از راه مسیر محلی کش عمومی را پاک نمی‌کند. | pending |
+| **L-B9** | 🟠 `site-status`/`site-homepage` هرگز dispatch نمی‌شوند ⇒ تعلیق فقط با انقضای ISR | `RevalidateDispatcher` call-sites | 🟠 ⏸️ 🟠 باز، ولی **دلیلِ نوشته‌شده نصفه غلط است.** درست: `App\Console\Commands\BillingSuspend.php` (۵۱ خط) اشتراک و کلاینت را `suspended` می‌کند و **هیچ** `RevalidateDispatcher`/`RevalidateSigner` صدا نمی‌زند ⇒ وضعیت تعلیق فقط با انقضای خودکار ISR دیده می‌شود. غلط: «`site-homepage` هرگز dispatch نمی‌شود» — در `LayoutController.php:302` دقیقاً dispatch می‌شود (هنگام ذخیرهٔ بلوک‌های صفحهٔ خانه). `site-status` صفر تطابق دارد، ولی تگِ لازم برای تعلیق اصلاً تولید نمی‌شود. | pending |
+| **L-B10** | 🟠 کنترل symlink فقط `S_IFLNK` را می‌گیرد؛ char/block/FIFO/socket رد نمی‌شوند | `PluginPackageValidator.php:516` | 🟠 ⏸️ 🟠 باز در validator، و installer بعداً می‌گیردش. **با اجرا اثبات شد:** ZIP واقعی با بیت‌های نوع واقعی UNIX ساختم و `PluginPackageValidator::analyze()` را صدا زدم: symlink (`0xA000`) → REJECTED با کد `path.symlink`؛ ولی FIFO (`0x1000`)، socket (`0xC000`)، char device (`0x2000`) و block device (`0x6000`) → **ACCEPTED، بدون خطا**. ریشه: `readEntries()` در `PluginPackageValidator.php:552` فقط `is_link = $type === 0xA000` می‌گذارد. `PluginInstaller.php:345` همهٔ غیر‌معمولی‌ها را رد می‌کند (`in_array($type, [0x0000, S_IFREG])` → `install.special_entry`) ⇒ اعتبارسنجی سبز می‌شود و نصب بعداً شکست می‌خورد. | pending |
+| **L-B11** | 🟡 `HREF_OK`/`SRC_OK`/`LinkItems` با `/\evil.com` دور زده می‌شوند (open-redirect) | `BlockRenderer.tsx:21,27` | 🟡 ⏸️ 🟡 **رفع شد.** با اجرا روی ماژول واقعی: `safeHref`/`safeSrc` هر پنج bypass را بلاک می‌کنند — `/\evil.com`، `//evil.com`، `\\evil.com`، `/\t/evil.com`، `https:/\evil.com` — و نشانی‌های مشروع را می‌پذیرند. ریشهٔ درمان `lookahead` است: `HREF_OK = /^(?:\/(?![/\\])\|#\|…)/i` در `lib/sanitize.ts`. منبع حقیقت بک‌اند `App\Validation\SafeUrl` هم همان الگو را دارد و `LinkItems::isValidHref` که قبلاً `//evil.com` را می‌پذیرفت حالا سخت‌گیر است؛ `WidgetHrefGuardTest.php:185-187` هر دو حالت را تست می‌کند. ⚠️ ضعف باقی‌مانده: این اصلاح **تست اختصاصی ندارد** — guardها داخل `WidgetHrefGuardTest` هستند، نه یک تست برای خود `sanitize.ts`. | done |
 
 ## ردیف‌های موجود که ممیزی فاز ۱ **کهنه** تشخیص داد
 
