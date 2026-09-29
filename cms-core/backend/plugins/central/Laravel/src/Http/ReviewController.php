@@ -11,9 +11,9 @@ use Illuminate\Http\Request;
 /**
  * مورد ۶ — صف بازبینی مرکزی پلاگین/قالب.
  *
- * - GET /api/central/review/queue: همه pendingها (پلاگین + قالب) با مالک.
- * - POST /api/central/review/{type}/{id}/approve: تأیید.
- * - POST /api/central/review/{type}/{id}/reject: رد با note اجباری.
+ * - GET /api/v1/p/central/review/queue: همه pendingها (پلاگین + قالب) با مالک.
+ * - POST /api/v1/p/central/review/{type}/{id}/approve: تأیید.
+ * - POST /api/v1/p/central/review/{type}/{id}/reject: رد با note اجباری.
  */
 class ReviewController extends Controller
 {

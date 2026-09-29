@@ -27,15 +27,6 @@
             },
             {
                 "method": "get",
-                "path": "plans/create",
-                "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@create",
-                "middleware": [
-                    "auth:sanctum",
-                    "central.operator"
-                ]
-            },
-            {
-                "method": "get",
                 "path": "plans/{plan}",
                 "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@show",
                 "middleware": [
@@ -47,15 +38,6 @@
                 "method": "put",
                 "path": "plans/{plan}",
                 "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@update",
-                "middleware": [
-                    "auth:sanctum",
-                    "central.operator"
-                ]
-            },
-            {
-                "method": "get",
-                "path": "plans/{plan}/edit",
-                "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@edit",
                 "middleware": [
                     "auth:sanctum",
                     "central.operator"

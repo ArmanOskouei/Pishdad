@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\Plugins\PluginReleaseManager;
+use ReflectionMethod;
 use Tests\TestCase;
 
 /**
@@ -397,5 +398,63 @@ class CentralBoundaryTest extends TestCase
             $releases->sourceAutoloadRoot('central'),
             'ریشهٔ PSR-4 بستهٔ مرکزی قابل استخراج نیست.'
         );
+    }
+
+    /**
+     * هر route در مانیفست باید به متدی **واقعاً موجود** اشاره کند.
+     *
+     * مانیفست یک promise است، نه یک فهرست خواسته. `PluginRouteTable` هم آن را
+     * نمی‌خواند و هم راستی‌آزمایی نمی‌کند: کلاس را instantiate می‌کند و
+     * dispatcher هم موقع dispatch `method_exists` را چک می‌کند — که
+     * `RuntimeException` پرتاب می‌کند، یعنی **۵۰۰**.
+     *
+     * چرا این را مهاجرت K7.8 کشف کرد: دو ورودی `plans/create` و
+     * `plans/{plan}/edit` به `PlanController@create`/`@edit` اشاره داشتند که
+     * هیچ‌کدام وجود ندارند. این‌ها صفحه‌های فرم Inertia بوده‌اند که با آمدن
+     * فرانت Next.js بی‌استفاده ماندند و هرگز کار نکردند. هیچ تستی هم
+     * متوجه نشد، چون هیچ‌کس فراخوانی‌شان نمی‌کرد و هر ۸۲۹ تست سبز بود.
+     *
+     * یعنی: route مرده بی‌صدا از هر gate عبور می‌کند. این تست همان gate است.
+     */
+    public function test_every_manifest_route_resolves_to_a_real_public_method(): void
+    {
+        $releases = app(PluginReleaseManager::class);
+        $root = $releases->sourceAutoloadRoot('central');
+
+        $this->assertNotNull($root, 'ریشهٔ PSR-4 بستهٔ مرکزی پیدا نشد.');
+
+        $manifest = json_decode(
+            (string) file_get_contents($releases->sourceDir('central').'/manifest.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+
+        $broken = [];
+        $count = 0;
+
+        foreach ($manifest['api']['routes'] as $route) {
+            $count++;
+            [$class, $method] = explode('@', $route['handler'], 2);
+
+            if (! class_exists($class)) {
+                $broken[] = "کلاس هست: {$route['handler']}";
+
+                continue;
+            }
+
+            if (! method_exists($class, $method)) {
+                $broken[] = "متد نیست: {$route['handler']}";
+
+                continue;
+            }
+
+            // `method_exists` برای متد خصوصی و protected هم true است.
+            if (! (new ReflectionMethod($class, $method))->isPublic()) {
+                $broken[] = "عمومی نیست: {$route['handler']}";
+            }
+        }
+
+        $this->assertSame([], $broken, 'مانیفست به هندلرهای غیرقابل اجرا اشاره می‌کند (در runtime خطای ۵۰۰ می‌دهند).');
+        $this->assertGreaterThan(0, $count, 'مانیفست هیچ route ندارد — تست vacuous است.');
     }
 }

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 | تسک‌های ۱.۳ / ۱.۴ — جدول‌های Billing و مشتریان مرکزی.
 |
 | مالکیت (همان Postgres، تفکیک منطقی — مستند در README):
-| - پیشوند central_* = مالک ماژول مرکزی؛ فقط از مسیرهای /api/central/*
+| - پیشوند central_* = مالک ماژول مرکزی؛ فقط از مسیرهای /api/v1/p/central/*
 |   با نقش operator (یا سوپرادمین) قابل نوشتن است.
 | - نصب مشتری فقط خواندن ردیف خودش را دارد: تطبیق از طریق
 |   central_clients.owner_user_id و site_id (ستون site در subscription).

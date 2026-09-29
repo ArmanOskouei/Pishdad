@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /*
-| تسک ۳.۳ — جدول‌های Ops چابکان (فقط مسیرهای /api/central/* با نقش operator).
+| تسک ۳.۳ — جدول‌های Ops چابکان (فقط مسیرهای /api/v1/p/central/* با نقش operator).
 | - central_chabokan_deployments: رکورد هر redeploy (روی Stub، دیپلوی واقعی TODO مرحله ۵).
 | - central_chabokan_logs: ردپای حسابرسی همه اکشن‌ها (start/stop/restart/resize/redeploy).
 */
