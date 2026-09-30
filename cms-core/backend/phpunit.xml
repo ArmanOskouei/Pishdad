@@ -4,14 +4,130 @@
          bootstrap="vendor/autoload.php"
          colors="true"
 >
-    <testsuites>
-        <testsuite name="Unit">
-            <directory>tests/Unit</directory>
-        </testsuite>
-        <testsuite name="Feature">
-            <directory>tests/Feature</directory>
-        </testsuite>
-    </testsuites>
+      <testsuites>
+          <!--
+              ⛔ فهرستِ زیر را **دستی** ویرایش نکن.
+
+              این فایل‌ها با `<file>` نوشته شده‌اند، نه با `<directory>`. دلیلش فنی و
+              جدی است: پروژه روی Windows اجرا می‌شود و پوشه در کانتینر با 9p mount
+              شده. روی 9p، `glob`/`scandir`/`readdir` هر ۹۰ فایل را می‌بینند ولی هر
+              پیاده‌سازیِ `*DirectoryIterator` در PHP فقط ۴۷ فایل می‌بیند — یک بازهٔ
+              الفبایی پیوسته از `P` تا `W`. رفتار قطعی است، نه flaky.
+
+              PHPUnit برای `<directory>` از `php-file-iterator` استفاده می‌کند که
+              داخلش `RecursiveDirectoryIterator` است. پس با `<directory>`،
+              `php artisan test` (که همین فایل را می‌خواند) **۱۹ تست از ۸۷۷** را
+              می‌دید و سبز گزارش می‌کرد.
+
+              برای رگنریکردن (بعد از افزودن/حذف/تغییرنام تست):
+                  docker compose exec -T app php /var/www/html/tools/build-phpunit-file-list.php
+
+              `TestSuiteIntegrityTest` بررسی می‌کند این فهرست با دیسک بخواند، پس
+              فراموش‌کردنِ رگنریت = تست قرمز، نه اجرای ناقص.
+
+              @see tools/build-phpunit-file-list.php
+          -->
+          <testsuite name="Unit">
+            <!-- BEGIN:GENERATED:Unit -->
+            <file>tests/Unit/ExampleTest.php</file>
+            <file>tests/Unit/RevalidateSignerTest.php</file>
+            <file>tests/Unit/SessionDeviceParserTest.php</file>
+            <!-- END:GENERATED:Unit -->
+          </testsuite>
+          <testsuite name="Feature">
+            <!-- BEGIN:GENERATED:Feature -->
+            <file>tests/Feature/AdminSearchTest.php</file>
+            <file>tests/Feature/AuthTest.php</file>
+            <file>tests/Feature/BlockTypesTest.php</file>
+            <file>tests/Feature/CentralBillingTest.php</file>
+            <file>tests/Feature/CentralBoundaryTest.php</file>
+            <file>tests/Feature/CentralClientSearchTest.php</file>
+            <file>tests/Feature/CentralClientsTest.php</file>
+            <file>tests/Feature/CentralDashboardTest.php</file>
+            <file>tests/Feature/CentralOpenCasesTest.php</file>
+            <file>tests/Feature/CentralPluginRouteTest.php</file>
+            <file>tests/Feature/CentralTablePrefixTest.php</file>
+            <file>tests/Feature/ChabokanExtrasTest.php</file>
+            <file>tests/Feature/ChabokanTest.php</file>
+            <file>tests/Feature/ClientDashboardExtrasTest.php</file>
+            <file>tests/Feature/ClientDashboardTest.php</file>
+            <file>tests/Feature/CoreRequirementCheckerTest.php</file>
+            <file>tests/Feature/DefaultPagesSeederTest.php</file>
+            <file>tests/Feature/DevModeGateTest.php</file>
+            <file>tests/Feature/DevModeUnlockTest.php</file>
+            <file>tests/Feature/ExampleTest.php</file>
+            <file>tests/Feature/FaqBlockTest.php</file>
+            <file>tests/Feature/GatewayConnectionTest.php</file>
+            <file>tests/Feature/HomepageTest.php</file>
+            <file>tests/Feature/InvoiceRemindTest.php</file>
+            <file>tests/Feature/LayoutLinksTest.php</file>
+            <file>tests/Feature/LayoutsTest.php</file>
+            <file>tests/Feature/LogoWidgetTest.php</file>
+            <file>tests/Feature/ManagersRolesTest.php</file>
+            <file>tests/Feature/ManifestRegistryTest.php</file>
+            <file>tests/Feature/MediaExtrasTest.php</file>
+            <file>tests/Feature/MediaTest.php</file>
+            <file>tests/Feature/MonitoringExtrasTest.php</file>
+            <file>tests/Feature/MonitoringTest.php</file>
+            <file>tests/Feature/NestedLinksTest.php</file>
+            <file>tests/Feature/NotificationServiceTest.php</file>
+            <file>tests/Feature/OperatorHardwareSetupTest.php</file>
+            <file>tests/Feature/OperatorTest.php</file>
+            <file>tests/Feature/PageDeleteTest.php</file>
+            <file>tests/Feature/PageListExtrasTest.php</file>
+            <file>tests/Feature/PageMarkupGuardTest.php</file>
+            <file>tests/Feature/PagesTest.php</file>
+            <file>tests/Feature/PluginAutoloaderTest.php</file>
+            <file>tests/Feature/PluginContractExampleIntegrityTest.php</file>
+            <file>tests/Feature/PluginCoreTicketAccessTest.php</file>
+            <file>tests/Feature/PluginDbContractTest.php</file>
+            <file>tests/Feature/PluginDdlProvisioningFlowTest.php</file>
+            <file>tests/Feature/PluginFileCountCapTest.php</file>
+            <file>tests/Feature/PluginInstallerTest.php</file>
+            <file>tests/Feature/PluginMenuTest.php</file>
+            <file>tests/Feature/PluginMigrationRunnerTest.php</file>
+            <file>tests/Feature/PluginMigratorTest.php</file>
+            <file>tests/Feature/PluginModelBindingTest.php</file>
+            <file>tests/Feature/PluginPackageValidatorTest.php</file>
+            <file>tests/Feature/PluginPageContentTest.php</file>
+            <file>tests/Feature/PluginPageRegistryTest.php</file>
+            <file>tests/Feature/PluginPrefixGuardTest.php</file>
+            <file>tests/Feature/PluginRouteCacheInvalidationTest.php</file>
+            <file>tests/Feature/PluginRouteMethodTest.php</file>
+            <file>tests/Feature/PluginRouteRegistrationTest.php</file>
+            <file>tests/Feature/PluginRouterTest.php</file>
+            <file>tests/Feature/PluginSettingsTest.php</file>
+            <file>tests/Feature/PluginToolsTest.php</file>
+            <file>tests/Feature/PluginTrustStoreTest.php</file>
+            <file>tests/Feature/PluginWidgetExtensionTest.php</file>
+            <file>tests/Feature/PluginsTest.php</file>
+            <file>tests/Feature/ProfileExtrasTest.php</file>
+            <file>tests/Feature/ProfileTest.php</file>
+            <file>tests/Feature/PublicInstallWithoutCentralPluginTest.php</file>
+            <file>tests/Feature/ReviewModerationTest.php</file>
+            <file>tests/Feature/ServiceProviderRegistryTest.php</file>
+            <file>tests/Feature/SidePresetsTest.php</file>
+            <file>tests/Feature/SiteChromeTest.php</file>
+            <file>tests/Feature/SiteMediaResolveTest.php</file>
+            <file>tests/Feature/SiteSearchTest.php</file>
+            <file>tests/Feature/SiteSettingsTest.php</file>
+            <file>tests/Feature/SiteStatusTest.php</file>
+            <file>tests/Feature/SiteThemeResolverTest.php</file>
+            <file>tests/Feature/SubscriptionPlansTest.php</file>
+            <file>tests/Feature/SubscriptionTest.php</file>
+            <file>tests/Feature/TestSuiteIntegrityTest.php</file>
+            <file>tests/Feature/ThemesTest.php</file>
+            <file>tests/Feature/TicketSearchTest.php</file>
+            <file>tests/Feature/TicketsTest.php</file>
+            <file>tests/Feature/UiSettingsTest.php</file>
+            <file>tests/Feature/UnauthenticatedApiTest.php</file>
+            <file>tests/Feature/UpdatesExtrasTest.php</file>
+            <file>tests/Feature/UpdatesTest.php</file>
+            <file>tests/Feature/WidgetHrefGuardTest.php</file>
+            <file>tests/Feature/WidgetsSchemaTest.php</file>
+            <!-- END:GENERATED:Feature -->
+          </testsuite>
+      </testsuites>
     <source>
         <include>
             <directory>app</directory>
