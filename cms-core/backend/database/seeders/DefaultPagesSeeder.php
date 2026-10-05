@@ -34,6 +34,7 @@ class DefaultPagesSeeder extends Seeder
                     'blocks' => $attrs['blocks'],
                     'meta' => $attrs['meta'],
                 ])->save();
+
                 continue;
             }
 

@@ -3,8 +3,16 @@
 namespace Tests;
 
 use App\Models\Plugin;
+use App\Services\Plugins\ManifestRegistry;
+use App\Services\Plugins\PluginAutoloader;
+use App\Services\Plugins\PluginPackageContract;
+use App\Services\Plugins\PluginRouteTable;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Str;
 use Tests\Feature\CentralPluginRouteTest;
+use Tests\Feature\CentralZeroFootprintTest;
+use Tests\Feature\PublicInstallWithoutCentralPluginTest;
+use Tests\Feature\QuarantinedPluginsInvisibleTest;
 use Tests\Feature\ServesCentralPlugin;
 
 abstract class TestCase extends BaseTestCase
@@ -38,8 +46,50 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
+        // L-B12 — هر تست از **جدول خالی** شروع کند.
+        //
+        // چرا این پاک‌سازی لازم است: کشِ `plugin.routes` و `plugin.manifests`
+        // بین تست‌ها زنده می‌ماند (خواندن از cache ارزان‌تر از DB است و در
+        // محیط تست هم همین منطق اجرا می‌شود). پس تستی که بسته‌ای را فعال می‌کند،
+        // ردیفش را در تستِ بعدی هم می‌بیند — و تستی مثل
+        // `test_an_inactive_plugin_serves_nothing` که انتظار دارد جدول خالی
+        // باشد، شکست می‌خورد.
+        //
+        // این یک نشتِ **بین تستی** است، نه نشتِ کد. دقیقاً همان چیزی که
+        // `RefreshDatabase` برای جدول‌ها حل می‌کند و اینجا برای کش.
+        PluginRouteTable::flush();
+        ManifestRegistry::flushCache();
+
         if ($this->needsCentralPlugin()) {
             $this->serveCentralPlugin();
+        }
+    }
+
+    /**
+     * J11 — ثبتِ PSR-4 یک بستهٔ قرنطینه‌شده، فقط برای تست‌های خصوصی.
+     *
+     * هستهٔ اصلی (و بیلدِ رایگان) این را نمی‌کند: `PluginReleaseManager` فقط
+     * `plugins/{slug}` را اسکن می‌کند و `_quarantine/` را نمی‌بیند. ولی تست‌های
+     * خصوصیِ همین مخزن باید بتوانند مانیفست/کلاس‌های بسته را از قرنطینه بار کنند
+     * تا مرز و رفتارش را بسنجند. اگر بسته در جای اصلی باشد (`plugins/{slug}`)،
+     * `AppServiceProvider` خودش ثبتش کرده و این متد بی‌اثر است.
+     */
+    protected function registerQuarantinedPluginAutoload(string $slug, string $dir): void
+    {
+        $autoloader = app(PluginAutoloader::class);
+
+        if ($autoloader->isRegistered($slug)) {
+            return;
+        }
+
+        $root = $dir.'/'.PluginPackageContract::BACKEND_ROOT.'/src';
+
+        if (is_dir($root)) {
+            $autoloader->register(
+                $slug,
+                $root,
+                PluginAutoloader::NAMESPACE_ROOT.Str::studly($slug).'\\',
+            );
         }
     }
 
@@ -104,7 +154,25 @@ abstract class TestCase extends BaseTestCase
             return false;
         }
 
-        return str_contains((string) file_get_contents($file), '/api/v1/p/central');
+        $source = (string) file_get_contents($file);
+
+        if (str_contains($source, '/api/v1/p/central')) {
+            return true;
+        }
+
+        // J5 — دو نشانهٔ دیگر.
+        //
+        // رشتهٔ مسیر به‌تنهایی کافی نبود. `SiteStatusTest` و `SubscriptionTest`
+        // مدل‌های افزونه را import می‌کنند ولی مسیرِ مرکزی را نمی‌زنند (اولی به
+        // `/api/v1/site/status` می‌زند). پیش از J5 این بی‌اشکال بود چون جدول‌ها
+        // در core بودند؛ بعد از J5 با «relation central_clients does not exist»
+        // می‌مردند. یعنی قلاب داشت یک شرطِ ناکافی را تنها شرط می‌دانست.
+        //
+        // و «نیاز» یعنی «به افزونه اشاره می‌کند»، نه «حتماً باید نصب باشد» — تستی
+        // که نبودِ افزونه را می‌سنجد، خودش باید این را **صریح** اعلام کند
+        // (`NEVER_NEEDS_CENTRAL`)، چون حدسِ خودکار نمی‌تواند «نصبش نکن» را بفهمد.
+        return str_contains($source, 'Pishdad\\Plugins\\Central')
+            || preg_match('/\bcentral_[a-z_]+/', $source) === 1;
     }
 
     /**
@@ -116,5 +184,26 @@ abstract class TestCase extends BaseTestCase
      */
     private const NEVER_NEEDS_CENTRAL = [
         CentralPluginRouteTest::class,
+
+        // J5 — این تست **دقیقاً** ادعا می‌کند نصبِ تازهٔ هسته صفر جدولِ مرکزی
+        // دارد. اگر قلابِ خودکار برایش جدول بسازد، تست دروغ می‌گوید و بدتر: سبز
+        // می‌ماند در حالی که ادعایی که می‌سنجد نیست. نامِ `central_` در فایلش هست
+        // (متنِ تست‌ها و نامِ migrationها) و همین قلابِ تازه آن را می‌گیرد، پس
+        // opt-out **الزامی** است نه تزئینی.
+        PublicInstallWithoutCentralPluginTest::class,
+
+        // J8 — این تست ادعا می‌کند سطحِ API مرکزی بدون افزونه **غایب** است، پس
+        // فعال‌کردن افزونه برایش دقیقاً خلافِ ادعایش است.
+        //
+        // ⚠️ اینجا `opt-out` تزئینی نیست: نامِ `central_` و مسیرِ `/api/v1/p/central`
+        // در متنِ تست هست (نمونه‌ها دقیقاً همان‌هایی‌اند که باید ۴۰۴ بدهند)، پس
+        // قلابِ خودکار نامش را می‌گیرد و افزونه را نصب می‌کند. آن‌وقت تست سبز
+        // می‌ماند در حالی که **هیچ‌چیز را دربارهٔ نصبِ تازه ثابت نکرده** — بدترین
+        // حالتِ ممکن برای یک تستِ اثبات.
+        CentralZeroFootprintTest::class,
+
+        // J11 — این تست دقیقاً ثابت می‌کند بسته‌های قرنطینه‌شده نادیدنی‌اند؛ اگر
+        // قلابِ خودکار بسته را «وصل» کند، ادعایش را نقض می‌کند.
+        QuarantinedPluginsInvisibleTest::class,
     ];
 }

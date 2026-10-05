@@ -51,6 +51,7 @@ class UiSettingsController extends Controller
     public const DEFAULTS = [
         'dir' => 'rtl',
         'preset' => 'amaliyat', // dark ops console is the shipped default
+        'accent' => 'indigo',   // رنگِ درونِ جهت (قابل انتخاب؛ باید ذخیره شود وگرنه با رفرش برمی‌گردد)
         'mode' => 'dark',
         'radius' => 'sharp',
         'density' => 'compact',
@@ -61,6 +62,7 @@ class UiSettingsController extends Controller
     public const RULES = [
         'dir' => 'in:rtl,ltr',
         'preset' => 'in:sahar,amaliyat,arya,narm,divan',
+        'accent' => 'in:teal,indigo,violet,blue,amber,rose,clay',
         'mode' => 'in:light,dark,system',
         'radius' => 'in:sharp,default,rounded',
         'density' => 'in:compact,comfortable,loose',
@@ -111,6 +113,7 @@ class UiSettingsController extends Controller
         return [
             'dir.in' => 'مقدار dir معتبر نیست.',
             'preset.in' => 'قالب بصری انتخاب‌شده معتبر نیست.',
+            'accent.in' => 'رنگ انتخاب‌شده معتبر نیست.',
             'mode.in' => 'حالت نمایش معتبر نیست.',
             'radius.in' => 'مقدار شعاع گوشه معتبر نیست.',
             'density.in' => 'مقدار تراکم معتبر نیست.',

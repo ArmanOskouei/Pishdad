@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Theme;
 use App\Services\Plugins\PluginSignatureVerifier;
+use App\Services\RevalidateDispatcher;
+use App\Services\Settings\CachedSettings;
+use App\Services\Themes\SiteThemeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -129,7 +132,49 @@ class ThemeController extends Controller
         Theme::query()->update(['active' => false]);
         $theme->forceFill(['active' => true])->save();
 
-        // NOTE: تعویض واقعی ظاهر + revalidate/purge CDN سمت فرانت (تسک ۴.۲ فرانت).
+        // ⭐ `F0.7` — این خط قبلاً فقط یک NOTE بود و dispatch انجام نمی‌شد.
+        //
+        // نتیجه‌اش یک عیبِ بی‌صدا بود: قالب عوض می‌شد، `themes.active` در DB عوض
+        // می‌شد، ولی `site_chrome` تا ۱۲۰ ثانیه کشِ قالبِ قبلی را برمی‌گرداند و
+        // ISR فرانت هم تا انقضای خودش قالبِ قبلی را نشان می‌داد. پنل می‌گفت
+        // «فعال شد» و سایت عوض نشده بود — و هیچ لاگی هم نبود.
+        //
+        // ⭐ و دو ویرایشگر نباید از هم جدا شوند. جدولِ `themes` (این مسیر) و
+        // `site_themes` (`F4.1.B`) هر دو می‌گویند «پوستهٔ فعال چیست» و
+        // `SiteChromeController` resolver را **بر** مانیفست می‌نشاند. پس فعال‌کردنِ
+        // اینجا بدون همگام‌کردنِ resolver یعنی «پوسته عوض شد ولی چیدمانِ قبلی
+        // ماند» — که دقیقاً همان رفتارِ گمراه‌کننده‌ای است که `Q5` حذفش می‌خواهد.
+        //
+        // رنگ‌بندی و حالت دست‌نخورده می‌مانند: این دکمه «پوسته» است نه «رنگ».
+        // اسلاگِ ناشناخته (ZIPِ بیرونی) عمداً رد می‌شود — مالکیتِ آن مسیر
+        // `F4.1.F` است و نباید حدس بزنیم.
+        $builtin = SiteThemeResolver::isBuiltinSlug((string) $theme->slug);
+        if ($builtin) {
+            try {
+                $current = SiteThemeResolver::selection(SiteThemeResolver::GLOBAL_OWNER);
+                SiteThemeResolver::select(
+                    SiteThemeResolver::GLOBAL_OWNER,
+                    $builtin,
+                    (string) $current['preset_slug'],
+                    (string) $current['mode'],
+                );
+            } catch (\InvalidArgumentException $e) {
+                Log::warning('theme.activate.skin_sync_failed', ['slug' => $theme->slug, 'why' => $e->getMessage()]);
+            }
+        }
+
+        // سه چیز لازم است و هر سه اینجاست: ابطالِ کشِ کروم (۱۲۰ ثانیه)، ابطالِ
+        // کشِ توکنِ قالب (۳۰۰ ثانیه)، و purge کشِ ISR فرانت.
+        //
+        // fire-and-forget: نرسیدنِ فرانت نباید فعال‌سازی را برگرداند (انقضای
+        // خودکار fallback است) — و خودِ dispatcher هم `Log::warning` می‌کند.
+        try {
+            CachedSettings::forget('site_chrome', 'chrome-default-global');
+            SiteThemeResolver::flush();
+            app(RevalidateDispatcher::class)->dispatch(['site-theme', 'theme', 'site-chrome']);
+        } catch (\Throwable) {
+            // عمداً بی‌صدا: فعالیت انجام شده و برنمی‌گردد.
+        }
 
         return response()->json([
             'message' => 'قالب فعال شد.',

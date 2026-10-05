@@ -3,42 +3,41 @@
 namespace App\Search;
 
 /**
- * اجرای همه providerهای `config/search.php` و ادغام نتایج.
+ * جستجوی عمومی سایت — اجرای همه providerهای زنده و ادغام نتایج (I7).
  *
- * افزودن دامنه جدید برای پلاگین آینده (فروشگاه/بلاگ):
- *   providers[] = ShopProductProvider::class (پیاده‌ساز SearchableProvider)
+ * ⭐ فهرست providerها دیگر `config('search.providers')` نیست، بلکه
+ * `SearchProviderRegistry` است: کانفیگ فقط **پیش‌فرض هسته** است و providerهای
+ * افزونه و ثبت‌های زمان اجرا هم به آن اضافه می‌شوند. پس افزودن دامنهٔ جستو
+ * (فروشگاه، بلاگ) یعنی ساختن یک پیاده‌سازی `SearchableProvider` و اعلامش —
+ * نه ویرایش دستی کانفیگ هسته.
+ *
  * هر provider حداکثر $perPage نتیجه می‌دهد؛ خروجی نهایی مرتب
  * updated_at نزولی و محدود به $perPage است.
  */
 final class SearchManager
 {
+    public function __construct(private readonly SearchProviderRegistry $registry) {}
+
     /**
      * @return array<int, array{title: string, slug: string, snippet: string, type: string, updated_at: ?string}>
      */
     public function search(string $query, int $perPage): array
     {
         $normalized = PersianText::normalize($query);
-        $providers = (array) config('search.providers', []);
+        // ⭐ I7 — به‌جای `config('search.providers')` مستقیم. رجیستری خودش کانفیگ
+        // هسته را به‌عنوان پیش‌فرض می‌خواند و providerهای افزونه و ثبت‌های
+        // زمان اجرا را هم اضافه می‌کند؛ پس افزونه دیگر برای افزودن دامنهٔ
+        // جستوی خودش مجبور نیست فایل کانفیگ هسته را دستی عوض کند.
         $merged = [];
 
-        foreach ($providers as $class) {
-            if (! is_string($class) || ! class_exists($class)) {
-                continue;
-            }
-            try {
-                $provider = app($class);
-            } catch (\Throwable) {
-                continue;
-            }
-            if (! $provider instanceof SearchableProvider) {
-                continue;
-            }
+        foreach ($this->registry->providers(SearchProviderRegistry::CHANNEL_SITE) as $provider) {
             try {
                 foreach ($provider->search($query, $normalized, $perPage) as $row) {
                     $merged[] = $row;
                 }
             } catch (\Throwable) {
-                // provider خراب جستجو را نمی‌شکند (fail-soft).
+                // provider خراب جستجو را نمی‌شکند (fail-soft)؛ لاگش با خودِ رجیستری
+                // است چون ساخت provider آنجا انجام می‌شود.
                 continue;
             }
         }

@@ -11,7 +11,7 @@ use App\Models\Theme;
 use App\Services\Layouts\LinkItems;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Settings\CachedSettings;
-use App\Services\Subscription\ClientSubscriptionResolver;
+use App\Services\Themes\SiteThemeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,10 +27,13 @@ class SiteChromeController extends Controller
     public function show(Request $request): JsonResponse
     {
         $siteId = $request->query('site_id');
-        $subscription = $siteId
-            ? ClientSubscriptionResolver::bySiteId((string) $siteId)
-            : ClientSubscriptionResolver::default();
 
+        // K7.2 — این کنترلر قبلاً `bySiteId()`/`default()` را صدا می‌زد ولی
+        // **نتیجه‌اش را هیچ‌جا استفاده نمی‌کرد**؛ فقط یک متغیرِ بلااستفاده بود.
+        // و چون مستقیم مدلِ پلاگین را می‌خواند، نبودِ پلاگین مرکزی (حالتِ
+        // عادیِ هر نصبِ مشتری) این endpoint را می‌شکست. حذفش شد — نه چون
+        // استفاده نمی‌شد، بلکه چون تنها دلیلِ شکستن بود.
+        //
         // تنظیمات کروم/برند در این CMS تک‌سایتی **سراسری نصب** است (کلید global)
         // و باید بین همه مدیران مشترک باشد. نبودِ اشتراک فقط یعنی «نصب تازه»، نه
         // «تنظیمات را دور بریز» — پس در این حالت هم داده ذخیره‌شده خوانده می‌شود و
@@ -149,8 +152,8 @@ class SiteChromeController extends Controller
             return [
                 'title' => $site['title'] ?? 'وب‌سایت من',
                 'description' => $site['description'] ?? '',
-                'logo_url' => $this->mediaUrl($site['logo_media_id'] ?? null),
-                'favicon_url' => $this->mediaUrl($site['favicon_media_id'] ?? null),
+            'logo_url' => $this->mediaUrl($site['logo_media_id'] ?? null) ?? SiteSettingsController::DEFAULT_LOGO_URL,
+            'favicon_url' => $this->mediaUrl($site['favicon_media_id'] ?? null) ?? SiteSettingsController::DEFAULT_FAVICON_URL,
                 'phone' => $site['phone'] ?? null,
                 'email' => $site['email'] ?? null,
                 // سئو/GEO عمومی (بدون داده حساس): canonical، تصویر OG، خلاصه AI، robots، نشانی.
@@ -160,6 +163,10 @@ class SiteChromeController extends Controller
                 'robots_index' => (bool) ($site['robots_index'] ?? true),
                 'address' => $site['address'] ?? null,
                 'locale' => $site['locale'] ?? 'fa',
+                // ECO2 — زبان‌های موجود + زبان اصلی برای مسیریابیِ سایتِ عمومی.
+                // `locales` همیشه زبان اصلی را اول دارد (مدل a: پایه در ریشه).
+                'locales' => SiteSettingsController::resolveLocales($site),
+                'primary_locale' => SiteSettingsController::resolveLocales($site)[0],
                 'timezone' => $site['timezone'] ?? 'Asia/Tehran',
                 'homepage_page_id' => is_numeric($homepageId) ? (int) $homepageId : null,
                 'homepage_slug' => $homepageSlug,
@@ -169,12 +176,38 @@ class SiteChromeController extends Controller
                     ->where('active', true)->values()->all(),
                 'theme' => $theme ? [
                     'name' => $theme->name,
-                    'slug' => $theme->slug,
+                    // ECO1 — اسلاگِ فعال از انتخابِ سراسریِ نصب (`Q4`) می‌آید، نه
+                    // فقط از `themes.active`ِ مسیر ZIP. وگرنه ویرایشگرِ سه‌قالبه
+                    // (`site-theme/select`) روی سایت اثری جز رنگ نداشت.
+                    'slug' => SiteThemeResolver::activeSlug(),
                     'version' => $theme->version,
-                    'globals' => $theme->manifest['globals'] ?? [],
+                    // ⭐ `Q4` — انتخابِ کاربر (پوسته + رنگ + override) **بر**
+                    // `globals` پایه می‌نشیند، نه کنارش.
+                    //
+                    // `themes.manifest.globals` پایهٔ قالبِ ZIP/درون‌ساخت است و
+                    // resolver انتخابِ زندهٔ نصب. اگر resolver را جدا می‌گذاشتیم،
+                    // `themeVars()` فرانت فقط یکی را می‌دید و انتخابِ کاربر بی‌اثر
+                    // می‌شد — و چون هر دو در یک فیلد ادغام می‌شدند، هیچ خطایی
+                    // هم نمی‌داد.
+                    //
+                    // `bareTokens()` نه `--theme-`: آن پیشوند را `themeVars()`
+                    // خودش اضافه می‌کند و اگر این‌جا هم اضافه شود، دو کلیدِ
+                    // متفاوت (`primary` و `--theme-primary`) تولید می‌شوند که هر
+                    // دو به یک متغیر می‌رسند و **ترتیب درج** تعیین می‌کند کدام
+                    // برنده شود — نه منطق ما.
+                    'globals' => array_merge(
+                        is_array($theme->manifest['globals'] ?? null) ? $theme->manifest['globals'] : [],
+                        SiteThemeResolver::bareTokens(SiteThemeResolver::GLOBAL_OWNER),
+                    ),
                 ] : null,
             ];
         });
+
+        // K6.12 — رجیستری بلوک‌های schema-only (هسته + افزونه‌های فعال) روی
+        // همان پاسخِ عمومی و کش‌شدهٔ کروم سوار می‌شود. مسیر admin
+        // (`/admin/blocks/schema`) پشت sanctum است و سایتِ عمومی به آن دسترسی
+        // ندارد؛ بدون این کلید، `DeclaredBlock` هرگز schema افزونه را نمی‌دید.
+        $data['blocks'] = ManifestRegistry::blockSchemas();
 
         return response()->json(['data' => $data])
             ->header('Cache-Control', 'public, max-age=60');
@@ -185,8 +218,8 @@ class SiteChromeController extends Controller
         return [
             'title' => 'وب‌سایت من',
             'description' => '',
-            'logo_url' => null,
-            'favicon_url' => null,
+            'logo_url' => SiteSettingsController::DEFAULT_LOGO_URL,
+            'favicon_url' => SiteSettingsController::DEFAULT_FAVICON_URL,
             'phone' => null,
             'email' => null,
             'site_url' => null,
@@ -195,6 +228,8 @@ class SiteChromeController extends Controller
             'robots_index' => true,
             'address' => null,
             'locale' => 'fa',
+            'locales' => ['fa'],
+            'primary_locale' => 'fa',
             'timezone' => 'Asia/Tehran',
             'homepage_page_id' => null,
             'homepage_slug' => null,

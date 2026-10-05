@@ -17,6 +17,10 @@
  * استثنا.
  */
 
+// ECO2 — import نسبیِ `.ts` (بدون alias) چون این فایل در مسیر `node --test`
+// هم بار می‌شود (`block-type.test.ts`) و alias آنجا resolve نمی‌شود.
+import { publicT, type PublicLocale } from "./i18n/public/index.ts";
+
 /**
  * واژگانِ بلوک‌های هسته. تنها منبع حقیقتِ «چه چیزی بلوکِ هسته است».
  *
@@ -102,10 +106,18 @@ export function unknownBlockWarning(type: unknown, reason: UnknownBlockReason = 
     : `[site] unknown block type "${named}" — no built-in block matches it. site.block_type is declared_only, so a plugin's declared block type renders nothing.`;
 }
 
-/** متنِ فارسیِ اعلانِ دیداری (فقط وقتی تشخیص روشن است رندر می‌شود). */
+/**
+ * ECO2 — اعلانِ دیداری به زبانِ سایتِ عمومی (فقط وقتی تشخیص روشن است رندر
+ * می‌شود). زبان از URL می‌آید و به‌صورت prop به رندرر می‌رسد.
+ */
+export function unknownBlockNotice(locale: PublicLocale, type: unknown): string {
+  const named = describeUnknownType(type) || publicT(locale, "block.emptyName");
+  return publicT(locale, "block.unknownNotice", { name: named });
+}
+
+/** متنِ فارسیِ اعلانِ دیداری (سازگاریِ عقب‌رو + پیش‌فرضِ زبان پایه). */
 export function unknownBlockNoticeFa(type: unknown): string {
-  const named = describeUnknownType(type) || "(خالی)";
-  return `بلوک «${named}» رندر نشد — این نوع بلوک در هسته پیاده‌سازی نشده است.`;
+  return unknownBlockNotice("fa", type);
 }
 
 /**

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Plugins\CoreRequirementChecker;
 use App\Services\Plugins\DevMode;
 use App\Services\Plugins\ManifestRegistry;
+use App\Services\Plugins\PluginAutoloader;
 use App\Services\Plugins\PluginInstaller;
 use App\Services\Plugins\PluginReleaseManager;
 use App\Services\Plugins\PluginSignatureVerifier;
@@ -411,6 +412,48 @@ class PluginsTest extends PluginDdlNoTransactionCase
         );
     }
 
+/**
+     * K5.0-W — فعال‌سازی/غیرفعال‌سازی باید **بارگذارِ کلاس** را هم بچرخاند.
+     *
+     * رگرسیونِ مشخص: `PluginAutoloader` فقط در `boot()` وصل بود و آن هم فقط
+     * برای افزونهٔ داخلی. برای بستهٔ بازاری یعنی فعال‌سازی هیچ‌وقت کلاسی
+     * بارگذاری نمی‌کرد، و «غیرفعال» هم فقط یک پرچم در DB بود.
+     *
+     * وضعیتِ همان نمونه‌ای را می‌سنجیم که `bootBundledPlugins()` می‌گیرد —
+     * وگرنه یک نمونهٔ تازه، تست را بی‌معنا می‌کرد.
+     */
+    public function test_activate_and_deactivate_also_turn_the_class_autoloader(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+        $loader = app(PluginAutoloader::class);
+
+        $slug = 'autoload-probe';
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => $slug])),
+        ])->assertCreated()->json('data.id');
+
+        $this->approveAsOperator('plugin', (int) $id);
+
+        $this->assertFalse($loader->isRegistered($slug), 'قبل از فعال‌سازی نباید چیزی ثبت شده باشد.');
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
+            ->assertJsonPath('data.active', true);
+
+        $this->assertTrue(
+            $loader->isRegistered($slug),
+            'فعال‌سازی باید ریشهٔ PSR-4 بسته را ثبت کند، وگرنه هیچ کلاسِ افزونه‌ای در همان درخواست resolve نمی‌شود.'
+        );
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/deactivate")->assertOk()
+            ->assertJsonPath('data.active', false);
+
+        $this->assertFalse(
+            $loader->isRegistered($slug),
+            'غیرفعال‌سازی باید ثبت را بردارد؛ «غیرفعال» فقط روی DB نباید باشد.'
+        );
+    }
+
     /**
      * فعال‌سازی باید بلافاصله در رجیستری دیده شود، نه بعد از پایان TTL کش.
      * رگرسیون: کش `activeManifests()` اضافه شد و اگر flush نشود، پلاگین
@@ -452,15 +495,144 @@ class PluginsTest extends PluginDdlNoTransactionCase
         // فاز ۰: مانیفست دیگر نمی‌تواند پرچم system را اعطا کند. فقط allowlist.
         SystemPlugin::ensureMany(['core-plugin']);
 
-        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+$id = $auth->postJson('/api/v1/admin/plugins/upload', [
             'file' => $this->pluginZip($this->manifest(['slug' => 'core-plugin'])),
         ])->assertCreated()->json('data.id');
 
-        $this->approveAsOperator('plugin', $id);
+        // J7 — افزونهٔ سیستمی از صفِ بازبینی **خارج** است: `ReviewController`
+        // تأیید دستیِ آن را رد می‌کند (۴۲۲)، چون وضعیتش را به‌روزرسانیِ هسته تعیین
+        // می‌کند نه اپراتور. پس این تست باید وضعیت را **مستقیم** بگذارد.
+        //
+        // چرا این مهم است: قبلاً همین خط می‌خواست افزونهٔ سیستمی را از راهِ بازبینی
+        // تأیید کند — و بدون guard، راهِ دور زدنِ حفاظتِ سیستمی بود. تستِ حفاظت
+        // (خط پایین) برای رسیدن به فعال‌سازی مجبور بود از همان راهِ ناامن رد شود.
+        //
+        // نگهبانیِ خودِ این قاعده در `ReviewSystemGuardTest` است.
+        Plugin::query()->whereKey($id)->update(['review_status' => Plugin::REVIEW_APPROVED]);
 
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
         $auth->postJson("/api/v1/admin/plugins/{$id}/deactivate")->assertStatus(422);
         $auth->postJson("/api/v1/admin/plugins/{$id}/uninstall")->assertStatus(422);
+    }
+
+    /**
+     * J7 — مسیرِ رسمیِ تأیید، افزونهٔ سیستمی را رد می‌کند.
+     *
+     * این نیمهٔ دومِ تستِ بالاست: آن یکی می‌گوید «محافظت کار می‌کند وقتی تأیید از
+     * پیش انجام شده»، این یکی می‌گوید «تأییدِ دستی اصلاً راهِ دور زدن نیست».
+     *
+     * بدون این نیمه، کسی می‌توانست guard را حذف کند و تستِ بالا همچنان سبز بماند —
+     * چون مستقیم وضعیت می‌گذارد و به endpoint اصلاً نمی‌رسد.
+     */
+    public function test_a_system_plugin_cannot_be_approved_via_the_review_api(): void
+    {
+        $this->serveCentralPlugin();
+
+        SystemPlugin::ensureMany(['core-plugin']);
+
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => 'core-plugin'])),
+        ])->assertCreated()->json('data.id');
+
+        $operator = User::query()->create([
+            'name' => 'اپراتور', 'email' => uniqid().'@example.com',
+            'password' => Hash::make('Operator!1234'), 'role' => 'operator',
+        ]);
+
+        $this->actingAs($operator, 'sanctum')
+            ->postJson("/api/v1/p/central/review/plugin/{$id}/approve")
+            ->assertStatus(422);
+
+        $this->assertNotSame(
+            Plugin::REVIEW_APPROVED,
+            Plugin::query()->find($id)?->review_status,
+            'افزونهٔ سیستمی نباید با تأییدِ دستی فعال شود.',
+        );
+    }
+
+    /**
+     * L-B3/F0.3 — پلاگین سیستمی با کلید ناشر دیگر قابل تصاحب نیست.
+     *
+     * سناریو: قربانیِ سیستمی با ناشر A نصب شد (پین = A). مهاجم بسته‌ای با
+     * همان slug و نسخهٔ بالاتر می‌سازد که با کلیدِ معتبرِ ناشر B امضا شده.
+     * بدون گارد، `publisher_key_id` بازنویسی می‌شد و کد مهاجم زیر پرچم
+     * حذف‌ناپذیر می‌نشست. حالا ۴۲۲ با کد `plugin.system_publisher_mismatch`،
+     * نسخه عوض نمی‌شود و فایل تازه اصلاً روی دیسک نمی‌نشیند (گارد پیش از
+     * storePackage است). ارتقای همان ناشر (A) همچنان راه است.
+     */
+    public function test_system_plugin_upgrade_with_another_publishers_key_is_refused(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $keyA = sodium_crypto_sign_keypair();
+        $secretA = base64_encode(sodium_crypto_sign_secretkey($keyA));
+        $publicA = base64_encode(sodium_crypto_sign_publickey($keyA));
+        $fpA = PublisherKey::fingerprintOf($publicA);
+
+        $keyB = sodium_crypto_sign_keypair();
+        $secretB = base64_encode(sodium_crypto_sign_secretkey($keyB));
+        $publicB = base64_encode(sodium_crypto_sign_publickey($keyB));
+        $fpB = PublisherKey::fingerprintOf($publicB);
+
+        foreach ([['ناشر الف', 'publisher-a', $publicA, $fpA], ['ناشر ب', 'publisher-b', $publicB, $fpB]] as [$name, $slug, $public, $fp]) {
+            PublisherKey::query()->create([
+                'name' => $name, 'slug' => $slug, 'public_key' => $public,
+                'key_fingerprint' => $fp, 'status' => PublisherKey::STATUS_ACTIVE,
+                'verified_at' => now(),
+            ]);
+        }
+
+        // پین ران قبلی (کلید تصادفی) در DB مانده چون tearDown جدول
+        // system_plugins را پاک نمی‌کند؛ اول پاک، بعد allowlist.
+        SystemPlugin::query()->where('slug', 'pin-victim')->delete();
+        SystemPlugin::flush();
+        SystemPlugin::ensureMany(['pin-victim']);
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZipSignedWith(
+                $this->manifest(['slug' => 'pin-victim', 'publisher' => ['key_id' => $fpA]]),
+                $secretA
+            ),
+        ])->assertCreated()->json('data.id');
+
+        $this->assertSame($fpA, SystemPlugin::pinnedFingerprint('pin-victim'), 'اولین ناشر معتبر باید پین شود.');
+
+        $filesBefore = Storage::disk('local')->files('plugins/shared') ?: [];
+
+        // `upgrade` روی route پشتِ `devmode.gate` است؛ بدون باز بودنِ حالت و
+        // توکن، درخواست پیش از رسیدن به گارد پین ۴۰۴ می‌خورد و تست بی‌ربط
+        // می‌شد. پس گیت را باز می‌کنیم تا واقعاً گارد pin-victim سنجیده شود.
+        app(DevMode::class)->enable('tok-right');
+        app(DevMode::class)->forget();
+
+        // حمله: همان slug، نسخهٔ بالاتر، امضای معتبرِ ناشر دیگر.
+        $auth->withHeader(GateDevModeUpload::HEADER, 'tok-right')
+            ->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+                'file' => $this->pluginZipSignedWith(
+                    $this->manifest(['slug' => 'pin-victim', 'version' => '2.0.0', 'publisher' => ['key_id' => $fpB]]),
+                    $secretB
+                ),
+            ])->assertStatus(422)->assertJsonPath('code', 'plugin.system_publisher_mismatch');
+
+        $this->assertSame('1.0.0', Plugin::query()->findOrFail($id)->version, 'نسخه نباید عوض شده باشد.');
+        $this->assertSame($fpA, Plugin::query()->findOrFail($id)->publisher_key_id, 'ناشر رکورد نباید بازنویسی شده باشد.');
+        $this->assertSame(
+            $filesBefore,
+            Storage::disk('local')->files('plugins/shared') ?: [],
+            'فایل تازه نباید روی دیسک نشسته باشد.'
+        );
+
+        // مسیر سالم: ارتقا با همان ناشرِ پین‌شده راه است.
+        $auth->withHeader(GateDevModeUpload::HEADER, 'tok-right')
+            ->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+                'file' => $this->pluginZipSignedWith(
+                    $this->manifest(['slug' => 'pin-victim', 'version' => '2.0.0', 'publisher' => ['key_id' => $fpA]]),
+                    $secretA
+                ),
+            ])->assertOk();
+
+        $this->assertSame('2.0.0', Plugin::query()->findOrFail($id)->version);
     }
 
     /**

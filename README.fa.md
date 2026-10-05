@@ -1,0 +1,408 @@
+<h1 align="center">نخستین سیستم مدیریت محتوای پارسی (فارسی) رایگان و متن‌باز روی سرور شخصی شما.</h1>
+<p align="center"><b>The first free, open-source Persian CMS on your own server.</b></p>
+
+<p align="center">
+  <img alt="پیشداد — CMS لاراول با فرانت‌اند Next.js" src="assets/readme-banner-v2.png" width="100%">
+</p>
+
+یک CMS لاراول با فرانت‌اند Next.js که روی سرور خودتان اجرا می‌شود. ویرایشگر بصری بلوک،
+اجراکنندهٔ واقعی پلاگین، قالب‌های قابل نصب، و فارسی از همان کامیت اول — نه یک فایل ترجمه
+که بعداً به آن اضافه شده باشد.
+
+[![لایسنس](https://img.shields.io/badge/license-MIT-E7C069?style=flat-square&labelColor=141834)](LICENSE) [![tests](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml/badge.svg)](https://github.com/ArmanOskouei/Pishdad/actions/workflows/tests.yml) [![PHP](https://img.shields.io/badge/PHP->=8.3-E7C069?style=flat-square&labelColor=141834)](https://php.net) [![Next.js](https://img.shields.io/badge/Next.js-16-E7C069?style=flat-square&labelColor=141834)](https://nextjs.org) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-E7C069?style=flat-square&labelColor=141834)](https://postgresql.org) [![Redis](https://img.shields.io/badge/Redis-8-E7C069?style=flat-square&labelColor=141834)](https://redis.io) [![هزینه](https://img.shields.io/badge/cost-free%20%2B%20self--hosted-E7C069?style=flat-square&labelColor=141834)](https://en.wikipedia.org/wiki/Free_and_open-source_software)
+
+**فارسی** · **[English / انگلیسی](README.md)**
+
+> 🇬🇧 This guide is in Persian. The full English version is at
+> [`README.md`](README.md).
+
+---
+
+## فهرست مطالب
+
+- [نام پیشداد](#نام-پیشداد)
+- [چرا پیشداد](#چرا-پیشداد)
+- [رایگان و متن‌باز](#رایگان-و-متن‌باز)
+- [امنیت](#امنیت)
+- [معماری](#معماری)
+- [سیستم پلاگین](#سیستم-پلاگین)
+- [قالب‌ها](#قالب‌ها)
+- [ویرایشگر بلوکی](#ویرایشگر-بلوکی)
+- [سئوی داخلی](#سئوی-داخلی)
+- [مقایسه](#مقایسه)
+- [مستندات](#مستندات)
+- [نصب](#نصب)
+- [الزامات سرور](#الزامات-سرور)
+- [توسعه محلی](#توسعه-محلی)
+- [پرسش‌های پرتکرار](#پرسش‌های-پرتکرار)
+- [لایسنس](#لایسنس)
+- [مشارکت](#مشارکت)
+
+---
+
+## نام پیشداد
+
+**پیشداد** از **پیشدادیان** آمده است؛ نخستین سلسلهٔ شاهنامه، شاهان افسانه‌ای پیش از
+ساسانیان. داستان پرشین از آن‌ها شروع می‌شود و اسم پروژه هم از همان‌جا آمده.
+
+
+> 🇬🇧 [This section in English](README.md#the-name)
+---
+
+## چرا پیشداد
+
+در این فضا دو مدل قیمت‌گذاری رایج است و هر دو یک جور هزینه دارند.
+
+پلتفرم اشتراکی راحتی می‌دهد و داده‌های شما را روی سرور خودش نگه می‌دارد. نصب روی
+سرور اختصاصی کنترل می‌دهد و هزینهٔ افزونه، قالب و وصله‌های امنیتی را به شما منتقل
+می‌کند. پیشداد در دستهٔ دوم است و تلاش می‌کند آن هزینه را بردارد.
+
+| | پیشداد | پلتفرم اشتراکی | نصب روی سرور |
+|---|:---:|:---:|:---:|
+| بدون حساب کاربری و بدون ثبت‌نام | ✅ | ❌ نیاز به ثبت‌نام | ✅ |
+| هزینهٔ ماهانه | **رایگان برای همیشه** | 💳 اشتراک | 💳 افزونه + قالب |
+| داده روی سرور خودتان | ✅ | ❌ سرور فروشنده | ⚠️ هاست اشتراکی |
+| اجراکنندهٔ پلاگین در هسته | ✅ | ⚠️ مارکت‌پلیس | ⚠️ معمولاً غایب |
+| نصب قالب | ✅ | 💳 قالب پولی | ⚠️ آپلود دستی |
+| ویرایشگر بصری بلوک | ✅ | ✅ | ⚠️ اغلب افزونهٔ پولی |
+| ابزار سئو در هسته | ✅ | 💳 افزونهٔ پولی | ⚠️ دستی |
+| RTL کامل، رابط فارسی، تاریخ جلالی | ✅ | ⚠️ ناقص | ⚠️ دستی |
+| خروجی کامل، بدون قفل‌شدگی | ✅ | ❌ | ✅ |
+
+
+> 🇬🇧 [This section in English](README.md#why-pishdad)
+---
+
+## رایگان و متن‌باز
+
+پیشداد رایگان است، نه نسخه‌ای رایگان از یک محصول پولی. کل هسته MIT است و روی سروری
+اجرا می‌شود که در اختیار خودتان است. نه نسخهٔ حرفه‌ای دارد، نه محدودیت کاربر، نه
+تله‌متری.
+
+پلاگین‌ها و قالب‌هایی که نصب می‌کنید را خودتان انتخاب کرده‌اید، قبل از اجرا بررسی
+می‌شوند، و روی سروری می‌مانند که کسی جز شما نمی‌بیندش.
+
+
+> 🇬🇧 [This section in English](README.md#free-and-open-source)
+---
+
+## امنیت
+
+**هیچ‌چیز قبل از تأیید اجرا نمی‌شود.** پلاگین یک بستهٔ PHP است که می‌خواهد داخل سرور
+شما اجرا شود. بیشتر سیستم‌ها اول نصب می‌کنند و بعد می‌فهمند چه بوده. پیشداد اول
+بررسی می‌کند.
+
+| چه چیزی | کجا |
+|---|---|
+| هر بسته با Ed25519 امضا می‌شود | `sodium_crypto_sign_detached` / `sodium_crypto_sign_verify_detached` در `PluginSignatureVerifier` |
+| مانیفست پیش از امضا کانونی می‌شود، پس محتوای امضاشده بعداً قابل جایگزینی نیست | `canonical()` و `sortRecursive()` |
+| کلید یا کریژنی که داخل بسته جا گرفته شناسایی و نصب رد می‌شود | `findSecretKeys()` در `PluginPackageValidator` |
+| پلاگین نمی‌تواند نقطهٔ افزونهٔ دیگری را Claim کند؛ مسیر ارتقای سطح دسترسی بسته می‌شود | `slugBoundChecks()` |
+| کلید اختصاصی برای هر پلاگین، قابل دور انداختن هنگام حذف | `ensureSealKey()` و `forgetSealKeyFor()` در `PluginTrustStore` |
+| رد کردن بسته با دلیل و شناسهٔ کلید ثبت می‌شود | `plugin.package_rejected` |
+| اسکن کریژن روی خود مخزن | secret scanning و push protection در گیت‌هاب روشن است |
+| ورود دومرحله‌ای و نقش‌های namespaced | `google2fa` و `spatie/laravel-permission` |
+
+پرمیشن‌های پلاگین با الگوی `plugin:{slug}:{module}.{action}` نام‌گذاری می‌شوند، پس
+ماژول یک پلاگین هرگز با ماژول هسته یا ماژول پلاگین دیگر برخورد نمی‌کند.
+
+دربارهٔ سابقهٔ هک حرفی نمی‌زنیم. حرف ما معماری است: کد پلاگین ورودی بی‌اعتماد است و باید
+اجازهٔ اجرا را به دست بیاورد. کدش در `app/Services/Plugins/` است.
+
+
+> 🇬🇧 [This section in English](README.md#security)
+---
+
+## معماری
+
+```
+                      ┌───────────────────────────────────┐
+    مرورگر  ─────────▶ │  Next.js 16  (React 19, App Router) │
+                      │  RTL · وزیرمتن · cacheHandler      │
+                      └────────────────┬──────────────────┘
+                                       │ کلاینت تایپ‌شده، تولیدشده
+                                       │ از روی OpenAPI 3.1
+                                       ▼
+                      ┌───────────────────────────────────┐
+                      │  Laravel 13   (فقط API)           │
+                      │  Sanctum · RBAC · 2FA              │
+                      │  اجراکنندهٔ پلاگین (Ed25519)        │
+                      └──┬───────────┬───────────┬─────────┘
+                         ▼           ▼           ▼
+                   PostgreSQL     Redis      MinIO (S3)
+```
+
+| لایه | فناوری |
+|---|---|
+| بک‌اند | Laravel `^13.0` · PHP `≥8.3` · Sanctum · `spatie/laravel-permission` · `pragmarx/google2fa` · `morilog/jalali` |
+| فرانت‌اند | Next.js `^16.3` · React `19.3` · TypeScript `7.0` · `@dnd-kit` · `jodit-react` · `jalaali-js` |
+| داده | PostgreSQL `≥18` (مرتب‌سازی `fa-IR`) · Redis `≥8` · MinIO (سازگار با S3) |
+| اجرا | Nginx `1.31` · PHP-FPM · Composer 2 · Node.js `≥22` |
+| API | OpenAPI 3.1، **۱۳۵ مسیر**، تایپ‌های کلاینت در فرانت تولید می‌شود |
+| تست | PHPUnit — **۴۸۹ تست در ۶۷ فایل** (۶۳ Feature، ۳ Unit) |
+| دارایی‌ها | کاملاً محلی. فونت و آیکون بدون CDN خارجی |
+
+
+> 🇬🇧 [This section in English](README.md#architecture)
+---
+
+## سیستم پلاگین
+
+پلاگین‌ها اعلانی هستند. یک `manifest.json` تحویل می‌دهید و هسته خودش مسیرها،
+پرمیشن‌ها، ویجت‌ها، انواع صفحه و فرم تنظیمات را درمی‌آورد. شما قابلیت را می‌نویسید،
+نه کد ثبت آن را.
+
+```jsonc
+{
+  "permissions": [
+    { "module": "blog", "title_fa": "بلاگ", "actions": ["view", "edit", "delete"] }
+  ],
+  "widgets": {
+    "header": {
+      "promo": {
+        "title": "بنر تخفیف",
+        "description": "نوار تخفیف بالای هدر.",
+        "schema": { "type": "object", "properties": { "text": { "type": "string" } } },
+        "ui": { "labels": { "text": "متن بنر" } }
+      }
+    }
+  },
+  "page_types": { "faq": { "title": "سوالات پرتکرار" } }
+}
+```
+
+| هوک | چه چیزی می‌گیرید |
+|---|---|
+| `permissions` | ماژول دسترسی جدید در ماتریس نقش‌ها، با نام `plugin:{slug}:{module}.{action}` |
+| `widgets` | ویجت جدید در هدر یا فوتر، با فرم تنظیم ساخته‌شده از روی JSON Schema |
+| `page_types` | نوع صفحه و تب بلوک جدید در ویرایشگر، همراه با بلوک‌های پیش‌فرض |
+
+هر سه هوک اختیاری‌اند، پس پلاگینی که فقط یکی را لازم دارد لازم نیست بقیه را اعلام کند.
+خاموش کردن پلاگین، آن را از ماتریس نقش‌ها، پالت ویجت و تب‌های بلوک برمی‌دارد و دادهٔ
+ذخیره‌شده‌اش را دست‌نخورده می‌گذارد.
+
+قرارداد کامل: [`docs/PLUGIN-MANIFEST-CONTRACT.md`](docs/PLUGIN-MANIFEST-CONTRACT.md)
+· راهنمای کامل: [`docs/PLUGIN-GUIDE.md`](docs/PLUGIN-GUIDE.md)
+
+
+> 🇬🇧 [This section in English](README.md#plugin-system)
+---
+
+## قالب‌ها
+
+قالب‌ها هم بسته‌هایی با همان مسیر نصب پلاگین هستند. هر قالب چیدمان، ویجت‌های هدر و
+فوتر و بلوک‌های پیش‌فرض خودش را دارد و از داخل پنل نصب می‌شود، نه با کپی فایل.
+
+پنج جهت بصری در هسته هست و هرکدام در لحظه، با پیش‌نمایش زنده قبل از تأیید، قابل تعویض
+است. بدون بیلد مجدد، بدون دیپلوی مجدد.
+
+![موکاپ تعویض قالب](./assets/mockup-themes.png)
+*موکاپ برای نمایش مفهوم — بعداً با اسکرین‌شات یا GIF واقعی جایگزین شود.*
+
+
+> 🇬🇧 [This section in English](README.md#themes)
+---
+
+## ویرایشگر بلوکی
+
+صفحه‌ها از بلوک‌های تایپ‌شده ساخته می‌شوند، نه از قالب.
+
+![موکاپ ویرایشگر بلوک](./assets/mockup-editor.png)
+*موکاپ برای نمایش مفهوم — بعداً با اسکرین‌شات یا GIF واقعی جایگزین شود.*
+
+- مرتب‌سازی با کشیدن و رها کردن، از طریق `@dnd-kit`
+- متن غنی با Jodit، و fallback به JSON تا بلوک ناشناس به‌جای حذف شدن، ضعیف‌تر رندر شود
+- پیش‌نویس، بعد نسخه، بعد انتشار، با یک اشاره‌گر واحد `published_revision_id`
+- انتخاب‌گر رسانه روی S3 یا MinIO
+- هدر، فوتر و ستون‌بندی بدون دست‌زدن به کد
+
+
+> 🇬🇧 [This section in English](README.md#block-editor)
+---
+
+## سئوی داخلی
+
+ابزار سئو بخشی از هسته است، نه افزونه‌ای که باید بخری.
+
+- `sitemap.xml` و `robots.txt` مستقیم از مسیرهای اپ
+- `llms.txt`، توصیف ماشین‌خوان سایت برای خزنده‌های هوش مصنوعی
+- یک مسیر جستجوی درون‌سایتی
+- قرارداد OpenAPI 3.1، تایپ‌شده از سر تا ته
+- بدون منشأ اسکریپت شخص ثالث، یعنی بدون جریمهٔ اسکریپت شخص ثالث
+
+
+> 🇬🇧 [This section in English](README.md#built-in-seo)
+---
+
+## مقایسه
+
+پیشداد روی ۱۶ معیار با WordPress و Django + Wagtail سنجیده شده، و سطرهایی که پیشداد
+در آن‌ها نمرهٔ پایین می‌گیرد هم نگه داشته شده‌اند، نه حذف.
+
+قبل از هر تصمیمی بخوانید: **[COMPARISON.fa.md](COMPARISON.fa.md)** ·
+**[English comparison](COMPARISON.md)**
+
+
+> 🇬🇧 [This section in English](README.md#comparison)
+---
+
+## نصب
+
+```bash
+git clone https://github.com/ArmanOskouei/Pishdad.git
+cd Pishdad/cms-core
+
+# --- بک‌اند ---
+cd backend
+cp .env.example .env
+composer install
+php artisan key:generate
+php artisan migrate
+
+# --- فرانت‌اند ---
+cd ../frontend
+npm install
+npm run build
+```
+
+Nginx را به `public/` بک‌اند و `.next/` فرانت‌اند اشاره دهید و سایت بالاست.
+
+
+> 🇬🇧 [This section in English](README.md#installation)
+---
+
+## الزامات سرور
+
+| | حداقل | پیشنهادی |
+|---|---|---|
+| سیستم‌عامل | Ubuntu 22.04 LTS | Ubuntu 24.04 LTS |
+| CPU | ۲ هسته | ۴ هسته |
+| RAM | ۲ گیگ | ۴ گیگ |
+| دیسک | ۲۰ گیگ SSD | ۴۰ گیگ SSD |
+| دامنه | ۱ دامنه با DNS به سرور | + ۱ زیردامنه |
+
+<details>
+<summary>نصب‌کننده چه چیزهایی را خودکار نصب می‌کند</summary>
+
+| سرویس | نسخه |
+|---|---|
+| PHP | 8.3+ (FPM) |
+| افزونه‌های PHP | `pdo_pgsql` · `redis` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
+| Nginx | 1.31+ |
+| PostgreSQL | 18+ با مرتب‌سازی `fa-IR` |
+| Redis | 8+ |
+| MinIO | آخرین نسخه، ذخیره‌سازی شیء سازگار با S3 |
+| Composer | 2.x |
+| Node.js | 22 LTS، ۲۴ پیشنهاد می‌شود |
+| TLS | گواهی خودکار و تمدید خودکار |
+
+</details>
+
+
+> 🇬🇧 [This section in English](README.md#server-requirements)
+---
+
+## توسعه محلی
+
+```bash
+# بک‌اند — http://127.0.0.1:8000
+cd cms-core/backend
+cp .env.example .env && composer install && php artisan serve
+
+# فرانت‌اند — http://127.0.0.1:3000
+cd cms-core/frontend
+npm install && npm run dev
+```
+
+با Docker Compose، مجموعهٔ Nginx، PHP-FPM، PostgreSQL، Redis و MinIO بالا می‌آید:
+
+```bash
+cd cms-core/backend  && docker compose up -d
+cd cms-core/frontend && docker compose up -d
+```
+
+| فرانت‌اند | |
+|---|---|
+| `npm run dev` | سرور توسعه |
+| `npm run build` | بیلد production |
+| `npm run typecheck` | بررسی تایپ |
+| `npm run gen:types` | تولید تایپ‌های API از قرارداد OpenAPI |
+
+| بک‌اند | |
+|---|---|
+| `php artisan test` | اجرای تست‌ها |
+| `php artisan serve` | سرور توسعه |
+| `composer run dev` | سرور، صف، لاگ و Vite با هم |
+
+
+> 🇬🇧 [This section in English](README.md#local-development)
+---
+
+## پرسش‌های پرتکرار
+
+**آیا پیشداد واقعاً رایگان است؟**
+هسته با مجوز MIT منتشر می‌شود. نه نسخهٔ حرفه‌ای دارد، نه محدودیت کاربر، نه تله‌متری.
+هزینهٔ شما فقط سرور است.
+
+**برای فارسی و راست‌به‌چپ به افزونه نیاز دارم؟**
+نه. راست‌به‌چپ روی CSS logical properties در تمام پروژه اجرا می‌شود، تاریخ جلالی هم در
+بک‌اند و هم در فرانت‌اند هست، و رابط پنل از ابتدا فارسی است.
+
+**پلاگین‌ها چطور قبل از اجرا بررسی می‌شوند؟**
+هر بسته با Ed25519 امضا می‌شود. Trust Store پیش از بارگذاری حتی یک خط از کد پلاگین،
+امضا را بررسی می‌کند، بسته‌های دارای کلید را رد می‌کند، و پلاگین نمی‌تواند نقطهٔ افزونهٔ
+دیگری را ادعا کند. رد شدن‌ها با دلیل و شناسهٔ کلید ثبت می‌شود. [`SECURITY.md`](SECURITY.md)
+را ببینید.
+
+**برای اپ موبایل هم API دارد؟**
+بک‌اند فقط API است و ۱۳۵ مسیر دارد که در یک قرارداد OpenAPI 3.1 تعریف شده و تایپ کلاینت
+در فرانت‌اند تولید می‌شود. همان چیزی است که یک کلاینت موبایل استفاده می‌کند.
+
+**برای اجرا چه چیزی لازم دارد؟**
+یک سرور که در اختیار خودتان باشد. Ubuntu 22.04 یا 24.04، دو هسته، دو گیگ رم و بیست
+گیگ دیسک برای یک سایت کوچک کافی است. فهرست کامل در
+[الزامات سرور](#الزامات-سرور) است.
+
+**می‌توانم محتوایم را با خودم ببرم؟**
+بله. PostgreSQL متعلق به خودتان است و اسکیما ساده است، پس یک `pg_dump` تمام
+خروجی است.
+
+
+> 🇬🇧 [This section in English](README.md#frequently-asked-questions)
+---
+
+## مستندات
+
+مستندات مخصوص توسعه‌دهنده. هر سند دو نسخهٔ انگلیسی و فارسی دارد؛ نسخهٔ فارسی اصل است و نسخهٔ
+انگلیسی آینهٔ آن (در هر اختلاف، **کد** داور است).
+
+| سند | انگلیسی | فارسی |
+|---|---|---|
+| شروع سریع توسعه‌دهنده | [DEVELOPER-QUICKSTART.en.md](docs/DEVELOPER-QUICKSTART.en.md) | — |
+| راهنمای افزونه | [PLUGIN-GUIDE.en.md](docs/PLUGIN-GUIDE.en.md) | [PLUGIN-GUIDE.md](docs/PLUGIN-GUIDE.md) |
+| قرارداد مانیفست افزونه | [PLUGIN-MANIFEST-CONTRACT.en.md](docs/PLUGIN-MANIFEST-CONTRACT.en.md) | [PLUGIN-MANIFEST-CONTRACT.md](docs/PLUGIN-MANIFEST-CONTRACT.md) |
+| معماری اکوسیستم افزونه | [PLUGIN-ECOSYSTEM-ARCHITECTURE.en.md](docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.en.md) | [PLUGIN-ECOSYSTEM-ARCHITECTURE.md](docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.md) |
+| قرارداد جستجوی افزونه (منسوخ) | [SEARCH-PLUGIN-CONTRACT.en.md](docs/SEARCH-PLUGIN-CONTRACT.en.md) | [SEARCH-PLUGIN-CONTRACT.md](docs/SEARCH-PLUGIN-CONTRACT.md) |
+
+سطح پروژه: [README.md](README.md) · [COMPARISON.md](COMPARISON.md) ·
+[COMPARISON.fa.md](COMPARISON.fa.md) · [CONTRIBUTING.md](CONTRIBUTING.md) ·
+[SECURITY.md](SECURITY.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+
+> 🇬🇧 [This section in English](README.md#documentation)
+---
+
+## لایسنس
+
+MIT. [LICENSE](LICENSE)
+
+## قدردانی
+
+- **پیشداد**، نام‌گرفته از پیشدادیان، نخستین سلسلهٔ شاهنامه.
+- **وزیرمتن**، قلم فارسی.
+- ساخته‌شده روی Laravel، Next.js، PostgreSQL، Redis و MinIO.
+
+## مشارکت
+
+مشارکت شما خوش‌آمد است. لطفاً قبل از Pull Request یک Issue باز کنید تا اول دربارهٔ
+مسیر صحبت کنیم.

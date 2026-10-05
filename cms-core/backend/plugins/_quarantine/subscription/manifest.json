@@ -1,0 +1,86 @@
+{
+    "name": "اشتراک من",
+    "slug": "subscription",
+    "version": "1.0.0",
+    "description": "پنل اشتراک مشتری: وضعیت اشتراک، فاکتورها، پرداخت و تغییر پلن.",
+    "author": "Pishdad",
+    "api": {
+        "prefix": "subscription",
+        "routes": [
+            {
+                "path": "show",
+                "method": "get",
+                "handler": "Pishdad\\Plugins\\Subscription\\Http\\SubscriptionController@show",
+                "middleware": ["auth:sanctum"]
+            },
+            {
+                "path": "invoices",
+                "method": "get",
+                "handler": "Pishdad\\Plugins\\Subscription\\Http\\SubscriptionController@invoices",
+                "middleware": ["auth:sanctum"]
+            },
+            {
+                "path": "invoices/{invoice}/pay",
+                "method": "post",
+                "handler": "Pishdad\\Plugins\\Subscription\\Http\\SubscriptionController@pay",
+                "middleware": ["auth:sanctum"]
+            },
+            {
+                "path": "plans",
+                "method": "get",
+                "handler": "Pishdad\\Plugins\\Subscription\\Http\\SubscriptionController@plans",
+                "middleware": ["auth:sanctum"]
+            },
+            {
+                "path": "change-plan",
+                "method": "post",
+                "handler": "Pishdad\\Plugins\\Subscription\\Http\\SubscriptionController@changePlan",
+                "middleware": ["auth:sanctum"]
+            },
+            {
+                "path": "status",
+                "method": "get",
+                "handler": "Pishdad\\Plugins\\Subscription\\Http\\SubscriptionController@status",
+                "middleware": []
+            }
+        ]
+    },
+    "services": {
+        "subscription_resolver": "Pishdad\\Plugins\\Subscription\\SubscriptionData"
+    },
+    "db": {
+        "tables": [
+            "subscription_plans",
+            "subscription_subscriptions",
+            "subscription_invoices"
+        ]
+    },
+    "pages": {
+        "subscription": {
+            "title": "اشتراک من",
+            "path": "/admin/subscription",
+            "layout": "default",
+            "permission": "subscription.view",
+            "blocks": [
+                {
+                    "id": "subscription-summary",
+                    "type": "metric",
+                    "title": "وضعیت اشتراک",
+                    "source": "subscription.summary"
+                },
+                {
+                    "id": "subscription-invoices",
+                    "type": "table",
+                    "title": "فاکتورها",
+                    "source": "subscription.invoices"
+                },
+                {
+                    "id": "subscription-plans",
+                    "type": "grid",
+                    "title": "پلن‌ها",
+                    "source": "subscription.plans"
+                }
+            ]
+        }
+    }
+}

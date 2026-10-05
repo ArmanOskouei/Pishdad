@@ -2,13 +2,16 @@
 import { useEffect, useState } from "react";
 import { authed } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
+import { useLang } from "@/lib/i18n";
 import { MediaPicker } from "@/components/ui/MediaPicker";
+import { LanguageSwitcher } from "@/components/admin/LanguageSwitcher";
 import { PluginSettingsSection } from "@/components/admin/PluginSettingsSection";
 import { asPaginator, type PageItem, type SiteSettings } from "@/lib/domain";
 
 /** فرم کارتی تنظیمات سایت + MediaPicker برای لوگو/فاوآیکون. */
 export function SettingsClient({ initial }: { initial: SiteSettings }) {
   const toast = useToast();
+  const { t } = useLang();
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description ?? "");
   const [phone, setPhone] = useState(initial.phone ?? "");
@@ -22,6 +25,9 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
   const [ogImage, setOgImage] = useState<number | null>(initial.og_image_media_id ?? null);
   // دسته UIUX (افزودنی): زبان پیش‌فرض / منطقه زمانی + صفحه خانه.
   const [locale, setLocale] = useState(initial.locale ?? "fa");
+  // ECO2 — تک‌زبانه/دوزبانه (مدل a: زبان دوم زیر /en).
+  const [languageMode, setLanguageMode] = useState<"single" | "dual">(initial.language_mode === "dual" ? "dual" : "single");
+  const [secondaryLocale, setSecondaryLocale] = useState(initial.secondary_locale ?? (initial.locale === "en" ? "fa" : "en"));
   const [timezone, setTimezone] = useState(initial.timezone ?? "Asia/Tehran");
   const [homepageId, setHomepageId] = useState<number | null>(initial.homepage_page_id ?? null);
   const [pubPages, setPubPages] = useState<PageItem[]>([]);
@@ -34,8 +40,8 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
-    if (title.trim().length < 2) { toast("عنوان سایت خیلی کوتاه است.", "err"); return; }
-    if (siteUrl.trim() && !/^https?:\/\/.+\..+/.test(siteUrl.trim())) { toast("نشانی سایت معتبر نیست (مثل https://example.ir).", "err"); return; }
+    if (title.trim().length < 2) { toast(t("settings.errTitleShort"), "err"); return; }
+    if (siteUrl.trim() && !/^https?:\/\/.+\..+/.test(siteUrl.trim())) { toast(t("settings.errUrl"), "err"); return; }
     setBusy(true);
     try {
       await authed(`/v1/admin/settings/site`, {
@@ -53,13 +59,15 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
           favicon_media_id: favicon,
           og_image_media_id: ogImage,
           locale,
+          language_mode: languageMode,
+          secondary_locale: languageMode === "dual" ? secondaryLocale : null,
           timezone,
           homepage_page_id: homepageId,
         },
       });
-      toast("تنظیمات سایت ذخیره شد.", "ok");
+      toast(t("settings.saved"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ذخیره ناموفق بود.", "err");
+      toast(e instanceof Error ? e.message : t("settings.errSave"), "err");
     } finally {
       setBusy(false);
     }
@@ -68,62 +76,78 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
   return (
     <div>
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">هویت سایت</div>
-        <div className="field"><label>عنوان سایت *</label><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <small style={{ color: "var(--text-muted)" }}>در تب مرورگر و عنوان نتایج گوگل دیده می‌شود.</small></div>
-        <div className="field"><label>توضیحات (سئو)</label><textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} />
-          <small style={{ color: "var(--text-muted)" }}>زیر عنوان در نتایج گوگل + توضیح پیش‌فرض اشتراک‌گذاری. ۱۵۰–۱۶۰ نویسه بنویسید.</small></div>
-        <div className="field"><label>نشانی پایه سایت (مثل https://example.ir)</label>
+        <div className="card-title">{t("settings.identity")}</div>
+        <div className="field"><label>{t("settings.fieldTitle")}</label><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.fieldTitleHint")}</small></div>
+        <div className="field"><label>{t("settings.fieldDescription")}</label><textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} />
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.fieldDescriptionHint")}</small></div>
+        <div className="field"><label>{t("settings.fieldUrl")}</label>
           <input className="input" dir="ltr" style={{ textAlign: "left" }} value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} placeholder="https://example.ir" />
-          <small style={{ color: "var(--text-muted)" }}>آدرس canonical، لینک‌های sitemap/llms.txt و OG:url از همین ساخته می‌شود. خالی = حدس از هاست.</small></div>
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.fieldUrlHint")}</small></div>
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">موتورهای هوش مصنوعی (GEO)</div>
-        <div className="field"><label>خلاصه سایت برای AI (۱–۲ جمله)</label>
-          <textarea className="input" rows={2} value={aiSummary} onChange={(e) => setAiSummary(e.target.value)} maxLength={1000} placeholder="این سایت درباره… خدمات… مخاطب…" />
-          <small style={{ color: "var(--text-muted)" }}>در بالای فایل llms.txt می‌آید؛ ChatGPT/Claude از همین برای معرفی سایت استفاده می‌کنند.</small></div>
+        <div className="card-title">{t("settings.geoTitle")}</div>
+        <div className="field"><label>{t("settings.fieldAiSummary")}</label>
+          <textarea className="input" rows={2} value={aiSummary} onChange={(e) => setAiSummary(e.target.value)} maxLength={1000} placeholder={t("settings.aiSummaryPlaceholder")} />
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.fieldAiSummaryHint")}</small></div>
         <div className="field"><label style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={robotsIndex} onChange={(e) => setRobotsIndex(e.target.checked)} />
-          اجازه ایندکس به گوگل و AI (index)</label>
-          <small style={{ color: "var(--text-muted)" }}>خاموش = کل سایت noindex می‌شود (از نتایج گوگل و robots.txt حذف).</small></div>
+          {t("settings.allowIndex")}</label>
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.allowIndexHint")}</small></div>
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">لوگو و فاوآیکون</div>
-        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>لوگو در هدر سایت + تصویر Organization برای گوگل است. فاوآیکون در تب مرورگر دیده می‌شود. تصویر اشتراک‌گذاری (OG) همان عکسی است که در تلگرام/لینکدین کنار لینک می‌آید (۱۲۰۰×۶۳۰).</p>
+        <div className="card-title">{t("settings.brandTitle")}</div>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>{t("settings.brandHint")}</p>
         <div className="grid c2">
-          <div className="field"><label>لوگو</label>
+          <div className="field"><label>{t("settings.fieldLogo")}</label>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button className="btn btn-ghost" onClick={() => setPicker("logo")}>{logo ? `فایل #${logo} ✓` : "انتخاب از فایل‌ها"}</button>
-              {logo ? <button className="btn btn-ghost btn-sm" onClick={() => setLogo(null)}>حذف</button> : null}
+              <button className="btn btn-ghost" onClick={() => setPicker("logo")}>{logo ? t("settings.fileChosen", { n: logo }) : t("settings.pickFile")}</button>
+              {logo ? <button className="btn btn-ghost btn-sm" onClick={() => setLogo(null)}>{t("common.remove")}</button> : null}
             </div>
           </div>
-          <div className="field"><label>فاوآیکون</label>
+          <div className="field"><label>{t("settings.fieldFavicon")}</label>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button className="btn btn-ghost" onClick={() => setPicker("favicon")}>{favicon ? `فایل #${favicon} ✓` : "انتخاب از فایل‌ها"}</button>
-              {favicon ? <button className="btn btn-ghost btn-sm" onClick={() => setFavicon(null)}>حذف</button> : null}
+              <button className="btn btn-ghost" onClick={() => setPicker("favicon")}>{favicon ? t("settings.fileChosen", { n: favicon }) : t("settings.pickFile")}</button>
+              {favicon ? <button className="btn btn-ghost btn-sm" onClick={() => setFavicon(null)}>{t("common.remove")}</button> : null}
             </div>
           </div>
-          <div className="field"><label>تصویر اشتراک‌گذاری (OG/Twitter)</label>
+          <div className="field"><label>{t("settings.fieldOg")}</label>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button className="btn btn-ghost" onClick={() => setPicker("og")}>{ogImage ? `فایل #${ogImage} ✓` : "انتخاب از فایل‌ها"}</button>
-              {ogImage ? <button className="btn btn-ghost btn-sm" onClick={() => setOgImage(null)}>حذف</button> : null}
+              <button className="btn btn-ghost" onClick={() => setPicker("og")}>{ogImage ? t("settings.fileChosen", { n: ogImage }) : t("settings.pickFile")}</button>
+              {ogImage ? <button className="btn btn-ghost btn-sm" onClick={() => setOgImage(null)}>{t("common.remove")}</button> : null}
             </div>
           </div>
         </div>
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">زبان و منطقه زمانی</div>
+        <div className="card-title">{t("settings.uiLangTitle")}</div>
+        {/*
+          * عمداً **بیرون** از فرمِ `save()` بالا: زبانِ رابط، ترجیحِ مرورگرِ
+          * همین مدیر است (از راه `ui-settings` ذخیره می‌شود) نه تنظیمِ سایت. اگر
+          * داخل همان فرم بود، تا زدنِ دکمهٔ «ذخیره تنظیمات» زبان را عوض می‌کرد —
+          * یعنی کاربری که فقط عنوان سایت را عوض کرده بود، ناگهان پنلش انگلیسی
+          * می‌شد. ذخیره‌سازیِ آن خودش و بی‌درنگ است.
+          */}
+        <div className="field">
+          <label>{t("settings.language")}</label>
+          <LanguageSwitcher />
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.languageHint")}</small>
+        </div>
+      </div>
+
+      <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
+        <div className="card-title">{t("settings.siteLangTitle")}</div>
         <div className="grid c2">
-          <div className="field"><label>زبان پیش‌فرض سایت</label>
+          <div className="field"><label>{t("settings.siteLangLabel")}</label>
             <select className="select" value={locale} onChange={(e) => setLocale(e.target.value)}>
-              <option value="fa">فارسی (fa)</option>
-              <option value="en">انگلیسی (en)</option>
+              <option value="fa">{t("settings.siteLangFa")}</option>
+              <option value="en">{t("settings.siteLangEn")}</option>
             </select>
           </div>
-          <div className="field"><label>منطقه زمانی</label>
+          <div className="field"><label>{t("settings.timezoneLabel")}</label>
             <select className="select" dir="ltr" style={{ textAlign: "left" }} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
               <option value="Asia/Tehran">Asia/Tehran</option>
               <option value="Asia/Dubai">Asia/Dubai</option>
@@ -132,36 +156,53 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
             </select>
           </div>
         </div>
+        <div className="grid c2">
+          <div className="field"><label>{t("settings.languageModeLabel")}</label>
+            <select className="select" value={languageMode} onChange={(e) => setLanguageMode(e.target.value === "dual" ? "dual" : "single")}>
+              <option value="single">{t("settings.languageModeSingle")}</option>
+              <option value="dual">{t("settings.languageModeDual")}</option>
+            </select>
+            <small style={{ color: "var(--text-muted)" }}>{t("settings.languageModeHint")}</small>
+          </div>
+          {languageMode === "dual" ? (
+            <div className="field"><label>{t("settings.secondaryLocaleLabel")}</label>
+              <select className="select" value={secondaryLocale} onChange={(e) => setSecondaryLocale(e.target.value)}>
+                {locale !== "fa" ? <option value="fa">{t("settings.siteLangFa")}</option> : null}
+                {locale !== "en" ? <option value="en">{t("settings.siteLangEn")}</option> : null}
+              </select>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">صفحه خانه</div>
-        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>صفحه‌ای که در روت <span dir="ltr">/</span> سایت نمایش داده می‌شود. خالی = اسلاگ <span dir="ltr">home</span> وگرنه جدیدترین صفحه منتشرشده.</p>
-        <div className="field"><label>صفحه خانه (از صفحات منتشرشده)</label>
+        <div className="card-title">{t("settings.homeTitle")}</div>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>{t("settings.homeHint")}</p>
+        <div className="field"><label>{t("settings.homeLabel")}</label>
           <select className="select" value={homepageId ?? ""} onChange={(e) => setHomepageId(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">— خودکار —</option>
+            <option value="">{t("settings.homeAuto")}</option>
             {pubPages.map((p) => <option key={p.id} value={p.id}>{p.title} ({p.slug})</option>)}
           </select>
         </div>
-        <a className="btn btn-ghost btn-sm" href="/" target="_blank" rel="noreferrer">مشاهده سایت ←</a>
+        <a className="btn btn-ghost btn-sm" href="/" target="_blank" rel="noreferrer">{t("settings.viewSite")}</a>
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">تماس</div>        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>تلفن/ایمیل در فوتر + داده ساخت‌یافته Organization (کارت تماس گوگل و پاسخ AI) می‌آید.</p>
+        <div className="card-title">{t("settings.contactTitle")}</div>        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>{t("settings.contactHint")}</p>
         <div className="grid c2">
-          <div className="field"><label>موبایل (مثل 09123456789)</label>
+          <div className="field"><label>{t("settings.fieldPhone")}</label>
             <input className="input" dir="ltr" style={{ textAlign: "left" }} value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
-          <div className="field"><label>ایمیل</label>
+          <div className="field"><label>{t("settings.fieldEmail")}</label>
             <input className="input" dir="ltr" style={{ textAlign: "left" }} value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          <div className="field" style={{ gridColumn: "1 / -1" }}><label>نشانی فیزیکی</label>
-            <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={500} placeholder="تهران، …" />
+          <div className="field" style={{ gridColumn: "1 / -1" }}><label>{t("settings.fieldAddress")}</label>
+            <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={500} placeholder={t("settings.addressPlaceholder")} />
           </div>
         </div>
       </div>
 
-      <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>{busy ? "…" : "ذخیره تنظیمات"}</button>
+      <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>{busy ? t("settings.saving") : t("settings.save")}</button>
 
       <MediaPicker
         open={picker !== null}

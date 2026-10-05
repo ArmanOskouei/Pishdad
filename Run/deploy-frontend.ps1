@@ -43,8 +43,12 @@ $env:INTERNAL_API_URL = 'http://localhost:8080/api'
 $env:REVALIDATE_SECRET = 'e39f4ba00cc6eb04534f15e757ad5964013aecd91177b623'
 $env:PORT = $port
 $env:HOSTNAME = '0.0.0.0'
-$log = Join-Path $env:TEMP 'opencode\front.log'
-$err = Join-Path $env:TEMP 'opencode\front-err.log'
+# Project-local log dir: keeps logs off the system drive (C:) and off $env:TEMP,
+# which on this box is an 8.3 short path that does not resolve. Matches serve-frontend.ps1.
+$logDir = Join-Path $root '.local\build-logs'
+if (-not (Test-Path -LiteralPath $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
+$log = Join-Path $logDir 'fe-deploy.log'
+$err = Join-Path $logDir 'fe-deploy.err.log'
 Start-Process -FilePath 'node' -ArgumentList '.next\standalone\server.js' `
   -WorkingDirectory $fe -WindowStyle Hidden `
   -RedirectStandardOutput $log -RedirectStandardError $err

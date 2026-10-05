@@ -5,15 +5,42 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /*
-| مرحله ۵ (تسک‌های ۵.۳ تا ۵.۷) — جدول‌های عملیاتی.
+| مرحله ۵ (تسک‌های ۵.۳ تا ۵.۷) — جدول‌های عملیاتیِ **هسته**.
 | - تیکت‌ها + پیام‌ها (۵.۳)
 | - پلاگین‌ها + رجیستری هوک‌ها (۵.۴)
-| - heartbeat نصب‌ها + لاگ متمرکز (۵.۵)
-| - رجیستری نسخه‌ها + رول‌اوت پلکانی (۵.۶)
-| - کلید سخت‌افزاری + توکن نصب + فعالیت اپراتور + kill-switch (۵.۷)
-| - notifications استاندارد لاراول (اعلان داخلی تیکت)
-| - ستون‌های install_token و current_version روی central_clients
+| - notifications استاندارد لارavel (اعلان داخلی تیکت)
+|
+| ## J5 — این فایل نصفه شد
+|
+| این فایل قبلاً **دو دستهٔ ناموجود** را با هم می‌ساخت: جدول‌های هسته (تیکت، پلاگین،
+| اعلان) و جدول‌های مرکزی (heartbeat نصب‌ها، لاگِ متمرکز، رجیستریِ نسخه‌ها، رول‌اوتِ
+| پلکانی و آیتمش، کلیدِ سخت‌افزاری، توکنِ نصب، فعالیتِ اپراتور، kill-switch، به‌همراهِ
+| یک `Schema::table` که دو ستونِ `install_token` و `current_version` را به جدولِ
+| کلاینت اضافه می‌کرد).
+|
+| آن بخش به بستهٔ افزونه منتقل شد: سه migration در
+| `plugins/central/Laravel/database/migrations/` با نام‌های
+| `2026_09_24_000001_create_central_billing_tables`، `2026_09_25_000001_create_central_chabokan_tables`
+| و `2026_09_26_000001_create_central_ops_tables` — و همان‌جا دو ستونِ
+| `install_token`/`current_version` داخلِ خودِ `CREATE` ادغام شدند تا نصبِ تازه یک
+| ستون اضافه نگیرد.
+|
+| دلیل اینکه «منتقل» شد و نه «کپی»: نصبِ تازهٔ هسته باید **صفر** جدولِ مرکزی داشته
+| باشد. تا وقتی این فایل آن‌ها را می‌ساخت، یک مشتریِ عمومی — که
+| `plugins/central/` روی دیسکش نیست — دیتابیسی پر از جدولِ افزونه‌ای می‌گرفت که هرگز
+| اجرا نمی‌شود. یعنی schema با بسته‌های موجود روی دیسک ناهمخوان بود.
+|
+| نصب‌های موجود چه می‌شوند: `migrations` این فایل را از قبل دارد، پس حذفِ بخشِ
+| مرکزی چیزی را حذف نمی‌کند؛ و `2026_10_05_000001` (هنوز در core) renameِ
+| باقی‌مانده را انجام می‌دهد. بعد از آن migrationهای افزونه با guardِ
+| `Schema::hasTable` بی‌اثر می‌مانند.
+|
+| ⚠️ این توضیح عمداً **نامِ کاملِ هیچ جدولِ مرکزی** را با backtick نقل نمی‌کند.
+| `PluginBoundaryTableSweepTest` متنِ خامِ فایل را می‌گردد و نامِ جدول را حتی
+| داخلِ docblock می‌شمارد — پس نقل‌قولِ دقیق، مرز را بی‌دلیل قرمز می‌کرد و
+| راهِ فرارش دستکاریِ توضیح بود، که بدترین راهِ ممکن است.
 */
+
 return new class extends Migration
 {
     public function up(): void
@@ -69,96 +96,6 @@ return new class extends Migration
             $table->index(['plugin_id', 'hook']);
         });
 
-        Schema::create('install_heartbeats', function (Blueprint $table) {
-            $table->id();
-            $table->string('site_id', 100)->unique();
-            $table->string('status', 20)->default('online'); // online|degraded|down
-            $table->string('version', 30)->nullable();
-            $table->jsonb('payload')->nullable();
-            $table->timestamp('last_seen_at')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('central_logs', function (Blueprint $table) {
-            $table->id();
-            $table->string('site_id', 100)->nullable();
-            $table->string('level', 20)->default('info'); // debug|info|warning|error|critical
-            $table->text('message');
-            $table->jsonb('context')->nullable();
-            $table->timestamps();
-            $table->index(['site_id', 'level']);
-            $table->index('created_at');
-        });
-
-        Schema::create('core_versions', function (Blueprint $table) {
-            $table->id();
-            $table->string('version', 30)->unique();
-            $table->text('notes')->nullable();
-            $table->boolean('is_latest')->default(false);
-            $table->timestamp('released_at')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('update_rollouts', function (Blueprint $table) {
-            $table->id();
-            $table->string('version', 30);
-            $table->string('status', 20)->default('pending'); // pending|in_progress|done|rolled_back
-            $table->unsignedInteger('batch_size')->default(10);
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamps();
-        });
-
-        Schema::create('update_rollout_items', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('rollout_id')->constrained('update_rollouts')->cascadeOnDelete();
-            $table->foreignId('client_id')->constrained('central_clients')->cascadeOnDelete();
-            $table->string('from_version', 30)->nullable();
-            $table->string('to_version', 30);
-            $table->string('previous_version', 30)->nullable();
-            $table->string('status', 20)->default('pending'); // pending|applied|failed|rolled_back
-            $table->unsignedInteger('batch_index')->default(0);
-            $table->timestamps();
-            $table->unique(['rollout_id', 'client_id']);
-        });
-
-        Schema::create('operator_hardware_keys', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->string('name', 100);
-            $table->text('credential'); // سکرت TOTP رمزنگاری‌شده (WebAuthn واقعی TODO)
-            $table->timestamps();
-        });
-
-        Schema::create('operator_setup_tokens', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('token_hash', 64)->unique();
-            $table->string('purpose', 150)->nullable();
-            $table->timestamp('expires_at');
-            $table->timestamp('used_at')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('operator_activities', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('action', 100);
-            $table->string('ip', 45)->nullable();
-            $table->jsonb('meta')->nullable();
-            $table->timestamps();
-            $table->index(['user_id', 'action']);
-        });
-
-        // لاگ غیرقابل حذف kill-switch: هیچ UPDATE/DELETE در سطح مدل مجاز نیست (مدل KillSwitch).
-        Schema::create('kill_switches', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('executed_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->text('reason');
-            $table->boolean('confirmed')->default(false);
-            $table->string('scope', 30)->default('all');
-            $table->timestamps();
-        });
-
         Schema::create('notifications', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('type');
@@ -167,28 +104,11 @@ return new class extends Migration
             $table->timestamp('read_at')->nullable();
             $table->timestamps();
         });
-
-        Schema::table('central_clients', function (Blueprint $table) {
-            $table->string('install_token', 64)->nullable()->unique()->after('site_id');
-            $table->string('current_version', 30)->nullable()->after('install_token');
-        });
     }
 
     public function down(): void
     {
-        Schema::table('central_clients', function (Blueprint $table) {
-            $table->dropColumn(['install_token', 'current_version']);
-        });
         Schema::dropIfExists('notifications');
-        Schema::dropIfExists('kill_switches');
-        Schema::dropIfExists('operator_activities');
-        Schema::dropIfExists('operator_setup_tokens');
-        Schema::dropIfExists('operator_hardware_keys');
-        Schema::dropIfExists('update_rollout_items');
-        Schema::dropIfExists('update_rollouts');
-        Schema::dropIfExists('core_versions');
-        Schema::dropIfExists('central_logs');
-        Schema::dropIfExists('install_heartbeats');
         Schema::dropIfExists('plugin_hooks');
         Schema::dropIfExists('plugins');
         Schema::dropIfExists('ticket_messages');

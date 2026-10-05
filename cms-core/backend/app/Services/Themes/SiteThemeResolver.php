@@ -102,6 +102,24 @@ final class SiteThemeResolver
     public const ACTIVE_KEY = 'default';
 
     /**
+     * ⭐ `Q4` — صاحبِ «انتخابِ سراسریِ نصب».
+     *
+     * تصمیمِ محصول ثبت‌شده: قالبِ سایت **سراسریِ نصب** است، نه per-user. یعنی
+     * بازدیدکنندهٔ ناشناس هم باید همان قالبی را ببیند که مدیر انتخاب کرده — و
+     * بازدیدکننده هیچ `user_id` ندارد.
+     *
+     * چرا `0` و نه «کاربرِ سازنده» یا «اولین مدیر»:
+     *  - «کاربرِ سازنده» با هر کاربر جدید عوض می‌شود ⇒ قالب بی‌صدا می‌پرد.
+     *  - «اولین مدیر» یعنی `users` باید خوانده شود ⇒ یک وابستگی که
+     *    `site_chrome` (که کاربر ندارد) نباید داشته باشد.
+     *  - `0` یک ردیفِ ثابت است که **هیچ کاربری نمی‌تواند آن را بازنویسی کند**
+     *    مگر از مسیر عمومی `site-theme/*` که دقیقاً مالکِ همین تصمیم است.
+     *    و `site_theme_settings` روی `user_id` قیدِ خارجی ندارد (فقط روی
+     *    `theme_id`/`preset_id` دارد) ⇒ لازم هم هست.
+     */
+    public const GLOBAL_OWNER = 0;
+
+    /**
      * @return array<string, string> نقشهٔ توکن آمادهٔ CSS
      */
     public static function tokensFor(?int $userId = null): array
@@ -115,6 +133,145 @@ final class SiteThemeResolver
             self::CACHE_TTL,
             static fn (): array => self::resolve($userId),
         );
+    }
+
+    /**
+     * `Q4` — توکن‌های سراسریِ نصب، برای بازدیدکنندهٔ ناشناس.
+     *
+     * تفاوت با `tokensFor(null)` عمدی است: آن یکی **خالی** برمی‌گرداند چون
+     * بدون کاربر نمی‌تواند انتخابی را پیدا کند. ولی `Q4` می‌گوید بازدیدکنندهٔ
+     * ناشناس هم قالب را ببیند — پس این باید به ردیفِ `GLOBAL_OWNER` نگاه کند،
+     * نه اینکه بی‌دلیل خالی باشد.
+     *
+     * اگر هنوز ردیفی ثبت نشده باشد، `resolve()` به `FALLBACK_THEME`/
+     * `FALLBACK_PRESET` می‌افتد — یعنی حتی نصبِ کاملاً تازه هم یک قالبِ
+     * معتبر و رنگی می‌بیند، نه صفحهٔ بی‌رنگ.
+     *
+     * @return array<string, string>
+     */
+    public static function globalTokens(): array
+    {
+        return Cache::remember(
+            self::CACHE_KEY.':global',
+            self::CACHE_TTL,
+            static fn (): array => self::resolve(self::GLOBAL_OWNER),
+        );
+    }
+
+    /**
+     * ⭐ همان نقشه، ولی با کلیدِ **نقش** — بدون پیشوندِ `--theme-`.
+     *
+     * چرا این تبدیل لازم است و چرا این‌جا، نه در مصرف‌کننده:
+     *
+     * `SiteChromeController` خروجی‌اش را در `theme.globals` می‌گذارد و
+     * `themeVars()` فرانت خودش `--theme-` را به کلید اضافه می‌کند. یعنی آن
+     * فضا **نقش** است. ولی resolver نقشه‌اش را به شکل `--theme-<role>` برمی‌گرداند
+     * (قراردادِ `site_chrome` قبلی همین است).
+     *
+     * اگر این‌ها بدون تبدیل merge شوند، دو کلیدِ **متفاوت** می‌شوند — `primary`
+     * از مانیفست و `--theme-primary` از resolver — و `themeVars()` هر دو را به
+     * `--theme-primary` تبدیل می‌کند. کدامش برنده شود به **ترتیب درج** بستگی
+     * دارد، نه به منطق. در عمل پایهٔ مانیفست می‌برد و انتخابِ کاربر بی‌اثر می‌شد:
+     * «ذخیره شد، ۲۰۰، سایت همان رنگِ قبلی.» دقیقاً همان باگی که این ردیف برای
+     * بستنش نوشته شده.
+     *
+     * @return array<string, string>
+     */
+    public static function bareTokens(?int $userId = null): array
+    {
+        $vars = $userId === self::GLOBAL_OWNER ? self::globalTokens() : self::tokensFor($userId);
+
+        $out = [];
+        foreach ($vars as $var => $value) {
+            if (str_starts_with((string) $var, '--theme-')) {
+                $out[substr((string) $var, strlen('--theme-'))] = $value;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * ⭐ آیا این اسلاگ یک **پوستهٔ درون‌ساختِ شناخته‌شده** است؟
+     *
+     * برای همگام‌کردنِ دو ویرایشگر (`ThemeController::activate` در برابر
+     * `site-theme/select`): اسلاگی که در `site_themes` نیست یعنی بستهٔ ZIPِ
+     * بیرونی، و حدس‌زدنِ پوستهٔ آن یعنی ساختنِ چیزی که مالکش نیست.
+     */
+    public static function isBuiltinSlug(string $slug): ?string
+    {
+        $row = DB::table('site_themes')
+            ->where('slug', $slug)
+            ->where('is_builtin', true)
+            ->first();
+
+        return $row === null ? null : (string) $row->slug;
+    }
+
+    /**
+     * ⭐ ECO1 — اسلاگِ فعالِ قالب برای انتخابِ کامپوننتِ فرانت.
+     *
+     * منبعِ اول انتخابِ **سراسریِ نصب** در `site_theme_settings` است (همان
+     * `Q4`). اگر ردیفی نباشد (نصبِ تازه یا مسیرِ قدیمیِ فعال‌سازیِ ZIP) به
+     * `themes.active` برمی‌گردیم، و در نهایت به `FALLBACK_THEME`.
+     *
+     * چرا هیچ‌وقت `null`/خطا نمی‌دهد: فرانت روی این اسلاگ کامپوننت انتخاب
+     * می‌کند. مقدارِ خالی یعنی «قالب را نتوانستم تعیین کنم» و آن‌وقت مرورگر
+     * صفحهٔ سفید نشان می‌دهد. قراردادِ ECO1 این است که اسلاگِ ناشناخته به
+     * قالبِ پیش‌فرض بیفتد — پس اینجا هم باید همیشه یک اسلاگِ معتبر بدهیم.
+     *
+     * جایگزینِ `default` (placeholderِ بی‌توکن) عمداً رد می‌شود تا سایتِ
+     * بی‌رنگِ تسک ۴.۲ هرگز فعال به‌نظر نرسد.
+     */
+    public static function activeSlug(int $ownerId = self::GLOBAL_OWNER): string
+    {
+        $active = self::activeRow($ownerId);
+        if ($active !== null) {
+            $slug = DB::table('site_themes')->where('id', $active->theme_id)->value('slug');
+            if (is_string($slug) && $slug !== '') {
+                return $slug;
+            }
+        }
+
+        $legacy = DB::table('themes')->where('active', true)->value('slug');
+        if (is_string($legacy) && $legacy !== '' && $legacy !== 'default') {
+            return $legacy;
+        }
+
+        return self::FALLBACK_THEME;
+    }
+
+    /**
+     * وضعیتِ فعلی برای پاسخِ `GET /site-theme` — بدون کش، چون بلافاصله بعد از
+     * هر `PUT` خوانده می‌شود و کشِ پنج‌دقیقه‌ای گمراه‌کننده است.
+     *
+     * @return array{theme_slug: string|null, preset_slug: string|null, mode: string, overrides: array<string, string>}
+     */
+    public static function selection(int $ownerId = self::GLOBAL_OWNER): array
+    {
+        $row = DB::table('site_theme_settings')
+            ->where('user_id', $ownerId)
+            ->where('key', self::ACTIVE_KEY)
+            ->first();
+
+        if ($row === null) {
+            $theme = DB::table('site_themes')->where('slug', self::FALLBACK_THEME)->first();
+            $preset = DB::table('site_theme_presets')->where('slug', self::FALLBACK_PRESET)->first();
+
+            return [
+                'theme_slug' => $theme->slug ?? self::FALLBACK_THEME,
+                'preset_slug' => $preset->slug ?? self::FALLBACK_PRESET,
+                'mode' => 'light',
+                'overrides' => [],
+            ];
+        }
+
+        return [
+            'theme_slug' => DB::table('site_themes')->where('id', $row->theme_id)->value('slug'),
+            'preset_slug' => DB::table('site_theme_presets')->where('id', $row->preset_id)->value('slug'),
+            'mode' => (string) $row->mode,
+            'overrides' => self::sanitizeOverrides(self::decode($row->overrides)),
+        ];
     }
 
     /**
@@ -210,9 +367,7 @@ final class SiteThemeResolver
             throw new \InvalidArgumentException('قالب یا رنگ‌بندی انتخابی وجود ندارد.');
         }
 
-        if (! in_array($mode, ['light', 'dark', 'system'], true)) {
-            throw new \InvalidArgumentException('حالت نامعتبر است.');
-        }
+        self::assertMode($mode);
 
         DB::table('site_theme_settings')->updateOrInsert(
             ['user_id' => $userId, 'key' => self::ACTIVE_KEY],
@@ -234,6 +389,13 @@ final class SiteThemeResolver
         if ($userId !== null) {
             Cache::forget(self::CACHE_KEY.':'.$userId);
 
+            // ⭐ `GLOBAL_OWNER` زیر کلیدِ `:global` کش می‌شود، نه `:0`. بدون این
+            // شرط، `flush(0)` کلیدِ اشتباهی را پاک می‌کند و رنگ تا پنج دقیقه
+            // کهنه می‌ماند — یعنی «ذخیره شد، ۲۰۰، ولی سایت عوض نشد».
+            if ($userId === self::GLOBAL_OWNER) {
+                Cache::forget(self::CACHE_KEY.':global');
+            }
+
             return;
         }
 
@@ -241,6 +403,185 @@ final class SiteThemeResolver
         // در این پروژه اشتراکی است (نصب‌های دیگر). پس فقط کلید قالب پاک می‌شود
         // و بقیهٔ کش دست‌نخورده می‌ماند.
         Cache::forget(self::CACHE_KEY);
+        Cache::forget(self::CACHE_KEY.':global');
+    }
+
+    /**
+     * ⭐ `F4.1.B` — عوض‌کردنِ فقط رنگ‌بندی، بدون دست‌زدن به پوسته و بدون پاک‌کردن
+     * override‌ها.
+     *
+     * چرا `select()` این کار را نمی‌کند: `select()` «انتخاب کامل» است و طبق
+     * طراحی عمداً override را `null` می‌کند — چون انتخابِ تازه یعنی «برگشتم به
+     * پیش‌فرضِ این ترکیب». ولی کاربرِ صفحهٔ رنگ‌بندی فقط یک کارت را عوض می‌کند و
+     * انتظار دارد تنظیماتِ ریزِ دستی‌اش بماند. دو مسیر، دو معنا.
+     */
+    public static function preset(int $ownerId, string $presetSlug, ?string $mode = null): void
+    {
+        $preset = DB::table('site_theme_presets')->where('slug', $presetSlug)->first();
+        if ($preset === null) {
+            throw new \InvalidArgumentException('رنگ‌بندی انتخابی وجود ندارد.');
+        }
+
+        $active = self::activeRow($ownerId);
+        if ($active === null) {
+            // هنوز انتخابی نیست ⇒ از راه `select()` ردیف را می‌سازد.
+            self::select($ownerId, self::FALLBACK_THEME, $presetSlug, $mode ?? 'light');
+
+            return;
+        }
+
+        DB::table('site_theme_settings')
+            ->where('id', $active->id)
+            ->update([
+                'preset_id' => $preset->id,
+                'mode' => self::assertMode($mode ?? (string) $active->mode),
+                'updated_at' => now(),
+            ]);
+
+        self::flush($ownerId);
+    }
+
+    /**
+     * `F4.1.B` — نوشتنِ override‌های موردی.
+     *
+     * ⭐ ورودی **پیش از نوشتن** با `sanitizeOverrides()` می‌گذرد و مقدارِ ردشده
+     * `InvalidArgumentException` می‌اندازد. این عمداً برعکسِ خواندن است: در
+     * `toCssVars()` مقدارِ بد **بی‌صدا** می‌افتد (fail-closed برای دادهٔ قدیمی و
+     * دستِ افزونه)، ولی اگر همان رفتار را روی نوشتن نگه می‌داشتیم، کاربر یک رنگ
+     * می‌نوشت، ذخیره می‌کرد، و بعد می‌دید اعمال نشد — بدون هیچ خطایی. اینجا
+     * خطا به کاربر برمی‌گردد.
+     *
+     * @param  array<string, mixed>  $raw
+     * @return array<string, string> همان چیزی که واقعاً ذخیره شد
+     */
+    public static function setOverrides(int $ownerId, array $raw): array
+    {
+        $clean = self::sanitizeOverrides($raw);
+
+        $active = self::activeRow($ownerId);
+        if ($active === null) {
+            throw new \InvalidArgumentException('ابتدا باید یک قالب انتخاب شود.');
+        }
+
+        DB::table('site_theme_settings')
+            ->where('id', $active->id)
+            ->update([
+                'overrides' => $clean === [] ? null : json_encode($clean, JSON_UNESCAPED_UNICODE),
+                'updated_at' => now(),
+            ]);
+
+        self::flush($ownerId);
+
+        return $clean;
+    }
+
+    /**
+     * `F4.1.B` — «برگشت به پیش‌فرض». ردیفِ انتخاب **حذف** می‌شود، نه اینکه با
+     * مقادیرِ خالی پر شود: صفرِ سطر یعنی «کاربر هیچ انتخابی نکرده» و resolver
+     * خودش به `FALLBACK_*` می‌افتد. نگه‌داشتنِ سطر با `overrides = null`
+     * یعنی «انتخاب هست ولی override نداریم» — دو چیز متفاوت که بعداً قاطی
+     * می‌شدند.
+     */
+    public static function reset(int $ownerId = self::GLOBAL_OWNER): void
+    {
+        DB::table('site_theme_settings')
+            ->where('user_id', $ownerId)
+            ->where('key', self::ACTIVE_KEY)
+            ->delete();
+
+        self::flush($ownerId);
+    }
+
+    /**
+     * ⭐ تنها گذرگاهِ مجاز برای override — و **همان** قاعده‌ای که `toCssVars()`
+     * روی خواندن اعمال می‌کند.
+     *
+     * یک تعریف، دو مصرف‌کننده. اگر این‌ها دو نسخه می‌داشتند، مقداری که اینجا
+     * قبول می‌شد و آنجا می‌افتاد (یا برعکس) بی‌صدا از بین می‌رفت.
+     *
+     * @param  array<string, mixed>  $raw
+     * @return array<string, string>
+     *
+     * @throws \InvalidArgumentException با نامِ نقش‌های ردشده
+     */
+    public static function sanitizeOverrides(array $raw): array
+    {
+        $clean = [];
+        $rejected = [];
+
+        foreach ($raw as $key => $value) {
+            if (! is_string($key)) {
+                $rejected[] = '(نامِ نامعتبر)';
+
+                continue;
+            }
+
+            $colorsOnly = in_array($key, self::COLOR_ROLES, true);
+            $allowed = $colorsOnly ? self::COLOR_ROLES : self::LAYOUT_ROLES;
+
+            if (! in_array($key, $allowed, true)) {
+                $rejected[] = $key;
+
+                continue;
+            }
+
+            if (! is_string($value) || $value === '') {
+                $rejected[] = $key;
+
+                continue;
+            }
+
+            if (! self::valueIsSafe($value, $colorsOnly)) {
+                $rejected[] = $key;
+
+                continue;
+            }
+
+            $clean[$key] = $value;
+        }
+
+        if ($rejected !== []) {
+            sort($rejected);
+
+            throw new \InvalidArgumentException(
+                'نقش یا مقدارِ نامعتبر: '.implode('، ', array_unique($rejected))
+            );
+        }
+
+        return $clean;
+    }
+
+    /**
+     * ⭐ قاعدهٔ مشترکِ «مقدارِ بی‌خطر» — بین نوشتن و خواندن.
+     *
+     * ۱) نقش‌های رنگ: **فقط hex** (`Q6`). نامِ رنگِ معتبرِ CSS مثل `red` در
+     *    resolver معنای یکسانی ندارد و بازکردنِ درشان برای `var()`/`url()` سطح
+     * حمله را بی‌فایده بزرگ می‌کند.
+     * ۲) نقش‌های چیدمان: `;` می‌تواند declaration تازه بسازد و `url()` راهِ
+     *    درخواست از مرورگرِ کاربر به هر مقصدی است.
+     */
+    private static function valueIsSafe(string $value, bool $colorsOnly): bool
+    {
+        return $colorsOnly
+            ? preg_match('/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i', $value) === 1
+            : preg_match('/^[#a-z0-9(),.%\-_ ]+$/i', $value) === 1;
+    }
+
+    private static function assertMode(string $mode): string
+    {
+        if (! in_array($mode, ['light', 'dark', 'system'], true)) {
+            throw new \InvalidArgumentException('حالت نامعتبر است.');
+        }
+
+        return $mode;
+    }
+
+    private static function activeRow(int $ownerId): ?object
+    {
+        return DB::table('site_theme_settings')
+            ->where('user_id', $ownerId)
+            ->where('key', self::ACTIVE_KEY)
+            ->first();
     }
 
     /**
@@ -273,11 +614,11 @@ final class SiteThemeResolver
             // برای رنگ، یک گام سخت‌گیرانه‌تر: فقط hex. نام‌های رنگِ معتبرِ CSS مثل
             // `red` یا `transparent` در resolver معنای یکسانی ندارند و بازکردنِ
             // درشان برای `var()`/`url()` سطح حمله را بی‌فایده بزرگ می‌کند.
-            $safe = $colorsOnly
-                ? preg_match('/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i', $value) === 1
-                : preg_match('/^[#a-z0-9(),.%\-_ ]+$/i', $value) === 1;
-
-            if (! $safe) {
+            //
+            // ⚠️ قاعده در `valueIsSafe()` است، نه اینجا — چون `sanitizeOverrides()`
+            // روی نوشتن **همان** قاعده را لازم دارد و دو نسخه یعنی مقداری که
+            // اینجا رد می‌شود و آنجا ذخیره می‌شود.
+            if (! self::valueIsSafe($value, $colorsOnly)) {
                 continue;
             }
 

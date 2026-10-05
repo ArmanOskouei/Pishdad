@@ -64,6 +64,9 @@ const REQUIRED_CONSTS = [
   "GRAMMAR_TYPES",
   "EXTENSION_POINTS",
   "DEFERRED_EXTENSION_POINTS",
+  "ERROR_CODE_GROUPS",
+  "ERROR_CODES",
+  "API_EXAMPLES",
 ];
 
 class ContractError extends Error {}
@@ -588,7 +591,29 @@ function readContract(contractPath) {
       forbidden: asList(resolveConst("FORBIDDEN"), "FORBIDDEN"),
       extensionPointsRaw,
     }),
+    errorCodeGroups: asMap(resolveConst("ERROR_CODE_GROUPS"), "ERROR_CODE_GROUPS"),
+    errorCodes: asMap(resolveConst("ERROR_CODES"), "ERROR_CODES"),
+    apiExamples: asList(resolveConst("API_EXAMPLES"), "API_EXAMPLES").map((entry) =>
+      asMap(entry, "API_EXAMPLES ورودی"),
+    ),
   };
+
+  // ECO3 — هر کد خطا باید به یک دستهٔ موجود اشاره کند. کدِ بی‌دسته یعنی UI
+  // درمانی برای نشان دادن ندارد — همان «راهنمای ناقصِ ساکت» که این تولیدکننده
+  // برای حذفش وجود دارد.
+  for (const [code, group] of Object.entries(contract.errorCodes)) {
+    if (typeof group !== "string" || !(group in contract.errorCodeGroups)) {
+      throw new ContractError(`کد خطای «${code}» به دستهٔ نامعتبر «${String(group)}» اشاره می‌کند`);
+    }
+  }
+  for (const [key, group] of Object.entries(contract.errorCodeGroups)) {
+    const g = asMap(group, `ERROR_CODE_GROUPS.${key}`);
+    for (const requiredField of ["label_fa", "label_en", "remedy_fa", "remedy_en"]) {
+      if (typeof g[requiredField] !== "string" || g[requiredField] === "") {
+        throw new ContractError(`دستهٔ خطای «${key}» فیلد «${requiredField}» را ندارد`);
+      }
+    }
+  }
 
   for (const required of ["manifestName", "backendRoot", "frontendRoot"]) {
     if (typeof contract.package[required] !== "string") {
@@ -667,6 +692,26 @@ export interface PluginFieldSpec {
 export interface PluginAllowedPath {
   path: string;
   label_fa: string;
+  label_en?: string;
+}
+
+export interface PluginErrorCodeGroup {
+  label_fa: string;
+  label_en: string;
+  remedy_fa: string;
+  remedy_en: string;
+}
+
+export interface PluginApiExample {
+  id: string;
+  title_fa: string;
+  title_en: string;
+  method: string;
+  path: string;
+  request: unknown;
+  response: unknown;
+  note_fa: string;
+  note_en: string;
 }
 
 export interface PluginBadExample {
@@ -677,10 +722,13 @@ export interface PluginBadExample {
 export interface PluginExtensionPoint {
   key: string;
   label_fa: string;
+  label_en?: string;
   desc_fa: string;
+  desc_en?: string;
   status: PluginPointStatus;
   openness: PluginPointOpenness;
   openness_why: string;
+  openness_why_en?: string;
   since: string;
   /**
    * فقط برای نقطه‌های منسوخ: نسخه‌ای که منسوخ شدند، جایگزینشان چیست، و چرا.
@@ -721,6 +769,9 @@ export interface PluginPackageContractData {
   };
   deferredExtensionPoints: Record<string, string>;
   extensionPoints: PluginExtensionPoint[];
+  errorCodeGroups: Record<string, PluginErrorCodeGroup>;
+  errorCodes: Record<string, string>;
+  apiExamples: PluginApiExample[];
 }
 
 export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = `;
@@ -766,6 +817,9 @@ function renderModule(contract, fingerprint) {
     grammar: contract.grammar,
     deferredExtensionPoints: contract.deferredExtensionPoints,
     extensionPoints: contract.extensionPoints,
+    errorCodeGroups: contract.errorCodeGroups,
+    errorCodes: contract.errorCodes,
+    apiExamples: contract.apiExamples,
   };
   return `${HEADER.replace("{FINGERPRINT}", fingerprint)}${PREAMBLE}${render(data, 0)};\n`;
 }

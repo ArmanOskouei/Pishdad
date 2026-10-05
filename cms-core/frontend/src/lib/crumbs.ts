@@ -36,9 +36,13 @@ export function findCrumbHit(pathname: string, groups: MenuGroup[]): CrumbHit | 
 
   for (const g of groups) {
     for (const item of g.items) {
-      if (pathname !== item.href && !pathname.startsWith(`${item.href}/`)) continue;
-      if (!hit || item.href.length > hit.href.length) {
-        hit = { href: item.href, label: item.label, group: g.title };
+      // آیتم و فرزندانش هر دو کاندید crumb هستند؛ فرزند بلندتر است پس در
+      // مسیرهای زیرمنو برنده می‌شود (مثلاً /admin/plugins/developers).
+      for (const candidate of [item, ...(item.children ?? [])]) {
+        if (pathname !== candidate.href && !pathname.startsWith(`${candidate.href}/`)) continue;
+        if (!hit || candidate.href.length > hit.href.length) {
+          hit = { href: candidate.href, label: candidate.label, group: g.title };
+        }
       }
     }
   }

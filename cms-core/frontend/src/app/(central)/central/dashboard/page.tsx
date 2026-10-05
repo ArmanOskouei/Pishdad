@@ -1,5 +1,6 @@
 import { serverOne } from "@/lib/server-api";
-import type { CentralCharts, CentralStats, OpenCase } from "@/lib/domain";
+import { OpenCase } from "@/lib/domain";
+import type { CentralCharts, CentralStats } from "../types.ts";
 import { Alert } from "@/components/ui/primitives";
 import { CentralDashboardClient } from "./CentralDashboardClient";
 

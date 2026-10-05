@@ -50,7 +50,8 @@ useEffect(() => { void load(); }, [load]);
 
 ## 🧠 graphify — قانون گراف دانش (الزامی برای همه ایجنت‌ها)
 
-> گراف در `graphify-out/graph.json` (1524 نود، 3871 یال) ساخته شده. هوک `post-commit` نصب است.
+> گراف در `graphify-out/graph.json` (~5730 نود، ~14100 یال، 328 community) ساخته شده. هوک `post-commit` نصب است.
+> ساختار فایل: کلیدِ یال‌ها **`links`** است (نه `edges`)، و هر نود `file_type` دارد (`code` / `document` / `concept`).
 
 - **قبل از هر read روی اسناد بزرگ یا کد، اول کوئری بزن:**
   ```bash
@@ -70,8 +71,10 @@ useEffect(() => { void load(); }, [load]);
   ```
   ساب‌ایجنت `graphify-updater` با `openrouter/openrouter/free` اجرا می‌شود — کد با AST (0 توکن)، داک با free LLM (~0.5K رایگان). مدل اصلی هیچ توکنی نمی‌دهد. `post-commit` هوک کد را خودکار در بک‌گراند می‌زند.
 - **کد:** هوک `post-commit` به صورت خودکار `_rebuild_code` را در بک‌گراند اجرا می‌کند — نیازی به اجرای دستی بعد از کامیت کد نیست.
-- **داک:** `graphify update` CLI داک‌ها را نادیده می‌گیرد — برای `docs/` حتما واگذاری به `graphify-updater` (یا `/graphify --update` در assistant) لازم است.
 - **`--watch` ممنوع:** هر save را ری‌بلد می‌کند و توکن را هدر می‌دهد؛ فقط `post-commit` + واگذاری در پایان تسک کافی است.
+- **`graphify label --missing-only` را بعد از هر `update` بزن:** بدون آن، communityهای تازه اسمشان را از hub می‌گیرند (مثلاً `build-flavour.ts` می‌رفت زیر `gen-types.mjs`) و کوئری‌ها بی‌ربط برمی‌گردند.
+- **محدودیت‌های محیط (تجربهٔ تأییدشده):** ساب‌ایجنت `graphify-updater` با `Forbidden: Access denied by security policy` مسدود می‌شود → فاز داک را با CLI/دستی انجام بده. `pip install` هم DNS ندارد، پس فایل‌های `.sql` هرگز وارد گراف نمی‌شوند؛ برای نگه‌داشتنِ «چرا»، دلیلشان را در یک `README.md` کنارشان بنویس تا از مسیر داک وارد گراف شود. `Dockerfile` هم پارسر ندارد و در گراف نیست.
+  - ⚠️ `detect_incremental` روی ویندوز با **`WinError 1920`** می‌افتد: symlinkِ لاراول `cms-core/backend/public/storage` هدفش قابل‌دسترس نیست و detect پیش از هر استخراجی `stat` می‌کند. افزودنش به `.graphifyignore` **کمک نمی‌کند** (کرش داخلِ ارزیابی خودِ الگو رخ می‌دهد). بنابراین فاز داکِ `--update` در این ماشین با خطای مسیر می‌خورد — نه با نبود کلید. رفع واقعی: یا آن symlinkِ شکسته (که gitignore است و لاراول با `storage:link` بازمی‌سازد) حذف شود، یا اسکنِ symlink در graphify اصلاح شود. چون کانتینرها بالا هستند، حذفش نیاز به تأیید کاربر دارد.
 - **هر سشن جدید:** `graphify-out/GRAPH_REPORT.md` را به عنوان حافظه بخوان، نه کل `PLAN.md` را.
 
 ## شروع کار

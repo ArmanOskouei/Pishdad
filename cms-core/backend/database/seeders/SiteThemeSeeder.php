@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Services\Themes\SiteThemeResolver;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 /**
@@ -245,9 +246,152 @@ class SiteThemeSeeder extends Seeder
 
         $this->assertVocabulary();
 
+        $this->seedLegacyThemes($now);
+
         $combos = count(self::THEMES) * count(self::PRESETS);
 
         $this->command?->info("  {$combos} ترکیب قالب×رنگ، هر کدام با دو نیمهٔ روشن/تاریک.");
+    }
+
+    /**
+     * ⭐ `Q5` + `F4.1.B` — سه قالب را در جدولِ `themes` هم از **کد** seed می‌کند.
+     *
+     * ## چرا اصلاً جدولِ دوم
+     *
+     * `site_themes` (F4.1.C) پوسته و رنگ را جدا نگه می‌دارد — درست برای ویرایشگر.
+     * ولی `SiteChromeController` (که **بازدیدکنندهٔ ناشناس** می‌خواند) از جدولِ
+     * `themes` می‌خواند و `manifest.globals` را در پاسخ می‌گذارد. بدون سطر در آن
+     * جدول، پاسخ `theme: null` می‌شود ⇒ سایت هیچ توکنی نمی‌گیرد ⇒ «قالب انتخاب
+     * کردم ولی سایت هیچ تغییری نکرد».
+     *
+     * ## چرا از کد و نه از استخراجِ ZIP
+     *
+     * `Q5` این را قید کرده: قالب‌ها از **کد** seed می‌شوند. استخراجِ ZIP برای
+     * قالبِ درون‌ساخت یعنی بسته‌ای که باید در repo باشد و با هر تغییرِ رنگ
+     * دوباره ساخته شود — و یکبار که باشد، منبعِ حقیقت دو تا می‌شود. اینجا
+     * `THEMES`/`PRESETS` بالا تنها منبع‌اند و `themes` فقط **مشتق** از آن‌هاست.
+     *
+     * ## چرا `globals` ترکیبِ رنگ + چیدمان است
+     *
+     * `themeVars()` فرانت کلید را `--theme-{key}` می‌کند و `globals.css` همان
+     * نقش‌ها را می‌خواند. پس شکلِ درست `role → value` است (نه `--theme-role`)، و
+     * محتوایش باید هر دو دسته نقش را داشته باشد وگرنه قالب ناقص رندر می‌شود.
+     *
+     * نیمهٔ `light` از رنگ‌بندیِ پیش‌فرض (`azure`) گرفته می‌شود: قالب به‌تنهایی
+     * رنگ ندارد (رنگ مشترکِ N پوسته است) و بدون رنگ، سایت رنگِ پیش‌فرضِ CSS
+     * هسته را می‌گیرد که با چیدمانِ قالب جور نیست.
+     */
+    private function seedLegacyThemes(mixed $now): void
+    {
+        if (! Schema::hasTable('themes')) {
+            return;
+        }
+
+        $light = $this->presetTokens('azure', 'light');
+        $slugs = array_column(self::THEMES, 'slug');
+
+        /**
+         * ⭐ قالبِ فعالِ *قبل* از seed، بدون placeholderِ `default`.
+         *
+         * انتخابِ کاربر باید باقی بماند: اگر مدیر قالبی را فعال کرده باشد،
+         * `migrate --seed` نباید یواشکی برگرداندش. ولی `default` (placeholderِ
+         * تسک ۴.۲، با **صفر** توکن طراحی) استثناست: فعال‌بودنش یعنی سایت بی‌رنگ
+         * است، که دقیقاً همان چیزی است که `Q4` می‌خواهد درست شود.
+         */
+        $previouslyActive = DB::table('themes')
+            ->where('active', true)
+            ->where('slug', '!=', 'default')
+            ->pluck('slug')
+            ->all();
+
+        foreach (self::THEMES as $theme) {
+            $globals = array_merge($light, $theme['layout_tokens']);
+
+            // `path` عمداً null است: این قالب از ZIP نیامده و فایلی پشتش نیست.
+            // `ThemeController::destroy` وقتی `path` خالی باشد چیزی حذف نمی‌کند.
+            $row = [
+                'slug' => $theme['slug'],
+                'name' => $theme['name'],
+                'version' => '1.0.0',
+                'path' => null,
+                'manifest' => json_encode([
+                    'name' => $theme['name'],
+                    'slug' => $theme['slug'],
+                    'version' => '1.0.0',
+                    'source' => 'builtin',
+                    'builtin' => true,
+                    'layout' => $theme['layout'],
+                    'globals' => $globals,
+                ], JSON_UNESCAPED_UNICODE),
+                // فعالیت بعداً و **یک‌بار** تعیین می‌شود، چون به وضعیتِ قبل نیاز
+                // دارد — نه در حلقه.
+                'active' => false,
+                'signature_valid' => false,
+                'review_status' => 'approved',
+                'updated_at' => $now,
+            ];
+
+            $exists = DB::table('themes')->where('slug', $theme['slug'])->first();
+
+            if ($exists === null) {
+                // `user_id` nullable است و قیدِ خارجی به `users` دارد، پس `null`
+                // می‌ماند نه `SiteThemeResolver::GLOBAL_OWNER` — قالبِ سراسریِ نصب
+                // به هیچ کاربری تعلق ندارد و عددِ ساختگی قید را می‌شکند.
+                DB::table('themes')->insert($row + ['user_id' => null, 'created_at' => $now]);
+
+                continue;
+            }
+
+            // رکوردِ موجود با همان اسلاگ ولی **بدون** پرچم `builtin` مالِ کس دیگری
+            // است (مثلاً ZIPی که کاربر با همین نام آپلود کرده) ⇒ دست‌نخورده.
+            $isBuiltin = (bool) (json_decode((string) $exists->manifest, true)['builtin'] ?? false);
+            if (! $isBuiltin) {
+                continue;
+            }
+
+            $row['active'] = (bool) $exists->active;
+            DB::table('themes')->where('id', $exists->id)->update($row);
+        }
+
+        $this->settleActiveTheme($slugs, $previouslyActive);
+    }
+
+    /**
+     * ⭐ دقیقاً یک قالبِ فعال — و این شرط پیش از `F4.1.B` برقرار نبود.
+     *
+     * `SiteChromeController` می‌نویسد `Theme::where('active', true)->first()` و
+     * `first()` روی چند سطرِ فعال **بی‌ترتیب** است. یعنی با placeholderِ
+     * `default` که `ensureDefault()` با `active = true` می‌سازد، نصبِ تازه
+     * می‌توانست قالبِ بی‌رنگ را نشان بدهد یا با هر بارِ seed جابه‌جا شود.
+     */
+    private function settleActiveTheme(array $builtinSlugs, array $previouslyActive): void
+    {
+        $keep = array_values(array_intersect($previouslyActive, $builtinSlugs));
+
+        // انتخابِ قبلی میان درون‌ساخت‌ها بود ⇒ همان می‌ماند.
+        // نبود (یا placeholder) ⇒ اولین درون‌ساخت.
+        $winner = $keep[0] ?? $builtinSlugs[0];
+
+        DB::table('themes')->whereIn('slug', $builtinSlugs)->update(['active' => false]);
+        DB::table('themes')->where('slug', $winner)->update(['active' => true]);
+
+        // placeholderِ تسک ۴.۲ از صحنه بیرون می‌رود: صفر توکن دارد و فعالیتش
+        // تنها کاری که می‌کند این است که سایت را بی‌رنگ نگه دارد. حذف
+        // نمی‌شود — `ThemeController::ensureDefault()` و آزمون‌های `K5` به
+        // وجودش تکیه دارند.
+        DB::table('themes')->where('slug', 'default')->update(['active' => false]);
+    }
+
+    /** @return array<string, string> نقش رنگ از نیمهٔ خواسته‌شدهٔ یک رنگ‌بندی */
+    private function presetTokens(string $presetKey, string $mode): array
+    {
+        foreach (self::PRESETS as $preset) {
+            if ($preset['key'] === $presetKey) {
+                return $preset['tokens'][$mode] ?? [];
+            }
+        }
+
+        return [];
     }
 
     /**

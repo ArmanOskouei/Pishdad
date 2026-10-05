@@ -57,7 +57,20 @@ class SiteSettingsController extends Controller
         'locale' => 'fa',
         'timezone' => 'Asia/Tehran',
         'homepage_page_id' => null,
+        // ECO2 — مدل دوزبانه/تک‌زبانه. `single` = فقط `locale`؛ `dual` = زبان
+        // اصلی + زبان دوم (مدل a: زبان دوم زیر /en). `secondary_locale` زبانِ
+        // غیرِ اصلی است و فقط وقتی `dual` باشد معنا دارد.
+        'language_mode' => 'single',
+        'secondary_locale' => null,
     ];
+
+    /**
+     * برندِ پیش‌فرضِ نصب — فایل‌های ثابتِ برند در `frontend/public`.
+     * اگر رسانه‌ای انتخاب نشده باشد، همین‌ها نشان داده می‌شوند تا نصبِ تازه
+     * (کلون از گیت‌هاب / اجرای از صفر) هم لوگو و فاوآیکون داشته باشد.
+     */
+    public const DEFAULT_LOGO_URL = '/pishdad-logo.png';
+    public const DEFAULT_FAVICON_URL = '/favicon.ico';
 
     public const LOCALES = ['fa', 'en'];
 
@@ -75,9 +88,15 @@ class SiteSettingsController extends Controller
             'favicon' => $data['favicon_media_id'] ?? null,
             'og_image' => $data['og_image_media_id'] ?? null,
         ]);
-        $data['logo_url'] = $urls['logo'];
-        $data['favicon_url'] = $urls['favicon'];
+        // برندِ پیش‌فرض وقتی رسانه‌ای انتخاب نشده (نصبِ تازه) — به‌جای null.
+        $data['logo_url'] = $urls['logo'] ?? self::DEFAULT_LOGO_URL;
+        $data['favicon_url'] = $urls['favicon'] ?? self::DEFAULT_FAVICON_URL;
         $data['og_image_url'] = $urls['og_image'];
+
+        // ECO2 — تجزیهٔ حالتِ زبان به فهرست/اصلی؛ تک‌جا تا خواننده (پنل و سایت)
+        // دو روایتِ جدا از هم نداشته باشند.
+        $data['locales'] = self::resolveLocales($data);
+        $data['primary_locale'] = self::resolveLocales($data)[0];
 
         return response()->json(['data' => $data]);
     }
@@ -102,6 +121,10 @@ class SiteSettingsController extends Controller
             'locale' => 'nullable|string|in:fa,en',
             'timezone' => 'nullable|string|in:Asia/Tehran,Asia/Dubai,Europe/London,UTC',
             'homepage_page_id' => 'nullable|integer|min:1',
+            'language_mode' => 'nullable|string|in:single,dual',
+            // ECO2 — زبانِ دوم باید زبانِ معتبر باشد؛ `different:locale` جلوی
+            // حالتِ بی‌معنیِ «اصلی = دوم» را می‌گیرد.
+            'secondary_locale' => 'nullable|string|in:fa,en|different:locale',
         ], [
             'title.required' => 'عنوان سایت الزامی است.',
             'title.min' => 'عنوان سایت خیلی کوتاه است.',
@@ -120,6 +143,9 @@ class SiteSettingsController extends Controller
             'locale.in' => 'زبان پیش‌فرض معتبر نیست (fa یا en).',
             'timezone.in' => 'منطقه زمانی معتبر نیست.',
             'homepage_page_id.exists' => 'صفحه خانه انتخاب‌شده یافت نشد.',
+            'language_mode.in' => 'حالت زبان معتبر نیست (single یا dual).',
+            'secondary_locale.in' => 'زبان دوم معتبر نیست (fa یا en).',
+            'secondary_locale.different' => 'زبان دوم باید با زبان اصلی فرق داشته باشد.',
         ]);
 
         // مشترک: صفحه خانه فقط باید وجود داشته باشد (بدون چک مالکیت).
@@ -140,6 +166,10 @@ class SiteSettingsController extends Controller
         // نرمال‌سازی site_url: حذف اسلش پایانی.
         if (! empty($data['site_url'])) {
             $data['site_url'] = rtrim($data['site_url'], '/');
+        }
+        // ECO2 — حالت تک‌زبانه یعنی زبانِ دوم بی‌معناست؛ پاک‌سازی تا دیتای مرده نماند.
+        if (($data['language_mode'] ?? 'single') !== 'dual') {
+            $data['secondary_locale'] = null;
         }
         Setting::set('site', $this->key(), $data);
         CachedSettings::forget('site', $this->key());
@@ -241,6 +271,29 @@ class SiteSettingsController extends Controller
             'message' => 'شبکه‌های اجتماعی ذخیره شد.',
             'data' => ['socials' => $socials],
         ]);
+    }
+
+    /**
+     * ECO2 — فهرست زبان‌های سایت از حالتِ زبان.
+     *
+     * `single` ⇒ فقط زبانِ اصلی در ریشه. `dual` ⇒ زبانِ اصلی + زبانِ دوم؛ اگر
+     * زبانِ دوم نبود یا با اصلی یکی بود، به `single` برمی‌گردیم (fail-safe،
+     * نه فهرستِ خالی که سایت را بی‌زبان می‌کند).
+     *
+     * @return array<int, string> زبانِ اصلی همیشه اول است (خروجی مدل a).
+     */
+    public static function resolveLocales(array $data): array
+    {
+        $primary = in_array($data['locale'] ?? null, self::LOCALES, true) ? $data['locale'] : 'fa';
+        if (($data['language_mode'] ?? 'single') !== 'dual') {
+            return [$primary];
+        }
+        $secondary = $data['secondary_locale'] ?? null;
+        if (! in_array($secondary, self::LOCALES, true) || $secondary === $primary) {
+            return [$primary];
+        }
+
+        return [$primary, $secondary];
     }
 
     private function key(): string

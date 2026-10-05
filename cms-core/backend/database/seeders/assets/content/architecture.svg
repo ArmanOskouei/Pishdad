@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" width="960" height="560" direction="rtl" role="img" aria-label="معماری هسته و افزونه‌های پیشداد">
+  <title>معماری هسته و افزونه‌های پیشداد</title>
+  <style>
+    text { font-family: Vazirmatn, 'Segoe UI', Tahoma, sans-serif; fill: #e8ecf6; direction: rtl; }
+    .t-lg { font-size: 26px; font-weight: 700; }
+    .t    { font-size: 15px; }
+    .t-sm { font-size: 13px; fill: #9aa4bd; }
+    .t-xs { font-size: 11px; fill: #9aa4bd; }
+    /* کارتِ خودبسنده: پس‌زمینهٔ ماتِ تیره + خطِ میانی.
+       روی تم تیره با صفحه یکی می‌شود، روی تم روشن مثل یک تصویر می‌ماند. */
+    .box  { fill: #101423; stroke: #2b3348; }
+    .accent   { fill: #7c8cff; }
+    .accent-s { fill: #232b45; }
+    .cyan     { fill: #38bdf8; }
+    .good    { fill: #34d399; }
+    .cyan-s   { fill: #1c2b3d; }
+    .rule { fill: none; stroke: #9aa4bd; }
+  </style>
+  <text class="t-lg" x="920" y="60" text-anchor="start">افزونه‌پذیری</text>
+  <text class="t-sm" x="920" y="94" text-anchor="start">هسته یک بار نصب می‌شود؛ بقیه افزونه است</text>
+
+  <rect class="box" x="560" y="140" width="360" height="230" rx="16"/>
+  <rect class="accent-s" x="900" y="140" width="20" height="230" rx="3"/>
+  <text class="t-lg" x="880" y="196" text-anchor="start">هستهٔ خام</text>
+  <text class="t-sm" x="880" y="232" text-anchor="start">صفحه و بلوک</text>
+  <text class="t-sm" x="880" y="260" text-anchor="start">رسانه و نقش</text>
+  <text class="t-sm" x="880" y="288" text-anchor="start">اعلان و 2FA</text>
+  <text class="t-sm" x="880" y="316" text-anchor="start">کش و ISR</text>
+  <text class="t-xs" x="880" y="344" text-anchor="start">بدون دادهٔ نمونه</text>
+  <text class="t-xs" x="880" y="360" text-anchor="start">بدون افزونهٔ فعال</text>
+
+  <rect class="box" x="40" y="140" width="440" height="106" rx="14"/>
+  <rect class="accent" x="466" y="140" width="14" height="106" rx="3"/>
+  <text class="t" x="440" y="182" text-anchor="start">افزونهٔ فروشگاه</text>
+  <text class="t-xs" x="440" y="212" text-anchor="start">سبد، سفارش، پرداخت</text>
+
+  <rect class="box" x="40" y="276" width="440" height="106" rx="14"/>
+  <rect class="cyan" x="466" y="276" width="14" height="106" rx="3"/>
+  <text class="t" x="440" y="318" text-anchor="start">افزونهٔ چندنصبی</text>
+  <text class="t-xs" x="440" y="348" text-anchor="start">مرکز، مشتری، صورتحساب</text>
+
+  <rect class="box" x="40" y="412" width="440" height="106" rx="14"/>
+  <rect class="good" x="466" y="412" width="14" height="106" rx="3"/>
+  <text class="t" x="440" y="454" text-anchor="start">افزونهٔ شما</text>
+  <text class="t-xs" x="440" y="484" text-anchor="start">امضای لاراول + جدول اختصاصی</text>
+
+  <path d="M560 255 L480 193 M560 255 L480 329 M560 255 L480 465"
+        class="rule" stroke-width="2" stroke-dasharray="5 5"/>
+</svg>

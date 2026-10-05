@@ -9,6 +9,8 @@ use App\Services\Plugins\CoreRequirementChecker;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Plugins\PluginDdlProvisioner;
 use App\Services\Plugins\PluginInstaller;
+use App\Services\Plugins\PluginIntegritySeal;
+use App\Services\Plugins\PluginLifecycle;
 use App\Services\Plugins\PluginMigrator;
 use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\PluginPackageValidator;
@@ -51,6 +53,86 @@ class PluginController extends Controller
         private PluginInstaller $installer,
         private PluginDdlProvisioner $ddl,
     ) {}
+
+    /**
+     * مهر یکپارچگی، تنبل.
+     *
+     * تنبل و نه constructor-injected: این کنترلر در `routes/api.php` به‌صورت
+     * closure نیست و Laravel خودش حلش می‌کند، ولی افزودنِ پارامتر به سازنده
+     * یعنی هر سازندهٔ دستیِ این کنترلر (در تست یا در یک job) می‌شکند. دسترسیِ
+     * تنبل این ریسک را ندارد.
+     */
+    private function seal(): PluginIntegritySeal
+    {
+        return app(PluginIntegritySeal::class);
+    }
+
+    /**
+     * چرخهٔ عمرِ بارگذار، تنبل.
+     *
+     * همان دلیلِ `seal()`: افزودن پارامتر به سازندهٔ این کنترلر هر سازندهٔ دستی
+     * (تست یا job) را می‌شکند.
+     */
+    private function lifecycle(): PluginLifecycle
+    {
+        return app(PluginLifecycle::class);
+    }
+
+    /**
+     * K5.2-W — دروازهٔ مهر یکپارچگی **پیش از** نوشتنِ اشاره‌گرِ نسخهٔ فعال.
+     *
+     * ## چرا فعال‌سازی سخت‌گیر است ولی dispatch نه
+     *
+     * فعال‌سازی دروازهٔ اعتماد است: مدیرِ سایت دارد تصمیم می‌گیرد «این کد اجرا
+     * شود». نبودِ مهر یعنی «هیچ‌کس تضمین نکرده فایل‌های روی دیسک همان بستهٔ
+     * امضاشده‌اند»، و پاسخِ درست به این **رد کردن با راهنمای دقیق** است — نه
+     * بازکردنِ راه و نه یک ۵۰۰ بی‌معنا.
+     *
+     * `dispatch` برعکس: یک افزونهٔ فعالِ پیش از این تسک مهر ندارد، و اگر آن‌جا
+     * fail-closed می‌کردیم هر ارتقای هسته همهٔ سایت‌های نصب‌شده را می‌انداخت.
+     * پس dispatch نبودِ مهر را «تأییدنشده» می‌خواند و رد می‌کند.
+     *
+     * `null` یعنی «بررسی ممکن نبود، ولی دلیلِ مسدودکردن هم نیست» — یعنی نسخه‌ای
+     * که اصلاً برچسبِ محتوا‌محور ندارد. آن مسیر را مسدود نمی‌کنیم چون رفتارِ
+     * موجودِ آن‌جا را عوض کردن، خارج از این تسک است.
+     */
+    private function integrityGate(string $slug, string $version, ?string $checksum, string $action): ?JsonResponse
+    {
+        $checksum = $checksum === null ? '' : trim($checksum);
+
+        if (trim($version) === '' || $checksum === '') {
+            return null;
+        }
+
+        try {
+            $label = $this->releases->releaseLabel($version, $checksum);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $verdict = $this->seal()->verify($slug, $label);
+
+        if ($verdict['ok']) {
+            return null;
+        }
+
+        Log::warning('plugin.integrity_gate_blocked', [
+            'slug' => $slug,
+            'release' => $label,
+            'action' => $action,
+            'status' => $verdict['status'],
+            'code' => $verdict['code'],
+        ]);
+
+        $message = $verdict['status'] === 'unsealed'
+            ? "این نسخه هنوز مهر یکپارچگی ندارد، پس {$action} انجام نشد. اگر این افزونه پیش از دریافت مهر نصب شده، یک بار با «php artisan plugin-seal {$slug} --reseal» مهرش را بزنید."
+            : "فایل‌های این نسخه با مهر یکپارچگی نمی‌خواند، پس {$action} انجام نشد و نسخهٔ فعال دست‌نخورده ماند. تا وقتی علت دستکاری روشن نشده، مهر را دوباره نزنید.";
+
+        return response()->json([
+            'message' => $message.($verdict['reason'] !== '' ? ' ('.$verdict['reason'].')' : ''),
+            'code' => $verdict['code'],
+        ], 422);
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -144,6 +226,18 @@ class PluginController extends Controller
             return response()->json(['message' => 'پلاگینی با این شناسه قبلاً نصب شده است.'], 422);
         }
 
+        // L-B3/F0.3 — پین ناشر پلاگین سیستمی، **پیش از** storePackage.
+        $pinError = $this->assertSystemPublisherPin($slug, $check);
+        if ($pinError !== null) {
+            Log::warning('plugin.system_publisher_pin_mismatch', [
+                'user_id' => $request->user()->id,
+                'slug' => $slug,
+                'key_id' => $check['key_id'] ?? null,
+            ]);
+
+            return response()->json(['message' => $pinError, 'code' => 'plugin.system_publisher_mismatch'], 422);
+        }
+
         $path = $this->storePackage($file, $slug.'_'.Str::random(8).'.zip');
         if ($path === false) {
             return response()->json([
@@ -155,6 +249,11 @@ class PluginController extends Controller
         $plugin = Plugin::query()->create([
             'user_id' => $request->user()->id,
             'name' => $manifest['name'],
+            // B35 — اختیاری. رشتهٔ غیرخالی ذخیره می‌شود، وگرنه `null` تا UI
+            // بتواند «توضیحی نیست» را از «توضیح خالی است» تشخیص دهد.
+            'description' => is_string($manifest['description'] ?? null) && trim((string) $manifest['description']) !== ''
+                ? mb_substr(trim((string) $manifest['description']), 0, 400)
+                : null,
             'slug' => $slug,
             'version' => $manifest['version'] ?? '1.0.0',
             'active' => false,
@@ -259,6 +358,22 @@ class PluginController extends Controller
             ], 422);
         }
 
+        // K5.2-W: مهر یکپارچگی فایل‌های روی دیسک، **پیش از** اشاره‌گر.
+        //
+        // ترتیب عمداً این است: مهر روی فایل‌های *همین* نسخه سنجیده می‌شود و
+        // نوشتنِ اشاره‌گر بعد از آن است. برعکس، یک نسخهٔ دستکاری‌شده «فعال»
+        // می‌شد و بعداً می‌دیدیم مهرش نمی‌خواند — یعنی لحظه‌ای که کدِ بد اجرا شد.
+        $blocked = $this->integrityGate(
+            $plugin->slug,
+            (string) $plugin->version,
+            $plugin->checksum === null ? null : (string) $plugin->checksum,
+            'فعال‌سازی'
+        );
+
+        if ($blocked !== null) {
+            return $blocked;
+        }
+
         // K5.2-W: اشاره‌گر نسخهٔ فعال، **پیش از** migration.
         //
         // ترتیب مهم است: `PluginMigrator` نسخه را از روی `currentDir()` پیدا
@@ -316,6 +431,35 @@ class PluginController extends Controller
         }
 
         $plugin->forceFill(['active' => true])->save();
+
+        // ⭐ کشِ رجیستری، هم‌قدم با تغییر وضعیت.
+        //
+        // `ManifestRegistry::activeManifests()` نتیجه را ۳۰۰ ثانیه کش می‌کند و
+        // منو، پرمیشن‌ها، ویجت‌ها و رجیستریِ صفحه‌ها همه از همان یک کش می‌خوانند.
+        // بدون این پاک‌سازی، فعال‌کردنِ افزونه در پنل بی‌اثر می‌ماند تا ۵ دقیقه
+        // بعد — و غیرفعال‌کردنش هم به همان اندازه بی‌اثر.
+        
+
+        // ⭐ کشِ رجیستری، هم‌قدم با تغییر وضعیت.
+        //
+        // `ManifestRegistry::activeManifests()` نتیجه را ۳۰۰ ثانیه کش می‌کند
+        // و منو، پرمیشن‌ها، ویجت‌ها و رجیستری صفحه‌ها همه از همان می‌خوانند.
+        // بدون این پاک‌سازی، فعال‌کردنِ افزونه هیچ اثری در پنل نداشت تا ۵
+        // دقیقه بعد — و بدتر، غیرفعال‌کردنش هم منو را نگه می‌داشت.
+        
+
+        // K5.0-W — ثبتِ بارگذارِ کلاس، هم‌قدم با تغییر وضعیت.
+        //
+        // اینجا و نه در `boot()`، چون `bootBundledPlugins()` عمداً فقط افزونه‌های
+        // **داخلی** را زودهنگام بارگذاری می‌کند (بستهٔ داخلی با `git pull`
+        // می‌آید و قابل غیرفعال‌سازی نیست). بستهٔ بازاری باید تنبل بماند تا
+        // بسته‌ای را که کاربر می‌تواند غیرفعال کند بی‌اختیار بارگذاری نکنیم —
+        // و این تنها جایی است که آن تنبلی به «بارگذار شد» تبدیل می‌شود.
+        //
+        // بعد از `save()` و نه قبلش: اگر DB نوشته نشد، بارگذار هم نباید ثبت
+        // شود، وگرنه یک درخواستِ ناموفق وضعیتی می‌سازد که هیچ‌کس بازنمی‌گرداند.
+        $this->lifecycle()->activate($plugin->slug);
+
         // این فراخوانی قبلاً تهِ `syncHooks()` بود و با حذف آن، تنها جایی که
         // پرمیشن‌های مانیفست ساخته می‌شدند از بین رفت. `ManifestRegistry` روی
         // همین سخت‌گیری تکیه می‌کند، پس جایگزینش الزامی است نه اختیاری.
@@ -374,6 +518,27 @@ class PluginController extends Controller
         }
 
         $plugin->forceFill(['active' => false])->save();
+
+        // ⭐ بدون این، غیرفعال‌کردن هیچ اثری نداشت: رجیستری نتیجهٔ «افزونه‌های
+        // فعال» را ۳۰۰ ثانیه کش می‌کرد، پس اعلان‌های افزونه تا ۵ دقیقه بعدِ
+        // غیرفعال‌سازی در پنل می‌ماندند.
+        
+
+        // ⭐ بدون این، غیرفعال‌کردن هیچ اثری نداشت: `ManifestRegistry` نتیجهٔ
+        // «افزونه‌های فعال» را ۳۰۰ ثانیه کش می‌کرد، پس آیتم منو، پرمیشن‌ها
+        // و صفحه‌های افزونه تا ۵ دقیقه بعدِ غیرفعال‌سازی در پنل می‌ماندند.
+        // گزارشِ کاربر دقیقاً همین بود: «اشتراک من» بعد از غیرفعال‌کردن
+        // هنوز در منو ماند.
+        
+
+        // K5.0-W — برداشتنِ ثبتِ بارگذار.
+        //
+        // بدون این، «غیرفعال» فقط یک پرچم در DB بود و کدِ افزونه در همان
+        // درخواست و در ادامهٔ عمرِ پروسه همچنان resolve می‌شد. قراردادِ
+        // «افزونهٔ غیرفعال هیچ مسیری ندارد» باید روی کلاس‌ها هم برقرار باشد،
+        // وگرنه یک افزونهٔ خراب بعد از غیرفعال‌سازی هم می‌تواند
+        // `ServiceProvider`اش را اجرا کند.
+        $this->lifecycle()->deactivate($plugin->slug);
 
         return response()->json([
             'message' => 'پلاگین غیرفعال شد.',
@@ -438,6 +603,24 @@ class PluginController extends Controller
             ], 422);
         }
 
+        // L-B3/F0.3 — همان گارد آپلود، ولی با رکورد موجود به‌عنوان مرجع دوم.
+        // بدون این، `publisher_key_id` از مانیفست تازه بازنویسی می‌شد و پلاگین
+        // سیستمی با کلیدِ هر ناشرِ تأییدشدهٔ دیگری تصاحب می‌شد (RCE ماندگار،
+        // چون سیستمی حذف‌ناپذیر است). **پیش از** storePackage تا فایل تازه
+        // اصلاً روی دیسک ننشیند (اثبات «فایل جدید نوشته نشد» در تست).
+        $pinError = $this->assertSystemPublisherPin($plugin->slug, $check, $plugin->publisher_key_id);
+        if ($pinError !== null) {
+            Log::warning('plugin.system_publisher_pin_mismatch', [
+                'user_id' => $request->user()->id,
+                'slug' => $plugin->slug,
+                'from' => $oldVersion ?? $plugin->version,
+                'to' => $newVersion,
+                'key_id' => $check['key_id'] ?? null,
+            ]);
+
+            return response()->json(['message' => $pinError, 'code' => 'plugin.system_publisher_mismatch'], 422);
+        }
+
         // B11: ترتیب «جدید → ردیف → حذف قدیم» عمدی است. حذف زودهنگام یعنی اگر
         // نوشتن شکست بخورد (دیسک پر)، رکوردی می‌ماند که `path`اش به فایل
         // ناموجود اشاره می‌کند و پلاگین فعال برای همیشه آجر می‌شود.
@@ -489,6 +672,15 @@ class PluginController extends Controller
         // شکست بخورد، `pointerBack()` برمی‌گردد و نسخهٔ قبلی — که به‌خاطر
         // content-addressed بودن هنوز روی دیسک است — دوباره فعال می‌شود.
         if ($plugin->active) {
+            // K5.2-W — ارتقا هم دروازهٔ مهر دارد. `install()` نسخهٔ جدید را
+            // مهر می‌زند، ولی اینجا نسخه‌ای است که **اجرا** می‌شود؛ بدون
+            // بازبینی، یک ارتقای دستکاری‌شده بلافاصله اجرا می‌شد.
+            $blocked = $this->integrityGate($plugin->slug, $newVersion, $newChecksum, 'ارتقا');
+
+            if ($blocked !== null) {
+                return $blocked;
+            }
+
             try {
                 $this->releases->activate($plugin->slug, $newVersion, (string) $newChecksum);
             } catch (\Throwable $e) {
@@ -523,6 +715,11 @@ class PluginController extends Controller
             'previous_version' => $oldVersion,
             'version' => $newVersion,
             'name' => $manifest['name'],
+            // B35 — ارتقا هم توضیح را تازه می‌کند، وگرنه متن نسخهٔ قبلی می‌ماند
+            // و کاربر توضیحی می‌بیند که با کد فعلی هم‌خوان نیست.
+            'description' => is_string($manifest['description'] ?? null) && trim((string) $manifest['description']) !== ''
+                ? mb_substr(trim((string) $manifest['description']), 0, 400)
+                : $plugin->description,
             // فاز ۰: ارتقا هم نمی‌تواند پرچم system را از مانیفست بگیرد.
             'system' => SystemPlugin::allows($plugin->slug),
             'publisher_key_id' => $check['key_id'],
@@ -539,6 +736,10 @@ class PluginController extends Controller
             'manifest' => $manifest,
             'path' => $path,
         ])->save();
+
+        // ارتقا مانیفست را عوض می‌کند ⇒ کشِ رجیستری باید برود، وگرنه منو و
+        // صفحه‌های جدیدِ نسخهٔ تازه تا ۳۰۰ ثانیه دیده نمی‌شوند.
+        
 
         if ($oldPath && $oldPath !== $path) {
             // فقط ZIP قدیمی پاک می‌شود، نه پوشهٔ نسخهٔ قبلی. پوشه‌ها content-addressed
@@ -569,6 +770,14 @@ class PluginController extends Controller
     {
         if ($plugin->isSystem()) {
             return response()->json(['message' => 'پلاگین سیستمی را نمی‌توان حذف کرد.'], 422);
+        }
+
+        // K0.7/K8.3 — yanked غیرقابل حذف است (incident امنیتی): رکورد می‌ماند،
+        // نصب تازه بسته است. اول unyank بعد حذف.
+        try {
+            app(\App\Services\Market\ReviewService::class)->ensureDeletable($plugin);
+        } catch (\App\Services\Market\MarketException $e) {
+            return response()->json(['message' => 'پلاگین yank شده را نمی‌توان حذف کرد. اول unyank کنید.', 'code' => 'plugin.yanked'], $e->status);
         }
 
         if ($plugin->path) {
@@ -602,6 +811,15 @@ class PluginController extends Controller
             ]);
         }
 
+        // ⭐ کشِ رجیستری. بدون این، منو/پرمیشن/صفحه‌های افزونهٔ حذف‌شده تا
+        // ۳۰۰ ثانیه در پنل می‌ماندند — و آیتم منو به مسیری لینک می‌کرد که
+        // دیگر وجود ندارد.
+        
+
+        // ⭐ کشِ رجیستری. بدون این، آیتم منوی افزونهٔ حذف‌شده تا ۳۰۰ ثانیه می‌ماند
+        // و به مسیری لینک می‌کند که دیگر وجود ندارد.
+        
+
         return response()->json(['message' => 'پلاگین حذف شد.']);
     }
 
@@ -629,6 +847,102 @@ class PluginController extends Controller
         // endpoint تحلیل هیچ‌وقت 4xx نمی‌دهد: کاربر باید بتواند نتیجه را ببیند
         // حتی وقتی بسته خراب است — وگرنه پیام خطای قابل‌نمایش را از دست می‌دهد.
         return response()->json(['analysis' => $analysis], 200);
+    }
+
+    /**
+     * ⭐ I2 — قرارداد کامل، بدون آپلود بسته.
+     *
+     * تا پیش از این، تنها راهِ گرفتنِ قراردادِ نقاط اتصال، `POST
+     * plugins/validate` بود — یعنی هر صفحه‌ای در فرانت که می‌خواست نقطه‌ها را
+     * نشان بدهد (راهنمای توسعه‌دهنده، جدول نقاط در تحلیلگر، صفحهٔ خالیِ «بدون
+     * بسته») **مجبور** بود یک ZIP بسازد و بفرستد. راه‌حل این بود که فرانت فهرست
+     * نقاط را **hardcode** کند — و آن‌وقت دو نسخه از حقیقت داشتیم که فقط با یک
+     * `--check` دستیِ زمان build هم‌گام می‌شدند.
+     *
+     * این مسیر، همان منبعِ حقیقت را بدون بسته می‌دهد:
+     *
+     *  - `core_contract_version` — نسخه‌ای که این نصب می‌فهمد (I5). فرانت باید
+     *    همین را با `since` بسته مقایسه کند.
+     *  - `extension_points[]` — برای هر نقطه: `key`, `status`, `openness`,
+     *    `openness_why`, `since`, `schema_version`, `schema`, `max`,
+     *    `example_ok`, `example_bad`, `deprecated`.
+     *  - `channels` — کدام کانال برای هر نقطه زنده است و کدام کلید سطح‌بالا
+     *    فقط fallback است (جدول I1-b). فرانت نباید این را حدس بزند.
+     *  - `declaration_meta_fields` — `since`/`schema_version`: فیلدهایی که
+     *    فرانت باید در فرمِ «نمونهٔ آماده» بگذارد تا بسته از I5 رد شود.
+     *  - `forbidden`, `reserved_type_names`, `overridable_interfaces`.
+     *  - `package`, `limits`, `grammar` — نام مانیفست، ریشه‌های ZIP، سقف‌های
+     *    حجم/تعداد/نسبت فشرده‌سازی، و واژگانِ micro-schema. راهنمای توسعه‌دهنده
+     *    این سه را هم لازم دارد؛ بدونشان یا باید عدد را حدس بزند یا راهنما
+     *    ناقص شود.
+     *
+     * سطح دسترسی: `plugins.view` — فقط خواندن قرارداد، نه نصب چیزی.
+     */
+    public function contract(): JsonResponse
+    {
+        return response()->json(['data' => $this->contractPayload()]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function contractPayload(): array
+    {
+        return [
+            'core_contract_version' => PluginPackageContract::CORE_CONTRACT_VERSION,
+            'declaration_meta_fields' => PluginPackageContract::DECLARATION_META_FIELDS,
+            'forbidden' => PluginPackageContract::FORBIDDEN,
+            'reserved_type_names' => PluginPackageContract::RESERVED_TYPE_NAMES,
+            'overridable_interfaces' => PluginPackageContract::OVERRIDABLE_INTERFACES,
+            'deferred_extension_points' => PluginPackageContract::DEFERRED_EXTENSION_POINTS,
+            'permissions_field' => PluginPackageContract::PERMISSIONS_FIELD,
+            'permissions_field_legacy' => PluginPackageContract::PERMISSIONS_FIELD_LEGACY,
+            'channels' => [
+                'primary' => 'panel.extensions',
+                'declarable_points' => ManifestRegistry::EXTENSION_POINT_DECLARABLE,
+                'legacy_fallback' => [
+                    'admin.menu' => 'menu',
+                    'admin.plugin_tools' => 'tools',
+                    'site.header_widget' => 'widgets.header',
+                    'site.footer_widget' => 'widgets.footer',
+                    'site.page_type' => 'page_types',
+                    PluginPackageContract::PERMISSIONS_FIELD => PluginPackageContract::PERMISSIONS_FIELD_LEGACY,
+                ],
+                'removed' => ['hooks'],
+            ],
+            'allowed_paths' => PluginPackageContract::describeAllowedPaths(),
+            'extension_points' => PluginPackageContract::extensionPoints(),
+            // ECO3 — قرارداد توسعه‌دهنده: کدهای خطا + راهنمای رفع، نمونه‌های
+            // عینی request/response، و مستندات API که افزونه‌های فعال خودشان
+            // اعلام کرده‌اند (فقط داده، بدون کد افزونه). افزودنی‌اند ⇒ تستِ
+            // وجود کلیدها همچنان سبز است.
+            'error_code_groups' => PluginPackageContract::ERROR_CODE_GROUPS,
+            'error_codes' => PluginPackageContract::ERROR_CODES,
+            'api_examples' => PluginPackageContract::API_EXAMPLES,
+            'plugin_docs' => ManifestRegistry::developerDocs(),
+            // I2 — سه زیرمجموعه‌ای که راهنمای توسعه‌دهنده لازم دارد و بدون
+            // آن‌ها نمی‌تواند «ساختار ZIP»، «سقف‌ها» و «واژگان micro-schema» را
+            // بنویسد. عمداً از همان ثابت‌های قرارداد خوانده می‌شوند، نه از یک
+            // بازنویسی: یک منبعِ حقیقت، و یک endpoint که واقعاً «کل قرارداد» است.
+            // افزودنی‌اند ⇒ تستِ `test_the_contract_endpoint_exposes_the_whole_contract`
+            // که فقط وجودِ کلیدها را می‌سنجد (assertArrayHasKey) همچنان سبز است.
+            'package' => [
+                'manifest_name' => PluginPackageContract::MANIFEST,
+                'backend_root' => PluginPackageContract::BACKEND_ROOT,
+                'frontend_root' => PluginPackageContract::FRONTEND_ROOT,
+                'plugin_namespace_prefix' => PluginPackageContract::PLUGIN_NAMESPACE_PREFIX,
+            ],
+            'limits' => [
+                'max_zip_bytes' => PluginPackageContract::MAX_ZIP_BYTES,
+                'max_files' => PluginPackageContract::MAX_FILES,
+                'max_uncompressed_bytes' => PluginPackageContract::MAX_UNCOMPRESSED_BYTES,
+                'max_compression_ratio' => PluginPackageContract::MAX_COMPRESSION_RATIO,
+            ],
+            'grammar' => [
+                'types' => PluginPackageContract::GRAMMAR_TYPES,
+                'limits' => PluginPackageContract::GRAMMAR_LIMITS,
+            ],
+        ];
     }
 
     /** تحلیل و تبدیل به شیء نتیجه. در صورت خطای بوت/خواندن، شیء خالی می‌سازد. */
@@ -718,14 +1032,84 @@ class PluginController extends Controller
     private function mayActivate(Request $request, Plugin $plugin): bool
     {
         if ($this->isReviewExempt($request)) {
+            return $this->withinActiveCap($plugin);
+        }
+
+        return $plugin->review_status === Plugin::REVIEW_APPROVED
+            && $this->withinActiveCap($plugin);
+    }
+
+    /**
+     * K0.8 — سقف ۲۰ پلاگین فعال غیرسیستمی.
+     * خودِ پلاگینِ در حال فعال‌سازی اگر از قبل فعال است شمرده نمی‌شود
+     * (فعال‌سازی مجدد نباید به‌خاطر سقف رد شود).
+     */
+    private function withinActiveCap(Plugin $plugin): bool
+    {
+        if ($plugin->active || $plugin->isSystem()) {
             return true;
         }
 
-        return $plugin->review_status === Plugin::REVIEW_APPROVED;
+        $active = Plugin::query()->where('active', true)->get(['slug']);
+
+        $nonSystem = $active->reject(fn (Plugin $p) => $p->isSystem())->count();
+
+        return $nonSystem < Plugin::MAX_ACTIVE_PLUGINS;
+    }
+
+    /**
+     * L-B3/F0.3 — گارد پین ناشر برای slug سیستمی.
+     *
+     * - غیرسیستمی ⇒ null (این گارد کاری ندارد؛ چرخهٔ عادی امضا/بازبینی).
+     * - سیستمی + امضای نامعتبر ⇒ خطا، **حتی در حالت توسعه‌دهنده**: پلاگین
+     *   غیرقابل حذف + بستهٔ بی‌امضا = تصاحب دائمی با یک POST.
+     * - سیستمی + پین ثبت‌شده + key_id متفاوت ⇒ خطا (publisher-confusion).
+     * - سیستمی + بدون پین ⇒ اولین ناشر معتبر پین می‌شود (TOFU)؛ اگر رکورد
+     *   موجود کلید قدیمیِ متفاوتی دارد، آن مغایرت هم خطاست (بک‌فیلِ نصب‌های
+     *   قدیمی‌تر از ستون پین).
+     *
+     * @return string|null پیام خطای فارسی، یا null اگر مجاز است.
+     */
+    private function assertSystemPublisherPin(string $slug, array $check, ?string $recordKeyId = null): ?string
+    {
+        if (! SystemPlugin::allows($slug)) {
+            return null;
+        }
+
+        if (($check['valid'] ?? false) !== true) {
+            return 'پلاگین سیستمی فقط با امضای معتبر ناشر قابل نصب یا ارتقاست؛ حالت توسعه‌دهنده برای آن مجاز نیست.';
+        }
+
+        // هویت پین: `key_id` ناشر، یا `self:config-key` برای بسته‌ای که با کلید
+        // خودِ نصب امضا شده (key_id ندارد ولی امضایش معتبر است — همان جریانی که
+        // همهٔ پلاگین‌های محلی امروز دارند). null هویت نیست و پین نمی‌شود،
+        // وگرنه هر بستهٔ بعدی هم null می‌بود و پین بی‌اثر می‌شد.
+        $keyId = $check['key_id'] ?? null;
+        $identity = (is_string($keyId) && $keyId !== '') ? $keyId : 'self:config-key';
+
+        $pinned = SystemPlugin::pinnedFingerprint($slug);
+        if ($pinned !== null) {
+            return hash_equals($pinned, $identity)
+                ? null
+                : 'ناشر این نسخه با ناشر ثبت‌شدهٔ پلاگین سیستمی مطابقت ندارد؛ نصب/ارتقا رد شد.';
+        }
+
+        $recordIdentity = (is_string($recordKeyId) && $recordKeyId !== '') ? $recordKeyId : 'self:config-key';
+        if ($recordKeyId !== null && ! hash_equals($recordIdentity, $identity)) {
+            return 'ناشر این نسخه با ناشر ثبت‌شدهٔ پلاگین سیستمی مطابقت ندارد؛ ارتقا رد شد.';
+        }
+
+        SystemPlugin::pinFingerprint($slug, $identity);
+
+        return null;
     }
 
     private function activationBlockReason(Request $request, Plugin $plugin): string
     {
+        if (! $this->withinActiveCap($plugin)) {
+            return 'سقف پلاگین فعال ('.Plugin::MAX_ACTIVE_PLUGINS.') پر است. ابتدا یک پلاگین را غیرفعال کنید.';
+        }
+
         return match ($plugin->review_status) {
             Plugin::REVIEW_REJECTED => 'این پلاگین رد شده است. دلیل رد را ببینید، اصلاح کنید و نسخه جدید آپلود کنید.',
             Plugin::REVIEW_PENDING => 'این پلاگین هنوز تأیید نشده است. پس از تأیید طراح و معمار CMS فعال‌سازی ممکن می‌شود.',
@@ -741,9 +1125,30 @@ class PluginController extends Controller
      */
     private function present(Plugin $plugin): array
     {
+        // B35 — توضیح از ستون خوانده می‌شود، ولی اگر خالی باشد از مانیفست
+        // برداشته می‌شود. دلیل دوم: افزونه‌هایی که **قبل از** این ستون نصب شدند
+        // ستون‌شان `null` است ولی مانیفستشان `description` دارد. بدون این fallback
+        // بک‌فیل migration کافی نبود — چون هر نصب بعدی دوباره `null` می‌ماند تا
+        // وقتی کسی ارتقا دهد.
+        //
+        // و اگر هیچ‌کدام نبود، `null` برمی‌گردد نه رشتهٔ خالی: «نویسنده ننوشته»
+        // با «نوشته ولی خالی است» فرق دارد و UI باید این دو را جدا رندر کند.
+        $description = $plugin->description;
+
+        if (! is_string($description) || trim($description) === '') {
+            $manifestDescription = is_array($plugin->manifest)
+                ? ($plugin->manifest['description'] ?? null)
+                : null;
+
+            $description = is_string($manifestDescription) && trim($manifestDescription) !== ''
+                ? $manifestDescription
+                : null;
+        }
+
         return array_merge($plugin->toArray(), [
             'trust' => $plugin->trustSummary(),
             'is_system' => $plugin->isSystem(),
+            'description' => $description,
         ]);
     }
 

@@ -31,17 +31,41 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
   );
 }
 
-export function Stepper({ steps, current }: { steps: string[]; current: number }) {
+/**
+ * F0-B6 — حالت‌های مرحله.
+ *
+ * `done` / `now` از اول بودند. سه حالتِ دیگر اضافه شد چون نبودِشان یعنی UI
+ * دربارهٔ وضعیتِ واقعی **دروغ** می‌گفت: مرحلهٔ شکست‌خورده مثل «در حال اجرا» رنگ
+ * می‌شد و مرحلهٔ قفل مثل «هنوز نرسیده‌ایم».
+ *
+ * - `failed`  خطا در همین مرحله.
+ * - `locked`  هنوز نرسیده و *نمی‌شود* پریدش (مثلاً تایپ عبارتِ تأیید کامل نشده).
+ * - `skipped` از این مرحله عبور شد بدون اجرا.
+ */
+export type StepState = "done" | "now" | "todo" | "failed" | "locked" | "skipped";
+
+export function Stepper({ steps, current, states }: { steps: string[]; current: number; states?: StepState[] }) {
   return (
     <div className="stepper" aria-label="مراحل">
-      {steps.map((s, i) => (
-        <span key={s} style={{ display: "contents" }}>
-          <span className={`step ${i === current ? "now" : ""} ${i < current ? "done" : ""}`}>
-            <span className="n">{i < current ? "✓" : ["۱", "۲", "۳", "۴"][i] ?? i + 1}</span>{s}
+      {steps.map((s, i) => {
+        const st: StepState = states?.[i] ?? (i < current ? "done" : i === current ? "now" : "todo");
+        const locked = st === "locked" || st === "skipped";
+        return (
+          <span key={s} style={{ display: "contents" }}>
+            <span
+              className={`step ${st}`}
+              {...(st === "now" ? { "aria-current": "step" as const } : {})}
+              {...(locked ? { "aria-disabled": true as const } : {})}
+            >
+              <span className="n" aria-hidden>
+                {st === "done" ? "✓" : st === "skipped" ? "–" : st === "failed" ? "✕" : ["۱", "۲", "۳", "۴", "۵", "۶"][i] ?? i + 1}
+              </span>
+              {s}
+            </span>
+            {i < steps.length - 1 ? <span className={`step-line ${st}`} /> : null}
           </span>
-          {i < steps.length - 1 ? <span className="step-line" /> : null}
-        </span>
-      ))}
+        );
+      })}
     </div>
   );
 }

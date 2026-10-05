@@ -13,6 +13,10 @@ class DatabaseSeeder extends Seeder
             SuperAdminSeeder::class,
             DemoAdminSeeder::class,
             DefaultPagesSeeder::class,
+            // `F4.1.B` — قالب‌های درون‌ساخت **از کد** (`Q5`). باید بعد از
+            // `RolesPermissionsSeeder` بیاید چون `themes.review_status` و
+            // سیاستِ review در آن تعریف شده.
+            SiteThemeSeeder::class,
         ]);
     }
 }

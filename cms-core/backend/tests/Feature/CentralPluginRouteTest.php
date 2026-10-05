@@ -7,7 +7,6 @@ use App\Models\Plugin;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Services\Plugins\PluginAutoloader;
-use App\Services\Plugins\PluginReleaseManager;
 use App\Services\Plugins\PluginRouteTable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -73,6 +72,12 @@ class CentralPluginRouteTest extends TestCase
     private function centralPlugin(): Plugin
     {
         $slug = 'central';
+
+        // J11 — بسته در قرنطینه است، پس هستهٔ اصلی PSR-4 آن را ثبت نمی‌کند.
+        // این تست dispatch را مستقیم می‌سنجد، پس خودش ثبت می‌کند (وگرنه
+        // `PluginDispatcher::ensureAutoloaded()` با «بسته روی دیسک قابل
+        // بارگذاری نیست» می‌مرد).
+        $this->registerQuarantinedPluginAutoload($slug, $this->centralDir());
 
         $manifest = [
             'slug' => $slug,
@@ -163,9 +168,9 @@ class CentralPluginRouteTest extends TestCase
         // پس این تست خودش ثبت را انجام می‌دهد — همان کاری که dispatcher
         // می‌کند — و این **هم** ساختار دیسک را می‌سنجد: اگر
         // `autoloadRoot()` یا PSR-4 اشتباه باشد، همین‌جا می‌شکند.
-        $root = app(PluginReleaseManager::class)->autoloadRoot('central');
+        $root = $this->centralDir().'/Laravel/src';
 
-        $this->assertNotNull($root, 'ریشهٔ PSR-4 باید از اشاره‌گر دیسک خوانده شود.');
+        $this->assertDirectoryExists($root, 'ریشهٔ PSR-4 بستهٔ (قرنطینه‌شدهٔ) مرکزی باید وجود داشته باشد.');
 
         app(PluginAutoloader::class)->register(
             'central',

@@ -9,10 +9,8 @@ import { Modal } from "@/components/ui/Overlays";
 import { CopyToClipboard } from "@/components/ui/CopyToClipboard";
 import { ConfirmStepper } from "@/components/ui/ConfirmStepper";
 import { faNum, jalali, relativeFa } from "@/lib/fa";
-import {
-  HEALTH_FA, INVOICE_STATUS_FA, TIER_FA,
-  type Backup, type CentralClient, type Invoice, type Paginator,
-} from "@/lib/domain";
+import { HEALTH_FA, INVOICE_STATUS_FA, TIER_FA, type Backup, type Invoice, type Paginator } from "@/lib/domain";
+import type { CentralClient } from "../types.ts";
 
 const NEXT_TIER: Record<string, string> = { budget: "standard", standard: "enterprise" };
 const healthTone = (h?: string) => h === "healthy" ? "green" : h === "warning" ? "amber" : h === "critical" ? "red" : "gray";

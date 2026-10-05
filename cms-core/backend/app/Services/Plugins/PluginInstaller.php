@@ -3,6 +3,7 @@
 namespace App\Services\Plugins;
 
 use FilesystemIterator;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -102,11 +103,20 @@ final class PluginInstaller
 
     /**
      * @param  float  $lockTimeout  چقدر برای قفلِ نصبِ همزمان صبر کنیم (ثانیه)
+     * @param  PluginIntegritySeal|null  $seal  مهر یکپارچگی (K5.2-W). تزریق‌پذیر
+     *                                        و اختیاری است تا سازندهٔ دو پارامتریِ
+     *                                        قبلی نشکند؛ `null` یعنی از container.
      */
     public function __construct(
         private PluginReleaseManager $releases,
         private float $lockTimeout = 10.0,
+        private ?PluginIntegritySeal $seal = null,
     ) {}
+
+    private function seal(): PluginIntegritySeal
+    {
+        return $this->seal ??= app(PluginIntegritySeal::class);
+    }
 
     /**
      * یک بستهٔ ZIP را در مسیرِ نسخهٔ خودش نصب می‌کند.
@@ -197,6 +207,8 @@ final class PluginInstaller
         try {
             // ── ۱) idempotent ──
             if (is_dir($target) && $this->releases->isUsable($target)) {
+                $this->sealVersion($slug, $label, $target);
+
                 return self::success($label, $target, alreadyInstalled: true);
             }
 
@@ -236,6 +248,7 @@ final class PluginInstaller
                 // شاید یک نصبِ همزمان در همین لحظه برنده شده باشد.
                 if (is_dir($target) && $this->releases->isUsable($target)) {
                     $this->removeTree($staged['staging']);
+                    $this->sealVersion($slug, $label, $target);
 
                     return self::success($label, $target, alreadyInstalled: true);
                 }
@@ -247,6 +260,16 @@ final class PluginInstaller
                     "نسخهٔ «{$label}» روی مسیرِ خودش جایگزین نشد؛ پوشهٔ موقت پاک شد و نسخهٔ فعال قبلی دست‌نخورده ماند."
                 );
             }
+
+            // K5.2-W — مهر یکپارچگی **بعد از** `rename()` زده می‌شود، نه داخل
+            // staging. دلیل: اگر داخل staging بود، مهر باید داخلِ پوشهٔ نسخه
+            // می‌نشست و شمارشِ فایل‌های استخراج‌شده (و قراردادِ «مهر، جزو بسته
+            // نیست») می‌شکست.
+            //
+            // ترتیب هم عمدی است: نسخهٔ بدونِ مهر وضعیتِ `unsealed` است، یعنی
+            // «هنوز تأییدنشده» و قابلِ درست‌کردن با `reseal()`. برعکسش یعنی
+            // مهری که به مسیری اشاره می‌کند که هرگز وجود نداشت.
+            $this->sealVersion($slug, $label, $target);
 
             return self::success(
                 $label,
@@ -636,6 +659,39 @@ final class PluginInstaller
     }
 
     // ── کمک‌کارها ───────────────────────────────────────────────────────────
+
+    /**
+     * زدنِ مهر روی نسخهٔ تازه‌نشسته، بدون اینکه شکستش نصب را بیندازد.
+     *
+     * ⚠️ **چرا شکستِ مهر نصب را رد نمی‌کند.** نصب یعنی «فایل‌ها روی دیسک نشستند» و
+     * تا وقتی فعال نشود هیچ کدی اجرا نمی‌شود. اگر نوشتنِ مهر نصب را رد می‌کرد،
+     * یک مشکلِ کلیدِ مهر (که ارتباطی با بستهٔ کاربر ندارد) جلوی نصبِ یک افزونهٔ
+     * سالم را می‌گرفت. در عوض نسخه `unsealed` می‌ماند، و **فعال‌سازی** — که دروازهٔ
+     * اعتماد است — مهر را لازم دارد و پیامِ روشن می‌دهد.
+     */
+    private function sealVersion(string $slug, string $label, string $releaseDir): void
+    {
+        try {
+            $result = $this->seal()->seal($slug, $releaseDir, $label);
+        } catch (\Throwable $e) {
+            Log::warning('plugin.seal_threw', [
+                'slug' => $slug,
+                'release' => $label,
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
+
+        if (! $result['ok']) {
+            Log::warning('plugin.seal_not_written', [
+                'slug' => $slug,
+                'release' => $label,
+                'code' => $result['code'],
+                'reason' => $result['message'],
+            ]);
+        }
+    }
 
     /**
      * نوعِ فایلِ ورودی، از `external_attributes`.

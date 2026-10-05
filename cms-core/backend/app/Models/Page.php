@@ -13,8 +13,11 @@ class Page extends Model
 
     public const STATUS_PUBLISHED = 'published';
 
+    /** F4.5 — زبان پیش‌فرضِ محتوا (زبانِ اصلی نصب). */
+    public const LOCALE_DEFAULT = 'fa';
+
     protected $fillable = [
-        'user_id', 'title', 'slug', 'status', 'is_single', 'blocks', 'meta',
+        'user_id', 'title', 'slug', 'locale', 'status', 'is_single', 'blocks', 'meta',
         'published_revision_id', 'published_at',
         'left_preset_id', 'right_preset_id', 'left_enabled', 'right_enabled',
     ];

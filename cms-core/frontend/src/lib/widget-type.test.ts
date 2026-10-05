@@ -232,7 +232,7 @@ test("شاخهٔ default بدون diagnostics چیزی رندر نمی‌کند 
   const guardAt = branch.indexOf("if (!(diagnostics ?? chromeWidgetDiagnosticsEnabled())) return null;");
   assert.ok(guardAt > -1, "باید شرطِ diagnostics و بازگشتِ null باشد");
 
-  const noticeAt = branch.indexOf("unknownWidgetNoticeFa(w.type)");
+  const noticeAt = branch.indexOf("unknownWidgetNotice(locale, w.type)");
   assert.ok(noticeAt > guardAt, "اعلان باید بعد از نگهبان باشد، نه قبل از آن");
   const logAt = branch.indexOf("console.warn(");
   assert.ok(logAt < guardAt, "لاگ باید **پیش از** نگهبان باشد تا در production هم برسد");
@@ -368,19 +368,28 @@ const pointBody = (key: string): string => {
   return found[1];
 };
 
-test("site.header_widget و site.footer_widget هنوز schema ندارند ⇒ اعلانشان خطاست", () => {
-  // نقطهٔ اصلیِ کلِ K6.4. `fields => []` با `open_schema => false` یعنی
-  // `validateDeclaration` خطای `no_schema` می‌دهد و برمی‌گردد
-  // (`PluginPackageContract.php:829-837`) ⇒ **هیچ** اعلانِ قانونی وجود ندارد.
-  // پس ساختنِ جای رندر، ساختنِ چیزی بود که هیچ مانیفستی نمی‌تواند پر کند.
+test("site.header_widget و site.footer_widget schema دارند ولی live نیستند (K3.9)", () => {
+  // ⚠️ این تست قبلاً **برعکس** بود و می‌گفت این دو نقطه باید `fields => []`
+  // و `open_schema => false` بمانند. آن ادعا تا K3.9 درست بود: نقطه اعتبارسنجی
+  // می‌شد ولی هیچ فیلدی نداشت، پس هر اعلانِ قانونی خطا می‌خورد (K6.4).
+  //
+  // K3.9 عمداً عوضش کرد چون **مصرف‌کنندهٔ واقعی** دارد: `widgetSchemas()` از
+  // K6.4 کانال را می‌خواند و فرانت از `/v1/admin/widgets/schema` رندرش می‌کند.
+  // نگهبان باید ادعای **تازه** را بسنجد، نه وضعیتِ منسوخ را:
+  //  ۱) schema پر است (وگرنه K3.9 برگشته)،
+  //  ۲) `open_schema` بسته می‌ماند (واژگان باز برای این نقطه تصمیم نیست)،
+  //  ۳) و مهم‌تر از همه **`live` نیست** — رندرر (`ChromeWidget`) هنوز
+  //     `switch`-بسته روی واژگان هسته است، پس ویجت افزونه‌ای اعلان می‌شود،
+  //     اعتبارسنجی می‌شود و در رجیستری می‌آید، ولی **رندر نمی‌شود**.
+  //     اگر روزی رندر شد، باید شاخهٔ `default` و این تست با هم عوض شوند.
   for (const key of ["site.header_widget", "site.footer_widget"]) {
     const body = pointBody(key);
     assert.match(
       body,
-      /'schema'\s*=>\s*\[\s*'fields'\s*=>\s*\[\]/,
-      `${key} باید هنوز fields خالی داشته باشد`,
+      /'schema'\s*=>\s*\[\s*'fields'\s*=>\s*\[[^\]]/,
+      `${key} باید schema پر داشته باشد (K3.9)`,
     );
-    assert.match(body, /'open_schema'\s*=>\s*false/, `${key} باید هنوز بسته باشد`);
+    assert.match(body, /'open_schema'\s*=>\s*false/, `${key} باید بسته بماند`);
     assert.match(body, /'status'\s*=>\s*'declared_only'/, `${key} نباید live باشد`);
   }
 });

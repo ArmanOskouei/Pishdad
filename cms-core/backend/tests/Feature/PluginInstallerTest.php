@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\Plugins\PluginInstaller;
+use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\PluginReleaseManager;
 use InvalidArgumentException;
 use RuntimeException;
@@ -659,6 +660,171 @@ class PluginInstallerTest extends TestCase
         $this->assertSame([], $this->releases->releases(self::SLUG));
     }
 
+    // ── ۱۱ کنترلِ استخراج: آنچه پیش از این تست نداشت ───────────────────────
+    //
+    // بالا چهار کنترل تست داشت (traversal، مسیر مطلق، symlink، برخوردِ بزرگی)
+    // و هفت‌تای دیگر فقط در کد بود. «کد هست» با «کنترل آزموده است» فرق دارد:
+    // یک شرطِ امنیتی که هرگز اجرا نشده، یک شرطِ نامعلوم است — و بازبینیِ
+    // بعدی نمی‌تواند فرق را ببیند.
+
+    /**
+     * کنترل ۳ — `..` به‌تنهایی (بدون `str_repeat`) هم باید رد شود.
+     *
+     * تستِ traversal موجود عمداً **پنج‌سطحی** است تا از ریشه بیرون بزند. این یکی
+     * ظریف‌تر است: `Laravel/src/../config/plugin.php` هیچ‌جا نمی‌رود بیرون، فقط
+     * یک سطح بالا می‌آید — و دقیقاً همان چیزی است که یک allowlistِ مبتنی بر
+     * رشته لو می‌دهد: به‌جای خطا، مسیرِ مجازِ دیگری را بازنویسی می‌کند.
+     */
+    public function test_a_bare_parent_segment_is_rejected_even_when_it_stays_inside_the_root(): void
+    {
+        $result = $this->install($this->packageZip([
+            'Laravel/src/../config/plugin.php' => '<?php // بازنویسیِ هدفِ مجاز',
+        ]));
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('install.path_traversal', $result['code']);
+        $this->assertSame([], $this->releases->releases(self::SLUG), 'هیچ نسخه‌ای نباید ساخته شده باشد.');
+    }
+
+    /**
+     * کنترل ۱۱ — backslash به‌عنوان جداکننده.
+     *
+     * روی ویندوز `..\..\x` یعنی پنج سطح بالا، ولی یک بررسیِ مبتنی بر `/` آن را
+     * یک نامِ فایلِ عادی در ریشهٔ بسته می‌بیند و **بی‌سروصدا ردش می‌کند** — نه
+     * خطا، نه محافظت. اینجا `normalizePath()` اول `/` می‌کند، پس backslash به
+     * همان قاعدهٔ `..` می‌افتد و **خطا** می‌دهد.
+     */
+    public function test_traversal_via_backslash_separators_is_rejected(): void
+    {
+        $result = $this->install($this->packageZip([
+            'Laravel\\src\\..\\..\\..\\..\\..\\backslash-'.$this->token.'\\Evil.php' => '<?php // pwned',
+        ]));
+
+        $this->assertFalse($result['ok']);
+        $this->assertContains(
+            $result['code'],
+            ['install.path_traversal', 'install.escaped_root'],
+            'جداکنندهٔ backslash نباید از قاعدهٔ `..` فرار کند.'
+        );
+        $this->assertFileDoesNotExist($this->outside.'/Evil.php');
+        $this->assertSame([], $this->releases->releases(self::SLUG));
+    }
+
+    /**
+     * کنترل ۵ — fifo/socket/device.
+     *
+     * رگرسیونِ مشخص (L-B10): تشخیص قبلاً فقط `S_IFLNK` بود، پس یک FIFO با
+     * ظاهرِ یک فایلِ معمولی رد می‌شد و موقع دسترسی، فرایندِ وب به‌جای خواندنِ
+     * فایل **بلاک** می‌شد — یک DoS که بستهٔ کاملاً امضا‌شده هم می‌توانست
+     * تحویلش بدهد.
+     */
+    public function test_a_fifo_socket_or_device_entry_aborts_the_install(): void
+    {
+        foreach (['fifo' => 0x1000, 'socket' => 0xC000, 'chardev' => 0x2000, 'blockdev' => 0x6000] as $label => $mode) {
+            $entry = 'Laravel/src/Dev-'.$label;
+
+            $result = $this->install($this->zip([
+                'manifest.json' => $this->manifestJson(),
+                'Laravel/src/Ok.php' => '<?php',
+                $entry => '',
+            ], modes: [$entry => $mode]));
+
+            $this->assertFalse($result['ok'], 'ورودیِ '.$label.' باید رد شود.');
+            $this->assertSame('install.special_entry', $result['code'], 'کدِ خطا برای '.$label);
+            $this->assertSame([], $this->releases->releases(self::SLUG), $label.': هیچ نسخه‌ای نباید ساخته شده باشد.');
+        }
+    }
+
+    /**
+     * کنترل ۷ — مسیرِ تکراری.
+     *
+     * `array_merge`/`isset` روی کلیدِ نرمال‌شده دو ورودیِ یکسان را یکی می‌کند و
+     * بی‌سروصدا **آخری** را می‌نویسد. یعنی بسته می‌تواند `manifest.json` را دوبار
+     * بفرستد و محتوای دوم جای اولی بنشیند — همان چیزی که بازبینیِ امضا فکر
+     * می‌کرد دارد می‌بیند ولی در واقع روی نسخهٔ دوم بوده.
+     */
+    public function test_a_duplicate_entry_aborts_instead_of_last_write_wins(): void
+    {
+        $result = $this->install($this->zipWithDuplicate('Laravel/src/Ok.php'));
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('install.duplicate_entry', $result['code']);
+        $this->assertSame([], $this->releases->releases(self::SLUG));
+    }
+
+    /**
+     * کنترل ۹ — نسبتِ فشرده‌سازی (zip bomb کلاسیک).
+     *
+     * داده عمداً از یک بلوکِ تصادفیِ کوچک تکرار شده تا نسبت بالا بماند؛ اگر
+     * داده کم‌نسبت بود، این تست به کنترل ۸ می‌افتاد و کدِ خطای دیگری می‌داد.
+     */
+    public function test_an_implausible_compression_ratio_aborts_the_install(): void
+    {
+        $result = $this->install($this->packageZip([
+            'Laravel/src/Bomb.php' => str_repeat($this->incompressibleBytes(2048), 600),
+        ]));
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('install.compression_bomb', $result['code']);
+        $this->assertSame([], $this->releases->releases(self::SLUG));
+    }
+
+    /**
+     * کنترل ۸ — سقفِ حجمِ بازشده (نه نسبت).
+     *
+     * با کنترل ۹ فرق دارد و فرقش مهم است: هر ورودی **به‌تنهایی** بی‌خطر است
+     * (نسبتش زیرِ سقف) ولی جمعشان از `MAX_UNCOMPRESSED_BYTES` می‌گذرد. تستِ
+     * bomb تک‌ورودی هرگز این را نمی‌گیرد.
+     *
+     * داده‌ها عمداً کم‌نسبت‌اند (بلوکِ تصادفیِ ۲۰۴۸ بایتی که ~۶۰ بار تکرار
+     * شده ⇒ نسبت ~۶۰، زیرِ ۱۰۰) تا فقط **جمع** سفرهٔ قرمز را سرخ کند.
+     */
+    public function test_the_total_uncompressed_size_cap_aborts_the_install(): void
+    {
+        $entry = str_repeat($this->incompressibleBytes(2048), 60);
+
+        $files = ['manifest.json' => $this->manifestJson()];
+        for ($i = 0; $i < 1800; $i++) {
+            $files['Laravel/src/Filler/'.$i.'.php'] = $entry;
+        }
+
+        $result = $this->install($this->zip($files));
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame(
+            'install.too_large',
+            $result['code'],
+            'سقفِ حجم باید پیش از شمارشِ فایل‌ها بخورد، وگرنه کدِ خطای دیگری می‌آید.'
+        );
+        $this->assertSame([], $this->releases->releases(self::SLUG));
+    }
+
+    /**
+     * کنترل ۱۰ — سقفِ تعدادِ ورودی‌ها.
+     *
+     * دو سقفِ جدا با دو جمعیتِ جدا داریم و هر دو لازم‌اند:
+     *  - `install.too_many_files` روی **پذیرفته‌شده‌ها** (زیرِ `ALLOWED_PATHS`)
+     *  - `install.too_many_entries` روی **کل** فهرست، شاملِ ردِ نرم
+     *
+     * دومی لازم است چون ورودی‌های بیرون از allowlist به `$skipped` می‌روند و در
+     * شمارشِ اولیه نیستند: بسته‌ای با ۱۰ فایلِ مجاز و ۵۰۰۰ ورودیِ زائد از
+     * `too_many_files` رد می‌شد ولی هنوز باید طبقه‌بندی می‌شد.
+     */
+    public function test_the_entry_count_cap_counts_entries_outside_the_allowlist_too(): void
+    {
+        $files = ['manifest.json' => $this->manifestJson()];
+        // بیرون از `ALLOWED_PATHS` ⇒ ردِ نرم، نه پذیرفته‌شده.
+        for ($i = 0; $i < PluginPackageContract::MAX_FILES + 10; $i++) {
+            $files['docs/'.$i.'.md'] = 'x';
+        }
+
+        $result = $this->install($this->zip($files));
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('install.too_many_entries', $result['code']);
+        $this->assertSame([], $this->releases->releases(self::SLUG));
+    }
+
     // ── کمک‌کارها ────────────────────────────────────────────────────────────
 
     /**
@@ -700,8 +866,9 @@ class PluginInstallerTest extends TestCase
     /**
      * @param  array<string, string>  $files
      * @param  string|null  $symlink  نام ورودی‌ای که باید symlink نوشته شود
+     * @param  array<string, int>  $modes  نام ورودی ⇒ بیتِ نوعِ UNIX (fifo/socket/device)
      */
-    private function zip(array $files, ?string $symlink = null): string
+    private function zip(array $files, ?string $symlink = null, array $modes = []): string
     {
         $path = tempnam(sys_get_temp_dir(), 'plugin-install').'.zip';
         $zip = new ZipArchive;
@@ -721,9 +888,126 @@ class PluginInstallerTest extends TestCase
             );
         }
 
+        // L-B10 — بیت‌های نوعِ fifo/socket/device.
+        //
+        // ⚠️ قراردادِ ZIP اینجا برعکسِ POSIX چیده شده: `entryType()` در
+        // `PluginInstaller` مقدار را از **۱۶ بیتِ بالا** می‌خواند
+        // (`($attr >> 16) & 0xF000`)، پس modeِ POSIX همان ۱۶ بیتِ بالاست. یک
+        // تست که `mode << 16` را با `mode | perms` اشتباه بگیرد، به‌جای fifo یک
+        // symlink (0xA000) می‌سازد و **تستِ درست را با کدِ غلط سبز می‌کند** — که
+        // دقیقاً همان اتفاقی افتاد که این helper اول نوشته شد.
+        foreach ($modes as $name => $mode) {
+            $zip->setExternalAttributesName($name, ZipArchive::OPSYS_UNIX, ($mode & 0xF000) << 16);
+        }
+
         $zip->close();
 
         return $path;
+    }
+
+    /**
+     * بسته‌ای که **یک مسیر را دوبار** در فهرستِ مرکزی دارد.
+     *
+     * `ZipArchive` نامِ تکراری نمی‌پذیرد، پس کلِ ZIP دستی نوشته می‌شود: دو
+     * local header + **دو** رکوردِ مرکزی با همان نام. این همان چیزی است که یک
+     * بستهٔ دست‌کاری‌شده یا ZIPِ ساختهٔ ابزارِ دیگر می‌تواند تولید کند.
+     *
+     * ⛔ چرا دستی و نه «چسباندنِ یک local header به تهِ فایل»: گذرِ طبقه‌بندیِ
+     * `extractIntoStaging()` فهرستِ **مرکزی** را می‌خواند (`statIndex`). یک
+     * local headerِ ته‌چسبانده در فهرست نیست و اصلاً دیده نمی‌شود — یعنی تست
+     * بی‌صدا از کنترلِ موردنظر رد می‌شد و «سبزِ الکی» می‌داد. رکوردِ مرکزی
+     * جایی است که تکرار واقعاً دیده می‌شود.
+     */
+    private function zipWithDuplicate(string $duplicated): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'plugin-install-dup').'.zip';
+
+        $entries = [
+            ['manifest.json', $this->manifestJson()],
+            ['Laravel/src/Ok.php', '<?php // نسخهٔ اول'],
+            [$duplicated, '<?php // نسخهٔ اول'],
+            [$duplicated, '<?php // نسخهٔ دوم — همان مسیر'],
+        ];
+
+        $local = '';
+        $central = '';
+        $offset = 0;
+
+        foreach ($entries as [$name, $body]) {
+            $crc = crc32($body);
+            $nameLen = strlen($name);
+
+            $header = "PK\x03\x04"
+                .pack('v', 20)               // version needed
+                .pack('v', 0).pack('v', 0)    // flags / method: store
+                .pack('v', 0).pack('v', 0x21) // زمان/تاریخ ثابت ⇒ تکرارپذیر
+                .pack('V', $crc)
+                .pack('V', strlen($body)).pack('V', strlen($body))
+                .pack('v', $nameLen).pack('v', 0)
+                .$name;
+
+            $central .= "PK\x01\x02"
+                .pack('v', 20).pack('v', 20)  // version made by / needed
+                .pack('v', 0).pack('v', 0)    // flags / method: store
+                .pack('v', 0).pack('v', 0x21)
+                .pack('V', $crc)
+                .pack('V', strlen($body)).pack('V', strlen($body))
+                .pack('v', $nameLen)
+                .pack('v', 0).pack('v', 0)    // extra / comment len
+                .pack('v', 0)                 // disk number
+                .pack('v', 0).pack('V', 0)    // internal / external attrs
+                .pack('V', $offset)
+                .$name;
+
+            $local .= $header.$body;
+            $offset += strlen($header) + strlen($body);
+        }
+
+        $end = "PK\x05\x06"
+            .pack('v', 0).pack('v', 0)
+            .pack('v', count($entries)).pack('v', count($entries))
+            .pack('V', strlen($central)).pack('V', strlen($local))
+            .pack('v', 0);
+
+        file_put_contents($path, $local.$central.$end);
+
+        // نگهبانِ خودِ کمک‌کار: اگر `ZipArchive` این فایل را با تعدادِ ورودیِ
+        // کمتر باز کند، رکوردِ تکراری از قلم افتاده و تستِ کنترلِ تکرار هرگز
+        // اجرا نمی‌شود. بهتر است اینجا قرمز شود تا آن‌وقت سبزِ الکی ندهیم.
+        $zip = new ZipArchive;
+        $opened = $zip->open($path, ZipArchive::RDONLY);
+
+        try {
+            $this->assertTrue($opened === true, 'ZIP دستی باید باز شود.');
+            $this->assertSame(
+                count($entries),
+                $zip->numFiles,
+                'هر ورودیِ دستی باید در فهرستِ مرکزی دیده شود، وگرنه تستِ تکرار چیزی را نمی‌سنجد.'
+            );
+        } finally {
+            $zip->close();
+        }
+
+        return $path;
+    }
+
+    /**
+     * داده‌ای که `deflate` نمی‌تواند فشرده‌اش کند.
+     *
+     * لازم است برای تست‌های سقف: اگر داده فشرده‌پذیر باشد، نسبتِ فشرده‌سازی از
+     * سقف رد می‌شود و کدِ `compression_bomb` قبل از `too_large` می‌آید — یعنی
+     * تستِ سقفِ حجم، به‌جای خودش، یک کنترلِ دیگر را می‌سنجد.
+     */
+    private function incompressibleBytes(int $length): string
+    {
+        $alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $out = '';
+
+        while (strlen($out) < $length) {
+            $out .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+
+        return substr($out, 0, $length);
     }
 
     private function hash8Of(string $zipPath): string

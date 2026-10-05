@@ -453,11 +453,30 @@ class PluginRouterTest extends TestCase
         // `EnsureCentralOperator` خودش فقط `is_super_admin` یا نقش `operator`
         // را می‌پذیرد و هیچ ورودیِ افزونه‌ای را نمی‌خواند — پس یک بستهٔ بازاری
         // هم قبل و هم بعد می‌تواند بگوید «مرکزی» و تفاوتی در دسترسی نمی‌بیند.
+        // L-B12 — alias قدیمی دیگر وجود ندارد. نگهبانِ نقش حالا **عمومی** است
+        // (`role:<role>`) تا افزونهٔ بعدی بدون ویرایش هسته، routeهای خودش را
+        // محافظت کند — و تا هستهٔ منتشرشده نامِ افزونهٔ خصوصی را در خود نگه ندارد.
         //
-        // چیزی که هنوز رد می‌شود: آرگومان‌دار کردنش. `central.operator:چیزی`
-        // باید رد شود، چون آن شکل دیگری از دور زدن است.
+        // همین‌جا چهار حالتِ مرزی قفل می‌شود؛ اگر کسی اعتبارسنجی را شل کند،
+        // هر کدام یک راهِ دور زدن است.
         $this->plugin('bad9', [
-            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9\\Http\\A@show', 'middleware' => ['central.operator:extra']],
+            // نقش بدون آرگومان: نگهبان نقش خالی می‌گیرد و همه را رد می‌کند —
+            // بدتر از نبودنش چون دیباگ‌کردنش سخت است. باید در جدول نیاید.
+            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9\\Http\\A@show', 'middleware' => ['role']],
+        ]);
+        $this->plugin('bad9b', [
+            // نقشِ ممنوعه: `admin` یعنی «هر مشتریِ لاگین‌کرده». اگر تزریق می‌شد،
+            // هر بستهٔ بازاری می‌توانست نگهبانِ هسته را دور بزند.
+            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9b\\Http\\A@show', 'middleware' => ['role:admin']],
+        ]);
+        $this->plugin('bad9c', [
+            // wildcard: `role:*` یعنی «هر نقشی که داشتم».
+            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9c\\Http\\A@show', 'middleware' => ['role:*']],
+        ]);
+        $this->plugin('bad9d', [
+            // aliasِ قدیمی. حذف شد تا نامِ افزونهٔ خصوصی در build عمومی نباشد؛
+            // اگر برگردد، همین تست می‌افتد.
+            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9d\\Http\\A@show', 'middleware' => ['central.operator']],
         ]);
         // یک میدلور خراب کل routeهای آن افزونه را می‌برد، نه فقط خودش را.
         $this->plugin('bad10', [
@@ -476,6 +495,34 @@ class PluginRouterTest extends TestCase
         $this->assertSame(['demo', 'bad10'], array_keys($table), 'فقط `demo` و بسته‌ای که همهٔ میدلورهایش معتبر است بمانند.');
 
         $this->assertSame(['b'], array_column($table['bad10']['routes'], 'path'), 'یک میدلور خراب فقط همان route را می‌برد، نه کل بسته را.');
+    }
+
+    /**
+     * ⭐ L-B12 — نگهبانِ نقش عمومی است و **نقش از مانیفست می‌آید**.
+     *
+     * این تست جفتِ fail-closedهای بالاست: آنجا بدها رد می‌شوند، اینجا خوب‌ها
+     * پذیرفته می‌شوند. لازم است چون یک فیلترِ بیش‌ازحد سخت هم «امن» است و هم
+     * افزونه‌ها را بی‌صدا از کار انداخته.
+     */
+    public function test_a_declared_role_is_accepted(): void
+    {
+        $this->plugin('demo', [
+            [
+                'method' => 'get',
+                'path' => 'ops',
+                'handler' => 'Pishdad\\Plugins\\Demo\\Http\\A@show',
+                'middleware' => ['auth:sanctum', 'role:operator', 'throttle:60,1'],
+            ],
+        ]);
+
+        $table = $this->table->all();
+
+        $this->assertArrayHasKey('demo', $table, 'یک نقشِ معتبر نباید بسته را رد کند.');
+        $this->assertSame(
+            ['auth:sanctum', 'role:operator', 'throttle:60,1'],
+            $table['demo']['routes'][0]['middleware'],
+            'نگهبانِ نقش باید دقیقاً همان‌طور که اعلام شده عبور کند — نه بازنویسی‌شده.',
+        );
     }
 
     public function test_a_duplicate_route_keeps_the_first_and_is_logged(): void

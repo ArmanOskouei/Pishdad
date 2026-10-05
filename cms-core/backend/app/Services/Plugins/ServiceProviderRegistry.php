@@ -3,6 +3,7 @@
 namespace App\Services\Plugins;
 
 use App\Models\Plugin;
+use App\Search\SearchableProvider;
 use App\Services\Billing\PaymentGatewayInterface;
 use App\Services\Chabokan\ChabokanClientInterface;
 use Illuminate\Contracts\Container\Container;
@@ -100,6 +101,57 @@ class ServiceProviderRegistry
         }
 
         return $bindings;
+    }
+
+    /**
+     * ⭐ I7 — providerهای جستجوی افزونه: **افزایشی**، نه جایگزینی.
+     *
+     * `declaredBindings()` یک تک‌خانه است: هر که زودتر بیاید، مالِ بقیه می‌شود.
+     * برای درگاه پرداخت همین درست است، ولی برای جستو غلط — دو افزونه باید
+     * هر دو در نتایج باشند. پس اینجا فهرست برمی‌گردد و مصرف‌کننده
+     * (`App\Search\SearchProviderRegistry`) همه را با هم اجرا می‌کند.
+     *
+     * عمداً همهٔ guardهای `judge()` را از همان مسیر می‌گیرد (فعال + تأییدشده،
+     * ریشهٔ اجباری، کلاس باید وجود داشته باشد و رابط را پیاده کند) تا «سخت‌گیری»
+     * یک جا تعریف شود؛ اگر اینجا نسخهٔ سبک‌تری از داوری می‌نوشتیم، یک روز
+     * افزونه‌ای می‌توانست از راه جستو هر چیزی را جایگزین کند.
+     *
+     * @return list<class-string>
+     */
+    public function declaredSearchProviders(): array
+    {
+        try {
+            $plugins = $this->activePluginManifests();
+        } catch (\Throwable $e) {
+            Log::notice('plugin.core_service_provider.registry_unavailable', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        $out = [];
+
+        foreach ($plugins as $slug => $manifest) {
+            foreach ($this->serviceProviderDeclarations($manifest) as $decl) {
+                if (($decl['interface'] ?? null) !== SearchableProvider::class) {
+                    continue;
+                }
+
+                $class = $decl['class'] ?? null;
+                if (! is_string($class)) {
+                    $this->reject($slug, 'اعلان provider جستو ناقص است (class ندارد).');
+
+                    continue;
+                }
+
+                if ($this->judge($slug, SearchableProvider::class, $class)) {
+                    $out[] = $class;
+                }
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
     /**

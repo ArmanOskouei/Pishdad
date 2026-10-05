@@ -5,6 +5,7 @@ import {
   ADMIN_MENU,
   PLUGIN_MENU_GROUP_TITLE,
   mergePluginMenu,
+  type MenuGroup,
   type PluginMenuDeclaration,
 } from "./menu.ts";
 
@@ -279,14 +280,33 @@ test("K6.1: ورودی غیرآرایه مثل null هم منو را سالم ن
 
 /* ── جای‌گذاری گروه ── */
 
-test("K6.1: گروه افزونه‌ها قبل از گروه مرکزی می‌نشیند تا مرکزی آخر بماند", () => {
-  const out = mergePluginMenu(ADMIN_MENU, [blog], ALL_PERMS);
+/**
+ * L-B12: لنگرِ جای‌گذاری دیگر گروه `مرکزی` نیست، چون هسته نباید بداند چه
+ * افزونه‌ای وجود دارد. نشانهٔ عمومی `pluginsAfter` جای آن را گرفت — و تست هم
+ * دادهٔ **خودش** را می‌دهد، نه اینکه به وجود یک گروه خاص در `ADMIN_MENU`
+ * تکیه کند. اگر روزی افزونهٔ دیگری لنگر شد، این تست بی‌دلیل نمی‌شکند.
+ */
+const withAnchor: MenuGroup[] = [
+  { items: [{ href: "/admin/a", label: "الف", icon: "▪", key: "a" }] },
+  { title: "لنگر", pluginsAfter: true, items: [{ href: "/admin/b", label: "ب", icon: "▪", key: "b" }] },
+];
+
+test("K6.1: گروه افزونه‌ها قبل از گروه لنگر می‌نشیند", () => {
+  const out = mergePluginMenu(withAnchor, [blog], ALL_PERMS);
   const titles = out.groups.map((g) => g.title);
   const pluginAt = titles.indexOf(PLUGIN_MENU_GROUP_TITLE);
-  const centralAt = out.groups.findIndex((g) => g.central === true);
+  const anchorAt = out.groups.findIndex((g) => g.pluginsAfter === true);
   assert.ok(pluginAt !== -1, "گروه افزونه‌ها باید ساخته شود");
-  assert.ok(centralAt !== -1, "گروه مرکزی باید بماند");
-  assert.ok(pluginAt < centralAt, "گروه مرکزی باید آخرین گروه باشد");
+  assert.ok(anchorAt !== -1, "گروه لنگر باید بماند");
+  assert.ok(pluginAt < anchorAt, "گروه افزونه‌ها باید قبل از لنگر بنشیند");
+});
+
+test("K6.1: بدون لنگر، گروه افزونه‌ها ته لیست می‌نشیند", () => {
+  const noAnchor: MenuGroup[] = [
+    { items: [{ href: "/admin/a", label: "الف", icon: "▪", key: "a" }] },
+  ];
+  const out = mergePluginMenu(noAnchor, [blog], ALL_PERMS);
+  assert.equal(out.groups.at(-1)?.title, PLUGIN_MENU_GROUP_TITLE);
 });
 
 test("K6.1: آیتم بی‌آیکون آیکون پیش‌فرض می‌گیرد (MenuItem.icon اجباری است)", () => {
@@ -298,19 +318,21 @@ test("K6.1: منوی هسته هرگز تغییر نمی‌کند — فقط ی�
   const before = ADMIN_MENU.map((g) => g.items);
   const out = mergePluginMenu(ADMIN_MENU, [blog], ALL_PERMS);
 
-  // تنها تفاوت باید «یک گروه اضافه درست قبل از گروه مرکزی» باشد؛
-  // هر آیتم هسته باید بی‌هیچ تغییری سر جایش مانده باشد.
-  const centralAt = ADMIN_MENU.findIndex((g) => g.central === true);
+  // تنها تفاوت باید «یک گروه اضافه» باشد؛ هر آیتم هسته باید بی‌هیچ تغییری
+  // سر جایش مانده باشد. چون `ADMIN_MENU` دیگر لنگر ندارد، گروه تازه ته می‌نشیند.
   assert.equal(out.groups.length, ADMIN_MENU.length + 1);
-  assert.deepEqual(
-    out.groups.filter((_, i) => i !== centralAt).map((g) => g.items),
-    before,
-  );
-  assert.deepEqual(out.groups[centralAt], {
+  assert.deepEqual(out.groups.slice(0, ADMIN_MENU.length).map((g) => g.items), before);
+  assert.deepEqual(out.groups.at(-1), {
     title: PLUGIN_MENU_GROUP_TITLE,
+    // I1-b — عنوانِ گروه، برخلاف برچسبِ آیتم‌ها، متعلق به هسته است (نه به
+    // افزونه‌نویس) پس کلیدِ ترجمه دارد. آیتم‌ها `labelKey` ندارند و نباید داشته
+    // باشند: برچسب، زبانِ خودِ افزونه است.
+    titleKey: "menu.group.plugins",
     items: out.accepted,
   });
-  // و خودِ ثابت دست‌نخورده است (نه فقط مقدارش).
-  assert.equal(ADMIN_MENU.length, 6);
+  // و خودِ ثابت دست‌نخورده است (نه فقط مقدارش) — و گروه افزونه از قبل در آن
+  // نبوده. (L-B12 عدد سخت‌کدِ ۶ را برداشت: گروه `مرکزی` حذف شد، پس شمارشِ
+  // دقیق یک چیز وابسته به شکلِ امروزِ منو بود که با هر تغییرِ بی‌ربط می‌شکست.)
   assert.equal(ADMIN_MENU.some((g) => g.title === PLUGIN_MENU_GROUP_TITLE), false);
+  assert.ok(ADMIN_MENU.length > 0, "منوی هسته نباید خالی باشد");
 });

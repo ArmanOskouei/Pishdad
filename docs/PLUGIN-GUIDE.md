@@ -339,7 +339,8 @@ default: return null;   // + console.warn
 | `site.footer_widget` | **schema_defined** | 🟡 | همان | همان |
 | `admin.settings_schema` | **schema_defined** | 🔵 | `key` `title_fa` `group!` `schema!` | `component` |
 | `admin.data_collection` | **schema_defined** | 🔵 | `entity!` `title_fa!` `table!` `columns!` | — تا `DataTable` اعلانی نشود روی کاغذ است |
-| `admin.page_registry` | **schema_defined** | 🔴 | `path!` `title_fa!` `permission!` `layout!`(enum) | `path` نباید بیرون `/admin/` باشد |
+| `admin.page_registry` | ⛔ **deferred** | 🔴 | — | در قرارداد `deferred` است: اعلامش خطاست (`deferred_point`) تا renderer نداشته باشد |
+| `core.service_provider` | **schema_defined** | 🟢 | `interface!` `class!` | — کلاسِ اعلام‌شده باید `interface` را پیاده کند وگرنه رجیستری ردش می‌کند |
 | `admin.dashboard_slot` | ⛔ **deferred** | 🔴 | — | **schema بدون renderer = دروغ ساختاریافته** |
 
 ## قواعد امنیتی خاص هر نقطه
@@ -376,13 +377,24 @@ default: return null;   // + console.warn
 
 مسیر محلی باید **بسته باشد** چون کد ناشناس روی سرور مشتری اجرا می‌شود.
 
-## ⚠️ یک واقعیت ناخوشاینده
+## وضعیت واقعی: چه چیزی پیاده شده و چه چیزی نه
 
-**آپلود الان بی‌قیدوشرط باز است.** `PluginsClient.tsx:129` دکمهٔ «نصب پلاگین» دارد و هیچ قفلی رویش نیست. `dev_mode` صفر پیاده‌سازی.
+**دروازهٔ سمت سرور وجود دارد و کار می‌کند.** `GateDevModeUpload` روی هر دو مسیر
+`plugins/upload` و `plugins/{plugin}/upgrade` فعال است (`routes/api.php:222,226`)
+و ادعای «دسترسی توسعه‌دهنده» را فقط وقتی تأیید می‌کند که هدر
+`X-Pishdad-Dev-Token` معتبر باشد.
 
-یعنی اگر فقط در UI پیاده شود، **با یک POST ساده دور می‌خورد.** حتماً باید سمت سرور هم enforce شود.
+> ⚠️ **اما راهی برای روشن‌کردن آن هنوز کامل نیست.** سرویس‌های بک‌اند کامل‌اند
+> (`DevMode`، `DevModeTaps`، `DevModeUnlock`، `DevModeAudit`)، ولی **هیچ route ی
+> برای ثبت کلیک یا unlock وجود ندارد** و **`DevModeGate`/`UploadGateNotice` در هیچ
+> صفحه‌ای mount نشده‌اند**. یعنی `dev_mode` عملاً همیشه خاموش است و فقط بستهٔ
+> **امضاشده** از فیلتر امضا رد می‌شود. این را `B37` دنبال می‌کند.
 
-## طراحی تأییدشده
+یعنی عملی: **آپلود مستقیم ZIP بدون امضا همیشه رد می‌شود**، ولی ادمین هیچ راهی
+ندارد آن را فعال کند — که وضعیت fail-closed درست است، و گیت‌کردن دکمه در UI
+هنوز انجام نشده.
+
+## طراحی تأییدشده (هنوز اجرا نشدهٔ کامل)
 
 ```
 ۵ کلیک متوالی روی گزینهٔ حالت توسعه‌دهنده در تنظیمات

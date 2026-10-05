@@ -2,6 +2,7 @@
 
 namespace App\Services\Plugins;
 
+use App\Http\Middleware\RequireUserRole;
 use App\Models\Plugin;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -160,6 +161,10 @@ final class PluginRouteTable
     private const MIDDLEWARE_RULES = [
         'auth' => '/^sanctum$/',
         'throttle' => '/^\d{1,5}(?:,\d{1,4})?$/',
+        // L-B12 — نگهبانِ نقش. نقش از مانیفست می‌آید ولی این قاعده ثابت است تا
+        // یک بستهٔ مخرب نتواند الگوی دلخواه تزریق کند. اعتبارسنجیِ fail-closed
+        // نهایی در `RequireUserRole::isInjectableRole` است.
+        'role' => '/^[a-z0-9][a-z0-9_-]{1,39}$/i',
     ];
 
     /**
@@ -183,8 +188,16 @@ final class PluginRouteTable
      * alias دروازهٔ تازه‌ای باز نمی‌کند؛ فقط اجازه می‌دهد افزونه‌ای که *قبلاً*
      * می‌توانست، این را اعلام کند.
      */
+    /**
+     * aliasِ نگهبانِ نقش. عمداً یک رشتهٔ **عمومی** است: رشتهٔ alias در مانیفست
+     * افزونه می‌آید و در build عمومی دیده می‌شد.
+     */
+    private const ROLE_MIDDLEWARE_ALIAS = 'role';
+
+    /** میان‌افزارهای هسته‌ایِ بی‌آرگومان (بدون نقش). */
     private const MIDDLEWARE_ALIASES = [
-        'central.operator',
+        'auth',
+        'throttle:api',
     ];
 
     /** باقی‌ماندهٔ نام پرمیشن پس از `plugin:{slug}:` — دقیقاً شکلی که خود هسته می‌سازد. */
@@ -637,6 +650,29 @@ final class PluginRouteTable
             if (in_array($entry, self::MIDDLEWARE_ALIASES, true)) {
                 if ($argument !== null) {
                     $this->reject($slug, 'middleware_takes_no_argument', ['middleware' => $entry]);
+
+                    return null;
+                }
+
+                $out[] = $entry;
+
+                continue;
+            }
+
+            // `role:<role>` — نقش از مانیفست می‌آید.
+            //
+            // قبلاً aliasِ بدون آرگومانِ `central.operator` بود. این نسخه عمومی است
+            // تا افزونهٔ بعدی هم بدون ویرایش هسته، routeهای خودش را محافظت کند.
+            // آرگومان **اجباری** است: بدون آن، نگهبان اصلاً معنا ندارد و سکوتاً همه
+            // را رد می‌کرد — بدتر از نبودنش چون دیباگ‌کردنش سخت است.
+            if ($alias === self::ROLE_MIDDLEWARE_ALIAS) {
+                if (! is_string($argument)
+                    || ! RequireUserRole::isInjectableRole($argument)
+                ) {
+                    $this->reject($slug, 'middleware_bad_role_argument', [
+                        'middleware' => $entry,
+                        'argument' => is_string($argument) ? $argument : null,
+                    ]);
 
                     return null;
                 }

@@ -1,0 +1,29 @@
+# Pishdad
+> The first Persian-first, self-hosted CMS. Free and MIT-licensed, built for
+> right-to-left Persian, and verified before any plugin code runs.
+
+Pishdad (پیشداد) is a plugin-based content management system for building and managing
+websites. It is named after the Pishdadians, the first dynasty of the Shahnameh.
+
+## Stack
+- Backend: Laravel 13 (API-only), PHP 8.3+
+- Frontend: Next.js 16 (App Router), React 19.3, TypeScript 7
+- Data: PostgreSQL 18+ (fa-IR collation), Redis 8+, MinIO (S3-compatible)
+- Runtime: Nginx 1.31+, PHP-FPM, Node.js 22+
+- API: OpenAPI 3.1, 135 endpoints · Tests: PHPUnit 11, 489 tests
+
+## What makes it different
+- Persian and RTL from the first commit: CSS logical properties, Jalali dates, a locally
+  served Persian typeface, no external CDN.
+- Plugins are declarative and signed. A package declares permissions, widgets and page
+  types in a manifest and is signed with Ed25519. The trust store verifies the signature
+  before any plugin code loads; a package with an embedded credential is rejected.
+- SEO tooling is in the core, not an add-on: sitemap.xml, robots.txt, llms.txt, search.
+
+## Licensing and hosting
+Free and MIT-licensed: no premium edition, no seat count, no telemetry. Self-hosted, so it
+runs on a server you control and your data stays there.
+## Links
+- English README: https://github.com/ArmanOskouei/Pishdad/blob/main/README.md
+- Persian README: https://github.com/ArmanOskouei/Pishdad/blob/main/README.fa.md
+- Comparison: https://github.com/ArmanOskouei/Pishdad/blob/main/COMPARISON.md

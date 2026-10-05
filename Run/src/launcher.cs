@@ -32,11 +32,11 @@ class StartCms
             EnsureDocker();
             StartBackend();
             StartFrontend();
-            OpenBrowser("http://localhost:3100/login");
+            OpenBrowser("http://localhost:3100/admin/login");
 
             Log("");
             Log("ALL UP. Admin panel opened in your browser.");
-            Log("Backend : http://localhost:8080/api  |  Frontend: http://localhost:3100/login");
+            Log("Backend : http://localhost:8080/api  |  Frontend: http://localhost:3100/admin/login");
             Log("Press ENTER to stop the frontend server and exit (Docker keeps running).");
             Console.ReadLine();
             StopFrontend();
@@ -92,7 +92,7 @@ class StartCms
         }
         CopyStatic();
 
-        if (HttpStatus("http://localhost:3100/login") == 200)
+        if (HttpStatus("http://localhost:3100/admin/login") == 200)
         {
             Log("Frontend already running on :3100 - reusing it.");
             return;
@@ -124,8 +124,8 @@ class StartCms
         frontProc.BeginOutputReadLine();
         frontProc.BeginErrorReadLine();
 
-        Log("Waiting for http://localhost:3100/login ... (log: " + logFile + ")");
-        if (!WaitHttp("http://localhost:3100/login", 120))
+        Log("Waiting for http://localhost:3100/admin/login ... (log: " + logFile + ")");
+        if (!WaitHttp("http://localhost:3100/admin/login", 120))
             throw new Exception("Frontend did not answer on :3100. See log: " + logFile);
         Log("Frontend OK.");
     }

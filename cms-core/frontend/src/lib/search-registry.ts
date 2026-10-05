@@ -147,6 +147,11 @@ const CORE_STATIC_PAGES: StaticPageEntry[] = [
   { title: "فایل‌ها", path: "/admin/media", icon: "🗎", group: "files", subtitle: "آپلود و مدیریت عکس و فایل", capabilities: ["آپلود عکس", "آپلود فایل", "گالری تصاویر", "سطل زباله"] },
   { title: "تیکت‌ها", path: "/admin/tickets", icon: "✉", group: "other", subtitle: "گفتگو با پشتیبانی", capabilities: ["پشتیبانی", "تیکت جدید", "پاسخ تیکت"] },
   { title: "مدیران و نقش‌ها", path: "/admin/managers", icon: "◍", group: "other", subtitle: "افزودن مدیر و سطح دسترسی", capabilities: ["مدیر جدید", "نقش کاربری", "دسترسی‌ها"] },
+  // F4.2.F — صندوق و ترجیحات. ترجیحات یک ردیفِ جدا است، نه `capability` صندوق:
+  // «ترجیح اعلان» عبارتی است که کاربر واقعاً می‌نویسد و اگر فقط capability
+  // صندوق بود، جستجویش هیچ نتیجه‌ای نمی‌داد.
+  { title: "اعلان‌ها", path: "/admin/notifications", icon: "◔", group: "other", subtitle: "اعلان‌های امنیتی، صورتحساب و افزونه‌ها", capabilities: ["صندوق اعلان", "خوانده‌نشده", "اعلان امنیتی"] },
+  { title: "ترجیحات اعلان", path: "/admin/notifications/preferences", icon: "◑", group: "other", subtitle: "کانال هر گروه: ایمیل، پیامک، پوش", capabilities: ["ترجیح اعلان", "کانال اعلان", "پوش", "پیامک", "ایمیل"] },
   { title: "پروفایل من", path: "/admin/profile", icon: "◌", group: "other", subtitle: "نام، رمز و ورود دوعاملی", capabilities: ["تغییر رمز", "ورود دوعاملی", "اطلاعات کاربری"] },
   { title: "اشتراک من", path: "/admin/subscription", icon: "◈", group: "other", subtitle: "پلن، فاکتور و پرداخت", capabilities: ["فاکتور", "پرداخت", "تمدید اشتراک", "ارتقای پلن"] },
   { title: "هدر و فوتر", path: "/admin/header-footer", icon: "☰", group: "content", subtitle: "ویجت‌های سربرگ و پاصفحه", capabilities: ["منوی سایت", "لوگوی هدر", "ویجت فوتر"] },

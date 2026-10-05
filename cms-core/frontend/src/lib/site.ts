@@ -28,15 +28,26 @@ async function get<T>(path: string, tags: string[]): Promise<T | null> {
   }
 }
 
-/** صفحه منتشرشده (فقط published — تضمین سمت بک‌اند). */
-export function fetchSitePage(slug: string): Promise<SitePage | null> {
-  return get<SitePage>(`/v1/site/pages/${encodeURIComponent(slug)}`, [SITE_TAG, `page:${slug}`]);
+/** صفحه منتشرشده (فقط published — تضمین سمت بک‌اند). F4.5: locale اختیاری. */
+export function fetchSitePage(slug: string, locale?: string): Promise<SitePage | null> {
+  const qs = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+  return get<SitePage>(`/v1/site/pages/${encodeURIComponent(slug)}${qs}`, [SITE_TAG, `page:${slug}`]);
 }
 
 /** وضعیت اشتراک برای رندر تعلیق خودکار (۱.۱۶). null = نامشخص/سرویس پایین. */
 export function fetchSiteStatus(siteId: string): Promise<SiteStatus | null> {
   return get<SiteStatus>(`/v1/site/status?site_id=${encodeURIComponent(siteId)}`, [SITE_TAG, "site-status"]);
 }
+
+/**
+ * K6.12 — رجیستری بلوک‌های schema-only که بک‌اند در `chrome.blocks` می‌دهد.
+ * کلید = `type`، مقدار = schema بلوک؛ فقط `properties['x-pattern']` مصرف
+ * می‌شود. نوع عمداً محلی است تا لایهٔ داده به کامپوننت وابسته نشود.
+ */
+export type SiteBlockSchema = {
+  properties?: Record<string, { default?: unknown; enum?: unknown }> | null;
+};
+export type SiteBlockSchemas = Record<string, SiteBlockSchema>;
 
 export type SiteChrome = {
   title: string;
@@ -52,6 +63,10 @@ export type SiteChrome = {
   robots_index?: boolean;
   address?: string | null;
   locale?: string | null;
+  /** ECO2 — زبان‌های موجودِ سایت (زبانِ اصلی اول). تک‌زبانه ⇒ یک عضو. */
+  locales?: string[] | null;
+  /** ECO2 — زبانی که در ریشهٔ سایت سرو می‌شود. */
+  primary_locale?: string | null;
   timezone?: string | null;
   /** کار دوم (افزودنی): صفحه خانه تنظیم‌شده + اسلاگ منتشرشده آن. */
   homepage_page_id?: number | null;
@@ -59,7 +74,17 @@ export type SiteChrome = {
   header: LayoutData;
   footer: LayoutData;
   socials: SocialItem[];
+  /**
+   * F4.1.F — حالتِ رنگیِ سایت.
+   *
+   * ⚠️ `/v1/site/chrome` هنوز این را پر نمی‌کند (فقط `globals` را می‌دهد)، پس
+   * اختیاری است و `app/preview` آن را دفاعی می‌خواند. اگر روزی پر شد، بدون
+   * هیچ تغییری در فرانت کار می‌کند.
+   */
+  mode?: "light" | "dark" | "system" | null;
   theme?: { name: string; slug: string; version: string; globals?: Record<string, string> } | null;
+  /** K6.12 — رجیستری بلوک افزونه‌های فعال (schema-only، بدون JS). */
+  blocks?: SiteBlockSchemas;
 };
 
 const CHROME_DEFAULTS: SiteChrome = {
@@ -82,15 +107,19 @@ export type SitePageIndex = {
   updated_at?: string | null;
 };
 
-export function fetchSitePages(): Promise<SitePageIndex[]> {
-  return get<SitePageIndex[]>(`/v1/site/pages`, [SITE_TAG]).then((v) => v ?? []);
+export function fetchSitePages(locale?: string): Promise<SitePageIndex[]> {
+  const qs = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+  return get<SitePageIndex[]>(`/v1/site/pages${qs}`, [SITE_TAG]).then((v) => v ?? []);
 }
 
-/** صفحه خانه عمومی (کار دوم): homepage_page_id ← home ← جدیدترین؛ null = چیزی منتشر نشده. */
-export function fetchHomepage(): Promise<SitePage | null> {
+/** صفحه خانه عمومی (کار دوم): homepage_page_id ← home ← جدیدترین؛ null = چیزی منتشر نشده. F4.5: locale اختیاری. */
+export function fetchHomepage(locale?: string): Promise<SitePage | null> {
   const siteId = process.env.NEXT_PUBLIC_SITE_ID ?? "";
-  const qs = siteId ? `?site_id=${encodeURIComponent(siteId)}` : "";
-  return get<SitePage>(`/v1/site/homepage${qs}`, [SITE_TAG, "site-homepage"]);
+  const params = new URLSearchParams();
+  if (siteId) params.set("site_id", siteId);
+  if (locale) params.set("locale", locale);
+  const qs = params.toString();
+  return get<SitePage>(`/v1/site/homepage${qs ? `?${qs}` : ""}`, [SITE_TAG, "site-homepage"]);
 }
 /** نشانی پایه سایت: اولویت با تنظیمات (site_url)، بعد env، بعد null. */
 export function siteBaseUrl(chrome: Pick<SiteChrome, "site_url"> | null): string | null {

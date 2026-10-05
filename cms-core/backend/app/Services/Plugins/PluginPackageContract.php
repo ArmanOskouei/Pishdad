@@ -5,6 +5,7 @@ namespace App\Services\Plugins;
 use App\Search\SearchableProvider;
 use App\Services\Billing\PaymentGatewayInterface;
 use App\Services\Chabokan\ChabokanClientInterface;
+use App\Services\Subscription\SubscriptionSource;
 use Illuminate\Support\Str;
 
 /**
@@ -30,6 +31,22 @@ final class PluginPackageContract
 
     /** پیشوند ریشهٔ بستهٔ فرانت‌اند. */
     public const FRONTEND_ROOT = 'Next.js';
+
+    /**
+     * ECO4 — نقطهٔ حقیقتِ واحدِ اسلاگِ افزونه و قالب.
+     *
+     * هر دو سازندهٔ اسکلت (`PluginMake` و `ThemeMake`) از همین الگو استفاده
+     * می‌کنند تا «قواعد یکسان» در دو جای جدا drift نکند.
+     */
+    public const SLUG_PATTERN = '/^[a-z0-9][a-z0-9._-]{1,39}$/';
+
+    /**
+     * ECO4 — اسلاگِ امنِ نامِ جدول (فقط افزونه).
+     *
+     * نام نهایی جدول از اسلاگ ساخته می‌شود، پس نقطه/خط‌تیره مجاز نیست. قالب
+     * جدول نمی‌سازد و عمداً از این الگو استفاده نمی‌کند.
+     */
+    public const TABLE_SAFE_SLUG_PATTERN = '/^[a-z0-9_]+$/';
 
     /** سقف‌های ایمنی. */
     public const MAX_ZIP_BYTES = 20 * 1024 * 1024;
@@ -121,6 +138,53 @@ final class PluginPackageContract
     ];
 
     /**
+     * نسخهٔ قراردادیِ هسته — «چه چیزی را این نصب می‌فهمد».
+     *
+     * ⚠️ عددِ کور نیست: `since` هر نقطه و `schema_version` هر نقطه با همین
+     * سنجیده می‌شوند. اگر روزی نقطه‌ای اضافه شد ولی این عدد بالا نرفت، نصبِ
+     * قدیمی آن نقطه را «می‌شناسد» و اعلانش سبز می‌شود در حالی که هیچ رندرری
+     * ندارد — همان «قولِ ساختاریافتهٔ دروغین». یک تست همین را نگه می‌دارد
+     * (`PluginExtensionChannelTest::test_no_point_is_newer_than_the_core`).
+     */
+    public const CORE_CONTRACT_VERSION = '1.6.0';
+
+    /**
+     * فیلدهای **فراداده** که هر اعلان می‌تواند دربارهٔ خودش بگوید.
+     *
+     * این‌ها در `schema.fields` هر نقطه نیستند چون به محتوای نقطه ربطی ندارند
+     * و برای همهٔ نقاط یکسان‌اند — وگرنه ده نقطه ده بار تکرارشان می‌کرد و یک روز
+     * یکی جا می‌ماند. پس اینجا نگه‌داری می‌شوند و از «فیلد ناشناخته» بودن
+     * معاف‌اند.
+     *
+     * @var list<string>
+     */
+    public const DECLARATION_META_FIELDS = ['since', 'schema_version'];
+
+    /**
+     * ⭐ I1.3 — چرا `permissions` نقطهٔ اتصال **نیست**.
+     *
+     * پرمیشن داده نیست، **.authorization** است: هسته آن را در
+     * `permission_modules` می‌نویسد و در `perm:` میان‌افزار می‌سنجد. نقطهٔ
+     * اتصال یعنی «هسته این را در جایی رندر می‌کند» — و هیچ چیزی پرمیشن را رندر
+     * نمی‌کند. اگر نقطه‌ای برایش ساخته می‌شد، دو چیز خراب می‌شد:
+     *
+     *  ۱. `panel.extensions` میکرو-اسکیمایی با `max_depth => 1` است و
+     *     `actions: string[]` داخلش جا نمی‌شود ⇒ یا سقف عمق برای همهٔ نقاط بالا
+     *     می‌رفت، یا `actions` بیرون اعلان می‌ماند و کسی اعتبارسنجی‌اش نمی‌کرد.
+     *  ۲. «باز بودن» نقطه برای نویسنده معنا دارد (`openness`). برای پرمیشن باز
+     *     بودن یعنی چه؟ هر افزونه‌ای هر اسمی می‌سازد و `perm:` آن را
+     *     می‌خواند — یعنی یک سطح جدید از اختیار بدون مهار.
+     *
+     * پس تصمیم: **فیلد جدا**، نه نقطهٔ اتصال. کانال زنده `manifest.access.*`
+     * و `manifest.permissions` به‌عنوان fallback دو-کاناله باقی می‌ماند تا
+     * نصب‌های موجود نشکنند (`ManifestRegistry::manifestPermissions()`).
+     */
+    public const PERMISSIONS_FIELD = 'access';
+
+    /** @deprecated کانال قدیمی پرمیشن — فقط برای dual-read. */
+    public const PERMISSIONS_FIELD_LEGACY = 'permissions';
+
+    /**
      * نام‌هایی که رجیستری هسته از قبل مالکشان است.
      *
      * `ManifestRegistry.php` برخورد را **بی‌صدا** `continue` می‌کند
@@ -152,6 +216,11 @@ final class PluginPackageContract
         PaymentGatewayInterface::class,
         ChabokanClientInterface::class,
         SearchableProvider::class,
+        // K7.3 — وضعیتِ اشتراک. افزودنِ این یکی **افزودنیِ محض** است: پیش از
+        // این، `ClientSubscriptionResolver` افزونهٔ مرکزی را با یک `class_exists`
+        // هاردکد صدا می‌زد، پس هیچ افزونهٔ سومی نمی‌توانست منبعِ وضعیت باشد و
+        // «ثبتِ پیاده‌سازی از سمتِ پلاگین» (K7.3) اصلاً مسیرِ کد نداشت.
+        SubscriptionSource::class,
     ];
 
     /** ریشهٔ اجباری namespace کلاس افزونه — هم‌ریشه با قاعدهٔ K5.3. */
@@ -198,10 +267,13 @@ final class PluginPackageContract
     public const EXTENSION_POINTS = [
         'admin.menu' => [
             'label_fa' => 'منوی کناری پنل مدیریت',
+            'label_en' => 'Admin panel sidebar menu',
             'desc_fa' => 'افزودن آیتم به منوی سمت راست پنل. هر پلاگینی معمولاً به این نیاز دارد.',
+            'desc_en' => 'Add an item to the panel sidebar menu. Almost every plugin needs this.',
             'status' => 'declared_only',
             'openness' => 'closed',
             'openness_why' => 'خروجی این نقطه دقیقاً MenuItem است با چهار فیلد ثابت؛ چیزی برای «باز کردن» وجود ندارد.',
+            'openness_why_en' => 'This point outputs exactly a MenuItem with four fixed fields; there is nothing to open.',
             'since' => '1.2.0',
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
@@ -247,12 +319,29 @@ final class PluginPackageContract
             ],
         ],
 
+        // ⛔ K3.9 — **عمداً schema نگرفت.** دو دلیل مستقل، و هرکدام به‌تنهایی کافی:
+        //
+        //  ۱) مصرف‌کننده ندارد. هیچ رجیستری و هیچ رندرری `admin.dashboard_slot`
+        //     را نمی‌خواند (جست‌وجوی کلید و نقطه در `app/` و فرانت: هیچ).
+        //  ۲) خودِ نقطه `deferred` و `closed` است — یعنی محصول آگاهانه گفته «این
+        //     شکلِ نهایی هنوز قطعی نیست».
+        //
+        // نوشتنِ schema برایش دقیقاً همان چیزی است که X2 آن را «بدافزار» نامید:
+        // مثال معتبر + validator سبز + نصب موفق + بعد هیچی رندر نمی‌شود. یعنی
+        // دروغِ ساختاریافته. تا وقتی renderer ساخته نشده، `fields => []` +
+        // `no_schema` عمداً **همه‌چیز** را رد می‌کند و همین درست است.
+        //
+        // راه درست وقتی renderer ساخته شد: schema را از روی همان رندرر بنویسید،
+        // نه از روی حدس — وگرنه دوباره سه ماه بعد دروغ می‌گوید.
         'admin.dashboard_slot' => [
             'label_fa' => 'ویجت داشبورد مدیریت',
+            'label_en' => 'Admin dashboard widget',
             'desc_fa' => 'افزودن کارت به صفحهٔ اصلی پنل.',
+            'desc_en' => 'Add a card to the admin dashboard home page.',
             'status' => 'deferred',
             'openness' => 'closed',
             'openness_why' => 'نه primitive دارد نه مصرف‌کننده؛ نوشتن schema برایش دروغ ساختاریافته است.',
+            'openness_why_en' => 'It has neither a primitive nor a consumer; writing a schema for it would be a structured lie.',
             'since' => '1.2.0',
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
@@ -281,15 +370,31 @@ final class PluginPackageContract
         // است، پس جا دادنش آنجا یعنی بالا بردن سقف عمق برای همهٔ نقاط.
         // مصرف‌کننده: `ManifestRegistry::pluginSettingsSchemas()`.
         //
+        // ⛔ K3.9 — **عمداً schema نگرفت: هیچ مصرف‌کننده‌ای ندارد.**
+        //
+        // تأیید در کد: `pluginSettingsSchemas()` فقط `manifest.settings` را
+        // می‌خواند، `pageRegistry()` فقط `manifest.pages` و `manifest.admin.pages`
+        // را، `widgetSchemas()` فقط `manifest.widgets` را، و
+        // `pluginTools()` فقط `manifest.tools` را. یعنی **کانالِ زنده برای همهٔ
+        // این نقطه‌ها یک کلید سطح‌بالای مانیفست است** و `panel.extensions` فقط
+        // برای دو نقطه خوانده می‌شود: `site.page_type` (تنها `live`) و
+        // `site.header_widget`/`site.footer_widget` (از K6.4). ساختن schema برای
+        // این نقطه یعنی معرفی **سومین** کانال، درست وقتی که I1-b (تنها‌کردن
+        // `panel.extensions` به‌عنوان شکل واحد) هنوز تصمیم‌نشده است — یعنی یک
+        // تصمیم معماری که جای این ردیف نیست.
+        //
         // ثبت‌نشده به‌صورت `deprecated` عمداً: حذف کامل از فهرست، راهنمای
         // توسعه‌دهنده و هر ابزاری را که این آرایه را می‌خواند می‌شکند، و آن
         // تصمیمِ خودِ مالک محصول است نه چیزی که یک commit این‌جا بگیرد.
         'admin.settings_schema' => [
             'label_fa' => 'فرم تنظیمات اختصاصی',
+            'label_en' => 'Custom settings form',
             'desc_fa' => 'افزودن صفحهٔ تنظیمات که از روی JSON Schema رندر می‌شود (بدون کد فرنت).',
+            'desc_en' => 'Add a settings page rendered from JSON Schema (no frontend code).',
             'status' => 'deprecated',
             'openness' => 'schema_defined',
             'openness_why' => 'حذف‌شده: به کلید سطح‌بالای `settings` در مانیفست منتقل شد (`ManifestRegistry::pluginSettingsSchemas()`)، چون میکرو-اسکیمای اینجا با `max_depth => 1` اسکیمای JSON تودرتو را حمل نمی‌کند.',
+            'openness_why_en' => 'Removed: moved to the top-level `settings` manifest key (`ManifestRegistry::pluginSettingsSchemas()`), because the micro-schema here cannot carry a nested JSON schema with `max_depth => 1`.',
             'since' => '1.2.0',
             'deprecated' => [
                 'since' => '1.6.0',
@@ -311,12 +416,27 @@ final class PluginPackageContract
             ],
         ],
 
+        // ⛔ K3.9 — **عمداً schema نگرفت: نه renderer دارد، نه کانالِ زنده.**
+        //
+        // تأیید در کد: `ManifestRegistry::pageRegistry()` فقط `manifest.pages` و
+        // `manifest.admin.pages` را می‌خواند و **هرگز** `panel.extensions` را برای
+        // این نقطه نمی‌کاود (برخلاف `widgetSchemas()` که K6.4 کانال دوم را دارد).
+        // یعنی renderer دارد ولی این نقطه را نمی‌بیند — بدترین حالت ممکن: اعلانی
+        // که اعتبارسنجی می‌شود و بعد بی‌سروصدا نادیده گرفته می‌شود.
+        //
+        // وضعیت `declared_only` و `no_schema` عمداً می‌ماند: این یک قابلیتِ
+        // خواسته‌شدهٔ آینده است، نه چیزی که باید حذف شود. K3.9 هم دقیقاً به همین
+        // دلیل متوقف است — TASKS.md هم یادداشت کرده که تا رفتار `next/dynamic`
+        // روشن نشود، این نقطه برای افزونهٔ عمومی رد شده است.
         'admin.data_collection' => [
             'label_fa' => 'جدول دادهٔ اختصاصی',
+            'label_en' => 'Custom data table',
             'desc_fa' => 'افزودن صفحهٔ فهرست/ویرایش برای دادهٔ اختصاصی پلاگین، از روی اعلان entity + schema.',
+            'desc_en' => 'Add a list/edit page for plugin-specific data from an entity + schema declaration.',
             'status' => 'declared_only',
             'openness' => 'schema_defined',
             'openness_why' => 'ستون DataTable امروز تابع می‌خواهد، پس تا اعلانی نشده این نقطه روی کاغذ است.',
+            'openness_why_en' => 'Today DataTable columns need a function, so until declared this point exists only on paper.',
             'since' => '1.2.0',
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
@@ -340,61 +460,116 @@ final class PluginPackageContract
 
         'site.header_widget' => [
             'label_fa' => 'ویجت هدر سایت',
+            'label_en' => 'Site header widget',
             'desc_fa' => 'افزودن بلوک به هدر صفحات عمومی سایت.',
+            'desc_en' => 'Add a block to the public site header.',
             'status' => 'declared_only',
             'openness' => 'schema_defined',
             'openness_why' => 'نوع ویجت قفل است چون هسته رندرش می‌کند؛ تنظیماتش از block_type خودِ پلاگین می‌آید.',
+            'openness_why_en' => 'The widget type is locked because the core renders it; its settings come from the plugin\'s own block_type.',
             'since' => '1.2.0',
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
-            'schema' => ['fields' => [], 'cross' => ['no_core_name', 'title_fa']],
+            // ⭐ K3.9 — schema نوشته شد چون **مصرف‌کنندهٔ واقعی** دارد:
+            // `ManifestRegistry::widgetSchemas()` کانال `panel.extensions` را از
+            // K6.4 می‌خواند و فرانت از `/v1/admin/widgets/schema` رندرش می‌کند.
+            //
+            // ⛔ **`schema` و `ui` اینجا نیستند و نمی‌توانند باشند.** هر دو آبجکت
+            // JSON تودرتو هستند و واژگان micro-grammar (`GRAMMAR_TYPES`) هیچ نوعِ
+            // آبجکتی ندارد. بالا بردن `depth` برای همهٔ نقاط یا باز کردن گرامر، هر
+            // دو تصمیم معماری‌اند نه کارِ این ردیف — همان دیواری که K6.7 برای
+            // `admin.settings_schema` ثبت کرد. راهِ درست برای فرمِ واقعی، کانال
+            // سطح‌بالای `manifest.widgets.header.<type>.schema` است که از
+            // micro-schema عبور نمی‌کند.
+            'schema' => [
+                'fields' => [
+                    'type' => ['type' => 'string', 'required' => true, 'maxLength' => 40, 'pattern' => '^[a-z0-9][a-z0-9._-]{0,39}$'],
+                    // نامش `title` است نه `title_fa`: مصرف‌کننده (`widgetSchemas`)
+                    // و کانال سطح‌بالا هر دو `title` می‌خوانند. نامی که مصرف نشود
+                    // «سازگار به نظر می‌رسد» ولی همیشه خالی می‌ماند.
+                    'title' => ['type' => 'string', 'required' => false, 'maxLength' => 80],
+                    'description' => ['type' => 'string', 'required' => false, 'maxLength' => 200],
+                ],
+                'cross' => ['no_core_name'],
+            ],
             'open_schema' => false,
-            // K6.7 — مثال «معتبر» حذف شد. `fields` خالی + `open_schema => false`
-            // یعنی `no_schema` خطای سخت، پس `['type' => 'trust_bar', …]` هرگز
-            // نمی‌توانست اعلام معتبری باشد: خودِ validator آن را رد می‌کرد. یعنی
-            // `POST /v1/admin/plugins/validate` به نویسنده مثالی نشان می‌داد که
-            // بگیرد و باز هم خطا بگیرد.
-            'example_ok' => [],
+            // K6.7 — این مثال معتبر وقتی اضافه شد که schema هنوز نبود، یعنی هر
+            // اعلانی با `no_schema` رد می‌شد و مثالی که خودِ سیستم رد می‌کرد به
+            // نویسنده نشان داده می‌شد. K3.9 schema را پر کرد، پس حالا مثالِ معتبر
+            // واقعاً معتبر است و این تست هم آن را اعتبارسنجی می‌کند.
+            'example_ok' => [
+                [
+                    'type' => 'trust_bar', 'title' => 'نوار اعتماد', 'description' => 'نمادهای اعتماد و شمار تماس',
+                ],
+            ],
             'example_bad' => [
                 [
                     'why' => 'برخورد با نام هسته بی‌صدا رد می‌شود، پس باید خطا بدهد نه اینکه نصب شود و دیده نشود.',
-                    'decl' => ['type' => 'nav', 'title_fa' => 'منوی من'],
+                    'decl' => ['type' => 'nav', 'title' => 'منوی من'],
                 ],
                 [
                     'why' => 'نقطه خودش هدر است؛ `area` فیلد تکراری و فقط اختلاف‌ساز است.',
-                    'decl' => ['type' => 'trust_bar', 'title_fa' => 'نوار اعتماد', 'area' => 'header'],
+                    'decl' => ['type' => 'trust_bar', 'title' => 'نوار اعتماد', 'area' => 'header'],
+                ],
+                [
+                    'why' => '⛔ `schema` آبجکت JSON تودرتو است و micro-grammar چنین چیزی ندارد؛ برای فرمِ واقعی از کانال سطح‌بالای `manifest.widgets.header.<type>.schema` استفاده کنید. اگر این‌جا پذیرفته می‌شد، بسته سبز می‌شد ولی `SchemaForm` هیچ inputی برایش نمی‌ساخت.',
+                    'decl' => ['type' => 'shop_cart', 'title' => 'سبد خرید', 'schema' => ['type' => 'object', 'properties' => ['coupon' => ['type' => 'string']]]],
                 ],
             ],
         ],
 
         'site.footer_widget' => [
             'label_fa' => 'ویجت فوتر سایت',
+            'label_en' => 'Site footer widget',
             'desc_fa' => 'افزودن بلوک به فوتر صفحات عمومی سایت.',
+            'desc_en' => 'Add a block to the public site footer.',
             'status' => 'declared_only',
             'openness' => 'schema_defined',
             'openness_why' => 'همان منطق هدر — نوع قفل، تنظیمات باز.',
+            'openness_why_en' => 'Same logic as the header — locked type, open settings.',
             'since' => '1.2.0',
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
-            'schema' => ['fields' => [], 'cross' => ['no_core_name', 'title_fa']],
+            // K3.9 — همان داستان هدر: مصرف‌کننده `widgetSchemas()` دارد، پس schema
+            // نوشته شد؛ و همان دلیل، نبودِ `schema`/`ui` اینجا هم یک تصمیم است
+            // نه یک فراموشی. ناحیه از خودِ نقطه می‌آید، پس `area` فیلدی نیست.
+            'schema' => [
+                'fields' => [
+                    'type' => ['type' => 'string', 'required' => true, 'maxLength' => 40, 'pattern' => '^[a-z0-9][a-z0-9._-]{0,39}$'],
+                    'title' => ['type' => 'string', 'required' => false, 'maxLength' => 80],
+                    'description' => ['type' => 'string', 'required' => false, 'maxLength' => 200],
+                ],
+                'cross' => ['no_core_name'],
+            ],
             'open_schema' => false,
-            // K6.7 — همان دلیل `site.header_widget`: این مثال هم اعلانی بود که
-            // validator با `no_schema` رد می‌کرد.
-            'example_ok' => [],
+            // K6.7 — این مثال معتبر هم موقعی اضافه شد که schema نبود، یعنی خودِ
+            // validator ردش می‌کرد. K3.9 schema را پر کرد، پس حالا واقعاً معتبر است.
+            'example_ok' => [
+                [
+                    'type' => 'shop_news', 'title' => 'تازه‌های فروشگاه', 'description' => 'چهار خبر آخر',
+                ],
+            ],
             'example_bad' => [
                 [
                     'why' => 'برخورد با ویجت هسته نصب را سبز نشان می‌دهد ولی ویجت اصلاً رندر نمی‌شود.',
-                    'decl' => ['type' => 'copyright', 'title_fa' => 'کپی‌رایت من'],
+                    'decl' => ['type' => 'copyright', 'title' => 'کپی‌رایت من'],
+                ],
+                [
+                    'why' => 'ناحیه از خودِ نقطه خوانده می‌شود؛ `area` فقط اختلاف‌ساز است و رجیستری آن را نادیده می‌گیرد.',
+                    'decl' => ['type' => 'shop_news', 'title' => 'تازه‌های فروشگاه', 'area' => 'footer'],
                 ],
             ],
         ],
 
         'site.page_type' => [
             'label_fa' => 'نوع صفحهٔ سایت',
+            'label_en' => 'Site page type',
             'desc_fa' => 'تعریف نوع محتوایی جدید که صفحات عمومی سایت می‌توانند از آن استفاده کنند.',
+            'desc_en' => 'Define a new content type that public site pages can use.',
             'status' => 'live',
             'openness' => 'open_vocabulary',
             'openness_why' => 'خواستهٔ صریح کارفرما؛ داده در page.meta (ستون JSON آزاد) می‌نشیند و خودش رندر نمی‌شود.',
+            'openness_why_en' => 'Explicit owner request; data lives in page.meta (a free JSON column) and is not rendered by itself.',
             'since' => '1.2.0',
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
@@ -428,12 +603,29 @@ final class PluginPackageContract
             ],
         ],
 
+        // ⛔ K3.9 — **عمداً schema نگرفت.** لیستِ نقاطی که K3.9 بررسی کرد این‌ها
+        // بود: `site.block_type`, `site.header_widget`, `site.footer_widget`,
+        // `admin.settings_schema`, `admin.page_registry`, `admin.dashboard_slot`,
+        // `admin.data_collection`. از آن هفت تا، **فقط دو تا** مصرف‌کنندهٔ واقعیِ
+        // این نقطه داشتند (همان دو ویجت) و schema گرفتند؛ بقیه یا مصرف‌کننده
+        // ندارند یا کانالِ زنده‌شان جای دیگری است — و برای هر کدام بالای خودِ
+        // نقطه دلیلش نوشته شده.
+        //
+        // `site.block_type` سخت‌ترینِ آن‌هاست: مصرف‌کننده ندارد **و** عمداً ندارد.
+        // `PluginPageContract` (docblock خطوط ۲۵ تا ۳۱) می‌گوید
+        // `lib/block-type.ts` برای هر type ناشناخته «renders nothing» می‌دهد،
+        // پس واگذاری `type` به افزونه یعنی برگرداندن گزینهٔ «کد در مرورگر» از
+        // در پشتی. `allowedBlockTypes()` هم فقط `config('blocks')` را برمی‌گرداند
+        // — یعنی رجیستری هرگز مانیفست افزونه را برای این نقطه نمی‌خواند.
         'site.block_type' => [
             'label_fa' => 'نوع بلوک صفحه',
+            'label_en' => 'Page block type',
             'desc_fa' => 'تعریف نوع بلوک جدید برای ویرایشگر صفحه. رندر از روی JSON Schema.',
+            'desc_en' => 'Define a new block type for the page editor. Rendering is driven by JSON Schema.',
             'status' => 'declared_only',
             'openness' => 'open_vocabulary',
             'openness_why' => 'تنها جایی که «بی‌نهایت» واقعاً ارزش دارد؛ ولی گرامر بسته می‌ماند.',
+            'openness_why_en' => 'The only place where "infinite" is truly worth it; but the grammar stays closed.',
             'since' => '1.2.0',
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
@@ -473,13 +665,16 @@ final class PluginPackageContract
 
         'core.service_provider' => [
             'label_fa' => 'پیاده‌سازی رابط هسته',
+            'label_en' => 'Core interface implementation',
             'desc_fa' => 'جایگزینی پیاده‌سازی یک interface هسته (درگاه پرداخت، چابکان، جستجو). فهرست interface‌ها بسته است و کلاس باید در ریشهٔ Pishdad\\Plugins\\ باشد. توجه: اینکه کلاس واقعاً آن رابط را پیاده می‌کند در لحظهٔ اعتبارسنجی بررسی نمی‌شود (کد افزونه هنوز بارگذاری نشده)؛ رجیستری آن را می‌سنجد و بی‌صدا نادیده نمی‌گیرد بلکه لاگ می‌کند.',
+            'desc_en' => 'Replace the implementation of a core interface (payment gateway, hosting, search). The interface list is closed and the class must live under the Pishdad\\Plugins\\ root. Note: whether the class actually implements that interface is not checked at validation time (the plugin code is not loaded yet); the registry checks it and logs instead of silently ignoring it.',
             // binding زنده و مؤثر است، ولی تا K5.3 (بارگذار PSR-4) کلاس افزونه
             // بارگذاری نمی‌شود. یعنی اعلان معتبر است ولی هنوز اثر ندارد —
             // و همین باید صریح گفته شود.
             'status' => 'declared_only',
             'openness' => 'schema_defined',
             'openness_why' => 'فهرست interface‌های قابل‌جایگزینی بسته و کوچک است (سه مورد)، ولی نام کلاس پیاده‌سازی باز است تا افزونه بتواند کلاس خودش را بنویسد.',
+            'openness_why_en' => 'The list of overridable interfaces is closed and small (three), but the implementation class name is open so the plugin can write its own class.',
             'since' => '1.5.0',
             'schema_version' => 1,
             'max' => ['declarations' => 3, 'bytes' => 1024, 'depth' => 1, 'properties' => 4],
@@ -516,36 +711,105 @@ final class PluginPackageContract
             ],
         ],
 
+        // ⭐ K3.11 — schema این نقطه از روی **مصرف‌کنندهٔ واقعی** نوشته شد، نه از
+        // روی حدس. مصرف‌کننده `ManifestRegistry::normalizePluginTool()` است
+        // (`pluginTools()`) و رندرش `PluginToolsDrawer.tsx` در فرانت — هر دو در
+        // K6.2 زنده شدند، ولی این نقطه تا امروز `deferred` مانده بود.
+        //
+        // ⚠️ نکته‌ای که این schema را از یک فهرستِ حدسی نجات داد: **نه `order`
+        // وجود دارد و نه `body`.** ترتیب drawer از ترتیب merge رجیستری می‌آید و
+        // متن کارت از `description` خوانده می‌شود. اگر اینجا `order`/`body`
+        // اعلام می‌شد، `validateDeclaration` آن‌ها را می‌پذیرفت، بسته سبز می‌شد و
+        // هیچ‌کدام هرگز خوانده نمی‌شدند — دقیقاً همان «دروغ ساختاریافته» که
+        // K3.8 برایش بسته شد. یک `example_bad` هر دو را نام برد تا کسی دوباره
+        // اضافه‌شان نکند.
+        //
+        // کانال زنده **سطح‌بالا** است (`manifest.tools.*`) دقیقاً مثل `widgets` و
+        // `settings`؛ این میکرو-اسکیما فقط پنجرهٔ دوم (`panel.extensions`) را
+        // پوشش می‌دهد.
         'admin.plugin_tools' => [
             'label_fa' => 'ابزارهای پلاگین در هدر پنل',
+            'label_en' => 'Plugin tools in the panel header',
             'desc_fa' => 'یک کادر مستطیل مستقل در drawer ابزارهای هدر پنل. داده و schema، نه React.',
-            'status' => 'deferred',
+            'desc_en' => 'An independent rectangular card in the panel header tools drawer. Data and schema, not React.',
+            'status' => 'declared_only',
             'openness' => 'closed',
-            'openness_why' => 'خروجی یک کادر با عنوان و محتوای schema-driven است؛ هیچ آدرسی در آن نیست.',
+            'openness_why' => 'خروجی یک کادر با عنوان و محتوای schema-driven است؛ هیچ آدرسی در آن نیست. فهرست فیلدها بسته است چون هر فیلد تازه باید اول در رندرر مصرف شود — غیر از آن، نقطه دوباره «قول بی‌پشتوانه» می‌شود.',
+            'openness_why_en' => 'The output is a card with a title and schema-driven content; there is no address in it. The field list is closed because every new field must first be consumed by the renderer — otherwise the point becomes an unbacked promise again.',
             'since' => '1.2.0',
             'schema_version' => 1,
-            'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
-            'schema' => ['fields' => [], 'cross' => ['no_href']],
+            'max' => ['declarations' => 10, 'bytes' => 2048, 'depth' => 1, 'properties' => 8],
+            'schema' => [
+                'fields' => [
+                    'key' => ['type' => 'string', 'required' => true, 'maxLength' => 40, 'pattern' => '^[a-z0-9][a-z0-9._-]{0,39}$'],
+                    'title_fa' => ['type' => 'string', 'required' => true, 'maxLength' => 80],
+                    'icon' => ['type' => 'string', 'required' => false, 'maxLength' => 16],
+                    'description' => ['type' => 'string', 'required' => false, 'maxLength' => 200],
+                    // `hrefFor()` در فرانت این شناسه را به `page.path` می‌چسباند،
+                    // پس **عدد صحیح** است نه رشته. رجیستری هم فقط `int > 0` را
+                    // نگه می‌دارد و رشتهٔ عددی را بی‌صدا `null` می‌کند — یعنی
+                    // «کار کرد ولی به جایی نمی‌رسد».
+                    'notification_id' => ['type' => 'integer', 'required' => false, 'minimum' => 1, 'maximum' => 2147483647],
+                    'permission' => ['type' => 'string', 'required' => false, 'maxLength' => 120],
+                ],
+                'cross' => ['no_href', 'title_fa', 'permission_prefix'],
+            ],
             'open_schema' => false,
-            'example_ok' => [],
+            'example_ok' => [
+                [
+                    'key' => 'sync', 'title_fa' => 'همگام‌سازی', 'icon' => '↻',
+                    'description' => 'کشورها و موجودی را با مرکز هم‌گام کن',
+                    'notification_id' => 12, 'permission' => 'plugin:shop:sync.run',
+                ],
+            ],
             'example_bad' => [
                 [
-                    'why' => 'این نقطه deferred است — شکل نهایی بعد از ساخت drawer هدر تعریف می‌شود، ولی `href` در آن هیچ‌وقت مجاز نیست.',
-                    'decl' => ['key' => 'sync', 'title_fa' => 'همگام‌سازی', 'icon' => '↻'],
+                    'why' => 'این نقطه آدرس ندارد. اگر لینک لازم است `notification_id` بدهید تا هسته خودش از راه `pageRegistry()` نشانی بسازد — وگرنه افزونه می‌تواند به هر مسیری لینک بدهد، از جمله `/central/...` که مال پنل مرکزی است.',
+                    'decl' => ['key' => 'sync', 'title_fa' => 'همگام‌سازی', 'href' => '/admin/plugin/sync'],
                 ],
                 [
-                    'why' => '`href` در این نقطه اصلاً وجود ندارد — اگر لازم شد `notification_id` بدهید که هسته به نشانی تبدیلش کند.',
-                    'decl' => ['key' => 'sync', 'title_fa' => 'همگام‌سازی', 'href' => '/admin/plugin/sync'],
+                    'why' => '⛔ **`order` و `body` وجود ندارند.** نه در رجیستری خوانده می‌شوند و نه در drawer. نوشتنشان یعنی بسته سبز می‌شود و هیچ اثری ندارد — همان «نصب شد ولی دیده نشد». ترتیب از merge رجیستری می‌آید و متن کارت از `description`.',
+                    'decl' => ['key' => 'sync', 'title_fa' => 'همگام‌سازی', 'order' => 10, 'body' => ['text' => 'سلام']],
+                ],
+                [
+                    'why' => 'بدون `title_fa` رجیستری سطر را بی‌صدا حذف می‌کند (`normalizePluginTool`)، پس باید خطا بدهد نه اینکه نصب موفق باشد و کارت غیب بماند.',
+                    'decl' => ['key' => 'sync', 'icon' => '↻'],
+                ],
+                [
+                    'why' => '`notification_id` در URL می‌رود، پس باید عدد صحیح باشد. رشتهٔ `"12"` در رجیستری `null` می‌شود و ابزار بی‌مقصد نمایش داده می‌شود — «کار کرد ولی جایی نمی‌رسد».',
+                    'decl' => ['key' => 'sync', 'title_fa' => 'همگام‌سازی', 'notification_id' => '12'],
+                ],
+                [
+                    'why' => 'پرمیشن باید کامل نوشته شود، یعنی با `plugin:{اسلاگ}:` شروع شود. (در `permissions[].module` برعکس است: فقط بخش آخر را بنویسید، چون هسته prefix اسلاگ را خودش اضافه می‌کند.)',
+                    'decl' => ['key' => 'sync', 'title_fa' => 'همگام‌سازی', 'permission' => 'sync.run'],
+                ],
+                [
+                    'why' => 'کلید drawer در جدول و در React key می‌نشیند، پس باید الگوی کلیدِ رایج پروژه را داشته باشد. حرف بزرگ و فاصله در نامِ فایل/کلید CSS می‌شکند.',
+                    'decl' => ['key' => 'Sync Jobs', 'title_fa' => 'همگام‌سازی'],
                 ],
             ],
         ],
 
+        // ⛔ K3.9 — **عمداً schema نگرفت: نه renderer دارد، نه کانالِ زنده.**
+        //
+        // این با `admin.settings_schema` فرق دارد و فرقش مهم است: آن یکی
+        // renderer داشت که به کانالِ دیگری منتقل شده بود (پس `deprecated`)، ولی
+        // این یکی **اصلاً** خوانده نمی‌شود. `ManifestRegistry::pageRegistry()` در
+        // K7.18 از `manifest.pages` و `manifest.admin.pages` می‌خواند و بلوک‌ها
+        // را با `PluginPageContract::check()` می‌سنجد — و آن فیلدهای بیشتری
+        // (`blocks`) دارند که اصلاً در میکرو-اسکیما جا نمی‌شوند.
+        //
+        // پس schema نوشتن یا یعنی سومین کانال (پیش از تصمیم I1-b) یا یعنی schema
+        // ای که نیمی از شکل واقعی را پوشش می‌دهد. هر دو بدتر از نبودن است.
         'admin.page_registry' => [
             'label_fa' => 'صفحهٔ اختصاصی پلاگین',
+            'label_en' => 'Plugin-specific page',
             'desc_fa' => 'ثبت یک مسیر زیر /admin/ که از روی page descriptor رندر می‌شود.',
+            'desc_en' => 'Register a path under /admin/ that renders from a page descriptor.',
             'status' => 'deferred',
             'openness' => 'schema_defined',
             'openness_why' => 'فقط مسیر + پرمیشن + layout؛ render از page descriptor می‌آید نه از پلاگین.',
+            'openness_why_en' => 'Path + permission + layout only; rendering comes from the page descriptor, not the plugin.',
             'since' => '1.2.0',
             'schema_version' => 1,
             'max' => ['declarations' => 10, 'bytes' => 4096, 'depth' => 1, 'properties' => 30],
@@ -570,6 +834,307 @@ final class PluginPackageContract
      */
     public const DEFERRED_EXTENSION_POINTS = [
         'admin.component' => 'کامپوننت React — در v1 رد شد (در مرورگر مدیر اجرا می‌شود ⇒ تصاحب پنل)',
+    ];
+
+    /**
+     * ECO3 — دسته‌بندی کدهای خطای قابل‌برخورد برای توسعه‌دهندهٔ پلاگین/قالب.
+     *
+     * چرا دسته و نه متنِ جدا برای هر کد: کدهای هم‌خانواده یک درمان دارند
+     * (مثلاً همهٔ `path.*`). تکرار ۱۰۰ بارِ یک متن یعنی ۱۰۰ جای drift. UI کدِ
+     * خام را از `ERROR_CODES` می‌خواند و متنِ رفع را از همین دسته.
+     *
+     * @var array<string, array{label_fa: string, label_en: string, remedy_fa: string, remedy_en: string}>
+     */
+    public const ERROR_CODE_GROUPS = [
+        'zip' => [
+            'label_fa' => 'بسته و فشرده‌سازی',
+            'label_en' => 'Archive & compression',
+            'remedy_fa' => 'ZIP استاندارد بسازید، سقف حجم/تعداد فایل را رعایت کنید و از آرشیو دوبارهٔ فایل‌های تکراری بپرهیزید.',
+            'remedy_en' => 'Build a standard ZIP, respect the size/file-count limits, and avoid re-archiving duplicate entries.',
+        ],
+        'path' => [
+            'label_fa' => 'مسیرهای داخل بسته',
+            'label_en' => 'Package paths',
+            'remedy_fa' => 'فقط مقصدهای فهرست‌شده را بگذارید؛ نام مجاز، بدون symlink و بدون «..» و بدون تکرارِ حساس‌به‌حروف.',
+            'remedy_en' => 'Keep only the listed destinations; safe names, no symlinks, no "..", and no case-insensitive duplicates.',
+        ],
+        'manifest' => [
+            'label_fa' => 'مانیفست و امضا',
+            'label_en' => 'Manifest & signature',
+            'remedy_fa' => 'manifest.json را دقیقاً در ریشهٔ ZIP بگذارید و فیلدهای اجباری و امضای معتبر را کامل کنید.',
+            'remedy_en' => 'Place manifest.json exactly at the ZIP root and complete the required fields and a valid signature.',
+        ],
+        'signature' => [
+            'label_fa' => 'امضای Ed25519',
+            'label_en' => 'Ed25519 signature',
+            'remedy_fa' => 'امضای detached Ed25519 مانیفست (بدون خودِ فیلد signature) را با کلید ثبت‌شده بازتولید کنید.',
+            'remedy_en' => 'Re-create the detached Ed25519 signature of the manifest (without the signature field itself) using the registered key.',
+        ],
+        'package' => [
+            'label_fa' => 'اندازهٔ بسته',
+            'label_en' => 'Package size',
+            'remedy_fa' => 'فایل‌های غیرضروری را حذف یا فشرده کنید.',
+            'remedy_en' => 'Remove or compress unnecessary files.',
+        ],
+        'panel' => [
+            'label_fa' => 'نقاط اتصال پنل',
+            'label_en' => 'Panel extension points',
+            'remedy_fa' => 'نقطهٔ اتصال را از فهرست مجاز انتخاب کنید و اعلان را با شکل درست بنویسید.',
+            'remedy_en' => 'Pick an extension point from the allowed list and write the declaration in the correct shape.',
+        ],
+        'pages' => [
+            'label_fa' => 'اعلان صفحه',
+            'label_en' => 'Page declarations',
+            'remedy_fa' => 'صفحه را با path/title/permission معتبر و layout مجاز اعلام کنید.',
+            'remedy_en' => 'Declare the page with a valid path/title/permission and an allowed layout.',
+        ],
+        'blocks' => [
+            'label_fa' => 'اعلان بلوک',
+            'label_en' => 'Block declarations',
+            'remedy_fa' => 'بلوک را با type مجاز و data معتبر اعلام کنید.',
+            'remedy_en' => 'Declare the block with an allowed type and valid data.',
+        ],
+        'db' => [
+            'label_fa' => 'جدول‌های دیتابیس',
+            'label_en' => 'Database tables',
+            'remedy_fa' => 'نام جدول را خام و بدون پیشوند بدهید؛ پیشوند slug_ را خودتان ننویسید و سقف‌ها را رعایت کنید.',
+            'remedy_en' => 'Give raw unprefixed table names; do not write the slug_ prefix yourself and respect the limits.',
+        ],
+        'requires' => [
+            'label_fa' => 'شرط نسخهٔ هسته',
+            'label_en' => 'Core version requirement',
+            'remedy_fa' => 'شرط requires.core را در شکل پذیرفته‌شده بنویسید و با نسخهٔ نصب هم‌خوان کنید.',
+            'remedy_en' => 'Write requires.core in an accepted form and match it to the installed core version.',
+        ],
+        'core' => [
+            'label_fa' => 'نسخهٔ هسته',
+            'label_en' => 'Core version',
+            'remedy_fa' => 'نسخهٔ هسته را به‌روز کنید یا requires.core را تنظیم کنید.',
+            'remedy_en' => 'Update the core version or adjust requires.core.',
+        ],
+        'core_contract' => [
+            'label_fa' => 'سازگاری با قرارداد هسته',
+            'label_en' => 'Core contract compatibility',
+            'remedy_fa' => 'فیلدهای since و schema_version را نسبت به core_contract_version همین نصب درست بدهید.',
+            'remedy_en' => 'Set since and schema_version correctly against this install\'s core_contract_version.',
+        ],
+        'install' => [
+            'label_fa' => 'نصب روی سرور',
+            'label_en' => 'Server-side installation',
+            'remedy_fa' => 'بسته را روی سرور بررسی کنید: دسترسی مسیر، فضای ذخیره، و درستی امضا/هش.',
+            'remedy_en' => 'Inspect the package on the server: path permissions, storage space, and signature/hash integrity.',
+        ],
+        'devmode' => [
+            'label_fa' => 'حالت توسعه‌دهنده',
+            'label_en' => 'Developer mode',
+            'remedy_fa' => 'در حالت توسعه‌دهنده امضای گم‌شده فقط هشدار است؛ پیش از انتشار امضا را اضافه کنید.',
+            'remedy_en' => 'In developer mode a missing signature is only a warning; add the signature before release.',
+        ],
+    ];
+
+    /**
+     * ECO3 — فهرست کامل کدهای خطای توسعه‌دهنده، هر کد ⇒ کلیدِ دسته.
+     *
+     * منبع کدها: `PluginPackageValidator`، `PluginPackageContract::validateDeclaration`،
+     * `PluginDbContract`، `PluginPageContract`، `CoreRequirementChecker` و
+     * `PluginInstaller`. عمداً کدهای داخلیِ لاگ (`plugin.*`) اینجا نیستند چون
+     * هرگز به نویسندهٔ بسته نشان داده نمی‌شوند.
+     *
+     * @var array<string, string>
+     */
+    public const ERROR_CODES = [
+        // zip — archive integrity
+        'zip.unreadable' => 'zip',
+        'zip.too_large' => 'zip',
+        'zip.too_many_files' => 'zip',
+        'zip.bomb_size' => 'zip',
+        'zip.bomb_ratio' => 'zip',
+        // path — entries inside the archive
+        'path.unsafe' => 'path',
+        'path.symlink' => 'path',
+        'path.special_entry' => 'path',
+        'path.duplicate' => 'path',
+        'path.case_collision' => 'path',
+        'path.not_allowed' => 'path',
+        // manifest — identity and placement
+        'manifest.missing' => 'manifest',
+        'manifest.misplaced' => 'manifest',
+        'manifest.missing_field' => 'manifest',
+        'manifest.bad_slug' => 'manifest',
+        'manifest.system_forbidden' => 'manifest',
+        'manifest.leaks_key' => 'manifest',
+        // signature
+        'signature.invalid' => 'signature',
+        'signature.anonymous_publisher' => 'signature',
+        // package
+        'package.large' => 'package',
+        // panel extension points
+        'panel.unknown_point' => 'panel',
+        'panel.bad_point' => 'panel',
+        'panel.deferred_point' => 'panel',
+        // pages
+        'pages.not_object' => 'pages',
+        'pages.entry_not_object' => 'pages',
+        'pages.unknown_key' => 'pages',
+        'pages.bad_key' => 'pages',
+        'pages.no_title' => 'pages',
+        'pages.title_too_long' => 'pages',
+        'pages.bad_path' => 'pages',
+        'pages.path_not_allowed' => 'pages',
+        'pages.path_too_long' => 'pages',
+        'pages.bad_permission' => 'pages',
+        'pages.permission_charset' => 'pages',
+        'pages.permission_too_long' => 'pages',
+        'pages.layout_not_allowed' => 'pages',
+        'pages.duplicate_path' => 'pages',
+        'pages.too_many' => 'pages',
+        // blocks
+        'blocks.not_list' => 'blocks',
+        'blocks.entry_not_object' => 'blocks',
+        'blocks.no_type' => 'blocks',
+        'blocks.type_not_allowed' => 'blocks',
+        'blocks.data_not_object' => 'blocks',
+        'blocks.unknown_key' => 'blocks',
+        'blocks.no_core_types' => 'blocks',
+        'blocks.too_many' => 'blocks',
+        // db
+        'db.not_object' => 'db',
+        'db.unknown_key' => 'db',
+        'db.no_tables' => 'db',
+        'db.tables_not_list' => 'db',
+        'db.too_many_tables' => 'db',
+        'db.slug_not_table_safe' => 'db',
+        'db.table_not_object' => 'db',
+        'db.table_unknown_key' => 'db',
+        'db.table_no_name' => 'db',
+        'db.table_bad_name' => 'db',
+        'db.table_already_prefixed' => 'db',
+        'db.table_collides_core' => 'db',
+        'db.table_duplicate' => 'db',
+        'db.table_name_too_long' => 'db',
+        'db.prefixed_collides_core' => 'db',
+        'db.indexes_not_list' => 'db',
+        'db.too_many_indexes' => 'db',
+        'db.index_bad_name' => 'db',
+        // requires / core / core_contract
+        'requires.invalid' => 'requires',
+        'requires.core.invalid' => 'requires',
+        'requires.core.unsatisfied' => 'requires',
+        'core.version_invalid' => 'core',
+        'core_contract.bad_since' => 'core_contract',
+        'core_contract.bad_schema_version' => 'core_contract',
+        'core_contract.schema_too_new' => 'core_contract',
+        'core_contract.too_new' => 'core_contract',
+        'core_contract.point_newer_than_core' => 'core_contract',
+        // install — server side
+        'install.zip_unreadable' => 'install',
+        'install.manifest_missing' => 'install',
+        'install.manifest_invalid' => 'install',
+        'install.manifest_mismatch' => 'install',
+        'install.too_large' => 'install',
+        'install.too_many_files' => 'install',
+        'install.too_many_entries' => 'install',
+        'install.compression_bomb' => 'install',
+        'install.path_traversal' => 'install',
+        'install.escaped_root' => 'install',
+        'install.symlink_entry' => 'install',
+        'install.special_entry' => 'install',
+        'install.duplicate_entry' => 'install',
+        'install.case_collision' => 'install',
+        'install.write_failed' => 'install',
+        'install.incomplete' => 'install',
+        'install.target_occupied' => 'install',
+        'install.active_release_corrupt' => 'install',
+        'install.locked' => 'install',
+        'install.hash_mismatch' => 'install',
+        'install.storage_unavailable' => 'install',
+        'install.rename_failed' => 'install',
+        'install.failed' => 'install',
+        // developer mode
+        'devmode.unsigned_allowed' => 'devmode',
+    ];
+
+    /**
+     * ECO3 — نمونه‌های عینی request/response برای رابط‌های توسعه‌دهنده.
+     *
+     * `request`/`response` دادهٔ ساختاریافته‌اند (نه رشتهٔ JSON) تا UI خودش
+     * JSON.stringify کند — یک منبع، بدون escapeِ دستی و بدون drift.
+     *
+     * @var list<array<string, mixed>>
+     */
+    public const API_EXAMPLES = [
+        [
+            'id' => 'validate-package',
+            'title_fa' => 'اعتبارسنجی بسته پیش از نصب',
+            'title_en' => 'Validate a package before install',
+            'method' => 'POST',
+            'path' => '/v1/admin/plugins/validate',
+            'request' => [
+                'Content-Type' => 'multipart/form-data',
+                'file' => 'my-plugin.zip (binary)',
+            ],
+            'response' => [
+                'analysis' => [
+                    'ok' => false,
+                    'errors' => [
+                        ['severity' => 'error', 'code' => 'zip.too_large', 'message' => 'Package exceeds the size limit.'],
+                    ],
+                    'warnings' => [
+                        ['severity' => 'warning', 'code' => 'package.large', 'message' => 'Package is close to the size limit.'],
+                    ],
+                ],
+            ],
+            'note_fa' => 'این endpoint هرگز ۴xx نمی‌دهد؛ همیشه ۲۰۰ برمی‌گرداند تا حتی بستهٔ خراب هم قابل نمایش باشد.',
+            'note_en' => 'This endpoint never returns 4xx; it always returns 200 so even a broken package is displayable.',
+        ],
+        [
+            'id' => 'activate-plugin',
+            'title_fa' => 'فعال‌سازی پلاگین',
+            'title_en' => 'Activate a plugin',
+            'method' => 'POST',
+            'path' => '/v1/admin/plugins/{slug}/activate',
+            'request' => [],
+            'response' => [
+                'data' => ['slug' => 'my-plugin', 'active' => true, 'review_status' => 'approved'],
+                'warning' => null,
+            ],
+            'note_fa' => 'پیش از فعال‌سازی باید بسته با امضای معتبر نصب شده باشد؛ فعال‌سازی خارج از حالت توسعه‌دهنده بدون امضا رد می‌شود.',
+            'note_en' => 'The package must already be installed with a valid signature; outside developer mode activation without a signature is rejected.',
+        ],
+        [
+            'id' => 'read-contract',
+            'title_fa' => 'خواندن قرارداد هسته',
+            'title_en' => 'Read the core contract',
+            'method' => 'GET',
+            'path' => '/v1/admin/plugins/contract',
+            'request' => [],
+            'response' => [
+                'data' => [
+                    'core_contract_version' => self::CORE_CONTRACT_VERSION,
+                    'extension_points' => ['…'],
+                    'error_codes' => ['zip.unreadable' => 'zip'],
+                    'allowed_paths' => ['manifest.json'],
+                ],
+            ],
+            'note_fa' => 'همین endpoint منبعِ حقیقتِ همین صفحه است؛ هیچ مقدار اینجا دستی کپی نشده.',
+            'note_en' => 'This is the source of truth for this very page; no value here is hand-copied.',
+        ],
+        [
+            'id' => 'plugin-route',
+            'title_fa' => 'مصرف API افزونه (از مانیفست خودش)',
+            'title_en' => 'Consume a plugin API (from its own manifest)',
+            'method' => 'GET',
+            'path' => '/v1/p/{slug}/{path}',
+            'request' => [
+                'Authorization' => 'Bearer <manager-token>',
+                'Accept' => 'application/json',
+            ],
+            'response' => [
+                'data' => ['…'],
+            ],
+            'note_fa' => 'هر افزونه می‌تواند مستندات API خودش را در فیلد «docs» مانیفست اعلام کند؛ همان‌ها پایین همین صفحه ادغام می‌شوند.',
+            'note_en' => 'Each plugin can declare its own API docs in the manifest "docs" field; those are merged below on this page.',
+        ],
     ];
 
     /**
@@ -615,6 +1180,14 @@ final class PluginPackageContract
      */
     public static function isAllowedPath(string $relPath): bool
     {
+        // L-B5 — زنجیرهٔ تأمین: هیچ سگمنت vendor مجاز نیست.
+        // `Laravel/src` مقصد پوشه‌ای است و isAllowedPath هر چیز زیرش را قبول
+        // می‌کرد، پس `Laravel/src/vendor/acme/...` ALLOWED می‌شد. vendor یعنی
+        // کد شخص‌ثالثِ بازبینی‌نشده داخل بسته؛ باید جدا اعلام و جدا بررسی شود.
+        if (preg_match('#(^|/)vendor(/|$)#i', $relPath) === 1) {
+            return false;
+        }
+
         foreach (self::ALLOWED_PATHS as $allowed) {
             if ($relPath === $allowed) {
                 return true;
@@ -797,13 +1370,13 @@ final class PluginPackageContract
     public static function describeAllowedPaths(): array
     {
         return [
-            ['path' => self::MANIFEST, 'label_fa' => 'مانیفست (الزامی — باید در ریشهٔ ZIP باشد)'],
-            ['path' => self::BACKEND_ROOT.'/src/', 'label_fa' => 'ریشهٔ PSR-4 — کلاس‌های پلاگین'],
-            ['path' => self::BACKEND_ROOT.'/routes/api.php', 'label_fa' => 'مسیرهای API پلاگین'],
-            ['path' => self::BACKEND_ROOT.'/database/migrations/', 'label_fa' => 'مهاجرت‌های دیتابیس (با پیشوند اجباری)'],
-            ['path' => self::BACKEND_ROOT.'/config/plugin.php', 'label_fa' => 'مقادیر پیش‌فرض تنظیمات'],
-            ['path' => self::FRONTEND_ROOT.'/panel/', 'label_fa' => 'داده و دارایی رابط کاربری'],
-            ['path' => self::FRONTEND_ROOT.'/blocks/', 'label_fa' => 'تعریف بلوک‌های سایت'],
+            ['path' => self::MANIFEST, 'label_fa' => 'مانیفست (الزامی — باید در ریشهٔ ZIP باشد)', 'label_en' => 'Manifest (required — must be at the ZIP root)'],
+            ['path' => self::BACKEND_ROOT.'/src/', 'label_fa' => 'ریشهٔ PSR-4 — کلاس‌های پلاگین', 'label_en' => 'PSR-4 root — plugin classes'],
+            ['path' => self::BACKEND_ROOT.'/routes/api.php', 'label_fa' => 'مسیرهای API پلاگین', 'label_en' => 'Plugin API routes'],
+            ['path' => self::BACKEND_ROOT.'/database/migrations/', 'label_fa' => 'مهاجرت‌های دیتابیس (با پیشوند اجباری)', 'label_en' => 'Database migrations (mandatory prefix)'],
+            ['path' => self::BACKEND_ROOT.'/config/plugin.php', 'label_fa' => 'مقادیر پیش‌فرض تنظیمات', 'label_en' => 'Default settings values'],
+            ['path' => self::FRONTEND_ROOT.'/panel/', 'label_fa' => 'داده و دارایی رابط کاربری', 'label_en' => 'UI data and assets'],
+            ['path' => self::FRONTEND_ROOT.'/blocks/', 'label_fa' => 'تعریف بلوک‌های سایت', 'label_en' => 'Site block definitions'],
         ];
     }
 
@@ -857,6 +1430,12 @@ final class PluginPackageContract
         }
 
         $issues = [];
+
+        // ⭐ I5 — سازگاری نسخه. قبل از هر قاعدهٔ محتوایی، چون اگر بسته برای
+        // هستهٔ دیگری نوشته شده باشد، داوری دربارهٔ محتوایش گمراه‌کننده است.
+        foreach (self::applyVersionRules($point, $meta, $decl) as $versionIssue) {
+            $issues[] = $versionIssue;
+        }
 
         // سقف حجم — قبل از هر چیز، چون همهٔ قواعد پایین روی داده‌ای می‌نشینند
         // که خودش بزرگ است.
@@ -931,7 +1510,8 @@ final class PluginPackageContract
         if ($meta['open_schema'] === false) {
             foreach (array_keys($decl) as $key) {
                 $key = (string) $key;
-                if (isset($fields[$key]) || in_array($key, self::FORBIDDEN, true)) {
+                if (isset($fields[$key]) || in_array($key, self::FORBIDDEN, true)
+                    || in_array($key, self::DECLARATION_META_FIELDS, true)) {
                     continue;
                 }
                 $issues[] = self::issue(
@@ -947,7 +1527,8 @@ final class PluginPackageContract
         // واژگان باز (L3) — گرامر بسته، نام فیلدها دلخواه
         foreach ($decl as $key => $value) {
             $key = (string) $key;
-            if (isset($fields[$key]) || in_array($key, self::FORBIDDEN, true)) {
+            if (isset($fields[$key]) || in_array($key, self::FORBIDDEN, true)
+                || in_array($key, self::DECLARATION_META_FIELDS, true)) {
                 continue;
             }
             foreach (self::checkOpenField($point, $key, $value) as $bad) {
@@ -956,6 +1537,89 @@ final class PluginPackageContract
         }
 
         return $issues;
+    }
+
+    /**
+     * ⭐ I5 — سازگاری نسخهٔ قرارداد (fail-closed).
+     *
+     * دو دستگیرهٔ مستقل، چون دو پرسش متفاوت‌اند:
+     *
+     *  ۱. **بسته چه هسته‌ای می‌خواهد؟** `decl['since']` اختیاری است و
+     *     می‌گوید نویسنده این اعلان را برای چه نسخه‌ای از قرارداد نوشته. اگر از
+     *     `CORE_CONTRACT_VERSION` تازه‌تر باشد ⇒ **خطا**، نه هشدار: این نصب
+     *     نمی‌تواند معنای فیلدهایی را که آن نویسنده نوشته بفهمد. سکوت یا
+     *     هشدار یعنی نصب می‌شود، اعلان سبز است، و بعداً هیچ‌کس نمی‌فهمد چرا
+     *     فیلد ناشناخته‌ای بی‌اثر ماند.
+     *
+     *  ۲. **این نقطه چه اسکیمایی دارد؟** `decl['schema_version']` اختیاری است.
+     *     بزره‌تر از `schema_version` خودِ نقطه یعنی نویسنده اسکیمایی نوشته که
+     *     این هسته نمی‌شناسد ⇒ خطا. کوچک‌تر یا مساوی بی‌سروصدا پذیرفته می‌شود
+     *     (سازگاری رو به عقب است، نه شکست).
+     *
+     * و یک guard روی خودِ قرارداد: اگر `since` نقطه از نسخهٔ هسته **تازه‌تر** باشد،
+     * این نقطه عملاً در این نصب وجود ندارد و نباید اعلامش را بپذیریم. این حالت
+     * یعنی عددِ `CORE_CONTRACT_VERSION` جا نیفتاده، و fail-closed یعنی خطا تا
+     * وقتی یکی از دو عدد درست شود.
+     *
+     * @param  array<string, mixed>  $meta
+     * @param  array<string, mixed>  $decl
+     * @return list<array<string, mixed>>
+     */
+    private static function applyVersionRules(string $point, array $meta, array $decl): array
+    {
+        $out = [];
+
+        $pointSince = (string) ($meta['since'] ?? '0.0.0');
+        if (version_compare($pointSince, self::CORE_CONTRACT_VERSION, '>')) {
+            $out[] = self::issue(
+                $point, 'core_contract.point_newer_than_core', 'point',
+                'این نقطه از نسخهٔ '.$pointSince.' اضافه شده ولی این نصب روی قرارداد '
+                .self::CORE_CONTRACT_VERSION.' است؛ اعلانش پذیرفته نمی‌شود.',
+                ['guide' => 'plugins.extension-points'],
+            );
+        }
+
+        if (array_key_exists('since', $decl)) {
+            $want = $decl['since'];
+
+            if (! is_string($want) || ! preg_match('/^\d+\.\d+\.\d+$/', $want)) {
+                $out[] = self::issue(
+                    $point, 'core_contract.bad_since', 'since',
+                    'فیلد «since» باید نسخهٔ معنایی MAJOR.MINOR.PATCH باشد، مثل «1.6.0».',
+                    ['guide' => 'plugins.extension-points'],
+                );
+            } elseif (version_compare($want, self::CORE_CONTRACT_VERSION, '>')) {
+                $out[] = self::issue(
+                    $point, 'core_contract.too_new', 'since',
+                    'این اعلان برای قراردادِ نسخهٔ '.$want.' نوشته شده ولی این نصب روی '
+                    .self::CORE_CONTRACT_VERSION.' است. هسته را به‌روز کنید یا مقدار '
+                    .'«since» را به نسخهٔ همین نصب برسانید.',
+                    ['core_contract_version' => self::CORE_CONTRACT_VERSION, 'guide' => 'plugins.extension-points'],
+                );
+            }
+        }
+
+        if (array_key_exists('schema_version', $decl)) {
+            $want = $decl['schema_version'];
+            $supported = (int) ($meta['schema_version'] ?? 1);
+
+            if (! is_int($want) || $want < 1) {
+                $out[] = self::issue(
+                    $point, 'core_contract.bad_schema_version', 'schema_version',
+                    'فیلد «schema_version» باید عدد صحیحِ مثبت باشد.',
+                    ['guide' => 'plugins.extension-points'],
+                );
+            } elseif ($want > $supported) {
+                $out[] = self::issue(
+                    $point, 'core_contract.schema_too_new', 'schema_version',
+                    'این اعلان برای اسکیمای نسخهٔ '.$want.' نوشته شده ولی «'.$point.'» در این هسته '
+                    .'اسکیمای نسخهٔ '.$supported.' دارد. فیلدهایی که این نسخه نمی‌شناسد بی‌اثر می‌مانند.',
+                    ['schema_version' => $supported, 'guide' => 'plugins.extension-points'],
+                );
+            }
+        }
+
+        return $out;
     }
 
     /**

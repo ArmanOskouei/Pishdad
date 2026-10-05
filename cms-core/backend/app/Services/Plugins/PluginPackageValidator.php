@@ -155,11 +155,20 @@ class PluginPackageValidator
                 continue;
             }
 
-            // ۵) symlink / device / FIFO
+            // ۵) symlink / device / FIFO / socket — همان گیت installer، ولی زودتر.
             if ($e['is_link']) {
                 $issues[] = [
                     'severity' => 'error', 'code' => 'path.symlink',
                     'message' => 'این بسته شامل symlink است: «'.$rel.'». برای جلوگیری از حملهٔ symlink-to-/etc/passwd رد می‌شود.',
+                    'path' => $rel,
+                ];
+
+                continue;
+            }
+            if (($e['is_special'] ?? false)) {
+                $issues[] = [
+                    'severity' => 'error', 'code' => 'path.special_entry',
+                    'message' => 'ورودیِ نوع‌ویژه (FIFO/socket/device) در بسته: «'.$rel.'». فقط فایل و پوشهٔ معمولی پذیرفته است.',
                     'path' => $rel,
                 ];
 
@@ -331,7 +340,26 @@ class PluginPackageValidator
             ];
         }
 
-        // K7.18 — محتوای اعلانی صفحهٔ پنل. fail-closed در **نصب**: صفحه‌ای که
+        // ⭐ I1.3 — کانال legacy پرمیشن. رجیستری هنوز آن را می‌خواند (نصب‌های موجود
+// نباید بشکنند)، ولی سکوت دربارهٔش همان دروغی است که `hooks` بود: نویسنده فکر
+// می‌کند یک مسیر رسمی را نوشته و بعداً غافلگیر می‌شود.
+//
+// فقط وقتی `access` غایب باشد — اگر نویسنده هر دو را نوشته باشد، کانال زنده
+// برنده است و گفتنِ «کانال قدیمی را هم نوشته‌ای» هشدارِ بی‌مورد است.
+if (! empty($manifest[PluginPackageContract::PERMISSIONS_FIELD_LEGACY])
+        && ! array_key_exists(PluginPackageContract::PERMISSIONS_FIELD, $manifest)) {
+        $issues[] = [
+            'severity' => 'warning',
+            'code' => 'access.legacy_permissions_field',
+            'message' => 'مانیفست فیلد «'.PluginPackageContract::PERMISSIONS_FIELD_LEGACY.'» را اعلام می‌کند که کانال legacy پرمیشن است. '
+                .'کانال زنده «'.PluginPackageContract::PERMISSIONS_FIELD.'» است. هر دو کار می‌کنند و '
+                .'«'.PluginPackageContract::PERMISSIONS_FIELD.'» برنده است، ولی کلید قدیمی در نسخهٔ بعدی '
+                .'حذف می‌شود؛ همین حالا مهاجرت کن تا بسته‌ات یک‌باره نشکند.',
+            'guide' => 'plugins.extension-points',
+        ];
+    }
+
+    // K7.18 — محتوای اعلانی صفحهٔ پنل. fail-closed در **نصب**: صفحه‌ای که
         // `type` غیرمجاز یا `data` بد دارد باید همین‌جا رد شود، نه هفتهٔ بعد
         // هنگام بازدیدِ ادمین که رندرر آن را خالی می‌بیند و منشأ سکوت نامرئی است.
         //
@@ -539,9 +567,13 @@ class PluginPackageValidator
     }
 
     /**
-     * خواندن فهرست ورودی‌ها با تشخیص symlink از بیت‌های external_attributes.
+     * خواندن فهرست ورودی‌ها با تشخیص نوع فایل از بیت‌های external_attributes.
      *
-     * @return list<array{raw: string, size: int, is_link: bool}>
+     * L-B10 — فقط S_IFLNK گرفته می‌شد؛ FIFO/socket/char/block تأیید می‌گرفتند
+     * و بعد installer ردشان می‌کرد (سبزِ کاذبِ validator). حالا هر چیز
+     * غیر از فایل/دایرکتوری معمولی همان‌جا خطاست تا دو لایه یکی بگویند.
+     *
+     * @return list<array{raw: string, size: int, is_link: bool, is_special: bool}>
      */
     private function readEntries(ZipArchive $zip): array
     {
@@ -560,6 +592,8 @@ class PluginPackageValidator
                 'raw' => (string) $stat['name'],
                 'size' => (int) $stat['size'],
                 'is_link' => $type === 0xA000, // S_IFLNK
+                // S_IFREG=0x8000، S_IFDIR=0x4000، صفر=نامشخص (سازگار عقب‌رو).
+                'is_special' => ! in_array($type, [0x0000, 0x8000, 0x4000], true),
             ];
         }
 

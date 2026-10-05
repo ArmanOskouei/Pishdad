@@ -5,52 +5,144 @@
 // همان محدودیتی که `block-type.ts` و `widget-type.ts` را بی‌import نگه داشته.
 // `tsconfig.json:22` هم `allowImportingTsExtensions` را روشن کرده است.
 import { isPluginAdminPath } from "./plugin-admin-path.ts";
+import type { MessageKey } from "./i18n/fa.ts";
 
-export type MenuItem = { href: string; label: string; icon: string; key: string };
-export type MenuGroup = { title?: string; central?: boolean; items: MenuItem[] };
+// I1-b — `import type` عمداً است: `npm test` فایل‌های TS را با `node --test`
+// بدون resolver اجرا می‌کند و یک import مقداری (نه نوعی) اینجا لازم می‌شد.
+// نوع‌ها کاملاً پاک می‌شوند، پس چیزی برای resolve کردن باقی نمی‌ماند.
+
+export type MenuItem = {
+  href: string;
+  /** فارسیِ ثابت. برای افزونه‌ها تنها راه است و fallback همیشه هست. */
+  label: string;
+  icon: string;
+  key: string;
+  /**
+   * I1-b — کلیدِ ترجمه برای آیتم‌های **هسته**.
+   *
+   * چرا کنار `label` و نه جای آن: `label` رشتهٔ نمایشی است و در سه جای دیگر هم
+   * مصرف می‌شود (ad-hoc، بدون context زبان). حذفش یعنی هر مصرف‌کنندهٔ بی‌خبر
+   * `undefined` می‌گیرد و `t()` هم کلید خام را نشان می‌دهد. پس `label` می‌ماند و
+   * `labelKey` فقط می‌گوید «اگر زبان دیکشنری دارد، از ترجمه بخوان».
+   *
+   * آیتم‌های افزونه `labelKey` ندارند و **نباید** داشته باشند: برچسب، زبانِ
+   * خودِ افزونه‌نویس است و ترجمه‌کردنش یعنی ادعای مالکیت روی متنِ او.
+   */
+  labelKey?: MessageKey;
+  /**
+   * ⭐ اسلاگِ افزونه‌ای که این آیتم **متعلق به اوست**.
+   *
+   * ## چرا این فیلد لازم شد
+   *
+   * «اشتراک من» آیتمی است که افزونهٔ `subscription` ارائه می‌کند، ولی
+   * در `ADMIN_MENU` **هاردکد** شده بود — یعنی عضو هسته بود، نه عضو افزونه.
+   * نتیجه: غیرفعال‌کردن یا حذفِ افزونه هیچ اثری روی منو نداشت و آیتم به
+   * مسیری لینک می‌کرد که دیگر وجود نداشت.
+   *
+   * منوی ثابت نمی‌تواند خودش وضعیت افزونه‌ها را بداند (هسته نباید به جدول
+   * پلاگین‌ها وابسته باشد)، پس فقط **اعلام** می‌کند و `filterMenuByPlugins`
+   * تصمیم می‌گیرد.
+   *
+   * نبودِ این فیلد یعنی «آیتمِ خودِ هسته» — که همیشه نمایش داده می‌شود.
+   */
+  requiresPlugin?: string;
+  /** آیتم‌های تودرتو (زیرمنو). یک سطح — نه درخت بازگشتی. */
+  children?: MenuItem[];
+};
+/**
+ * `pluginsAfter` یک نشانهٔ **ترتیب** است، نه هویت: یعنی «گروه افزونه باید بعد
+ * از این گروه بنشیند».
+ *
+ * از L-B12 به بعد عمومی شد. نام قبلی‌اش `central` بود ولی از اول هم منطقِ
+ * مرکزی نداشت — فقط همین یک جای‌گذاری را رمز می‌کرد. نام عمومی یعنی هسته دیگر
+ * از وجود افزونه‌ای به نام مرکزی چیزی نمی‌داند.
+ */
+export type MenuGroup = { title?: string; titleKey?: MessageKey; pluginsAfter?: boolean; items: MenuItem[] };
 
 export const ADMIN_MENU: MenuGroup[] = [
   {
     items: [
-      { href: "/admin/dashboard", label: "داشبورد", icon: "▦", key: "dashboard" },
-      { href: "/admin/pages", label: "صفحات", icon: "▤", key: "pages" },
-      { href: "/admin/media", label: "فایل‌ها", icon: "🗎", key: "media" },
-      { href: "/admin/tickets", label: "تیکت‌ها", icon: "✉", key: "tickets" },
+      { href: "/admin/dashboard", label: "داشبورد", icon: "▦", key: "dashboard", labelKey: "menu.dashboard" },
+      { href: "/admin/pages", label: "صفحات", icon: "▤", key: "pages", labelKey: "menu.pages" },
+      { href: "/admin/media", label: "فایل‌ها", icon: "🗎", key: "media", labelKey: "menu.media" },
+      { href: "/admin/tickets", label: "تیکت‌ها", icon: "✉", key: "tickets", labelKey: "menu.tickets" },
     ],
   },
   {
     title: "مدیریت",
+    titleKey: "menu.group.manage",
     items: [
-      { href: "/admin/managers", label: "مدیران و نقش‌ها", icon: "◍", key: "managers" },
-      { href: "/admin/profile", label: "پروفایل من", icon: "◌", key: "profile" },
+      { href: "/admin/managers", label: "مدیران و نقش‌ها", icon: "◍", key: "managers", labelKey: "menu.managers" },
+      // F4.2.F — صندوق به‌عنوان آیتمِ منو، نه فقط زنگِ هدر. زنگ ۸ ردیف آخر را
+      // نشان می‌دهد؛ اگر آیتمِ منو نبود، رسیدن به صندوقِ کامل و ترجیحاتش فقط با
+      // تایپِ آدرس ممکن بود.
+      { href: "/admin/notifications", label: "اعلان‌ها", icon: "◔", key: "notifications", labelKey: "menu.notifications" },
+      { href: "/admin/profile", label: "پروفایل من", icon: "◌", key: "profile", labelKey: "menu.profile" },
     ],
   },
   {
     title: "مالی",
-    items: [{ href: "/admin/subscription", label: "اشتراک من", icon: "◈", key: "subscription" }],
+    titleKey: "menu.group.finance",
+    // ⭐ این آیتم مالِ افزونهٔ `subscription` است، نه هسته. تا وقتی آن افزونه
+    // فعال نباشد، کلِ گروه «مالی» هم پنهان می‌شود (فیلتر گروه خالی را می‌برد).
+    items: [
+      {
+        href: "/admin/subscription",
+        label: "اشتراک من",
+        icon: "◈",
+        key: "subscription",
+        labelKey: "menu.subscription",
+        requiresPlugin: "subscription",
+      },
+    ],
   },
   {
     title: "ظاهر و محتوا",
+    titleKey: "menu.group.appearance",
     items: [
-      { href: "/admin/header-footer", label: "هدر و فوتر", icon: "☰", key: "header-footer" },
-      { href: "/admin/blocks", label: "بلوک‌های سایت", icon: "▦", key: "blocks" },
-      { href: "/admin/themes", label: "قالب سایت", icon: "◫", key: "themes" },
-      { href: "/admin/appearance", label: "قالب پنل", icon: "◐", key: "appearance" },
-      { href: "/admin/plugins", label: "پلاگین‌ها", icon: "⬡", key: "plugins" },
+      { href: "/admin/header-footer", label: "هدر و فوتر", icon: "☰", key: "header-footer", labelKey: "menu.headerFooter" },
+      { href: "/admin/blocks", label: "بلوک‌های سایت", icon: "▦", key: "blocks", labelKey: "menu.blocks" },
+      { href: "/admin/themes", label: "قالب سایت", icon: "◫", key: "themes", labelKey: "menu.themes" },
+      { href: "/admin/appearance", label: "قالب پنل", icon: "◐", key: "appearance", labelKey: "menu.appearance" },
+      {
+        href: "/admin/plugins",
+        label: "پلاگین‌ها",
+        icon: "⬡",
+        key: "plugins",
+        labelKey: "menu.plugins",
+        children: [
+          {
+            href: "/admin/plugins/developers",
+            label: "مستندات توسعه‌دهندگان",
+            icon: "❯",
+            key: "plugin-developers",
+            labelKey: "devdocs.title",
+          },
+          {
+            href: "/admin/store",
+            label: "فروشگاه",
+            icon: "🛒",
+            key: "store",
+            labelKey: "menu.store",
+          },
+        ],
+      },
     ],
   },
   {
     title: "تنظیمات",
+    titleKey: "menu.group.settings",
     items: [
-      { href: "/admin/settings", label: "تنظیمات سایت", icon: "⚙", key: "settings" },
-      { href: "/admin/socials", label: "شبکه‌های اجتماعی", icon: "🔗", key: "socials" },
+      { href: "/admin/settings", label: "تنظیمات سایت", icon: "⚙", key: "settings", labelKey: "menu.settings" },
+      { href: "/admin/socials", label: "شبکه‌های اجتماعی", icon: "🔗", key: "socials", labelKey: "menu.socials" },
     ],
   },
-  {
-    title: "مرکزی",
-    central: true,
-    items: [{ href: "/central/dashboard", label: "پنل مرکزی", icon: "⬢", key: "central" }],
-  },
+  // ⚠️ گروه `مرکزی` قبلاً اینجا سخت‌کد بود و L-B12 آن را برد.
+  //
+  // نکتهٔ مهم: «هسته» گروهِ **افزونه‌ای** را نمی‌سازد — خودِ افزونه از رجیستری
+  // می‌آید. ولی هسته آیتم‌هایی دارد که *متعلق به* یک افزونه‌اند؛ آن‌ها با
+  // `requiresPlugin` علامت خورده‌اند تا با غیرفعال‌شدنِ افزونه، از منو بروند
+  // (به‌جای اینکه به صفحه‌ای لینک بدهند که دیگر وجود ندارد).
 ];
 
 export const BOTTOM_NAV_DEFAULTS = [
@@ -64,36 +156,97 @@ export const BOTTOM_NAV_DEFAULTS = [
 
 export const BOTTOM_NAV_OPTIONS: MenuItem[] = ADMIN_MENU
   .flatMap((group) => group.items)
+  .flatMap((item) => [item, ...(item.children ?? [])])
   .filter((item) => item.href.startsWith("/admin/"));
 
-/** منوی محدود حالت تعلیق: فقط صفحه اشتراک (پرداخت) فعال است. */
+/**
+ * منوی محدود حالت تعلیق: فقط صفحه اشتراک (پرداخت) فعال است.
+ *
+ * ⚠️ عمداً **بدون** `requiresPlugin`.
+ *
+ * حالتِ تعلیق یعنی اشتراک وجود دارد و فقط معلق است — پس افزونه فعال است و
+ * فیلتر چیزی را برنمی‌داشت. ولی اگر روزی حالتِ تعلیقی بدون افزونهٔ فعال
+ * ساخته شود، این منو باید تنها راهِ رسیدن به پرداخت بماند؛ برچسب‌زدنِ آن
+ * یعنی کاربر در قفلِ تعلیق گیر می‌افتد و نه پرداخت می‌کند نه می‌بیند چرا.
+ * پس این یک استثنای عمدی است، نه فراموشی.
+ */
 export const ADMIN_MENU_LOCKED: MenuGroup[] = [
   {
     title: "تعلیق — فقط پرداخت",
-    items: [{ href: "/admin/subscription", label: "اشتراک من (پرداخت)", icon: "◈", key: "subscription" }],
+    titleKey: "menu.group.suspended",
+    items: [{ href: "/admin/subscription", label: "اشتراک من (پرداخت)", icon: "◈", key: "subscription", labelKey: "menu.subscriptionPay" }],
   },
 ];
 
-export const CENTRAL_MENU: MenuGroup[] = [
-  {
-    title: "مرکزی",
-    central: true,
-    items: [
-      { href: "/central/dashboard", label: "داشبورد مرکزی", icon: "⬢", key: "central" },
-      { href: "/central/clients", label: "مشتریان", icon: "◍", key: "clients" },
-      { href: "/central/billing", label: "صورتحساب", icon: "⬣", key: "billing" },
-      { href: "/central/chabokan", label: "چابکان", icon: "⬢", key: "chabokan" },
-      { href: "/central/monitoring", label: "مانیتورینگ", icon: "◉", key: "monitoring" },
-      { href: "/central/updates", label: "آپدیت‌ها", icon: "⟳", key: "updates" },
-      { href: "/central/review", label: "صف بازبینی", icon: "☑", key: "review" },
-      { href: "/central/operator", label: "اپراتور", icon: "⚠", key: "operator" },
-    ],
-  },
-  {
-    title: "پنل مشتری",
-    items: [{ href: "/admin/dashboard", label: "بازگشت به پنل", icon: "▦", key: "dashboard" }],
-  },
-];
+/* ═══════════════════════════════════════════════════════════════════════
+ * I1-b — ترجمهٔ منو، در همان جایی که منو ساخته می‌شود
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * چرا این‌جا و نه در `Sidebar`/`Topbar`: هر دو، `groups` را از props می‌گیرند
+ * و **عمداً** هیچ دانشی از زبان ندارند. اگر ترجمه در آن‌ها بود، breadcrumb
+ * (`crumbsForPath`) همچنان فارسی می‌ماند، چون crumb را از همان `label`
+ * می‌سازد — یعنی نیمی از پنل انگلیسی و نیمی فارسی.
+ *
+ * پس یک بار، درست بعد از ورود داده: `localizeMenuGroups` همان گروه‌ها را با
+ * `label`/`title` ترجمه‌شده برمی‌گرداند و **بقیهٔ پشته هیچ تغییری نمی‌بیند**
+ * (`Sidebar`، `Topbar`، `BottomNav` و `crumbs.ts` دست‌نخورده).
+ *
+ * توابع **خالص‌اند** و کلیدِ ناشناخته هرگز مدخل نمی‌سازد: نبودِ `labelKey` یعنی
+ * «متنِ خودش را نشان بده» (افزونه‌ها، و هر آیتمِ افزودهٔ دستی).
+ */
+
+/** همان امضای `t`، بدون `values` — منو هیچ پارامتری ندارد. */
+export type Translate = (key: MessageKey) => string;
+
+/** برچسبِ نهاییِ یک آیتم: ترجمه اگر کلید دارد، وگرنه متنِ خودش. */
+export function menuLabel(item: MenuItem, t: Translate): string {
+  return item.labelKey ? t(item.labelKey) : item.label;
+}
+
+/** عنوانِ نهاییِ یک گروه. `undefined` یعنی گروه بی‌عنوان (بخش اول منو). */
+export function menuGroupTitle(group: MenuGroup, t: Translate): string | undefined {
+  return group.titleKey ? t(group.titleKey) : group.title;
+}
+
+/**
+ * کلِ منو را به زبانِ جاری می‌برد. آیتم‌های افزونه `labelKey` ندارند و دست‌نخورده
+ * می‌مانند — برچسبِ افزونه زبانِ خودِ افزونه‌نویس است.
+ */
+export function localizeMenuGroups(groups: MenuGroup[], t: Translate): MenuGroup[] {
+  return groups.map((g) => {
+    const next: MenuGroup = {
+      ...g,
+      items: g.items.map((it) => {
+        const item: MenuItem = it.labelKey ? { ...it, label: menuLabel(it, t) } : it;
+        if (it.children) {
+          item.children = it.children.map((c) => (c.labelKey ? { ...c, label: menuLabel(c, t) } : c));
+        }
+        return item;
+      }),
+    };
+    const title = menuGroupTitle(g, t);
+    if (title !== undefined) next.title = title;
+    return next;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * L-B12 — منوی مرکزی از هسته رفت
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * `CENTRAL_MENU` و گروه `مرکزی` در `ADMIN_MENU` قبلاً اینجا بودند. حالا هر دو
+ * کنار خودِ صفحه‌هایشان در `src/app/(central)/central/menu.ts` هستند — که
+ * gitignore است و در build عمومی اصلاً وجود ندارد.
+ *
+ * دلیل: هسته نباید چیزی دربارهٔ افزونه‌های خاص بداند. تا وقتی این ثابت‌ها اینجا
+ * بودند، هر build عمومی مسیرهای `/central/*` را در بایند بیلد داشت، حتی وقتی
+ * خودِ آن صفحه‌ها build نمی‌شدند — یعنی repo عمومی ساختار پنل خصوصی را افشا
+ * می‌کرد.
+ *
+ * نشانهٔ `central` روی `MenuGroup` هم به `pluginsAfter` تغییر نام داده و عمومی
+ * شد: از اول هم منطقِ مرکزی نبود، فقط یک نشانهٔ ترتیب بود («گروه افزونه پیش از
+ * این گروه بنشیند»).
+ */
 
 /* ═══════════════════════════════════════════════════════════════════════
  * K6.1 — ادغام منوی افزونه‌ها (`admin.menu`) روی منوی هسته
@@ -328,6 +481,12 @@ export function mergePluginMenu(
     for (const item of group.items) {
       seenKeys.add(item.key);
       seenHrefs.add(item.href);
+      // فرزندان هم فضای کلید/href را اشغال می‌کنند: یک افزونه نباید
+      // بتواند مسیر زیرمنوی هسته را دوباره تعریف کند.
+      for (const child of item.children ?? []) {
+        seenKeys.add(child.key);
+        seenHrefs.add(child.href);
+      }
     }
   }
   const accepted: MenuItem[] = [];
@@ -364,11 +523,12 @@ export function mergePluginMenu(
   // گروه خالی با عنوان «افزونه‌ها» که فقط فضا می‌گیرد.
   if (accepted.length === 0) return { groups, accepted, rejected };
 
-  const pluginGroup: MenuGroup = { title: PLUGIN_MENU_GROUP_TITLE, items: accepted };
-  // گروه `central` سوییچ به پنل مرکزی است و باید آخرین گروه بماند ⇒ آیتم‌های
-  // افزونه پیش از آن می‌نشینند. اگر گروه مرکزی نبود، ته لیست.
-  const centralAt = groups.findIndex((g) => g.central === true);
-  const at = centralAt === -1 ? groups.length : centralAt;
+  const pluginGroup: MenuGroup = { title: PLUGIN_MENU_GROUP_TITLE, titleKey: "menu.group.plugins", items: accepted };
+  // گروهی که `pluginsAfter` دارد لنگرِ جای‌گذاری است: آیتم‌های افزونه پیش از
+  // آن می‌نشینند. اگر هیچ لنگری نبود، ته لیست. (قبلاً این لنگر گروه `central`
+  // بود؛ حالا عمومی است و هیچ اسمی از افزونه‌ای خاص در هسته نیست.)
+  const anchorAt = groups.findIndex((g) => g.pluginsAfter === true);
+  const at = anchorAt === -1 ? groups.length : anchorAt;
   return {
     groups: [...groups.slice(0, at), pluginGroup, ...groups.slice(at)],
     accepted,

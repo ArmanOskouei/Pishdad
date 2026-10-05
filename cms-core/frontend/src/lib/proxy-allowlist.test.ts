@@ -1,25 +1,46 @@
-import { test } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { checkPath } from "./proxy-allowlist.ts";
 
 /**
- * K7.9 — پنل مرکزی دیگر ریشهٔ مستقل ندارد، ولی هنوز از مرورگر کار می‌کند.
+ * K7.9 + L-B12 — ریشهٔ افزونه‌ها از مرورگر، اما فقط slugهای اعلام‌شده.
  *
  * ## چرا این تست وجود دارد
  *
  * پیش از K7.9 پنل مرکزی زیر `/api/central/…` سرو می‌شد — یک **ریشهٔ موازی**
- * کنار `v1`. حالا که مرکز یک افزونهٔ معمولی شد، زیر catch-all افزونه‌ها
- * می‌رود: `/api/v1/p/central/…`.
+ * کنار `v1`. حالا زیر catch-all افزونه‌ها می‌رود: `/api/v1/p/{slug}/…`.
  *
  * آن catch-all سطحِ عمومیِ dispatch است: **هر** بسته‌ای که روی دیسک نصب
  * باشد، و احراز هویت و مجوزش را خودش در مانیفست اعلام می‌کند. پروکسی
- * نمی‌تواند به آن اعلان اعتماد کند — پس فقط slugهای داخلی باز می‌مانند.
+ * نمی‌تواند به آن اعلان اعتماد کند — پس فقط slugهایی باز می‌مانند که **build
+ * صریحاً اعلام کرده** باشد.
  *
  * تست‌های فرانت **نمی‌توانستند** این را بگیرند: ۱۶۶ تست سبز بود در حالی که
- * یا پنل مرکزی در مرورگر کار نمی‌کرد، یا — اگر allowlist را سهل‌انگارانه
- * باز می‌کردیم — هر بستهٔ بازاری هم از مرورگر باز می‌شد. هیچ‌کدام خطا تولید
+ * یا پنل مرکزی در مرورگر کار نمی‌کرد، یا — اگر allowlist را سهل‌انگارانه باز
+ * می‌کردیم — هر بستهٔ بازاری هم از مرورگر باز می‌شد. هیچ‌کدام خطا تولید
  * نمی‌کردند؛ فقط درخواست‌ها بی‌صدا شکست می‌خوردند.
+ *
+ * ## L-B12 — چرا دیگر `central` در این فایل نیست
+ *
+ * allowlist از `new Set(["central"])` به `NEXT_PUBLIC_BROWSER_PLUGIN_SLUGS` رفت.
+ * یعنی هستهٔ منتشرشده دیگر نامِ افزونهٔ خصوصی را در بایند خود ندارد. پس این
+ * تست هم دیگر فرض نمی‌کند کدام slug باز است — خودش آن را اعلام می‌کند و بعد
+ * رفتار را می‌سنجد. نتیجه دو چیز را هم‌زمان اثبات می‌کند: (۱) بستهٔ اعلام‌شده
+ * باز است، (۲) بستهٔ اعلام‌نشده بسته است.
+ *
+ * به این ترتیب تست برای slugِ دلخواه هم درست می‌ماند، نه فقط برای مرکز.
  */
+
+const KEY = "NEXT_PUBLIC_BROWSER_PLUGIN_SLUGS";
+let saved: string | undefined;
+
+beforeEach(() => {
+  saved = process.env[KEY];
+});
+afterEach(() => {
+  if (saved === undefined) delete process.env[KEY];
+  else process.env[KEY] = saved;
+});
 
 const ok = (raw: string[], why?: string) =>
   assert.equal(checkPath(raw).ok, true, why ?? `باید باز باشد: ${raw.join("/")}`);
@@ -27,17 +48,23 @@ const ok = (raw: string[], why?: string) =>
 const denied = (raw: string[], why?: string) =>
   assert.equal(checkPath(raw).ok, false, why ?? `باید بسته باشد: ${raw.join("/")}`);
 
-test("پنل مرکزی از راه ریشهٔ v1 باز است", () => {
-  // ۳۹ فراخوانیِ `authed()` در شش فایل از همین مسیر می‌آیند
-  // (BillingClients, ClientsTable, OperatorClient, ReviewClient,
-  //  UpdatesClient, ChabokanClient). بستنش یعنی پنل در مرورگر کار نمی‌کند.
+/** یک بستهٔ خصوصیِ فرضی را اعلام می‌کند — هسته اسمی نمی‌داند، فقط build می‌داند. */
+function declare(slugs: string) {
+  process.env[KEY] = slugs;
+}
+
+test("بستهٔ اعلام‌شده از راه ریشهٔ v1 باز است", () => {
+  declare("central,household");
+  // ۳۹ فراخوانیِ `authed()` در صفحه‌های پنل از همین مسیر می‌آیند. بستنش یعنی
+  // پنل در مرورگر کار نمی‌کند.
   ok(["v1", "p", "central", "clients"]);
   ok(["v1", "p", "central", "dashboard", "stats"]);
   ok(["v1", "p", "central", "review", "plugin", "12", "approve"]);
-  ok(["v1", "p", "central", "chabokan", "services", "site-app", "start"]);
+  ok(["v1", "p", "household", "anything"]);
 });
 
-test("ریشهٔ central دیگر وجود ندارد", () => {
+test("ریشهٔ parallel دیگر وجود ندارد", () => {
+  declare("central");
   // این همان چیزی است که K7.9 عوض کرد: یک سطح دسترسی موازی که هر چیزی
   // می‌توانست زیرش بنشیند. نگه‌داشتنش یعنی هر route بازاری هم باز است.
   denied(["central", "clients"]);
@@ -45,11 +72,22 @@ test("ریشهٔ central دیگر وجود ندارد", () => {
 });
 
 test("افزونه‌های بازاری از مرورگر بسته می‌مانند", () => {
+  declare("central");
   denied(["v1", "p", "zarinpal", "callback"]);
   denied(["v1", "p", "blog", "posts"]);
 });
 
+test("در build عمومی، ریشهٔ افزونه از مرورگر کاملاً بسته است", () => {
+  // این همان حالتِ نسخهٔ منتشرشدهٔ گیت‌هاب است: هیچ متغیر محیطی‌ای پر نیست،
+  // پس پروکسی نباید ریشهٔ افزونه را باز کند. یک نصب عمومی که افزونهٔ
+  // خصوصی ندارد، از این مسیر چیزی صدا نمی‌زند.
+  delete process.env[KEY];
+  denied(["v1", "p", "central", "clients"]);
+  denied(["v1", "p", "anything", "at", "all"]);
+});
+
 test("slug ناقص یا غیرمجاز رد می‌شود", () => {
+  declare("central");
   denied(["v1", "p"]);
   denied(["v1", "p", "CENTRAL", "clients"], "slug حساس به حروف است.");
 
@@ -60,12 +98,16 @@ test("slug ناقص یا غیرمجاز رد می‌شود", () => {
   ok(["v1", "p", "central"]);
 });
 
-test("مسیرهای داخلی همچنان بسته‌اند", () => {
-  denied(["v1", "internal", "heartbeat"]);
+test("ورودیِ بد در متغیر محیطی نادیده گرفته می‌شود (fail-closed)", () => {
+  declare("  ,  ,../evil,Has-Caps,ok-1  ");
+  // `../evil` می‌توانست الگوی matcher را دور بزند؛ `Has-Caps` با slug
+  // معتبر نمی‌خواند. هر دو باید حذف شوند، نه اینکه باز شوند.
+  denied(["v1", "p", "..", "evil"]);
+  denied(["v1", "p", "Has-Caps", "x"]);
+  ok(["v1", "p", "ok-1", "x"], "slug معتبرِ واقعی باید باز بماند");
 });
 
-test("پنل مشتری مثل قبل کار می‌کند", () => {
-  ok(["v1", "me"]);
-  ok(["v1", "tickets"]);
-  ok(["v1", "subscriptions", "status"]);
+test("مسیرهای داخلی همچنان بسته‌اند", () => {
+  declare("central");
+  denied(["v1", "internal", "heartbeat"]);
 });

@@ -6,33 +6,50 @@ import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge } from "@/components/ui/primitives";
 import { faNum } from "@/lib/fa";
 import { TIER_FA, type Invoice, type Plan } from "@/lib/domain";
+import { LEGACY_SUBSCRIPTION_API, SUBSCRIPTION_API } from "@/lib/subscription";
+
+/**
+ * L-B12 — پروکسیِ پنل مسیرِ `/v1/p/…` را **عمداً** مسدود می‌کند (dispatch افزونه
+ * از پروکسی نمی‌گذرد)؛ پس در جزیره‌های کلاینت، مسیرِ legacy که **سرور** آن را به
+ * افزونه forward می‌کند تنها مسیرِ کارآمد است. ترتیب: legacy، بعد plugin
+ * (برای روزی که پروکسی اجازه دهد). نسخهٔ قبلی «plugin اول» بود و در هر بارگذاری
+ * یک ۴۰۳ در کنسول می‌ساخت.
+ */
+async function authedSub<T>(pluginPath: string, legacyPath: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  try {
+    return await authed<T>(legacyPath, init);
+  } catch {
+    return authed<T>(pluginPath, init);
+  }
+}
 
 /**
  * مقایسه پلن‌ها و ارتقا (شکاف ۱ subscription از گزارش برابری):
  * انتخاب پلن بالاتر → فاکتور مابه‌التفاوت → پرداخت با همان Stepper موجود (PayFlow).
  */
-export function PlanCompare({ currentPlanId, currentMonthly }: { currentPlanId?: number | null; currentMonthly?: number | null }) {
+export function PlanCompare({ currentPlanId, currentMonthly, initialPlans }: { currentPlanId?: number | null; currentMonthly?: number | null; initialPlans?: Plan[] }) {
   const toast = useToast();
   const router = useRouter();
-  const [plans, setPlans] = useState<Plan[] | null>(null);
+  const [plans, setPlans] = useState<Plan[] | null>(initialPlans && initialPlans.length > 0 ? initialPlans : null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (initialPlans && initialPlans.length > 0) return;
     (async () => {
       try {
-        const list = await authed<Plan[] | { data: Plan[] }>("/v1/admin/subscription/plans");
+        const list = await authedSub<Plan[] | { data: Plan[] }>(SUBSCRIPTION_API.plans, LEGACY_SUBSCRIPTION_API.plans);
         setPlans(Array.isArray(list) ? list : (list.data ?? []));
       } catch (e) {
         setError(e instanceof Error ? e.message : "خطا در بارگذاری پلن‌ها.");
       }
     })();
-  }, []);
+  }, [initialPlans]);
 
   const choose = async (p: Plan) => {
     setBusyId(p.id);
     try {
-      const inv = await authed<Invoice>("/v1/admin/subscription/change-plan", { method: "POST", body: { plan_id: p.id } });
+      const inv = await authedSub<Invoice>(SUBSCRIPTION_API.changePlan, LEGACY_SUBSCRIPTION_API.changePlan, { method: "POST", body: { plan_id: p.id } });
       toast(`فاکتور مابه‌التفاوت «${p.name}» (#${faNum(inv.id)}) ساخته شد — از Stepper پرداخت ادامه دهید.`, "ok");
       router.refresh();
     } catch (e) {

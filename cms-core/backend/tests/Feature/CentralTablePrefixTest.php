@@ -18,6 +18,21 @@ class CentralTablePrefixTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * J5 — این تست دربارهٔ **مهاجرتِ rename** است، پس به وضعیتِ «بعد از rename» نیاز
+     * دارد: جدول‌ها با نامِ `central_*`.
+     *
+     * تا پیش از J5 این وضعیت را core می‌ساخت. الان بستهٔ افزونه می‌سازد — پس اینجا
+     * نصب می‌شود. `migration()->down()` در تست‌ها وضعیتِ «قبل» را برمی‌گرداند و بقیه
+     * مثل قبل کار می‌کنند.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->installCentralPluginTables();
+    }
+
     private const MIGRATION_PATH = 'database/migrations/2026_10_05_000001_prefix_central_tables.php';
 
     /** @var array<string, string> */
@@ -217,9 +232,70 @@ class CentralTablePrefixTest extends TestCase
         $this->assertStringContainsString('central_update_rollouts(id)', $defs['central_update_rollout_items_rollout_id_foreign']);
         $this->assertStringContainsString('central_clients(id)', $defs['central_update_rollout_items_client_id_foreign']);
         $this->assertArrayNotHasKey('update_rollout_items_rollout_id_foreign', $defs);
+    }
 
-        $rolloutDefs = $this->foreignKeyDefinitions('central_update_rollouts');
-        $this->assertArrayHasKey('central_update_rollouts_created_by_foreign', $rolloutDefs);
+    /**
+     * ⭐ J5 — قاعدهٔ تازه: جدولِ افزونه **به جدولِ هسته** قیدِ خارجی ندارد.
+     *
+     * این تست قبلاً انتظار داشت `central_update_rollouts_created_by_foreign` به
+     * `users(id)` اشاره کند. حالا ندارد — و نداشتنش **عمدی** است، نهRegression:
+     *
+     * `PluginMigrationRunner` هر فراخوانیِ `constrained` را با prefix اسلاگ
+     * بازنویسی می‌کند، حتی وقتی آرگومانش جدولِ هسته باشد. یعنی قیدِ
+     * `created_by → users` در بستهٔ افزونه به `central_users` تبدیل می‌شد: جدولی که
+     * وجود ندارد و افزونه حق ساختنش را ندارد (`PluginDbContract::CORE_TABLES`).
+     * یعنی یا فعال‌سازی می‌شکست، یا FK به جدولِ ناموجود می‌رفت.
+     *
+     * پس ستون می‌ماند و قید نمی‌ماند — همان تصمیمی که
+     * `plugins/subscription/.../2026_10_14_000001` برای `owner_user_id` گرفت.
+     *
+     * این تست آن را **قفل** می‌کند: هر قیدِ خارجی از یک جدولِ `central_*` به یک
+     * جدولِ غیرمرکزی، از این به بعد باگ است، چون یا DDL شکست می‌خورد یا به
+     * جدولِ اشتباه اشاره می‌کند.
+     */
+    public function test_no_central_table_has_a_foreign_key_into_the_core(): void
+    {
+        $coreTables = array_map(
+            static fn (object $row): string => (string) $row->tablename,
+            DB::select("select tablename from pg_tables where schemaname = current_schema() and tablename not like 'central\_%'")
+        );
+
+        $offenders = [];
+
+        foreach ($this->centralTables() as $table) {
+            foreach ($this->foreignKeyDefinitions($table) as $name => $def) {
+                foreach ($coreTables as $core) {
+                    if (str_contains($def, $core.'(id)')) {
+                        $offenders[] = $table.' → '.$name.' → '.$core;
+                    }
+                }
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            "جدولِ افزونه نباید به جدولِ هسته قیدِ خارجی داشته باشد — بازنویسیِ prefix\n"
+            ."آن را به `central_{$core}` تبدیل می‌کند:\n".implode("\n", $offenders)
+        );
+
+        // ستون باید مانده باشد؛ فقط قید رفته است.
+        $this->assertTrue(
+            Schema::hasColumn('central_update_rollouts', 'created_by'),
+            'ستون باید بماند — حذفِ قید به معنی حذفِ رابطه نیست، فقط از سطح دیتابیس به سطحِ کد می‌رود.'
+        );
+    }
+
+    /** @return list<string> */
+    private function centralTables(): array
+    {
+        $rows = DB::select("select tablename from pg_tables where schemaname = current_schema() and tablename like 'central\_%'");
+
+        $names = array_map(static fn (object $row): string => (string) $row->tablename, $rows);
+
+        sort($names);
+
+        return $names;
     }
 
     public function test_cascade_still_works_through_the_renamed_rollout_fk(): void

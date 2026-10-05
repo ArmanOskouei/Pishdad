@@ -7,9 +7,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Media;
 use App\Models\Page;
 use App\Models\Setting;
-use App\Services\Subscription\ClientSubscriptionResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * رندر عمومی برای ISR (تسک ۱.۱): فقط صفحات published.
@@ -19,13 +19,25 @@ use Illuminate\Http\Request;
  */
 class PageController extends Controller
 {
+    /** F4.5 — زبان‌های سایت. بیرون از این فهرست ⇒ fa (fail-safe). */
+    private const LOCALES = ['fa', 'en'];
+
+    /** F4.5 — زبانِ درخواست از `?locale=` (پیش‌فرض زبانِ اصلی). */
+    private function locale(Request $request): string
+    {
+        $locale = (string) $request->query('locale', Page::LOCALE_DEFAULT);
+
+        return in_array($locale, self::LOCALES, true) ? $locale : Page::LOCALE_DEFAULT;
+    }
+
     /**
      * فهرست سبک صفحات منتشرشده (برای sitemap.xml و llms.txt فرانت).
      * فقط slug/title/تاریخ‌ها — بدون بلوک‌ها.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $pages = Page::query()
+            ->where('locale', $this->locale($request))
             ->where('status', Page::STATUS_PUBLISHED)
             ->whereNotNull('published_revision_id')
             ->orderByDesc('updated_at')
@@ -50,53 +62,42 @@ class PageController extends Controller
      */
     public function homepage(Request $request): JsonResponse
     {
-        $siteId = $request->query('site_id');
-        $subscription = $siteId
-            ? ClientSubscriptionResolver::bySiteId((string) $siteId)
-            : ClientSubscriptionResolver::default();
+        // صفحهٔ خانه قابلیتِ خودِ core است، نه بخشی از اشتراک. قبلاً پشت شرطِ
+        // «اشتراکی وجود دارد؟» پنهان بود و در نبودِ افزونهٔ مرکزی همه‌چیز ۴۰۴ می‌داد.
+        $site = array_merge(
+            SiteSettingsController::SITE_DEFAULTS,
+            Setting::get('site', 'global', []) ?? []
+        );
 
+        $homepageId = $site['homepage_page_id'] ?? null;
         $page = null;
-        if ($subscription?->client !== null) {
-            $site = array_merge(
-                SiteSettingsController::SITE_DEFAULTS,
-                Setting::get('site', 'global', []) ?? []
-            );
-            $homepageId = $site['homepage_page_id'] ?? null;
-            if (is_numeric($homepageId) && (int) $homepageId > 0) {
-                $page = Page::query()
-                    ->where('id', (int) $homepageId)
-                    ->where('status', Page::STATUS_PUBLISHED)
-                    ->whereNotNull('published_revision_id')
-                    ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
-                    ->first();
-            }
-            $page ??= Page::query()
-                ->where('slug', 'home')
-                ->where('status', Page::STATUS_PUBLISHED)
-                ->whereNotNull('published_revision_id')
-                ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
-                ->first();
-            $page ??= Page::query()
-                ->where('status', Page::STATUS_PUBLISHED)
-                ->whereNotNull('published_revision_id')
-                ->orderByDesc('published_at')
-                ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
-                ->first();
-        } else {
-            // نصب بدون مالک (تازه/تست): همان fallback سراسری.
+        $locale = $this->locale($request);
+
+        if (is_numeric($homepageId) && (int) $homepageId > 0) {
             $page = Page::query()
-                ->where('slug', 'home')
+                ->where('id', (int) $homepageId)
+                ->where('locale', $locale)
                 ->where('status', Page::STATUS_PUBLISHED)
                 ->whereNotNull('published_revision_id')
                 ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
-                ->first()
-                ?? Page::query()
-                    ->where('status', Page::STATUS_PUBLISHED)
-                    ->whereNotNull('published_revision_id')
-                    ->orderByDesc('published_at')
-                    ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
-                    ->first();
+                ->first();
         }
+
+        $page ??= Page::query()
+            ->where('slug', 'home')
+            ->where('locale', $locale)
+            ->where('status', Page::STATUS_PUBLISHED)
+            ->whereNotNull('published_revision_id')
+            ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
+            ->first();
+
+        $page ??= Page::query()
+            ->where('locale', $locale)
+            ->where('status', Page::STATUS_PUBLISHED)
+            ->whereNotNull('published_revision_id')
+            ->orderByDesc('published_at')
+            ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
+            ->first();
 
         if (! $page) {
             return response()->json(['message' => 'صفحه خانه‌ای تنظیم نشده است.'], 404);
@@ -110,6 +111,7 @@ class PageController extends Controller
     {
         $page = Page::query()
             ->where('slug', $path)
+            ->where('locale', $this->locale($request))
             ->where('status', Page::STATUS_PUBLISHED)
             ->whereNotNull('published_revision_id')
             ->with(['publishedRevision', 'leftPreset', 'rightPreset'])
@@ -153,6 +155,50 @@ class PageController extends Controller
     }
 
     /**
+     * نشانی عمومیِ یک فایل روی یک دیسک مشخص.
+     *
+     * ## چرا بر اساس دیسکِ ردیف
+     *
+     * نصب می‌تواند دیسک پیش‌فرضش `local`، `public` یا `s3` باشد. اگر URL
+     * همیشه از یک دیسکِ ثابت خوانده شود، رسانه‌ای که روی دیسکِ دیگری
+     * ذخیره شده بی‌صدا بی‌URL می‌ماند و فرانت به‌جای تصویر، قالبِ «تصویر
+     * در دسترس نیست» را نشان می‌دهد — یعنی یک نصبِ پیش‌فرضِ بدون S3
+     * هیچ‌وقت تصویر نشان نمی‌داد، و هیچ تستی هم نبود که بگیرد.
+     *
+     * ## چرا `s3` متفاوت است
+     *
+     * S3/MinIO فایل را از مسیر عمومی سرو نمی‌کند؛ باید به `endpoint` اشاره
+     * کرد. دیسک‌های محلی با `Storage::url()` مسیرِ `/storage/…` می‌دهند که
+     * `public/disks.php` آن را سرو می‌کند.
+     *
+     * @return string|null null یعنی «نشانی عمومی نداریم» — در آن حالت
+     *                     فقط کلیدِ URL تزریق نمی‌شود و فرانت قالبِ خالی
+     *                     نشان می‌دهد (بی‌صدا نیست).
+     */
+    private function publicUrlFor(string $disk, string $path): ?string
+    {
+        $path = ltrim($path, '/');
+
+        if ($path === '') {
+            return null;
+        }
+
+        if ($disk === 's3') {
+            $base = rtrim((string) config('filesystems.disks.s3.url', ''), '/');
+
+            return $base === '' ? null : $base.'/'.$path;
+        }
+
+        try {
+            $url = Storage::disk($disk)->url($path);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $url === '' ? null : $url;
+    }
+
+    /**
      * غنی‌سازی بلوک‌ها با نشانی عمومی فایل‌ها — در یک کوئری (بدون N+1).
      * قرارداد فرانت (BlockRenderer/mediaSrc): image/hero ← کلید `url`،
      * گالری ← `url_0..N`، پوستر ویدیو ← `poster_url`. فقط افزودنی است؛
@@ -185,11 +231,38 @@ class PageController extends Controller
 
         $map = [];
         $ids = array_values(array_unique($ids));
-        $base = rtrim((string) config('filesystems.disks.s3.url', ''), '/');
-        if ($ids !== [] && $base !== '') {
-            $paths = Media::query()->whereIn('id', $ids)->pluck('path', 'id');
-            foreach ($paths as $id => $path) {
-                $map[(int) $id] = $base.'/'.ltrim((string) $path, '/');
+
+        if ($ids !== []) {
+            /**
+             * 🔴 نباید فقط `s3` را نگاه کنیم.
+             *
+             * نسخهٔ اول فقط `config('filesystems.disks.s3.url')` را می‌خواند،
+             * پس هر رسانه‌ای روی `public` یا `local` **بی‌صدا** بی‌URL می‌ماند
+             * و فرانت به‌جای تصویر، قالب «تصویر در دسترس نیست» را نشان می‌دهد.
+             * یعنی یک نصبِ پیش‌فرضِ بدون S3 هیچ‌وقت تصویر نشان نمی‌داد —
+             * و هیچ تستی هم نبود که بگیرد.
+             *
+             * پس دیسکِ خودِ ردیف را می‌خوانیم و URL همان دیسک را می‌سازیم.
+             *
+             * @var array<int, array{disk: string|null, path: string|null}> $rows
+             */
+            $rows = Media::query()
+                ->whereIn('id', $ids)
+                ->get(['id', 'disk', 'path'])
+                ->keyBy('id');
+
+            foreach ($ids as $id) {
+                $row = $rows->get($id);
+
+                if ($row === null || ! is_string($row->path) || $row->path === '') {
+                    continue;
+                }
+
+                $url = $this->publicUrlFor((string) ($row->disk ?: config('filesystems.default')), $row->path);
+
+                if ($url !== null) {
+                    $map[$id] = $url;
+                }
             }
         }
 

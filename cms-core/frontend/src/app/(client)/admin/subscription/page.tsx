@@ -1,23 +1,94 @@
-import { serverApi, serverOne } from "@/lib/server-api";
-import { asPaginator, INVOICE_STATUS_FA, SUB_STATUS_FA, TIER_FA, type Invoice, type MySubscription } from "@/lib/domain";
+import { cookies } from "next/headers";
+import {
+  asInvoices,
+  LEGACY_SUBSCRIPTION_API,
+  parseSuccessorVersion,
+  SUBSCRIPTION_API,
+  subscriptionSummaryBlocks,
+} from "@/lib/subscription";
+import {
+  asPaginator,
+  INVOICE_STATUS_FA,
+  SUB_STATUS_FA,
+  TIER_FA,
+  type BlockValue,
+  type Invoice,
+  type MySubscription,
+  type Plan,
+} from "@/lib/domain";
 import { faNum, jalali, relativeFa } from "@/lib/fa";
-import { Alert, Badge, StatCard } from "@/components/ui/primitives";
+import { Alert, Badge } from "@/components/ui/primitives";
+import { BlockRenderer } from "@/components/site/BlockRenderer";
 import { PayFlow } from "./PayFlow";
 import { PlanCompare } from "./PlanCompare";
 import { PrintInvoiceButton } from "./InvoicePrint";
 
-/** اشتراک من ۱.۱۵ — Server Component: کارت پلن + فاکتورها + Stepper پرداخت + بنر تعلیق. */
+/**
+ * اشتراک من ۱.۱۵ + L-B12 — Server Component اعلانی.
+ *
+ * داده از catch-all افزونه‌ها (`/v1/p/subscription/*`) می‌آید و خلاصهٔ وضعیت
+ * به `BlockValue[]` تبدیل می‌شود که همان `BlockRenderer` هسته رندرش می‌کند —
+ * الگوی K7.18/K7.19 (`<h1>{title}</h1>` + بلوک‌ها؛ بدون `next/dynamic`، بدون
+ * کد پلاگین در مرورگر). کنش‌ها (پرداخت/ارتقا) جزیره‌های تعاملی خودشان‌اند.
+ *
+ * سازگاری مسیر: routeهای قدیمی `/v1/admin/subscription*` بازآدایه‌اند و هدر
+ * `Deprecation` + `Link rel="successor-version"` می‌فرستند. ترتیب تلاش همیشه
+ * «نو، بعد قدیمی» است؛ هدر قدیمی خوانده و لاگ می‌شود تا مهاجرت قابل ردیابی
+ * بماند، نه اینکه بی‌صدا روی قدیمی بمانیم.
+ */
+
+const UPSTREAM =
+  process.env.INTERNAL_API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8080/api";
+
+type FetchOutcome<T> = { value: T; via: "plugin" | "legacy" };
+
+async function fetchSub<T>(pluginPath: string, legacyPath: string): Promise<FetchOutcome<T>> {
+  const token = (await cookies()).get("auth_token")?.value;
+  const headers = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  for (const [path, via] of [
+    [pluginPath, "plugin"],
+    [legacyPath, "legacy"],
+  ] as const) {
+    const res = await fetch(`${UPSTREAM}${path}`, { headers, cache: "no-store" });
+    if (!res.ok) continue;
+    if (via === "legacy") {
+      const successor = parseSuccessorVersion(res.headers.get("link"));
+      console.info(
+        `[subscription] legacy route used: ${path} (Deprecation: ${res.headers.get("deprecation") ?? "?"}, successor: ${successor ?? "?"})`,
+      );
+    }
+    const json = (await res.json().catch(() => ({}))) as { data?: unknown };
+    return { value: ((json as { data?: unknown })?.data ?? json) as T, via };
+  }
+  throw new Error("خطا در بارگذاری اشتراک.");
+}
+
 export default async function SubscriptionPage() {
   let sub: MySubscription | null = null;
   let invoices: Invoice[] = [];
+  let plans: Plan[] = [];
   let error: string | null = null;
   try {
-    const [s, inv] = await Promise.all([
-      serverOne<MySubscription>("/v1/admin/subscription"),
-      serverApi<unknown>("/v1/admin/subscription/invoices?per_page=20"),
+    const [s, inv, pl] = await Promise.all([
+      fetchSub<MySubscription>(SUBSCRIPTION_API.show, LEGACY_SUBSCRIPTION_API.show),
+      fetchSub<unknown>(
+        `${SUBSCRIPTION_API.invoices}?per_page=20`,
+        `${LEGACY_SUBSCRIPTION_API.invoices}?per_page=20`,
+      ),
+      fetchSub<unknown>(SUBSCRIPTION_API.plans, LEGACY_SUBSCRIPTION_API.plans).catch(
+        (): FetchOutcome<unknown> => ({ value: [], via: "plugin" }),
+      ),
     ]);
-    sub = s;
-    invoices = asPaginator<Invoice>(inv).data;
+    sub = s.value;
+    invoices = asPaginator<Invoice>(inv.value).data;
+    const rawPlans = asInvoices(pl.value);
+    plans = rawPlans as unknown as Plan[];
   } catch (e) {
     error = e instanceof Error ? e.message : "خطا در بارگذاری اشتراک.";
   }
@@ -34,29 +105,31 @@ export default async function SubscriptionPage() {
   const suspended = sub.status === "suspended";
   const unpaid = invoices.filter((i) => i.status === "pending").length;
 
+  // L-B12 — خلاصهٔ وضعیت، اعلانی: فقط واژگان هسته، رندر با BlockRenderer.
+  const blocks: BlockValue[] = subscriptionSummaryBlocks({
+    planName: sub.plan?.name ?? TIER_FA[sub.tier] ?? sub.tier,
+    tierFa: TIER_FA[sub.tier] ?? sub.tier,
+    statusFa: SUB_STATUS_FA[sub.status] ?? sub.status,
+    dueFa: jalali(sub.due_at),
+    daysFa: relativeFa(sub.due_at),
+    unpaidFa: faNum(unpaid),
+    suspended,
+    unpaidCount: unpaid,
+  });
+
   return (
     <div>
       <div className="page-head">
         <div><h1>اشتراک من</h1><p>وضعیت پلن، فاکتورها و پرداخت</p></div>
+        {suspended ? <Badge tone="red">معلق</Badge> : <Badge tone="green">فعال</Badge>}
       </div>
 
-      {suspended ? (
-        <div className="lock-banner" role="alert">
-          <span>اشتراک شما معلق است — سایت مسدود و پنل فقط-پرداخت است. با پرداخت فاکتور، تعلیق خودکار رفع می‌شود.</span>
-        </div>
-      ) : null}
+      <BlockRenderer blocks={blocks} />
 
-      <div className="grid c4" style={{ marginBlockEnd: 16 }}>
-        <StatCard icon="◈" value={sub.plan?.name ?? TIER_FA[sub.tier] ?? sub.tier} label="پلن جاری" />
-        <StatCard icon="●" value={SUB_STATUS_FA[sub.status] ?? sub.status} label="وضعیت" up={!suspended} />
-        <StatCard icon="◷" value={jalali(sub.due_at)} label="سررسید" delta={relativeFa(sub.due_at)} up={!suspended} />
-        <StatCard icon="✉" value={faNum(unpaid)} label="فاکتور پرداخت‌نشده" />
-      </div>
-
-      <div className="grid c2" style={{ alignItems: "start" }}>
+      <div className="grid c2" style={{ alignItems: "start", marginBlockStart: 16 }}>
         <div>
           <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-            <div className="card-title">کارت پلن {suspended ? <Badge tone="red">معلق</Badge> : <Badge tone="green">فعال</Badge>}</div>
+            <div className="card-title">کارت پلن</div>
             <div className="kv"><span>تیر</span><span>{TIER_FA[sub.tier] ?? sub.tier}</span></div>
             {sub.plan?.price_monthly ? <div className="kv"><span>ماهانه</span><span>{faNum(sub.plan.price_monthly)} تومان</span></div> : null}
             {sub.plan?.price_yearly ? <div className="kv"><span>سالانه (۲۰٪ تخفیف)</span><span>{faNum(sub.plan.price_yearly)} تومان</span></div> : null}
@@ -94,7 +167,7 @@ export default async function SubscriptionPage() {
         <PayFlow invoices={invoices} />
       </div>
 
-      <PlanCompare currentPlanId={sub.plan?.id} currentMonthly={sub.plan?.price_monthly} />
+      <PlanCompare currentPlanId={sub.plan?.id} currentMonthly={sub.plan?.price_monthly} initialPlans={plans} />
     </div>
   );
 }

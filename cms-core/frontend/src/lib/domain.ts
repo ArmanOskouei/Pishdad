@@ -142,7 +142,22 @@ export type Invoice = {
   client?: { id: number; name: string; site_id?: string };
 };
 
-export type PaySession = { authority: string; pay_url: string };
+/**
+ * J10 \u2014 \u067e\u0627\u0633\u062e \u0646\u0647\u0627\u0646\u062a \u0633\u0627\u062e\u062a\u0647\u0627\u0631\u062a.
+ *
+ * \u0646\u0627\u0648\u0639\u062a \u062f\u0648\u0631 \u0648 \u0646\u0647 \u0627\u0646\u0642\u0631\u0627\u0631\u062f \u0627\u0632 \u0628\u0631\u062f\u0627\u0634\u062a \u0641\u0627\u06a9\u062a\u0648\u0631: \u0645\u0646\u0631\u0641\u0639 \u0645\u062f\u0631 \u0646\u0645\u06cc\u200c\u0634\u0648\u062f \u0627\u0633\u062a\u060c \u067e\u0633 \u0646\u0627\u0645\u06cc\u200c\u0628\u0648\u062f\u0646 \u062f\u0631\u06af\u0627\u0647 \u0648 \u0644\u06cc\u0646\u06a9
+ * sandbox.zarinpal.com \u0645\u06cc\u200c\u0633\u0627\u062e\u062a \u0628\u0648\u062f\u0647 \u0648 \u0643\u0627\u0631\u0628\u0631 \u062f\u0631\u0627\u06af\u0647\u200c\u0627\u06cc \u0646\u0645\u06cc\u200c\u0633\u0627\u062e\u062a \u0646\u0645\u06cc\u200c\u0628\u095e\u062f.
+ *
+ * \u0627\u0632 \u0622\u0646 \u062f\u0648 \u0641\u06cc\u0644\u062f \u0647\u0627 \u062d\u0630\u0627\u0641\u0638\u0647 \u06a9\u0647 \u062f\u0627\u0631\u0646\u062f \u0648 pay_url \u0648 uthority
+ * \u0646\u06cc\u0633\u062a\u060c \u0637\u0631\u06cc \u0627\u0632 \u0645\u0648\u0636\u0639\u06cc \u0628\u0631\u0627\u06cc \u062f\u0631\u06af\u0627\u0647 \u0642\u0631\u0627\u0631 \u0645\u06cc\u200c\u06af\u064a\u0631\u062f: \u0645\u0642\u0627\u0628\u0644 \u0627\u0635\u0644\u0627\u062d \u0628\u0647 \u0635\u0648\u0631\u062a
+ * pending \u0645\u06cc\u200c\u0645\u0627\u0646\u062f \u0648 \u0627\u067e\u0631\u0627\u062a\u0648\u0631 \u0645\u0631\u06a9\u0632\u06cc \u062f\u0633\u062a\u06cc \u0622\u0646\u0631\u0627 \u0631\u0627 \u062a\u0646\u0638\u06cc\u0645 \u0645\u06cc\u200c\u06a9\u0646\u062f.
+ */
+export type PaySession = {
+  manual_billing: true;
+  status: string;
+  amount: number;
+  currency: string;
+};
 
 /* ── دسته ۱ (برابری UI/UX): مصرف فضای پلن + پرونده‌های باز مرکزی ── */
 
@@ -186,26 +201,6 @@ export type Payment = {
   invoice?: { id: number; client_id: number; amount: number; status: string } | null;
 };
 
-export type CentralClient = {
-  id: number;
-  name: string;
-  domain?: string | null;
-  tier: "budget" | "standard" | "enterprise";
-  status: string;
-  site_id: string;
-  current_version?: string | null;
-  health_status?: "healthy" | "warning" | "critical" | "unknown";
-  subscription?: {
-    id: number;
-    status: string;
-    due_at?: string | null;
-    suspended_at?: string | null;
-    plan?: { id: number; name: string; slug: string } | null;
-  } | null;
-  invoices?: Invoice[];
-  backups?: Backup[];
-  created_at?: string;
-};
 
 export type Backup = {
   id: number;
@@ -341,7 +336,15 @@ export type ProfileData = {
 export type TwoFactorMethods = {
   totp: { enabled: boolean };
   recovery_codes_remaining: number;
-  hardware_keys: Array<{ id: number; name: string; created_at?: string }>;
+  /**
+   * J5 — اختیاری شد.
+   *
+   * کلیدِ سخت‌افزاری مفهومِ افزونهٔ مرکزی است، پس از پاسخِ پروفایلِ هسته حذف
+   * شد و به `GET /api/v1/p/central/operator/2fa/hardware` رفت. روی نصبِ بدون
+   * افزونه این کلید **نیست**، و UI باید سطر را پنهان کند نه اینکه
+   * `undefined.length` بدهد.
+   */
+  hardware_keys?: Array<{ id: number; name: string; created_at?: string }>;
   /** دسته UIUX (افزودنی): وضعیت تأیید پیامکی. */
   sms?: { enabled: boolean; phone?: string | null } | null;
 };
@@ -399,6 +402,14 @@ export type SiteSettings = {
   address?: string | null;
   /** دسته UIUX (افزودنی): زبان پیش‌فرض سایت. */
   locale?: string | null;
+  /** ECO2 — حالت زبان: `single` (فقط زبان اصلی) یا `dual` (اصلی + دوم، مدل a). */
+  language_mode?: "single" | "dual" | null;
+  /** ECO2 — زبان دوم؛ فقط در حالت `dual` معنا دارد. */
+  secondary_locale?: string | null;
+  /** ECO2 — فهرست زبان‌ها (زبان اصلی اول). سرور محاسبه می‌کند. */
+  locales?: string[] | null;
+  /** ECO2 — زبانِ ریشهٔ سایت (مدل a). */
+  primary_locale?: string | null;
   /** دسته UIUX (افزودنی): منطقه زمانی سایت. */
   timezone?: string | null;
   /** کار دوم (افزودنی): صفحه خانه تنظیم‌شده. */
@@ -436,6 +447,13 @@ export type ReviewStatus = "pending" | "approved" | "rejected";
 export type PluginItem = {
   id: number;
   name: string;
+  /**
+   * B35 — توضیح اختیاری از مانیفست.
+   *
+   * `null` یعنی نویسنده چیزی ننوشته؛ رشتهٔ خالی یعنی نوشته ولی خالی است. بک‌اند
+   * عمداً این دو را یکی نمی‌کند، پس اینجا هم نباید با `?? ""` یکی شوند.
+   */
+  description?: string | null;
   slug: string;
   version: string;
   previous_version?: string | null;
@@ -619,17 +637,7 @@ export type ReviewQueueItem = {
 
 /* ── مرکزی: داشبورد (۲.۱) ── */
 
-export type CentralStats = {
-  active_clients: number;
-  suspended_clients: number;
-  mrr: number;
-  overdue_invoices: number;
-};
 
-export type CentralCharts = {
-  revenue_12m: Array<{ month: string; total: number }>;
-  customers_12m: Array<{ month: string; count: number }>;
-};
 
 /* ── مرکزی: چابکان (۲.۳) ── */
 
@@ -666,13 +674,6 @@ export type HealthRow = {
   state: "online" | "silent" | "never";
 };
 
-export type CentralLogItem = {
-  id: number;
-  level: string;
-  site_id?: string | null;
-  message: string;
-  created_at?: string;
-};
 
 /* ── مرکزی: آپدیت‌ها (۲.۶) ── */
 

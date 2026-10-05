@@ -1,0 +1,248 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Notifications\Catalog;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+
+/**
+ * F4.2.B — صندوق و ترجیحاتِ اعلان.
+ *
+ * ## ⭐ چرا مسیرها `notification-*` و نه همان `notifications`
+ *
+ * `K5.8` مسیر `POST /v1/admin/notifications` را **رزرو کرده** (سرویسِ افزونه) و
+ * `done` است. اگر اینجا هم `POST notifications` می‌ساختیم، دو کنترلر برای یک
+ * مسیر می‌شد و هرکدام می‌توانستند دیگری را بی‌سروصدا بازنویسی کنند — یا بستهٔ
+ * لاراول آخرِ تعریف را برنده شود و مسیرِ افزونه بی‌صدا به تنظیمات برگردد.
+ *
+ * پس فضای‌نامِ جدید و **غیرهمپوشان**: اینجا فقط **خواندنِ** صندوق و
+ * نوشتنِ ترجیح. نوشتنِ اعلان (سمت افزونه) همچنان مالکیتِ `K5.8` است.
+ */
+class NotificationInboxController extends Controller
+{
+    /**
+     * `GET /v1/admin/notification-inbox`.
+     *
+     * فقط کاربرِ جاری — و این یک قراردادِ امنیتی است نه یک تصمیمِ UI: `notifiable`
+     * از خودِ session پر می‌شود، پس پارامترِ `user_id` اصلاً وجود ندارد و مدیر
+     * نمی‌تواند صندوقِ مدیرِ دیگر را بخواند.
+     *
+     * ⭐ هر سطر از `Catalog` ساخته می‌شود، نه از `data`:
+     *  - `action_href` از ستونِ **از پیش اعتبارسنجی‌شده** خوانده می‌شود و دوباره
+     *    از allowlist رد می‌گردد (fail-closed روی دادهٔ قدیمیِ قبل از مهاجرت).
+     *  - عنوان/بدنه از قالبِ امروزِ کاتالوگ می‌آید ⇒ یک منبعِ حقیقت.
+     *  - ردیف‌هایی که `catalog_key` ندارند (`PluginNotification` از K5.8) از
+     *    `data` خوانده می‌شوند و `action_href`شان **همیشه** `null` است.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $perPage = max(1, min(50, (int) $request->integer('per_page', 20)));
+
+        $rows = $user->notifications()
+            ->latest()
+            ->limit($perPage)
+            ->get()
+            ->map(fn (object $n): array => $this->row($n))
+            ->all();
+
+        return response()->json([
+            'data' => [
+                'items' => $rows,
+                'unread' => $user->notifications()->whereNull('read_at')->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * `GET /v1/admin/notification-preferences` — ماتریسِ ۵ کارت × ۳ کانال.
+     *
+     * خروجی همیشه **کامل** است (نه فقط سطرهای ذخیره‌شده) چون UI باید کلیدهای
+     * خاموش را هم نشان بدهد تا کاربر بداند چه چیزی را روشن کند.
+     */
+    public function preferences(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        return response()->json([
+            'data' => [
+                'groups' => Catalog::groupLabels(),
+                'channels' => Catalog::CHANNELS,
+                'matrix' => $this->matrix($user),
+            ],
+        ]);
+    }
+
+    /**
+     * `PUT /v1/admin/notification-preferences` — ثبتِ ترجیحِ گروه.
+     *
+     * `PUT` و نه `PATCH`: سطرِ (کاربر، گروه، کانال) یک **تک‌مورد** است و این
+     * جایگذاریِ کاملِ آن. ضمناً `catalog_key` پارامتر ندارد عمداً — استثنای
+     * روی یک اعلانِ خاص از همین مسیر نوشته نمی‌شود چون در UI چنین کنترلی
+     * وجود ندارد و پس‌از-کار `F4.2.F` است.
+     */
+    public function updatePreferences(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'group_key' => ['required', 'string', Rule::in(array_keys(Catalog::GROUPS))],
+            'channel' => ['required', 'string', Rule::in(Catalog::CHANNELS)],
+            'enabled' => ['required', 'boolean'],
+        ], [
+            'group_key.in' => 'گروهِ ناشناخته.',
+            'channel.in' => 'کانالِ ناشناخته.',
+            'enabled.required' => 'وضعیت الزامی است.',
+        ]);
+
+        $user = $request->user();
+
+        // `updateOrInsert` و نه `upsert` چون `catalog_key` nullable است و در
+        // Postgres چند NULL در unique مجازند — یعنی قیدِ جدول این سطر را
+        // محافظت نمی‌کند و تکرارِ سطر ممکن است.
+        DB::table('notification_preferences')->updateOrInsert(
+            [
+                'user_id' => $user->id,
+                'group_key' => (string) $validated['group_key'],
+                'channel' => (string) $validated['channel'],
+                'catalog_key' => null,
+            ],
+            [
+                'enabled' => (bool) $validated['enabled'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
+
+        return response()->json([
+            'message' => 'ترجیح ذخیره شد.',
+            'data' => ['matrix' => $this->matrix($user->fresh())],
+        ]);
+    }
+
+    // ------------------------------------------------------------------
+
+    /**
+     * ⭐ ساختِ سطرِ صندوق. `body` **هرگز** HTML نیست — چون از `Catalog::plain()`
+     * می‌آید و آن `strip_tags` می‌کند.
+     *
+     * @return array<string, mixed>
+     */
+    private function row(object $n): array
+    {
+        $key = is_string($n->catalog_key ?? null) ? $n->catalog_key : null;
+
+        $title = $n->type;
+        $body = '';
+        $href = null;
+        $label = null;
+
+        if ($key !== null && Catalog::has($key)) {
+            $entry = Catalog::entry($key);
+            $values = $this->valuesOf($n);
+            $title = Catalog::render($entry['title'], $values);
+            $body = Catalog::render($entry['body'], $values);
+
+            // دوباره از allowlist رد می‌کند: سطرهای نوشته‌شده پیش از این
+            // migration لینکِ تأییدنشده دارند و نباید از راه دور بیرون بزنند.
+            $stored = is_string($n->action_href ?? null) ? $n->action_href : null;
+            if ($stored !== null && Catalog::isSafeActionHref($stored)) {
+                $href = $stored;
+                $label = is_string($n->action_label ?? null) ? $n->action_label : null;
+            }
+        } else {
+            // ردیفِ `K5.8` — از افزونه آمده. عنوان/بدنه در `data` است و هیچ
+            // لینکی ندارد: `action_href` از دستِ افزونه پذیرفته نمی‌شود.
+            $data = $this->decode($n);
+            $title = is_string($data['title'] ?? null) ? Catalog::plain($data['title']) : $n->type;
+            $body = is_string($data['body'] ?? null) ? Catalog::plain($data['body']) : '';
+        }
+
+        return [
+            'id' => $n->id,
+            'catalog_key' => $key,
+            'title' => mb_substr($title, 0, Catalog::MAX_TITLE),
+            'body' => $body,
+            'severity' => is_string($n->severity ?? null) ? $n->severity : 'info',
+            'action_href' => $href,
+            'action_label' => $label,
+            'read_at' => $n->read_at?->toIso8601String(),
+            'created_at' => $n->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array<string, list<bool>> گروه ⇒ کانال ⇒ فعال؟
+     */
+    private function matrix(User $user): array
+    {
+        $stored = DB::table('notification_preferences')
+            ->where('user_id', $user->id)
+            ->whereNull('catalog_key')
+            ->get(['group_key', 'channel', 'enabled'])
+            ->keyBy(fn (object $r): string => $r->group_key.'|'.$r->channel);
+
+        $out = [];
+
+        foreach (array_keys(Catalog::GROUPS) as $group) {
+            $row = [];
+            foreach (Catalog::CHANNELS as $channel) {
+                $row[$channel] = isset($stored[$group.'|'.$channel])
+                    ? (bool) $stored[$group.'|'.$channel]->enabled
+                    : self::groupDefault($group, $channel);
+            }
+            $out[$group] = $row;
+        }
+
+        return $out;
+    }
+
+    /**
+     * پیش‌فرضِ کارت وقتی کاربر چیزی ذخیره نکرده.
+     *
+     * ⭐ «هیچ کانالی برای این گروه خاموش نیست» مگر آنکه کاتالوگ خلافش را
+     * بگوید. خاموشی پیش‌فرض یعنی کاربر یک اعلانِ امنیتی را گم می‌کند و اصلاً
+     * نمی‌فهمد چرا. پس «سکوت» باید **فعال‌سازیِ صریح** باشد، نه نبودِ سطر.
+     */
+    private static function groupDefault(string $group, string $channel): bool
+    {
+        foreach (Catalog::keys() as $key) {
+            $entry = Catalog::entry($key);
+            if ($entry['group'] === $group && in_array($channel, $entry['channels'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return list<scalar|null> */
+    private function valuesOf(object $n): array
+    {
+        $values = $this->decode($n)['values'] ?? [];
+
+        return is_array($values) ? array_values($values) : [];
+    }
+
+    /** @return array<string, mixed> */
+    private function decode(object $n): array
+    {
+        $raw = $n->data ?? null;
+
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        if (! is_string($raw) || $raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+}

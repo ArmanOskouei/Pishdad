@@ -14,11 +14,16 @@ import { Alert, SaveBar, Skeleton, Badge } from "@/components/ui/primitives";
 import { DragDropList } from "@/components/ui/DragDropList";
 import { useToast } from "@/components/ui/Toast";
 import { BOTTOM_NAV_UPDATED_EVENT } from "@/components/layout/BottomNav";
-import { BOTTOM_NAV_DEFAULTS, BOTTOM_NAV_OPTIONS, type MenuItem } from "@/lib/menu";
+import { BOTTOM_NAV_DEFAULTS, BOTTOM_NAV_OPTIONS, localizeMenuGroups, type MenuItem } from "@/lib/menu";
+import { useLang, type MessageKey } from "@/lib/i18n";
 import { faNum } from "@/lib/fa";
 
 type Dir = { id: UiSettings["preset"]; name: string; desc: string; pv: { bg: string; side: string; card: string; line: string; pri: string }; presets: { label: string; accent: string }[] };
 
+/**
+ * I1-b — نام و توضیح و رنگ‌ها کلیدِ ترجمه دارند و متنِ فارسی می‌ماند به‌عنوانِ
+ * fallback. چرا `pv` (پیش‌نمایش رنگ) ترجمه نمی‌شود: رنگ، زبان ندارد.
+ */
 const DIRS: Dir[] = [
   { id: "sahar", name: "سپیده", desc: "مینیمال روشن — پیش‌فرض مشتری", pv: { bg: "#f7f7f8", side: "#ffffff", card: "#ffffff", line: "#e5e7eb", pri: "#0d9488" }, presets: [{ label: "فیروزه‌ای", accent: "teal" }, { label: "نیلی", accent: "indigo" }, { label: "یاقوتی", accent: "rose" }] },
   { id: "amaliyat", name: "عملیات", desc: "دارک کنسول — پیش‌فرض مرکزی", pv: { bg: "#0b0f17", side: "#121826", card: "#1a2233", line: "#232c40", pri: "#6366f1" }, presets: [{ label: "ایندیگو", accent: "indigo" }, { label: "ماتریس", accent: "teal" }, { label: "امنیت", accent: "amber" }] },
@@ -26,6 +31,19 @@ const DIRS: Dir[] = [
   { id: "narm", name: "نرم", desc: "سافت دوستانه", pv: { bg: "#fdf6ef", side: "#f5e6d5", card: "#ffffff", line: "#ecdcc8", pri: "#c2703d" }, presets: [{ label: "سفالی", accent: "clay" }, { label: "آسمانی", accent: "blue" }, { label: "لیمویی", accent: "teal" }] },
   { id: "divan", name: "دیوان", desc: "کلاسیک", pv: { bg: "#eef2f7", side: "#1e3a8a", card: "#ffffff", line: "#dbe3ef", pri: "#1d4ed8" }, presets: [{ label: "آبی کلاسیک", accent: "blue" }, { label: "سبز دولتی", accent: "teal" }, { label: "سرمه‌ای", accent: "indigo" }] },
 ];
+
+/**
+ * ترجمهٔ نامِ رنگِ هر preset. کلید از خودِ `dir` + `accent` ساخته می‌شود تا یک
+ * جدولِ موازی و قابلِ فراموشی در کنار `DIRS` لازم نباشد — وگرنه افزودنِ یک
+ * رنگ یعنی ویرایشِ دو جا که هیچ‌کدام همدیگر را خبر نمی‌کنند.
+ */
+const ACCENT_KEYS: Record<string, Record<string, MessageKey>> = {
+  sahar: { teal: "dir.sahar.accentTeal", indigo: "dir.sahar.accentIndigo", rose: "dir.sahar.accentRose" },
+  amaliyat: { indigo: "dir.amaliyat.accentIndigo", teal: "dir.amaliyat.accentTeal", amber: "dir.amaliyat.accentAmber" },
+  arya: { violet: "dir.arya.accentViolet", blue: "dir.arya.accentBlue", rose: "dir.arya.accentRose" },
+  narm: { clay: "dir.narm.accentClay", blue: "dir.narm.accentBlue", teal: "dir.narm.accentTeal" },
+  divan: { blue: "dir.divan.accentBlue", teal: "dir.divan.accentTeal", indigo: "dir.divan.accentIndigo" },
+};
 
 function normalizeBottomNav(value: unknown): string[] {
   if (!Array.isArray(value)) return [...BOTTOM_NAV_DEFAULTS];
@@ -36,20 +54,21 @@ function normalizeBottomNav(value: unknown): string[] {
     .slice(0, 6);
 }
 
-function orderedBottomNavOptions(paths: string[]): MenuItem[] {
+function orderedBottomNavOptions(paths: string[], options: MenuItem[] = BOTTOM_NAV_OPTIONS): MenuItem[] {
   const selected = paths.flatMap((path) => {
-    const item = BOTTOM_NAV_OPTIONS.find((option) => option.href === path);
+    const item = options.find((option) => option.href === path);
     return item ? [item] : [];
   });
   const selectedPaths = new Set(selected.map((item) => item.href));
-  return [...selected, ...BOTTOM_NAV_OPTIONS.filter((item) => !selectedPaths.has(item.href))];
+  return [...selected, ...options.filter((item) => !selectedPaths.has(item.href))];
 }
 
-type Draft = UiSettings & { accent: string; pi: number };
+type Draft = Omit<UiSettings, "accent"> & { accent: string; pi: number };
 
 export default function AppearancePage() {
   const { theme, set } = useTheme();
   const toast = useToast();
+  const { t } = useLang();
   const [saved, setSaved] = useState<Draft | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,18 +78,40 @@ export default function AppearancePage() {
   const [draftBottomNav, setDraftBottomNav] = useState<string[]>(() => [...BOTTOM_NAV_DEFAULTS]);
   const [savingBottomNav, setSavingBottomNav] = useState(false);
 
+  // I1-b — نام و رنگِ هر جهت بصری از دیکشنری می‌آید؛ `DIRS[].name` فارسیِ ثابت
+  // می‌ماند به‌عنوان fallback و برای `id` که ترجمه نمی‌شود.
+  const dirName = (id: UiSettings["preset"]): string => t(`dir.${id}` as const);
+  const dirDesc = (id: UiSettings["preset"]): string => t(`dir.${id}Desc` as const);
+  const accentLabel = (dir: UiSettings["preset"], accent: string): string => {
+    const key = ACCENT_KEYS[dir]?.[accent];
+    return key ? t(key) : accent;
+  };
+  // برچسبِ آیتم‌های نوار پایین هم از منوی هسته می‌آید، پس همان `labelKey` را
+  // ترجمه می‌کنیم — به‌جای اینکه یک جدولِ موازی برای شش مسیر بسازیم. `useMemo`
+  // چون خروجی به‌عنوان `items` به `DragDropList` می‌رود و آن `useMemo` خودش
+  // روی همین هویت کلید می‌زند.
+  const navOptions = useMemo(
+    () => localizeMenuGroups([{ items: BOTTOM_NAV_OPTIONS }], t)[0]!.items,
+    [t],
+  );
+
   useEffect(() => {
     (async () => {
       try {
         const s = await authed<UiSettings>("/v1/ui-settings");
-        const pi = 0;
-        const d: Draft = { ...s, accent: DIRS.find((x) => x.id === s.preset)?.presets[0].accent ?? "indigo", pi };
+        // رنگِ ذخیره‌شده را بازیابی کن؛ اگر برای این جهت معتبر نبود، پیش‌فرضِ جهت.
+        const dirPresets = DIRS.find((x) => x.id === s.preset)?.presets ?? [];
+        const accent = s.accent && dirPresets.some((p) => p.accent === s.accent)
+          ? s.accent
+          : (dirPresets[0]?.accent ?? "indigo");
+        const pi = Math.max(0, dirPresets.findIndex((p) => p.accent === accent));
+        const d: Draft = { ...s, accent, pi };
         const bottomNav = normalizeBottomNav(s.bottom_nav);
         setSaved(d); setDraft(d);
          setSavedBottomNav(bottomNav); setDraftBottomNav(bottomNav);
          set({ ...s, accent: d.accent }, { persist: false });
       } catch (e) {
-        setError(e instanceof Error ? e.message : "خطا در بارگذاری تنظیمات.");
+        setError(e instanceof Error ? e.message : t("appearance.errLoad"));
       } finally { setLoading(false); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,10 +191,10 @@ export default function AppearancePage() {
       const savedPaths = normalizeBottomNav(data.bottom_nav);
       setSavedBottomNav(savedPaths);
       setDraftBottomNav(savedPaths);
-      window.dispatchEvent(new Event(BOTTOM_NAV_UPDATED_EVENT));
-      toast("نوار پایین موبایل ذخیره شد.", "ok");
+window.dispatchEvent(new Event(BOTTOM_NAV_UPDATED_EVENT));
+      toast(t("appearance.bottomNavSaved"), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ذخیره نوار پایین ناموفق بود.", "err");
+      toast(e instanceof Error ? e.message : t("appearance.bottomNavSaveFailed"), "err");
     } finally {
       setSavingBottomNav(false);
     }
@@ -165,29 +206,29 @@ export default function AppearancePage() {
     try {
       const data = await authed<UiSettings>("/v1/ui-settings", {
         method: "PUT",
-        body: { dir: draft.dir, preset: draft.preset, mode: draft.mode, radius: draft.radius, density: draft.density, font: draft.font },
+        body: { dir: draft.dir, preset: draft.preset, accent: draft.accent, mode: draft.mode, radius: draft.radius, density: draft.density, font: draft.font },
       });
       const d: Draft = { ...data, accent: draft.accent, pi: draft.pi };
       setSaved(d); setDraft(d);
-      toast(`قالب «${DIRS.find((x) => x.id === d.preset)?.name}» ذخیره شد.`, "ok");
+      toast(t("appearance.presetSaved", { name: dirName(d.preset) }), "ok");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "خطا در ذخیره.", "err");
+      toast(e instanceof Error ? e.message : t("appearance.errSave"), "err");
     } finally { setSaving(false); }
   }
 
   function cancelAll() {
     if (!saved) return;
-    if (dirty && !window.confirm("تغییرات ذخیره‌نشده از بین می‌رود. انصراف می‌دهید؟")) return;
+    if (dirty && !window.confirm(t("appearance.discardConfirm"))) return;
     setDraft({ ...saved });
     // بازگشت به مقدار ذخیره‌شده سرور — PUT اضافه لازم نیست (با DB یکسان است).
     set({ preset: saved.preset, mode: saved.mode, radius: saved.radius, density: saved.density, font: saved.font, accent: saved.accent, dir: saved.dir }, { persist: false });
-    toast("پیش‌نمایش لغو شد.");
+    toast(t("appearance.previewCancelled"));
   }
 
   if (loading || !draft || !saved) {
     return (
       <div>
-        <div className="page-head"><div><h1>قالب پنل مدیریت</h1><p>در حال بارگذاری…</p></div></div>
+        <div className="page-head"><div><h1>{t("appearance.title")}</h1><p>{t("appearance.loading")}</p></div></div>
         <Skeleton lines={5} />
       </div>
     );
@@ -195,9 +236,9 @@ export default function AppearancePage() {
   if (error) return <div><Alert tone="red">{error}</Alert></div>;
 
   const activeDir = DIRS.find((x) => x.id === draft.preset)!;
-  const bottomNavOptions = orderedBottomNavOptions(draftBottomNav);
+  const bottomNavOptions = orderedBottomNavOptions(draftBottomNav, navOptions);
   const selectedBottomNavItems = draftBottomNav.flatMap((path) => {
-    const item = BOTTOM_NAV_OPTIONS.find((option) => option.href === path);
+    const item = navOptions.find((option) => option.href === path);
     return item ? [{ ...item, id: item.href }] : [];
   });
   const availableBottomNavItems = bottomNavOptions.filter((item) => !draftBottomNav.includes(item.href));
@@ -218,7 +259,7 @@ export default function AppearancePage() {
             checked={selected}
             disabled={!selected && draftBottomNav.length >= 6}
             onChange={(event) => toggleBottomNav(item.href, event.target.checked)}
-            aria-label={`نمایش ${item.label} در نوار پایین موبایل`}
+            aria-label={t("appearance.showInBottomNav", { label: item.label })}
           />
           <span aria-hidden className="bn-icon">{item.icon}</span>
           <span>{item.label}</span>
@@ -226,13 +267,13 @@ export default function AppearancePage() {
         <span className="mobile-nav-path" dir="ltr">{item.href}</span>
         {selected ? (
           <div className="mobile-nav-order">
-            <span className="mobile-nav-position" aria-label={`ترتیب ${faNum(selectedIndex + 1)}`}>{faNum(selectedIndex + 1)}</span>
+            <span className="mobile-nav-position" aria-label={t("appearance.position", { n: faNum(selectedIndex + 1) })}>{faNum(selectedIndex + 1)}</span>
             <button
               type="button"
               className="icon-btn"
               disabled={selectedIndex === 0}
               onClick={moveUp ?? (() => moveBottomNav(item.href, -1))}
-              aria-label={`انتقال ${item.label} به بالا`}
+              aria-label={t("appearance.moveUp", { label: item.label })}
               style={{ minInlineSize: 44, minBlockSize: 44 }}
             >
               ↑
@@ -242,7 +283,7 @@ export default function AppearancePage() {
               className="icon-btn"
               disabled={selectedIndex === draftBottomNav.length - 1}
               onClick={moveDown ?? (() => moveBottomNav(item.href, 1))}
-              aria-label={`انتقال ${item.label} به پایین`}
+              aria-label={t("appearance.moveDown", { label: item.label })}
               style={{ minInlineSize: 44, minBlockSize: 44 }}
             >
               ↓
@@ -255,10 +296,10 @@ export default function AppearancePage() {
 
   return (
     <div>
-      <div className="page-head"><div><h1>قالب پنل مدیریت</h1><p>ظاهر خود پنل — انتخاب → پیش‌نمایش زنده → تأیید</p></div></div>
-      <Alert tone="blue">قالب فعال: <b>{DIRS.find((x) => x.id === saved.preset)?.name}</b> — ظاهر خود پنل است (نه سایت) و برای <b>همه مدیران</b> اعمال می‌شود.</Alert>
+      <div className="page-head"><div><h1>{t("appearance.title")}</h1><p>{t("appearance.subtitle")}</p></div></div>
+      <Alert tone="blue">{t("appearance.activePreset", { name: dirName(saved.preset) })}</Alert>
 
-      <div className="tgrid" role="radiogroup" aria-label="جهت بصری">
+      <div className="tgrid" role="radiogroup" aria-label={t("appearance.visualDirection")}>
         {DIRS.map((d) => {
           const isSaved = saved.preset === d.id;
           const isPrev = draft.preset === d.id && dirty;
@@ -278,19 +319,19 @@ export default function AppearancePage() {
                     <i style={{ flex: 1, blockSize: 26, borderRadius: 6, background: "var(--pv-card)", border: "1px solid var(--pv-line)" }} />
                   </div>
                 </div>
-                {isSaved ? <Badge tone="green">✔ فعال</Badge> : null}
-                {isPrev ? <Badge tone="amber">◉ پیش‌نمایش</Badge> : null}
+                {isSaved ? <Badge tone="green">{t("appearance.badgeActive")}</Badge> : null}
+                {isPrev ? <Badge tone="amber">{t("appearance.badgePreview")}</Badge> : null}
               </div>
               <div className="theme-meta">
-                <b>{d.name}</b>
-                <div className="card-sub">{d.desc}</div>
+                <b>{dirName(d.id)}</b>
+                <div className="card-sub">{dirDesc(d.id)}</div>
                 <div style={{ display: "flex", gap: 8, marginBlockStart: 8 }} onClick={(e) => e.stopPropagation()}>
                   {d.presets.map((p, i) => (
                     <button
                       key={p.accent}
                       type="button"
-                      title={p.label}
-                      aria-label={p.label}
+                      title={accentLabel(d.id, p.accent)}
+                      aria-label={accentLabel(d.id, p.accent)}
                       aria-pressed={draft.preset === d.id && draft.pi === i}
                       data-accent={p.accent}
                       onClick={() => mutate({ preset: d.id, pi: i })}
@@ -305,35 +346,35 @@ export default function AppearancePage() {
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">تنظیمات پیشرفته (اختیاری)</div>
+        <div className="card-title">{t("appearance.advanced")}</div>
         <div className="grid c3" style={{ marginBlockStart: 10 }}>
-          <div className="field"><label>شعاع گوشه‌ها</label>
-            <div className="seg">{([["sharp", "تیز"], ["default", "پیش‌فرض"], ["rounded", "گرد"]] as const).map(([v, l]) => (
+          <div className="field"><label>{t("appearance.radius")}</label>
+            <div className="seg">{([["sharp", t("appearance.radiusSharp")], ["default", t("appearance.radiusDefault")], ["rounded", t("appearance.radiusRounded")]] as const).map(([v, l]) => (
               <button key={v} className={draft.radius === v ? "on" : ""} onClick={() => mutate({ radius: v })}>{l}</button>
             ))}</div></div>
-          <div className="field"><label>تراکم</label>
-            <div className="seg">{([["compact", "فشرده"], ["comfortable", "متوسط"], ["loose", "باز"]] as const).map(([v, l]) => (
+          <div className="field"><label>{t("appearance.density")}</label>
+            <div className="seg">{([["compact", t("appearance.densityCompact")], ["comfortable", t("appearance.densityComfortable")], ["loose", t("appearance.densityLoose")]] as const).map(([v, l]) => (
               <button key={v} className={draft.density === v ? "on" : ""} onClick={() => mutate({ density: v })}>{l}</button>
             ))}</div></div>
-          <div className="field"><label>اندازه فونت</label>
-            <div className="seg">{([["sm", "کوچک"], ["md", "متوسط"], ["lg", "بزرگ"]] as const).map(([v, l]) => (
+          <div className="field"><label>{t("appearance.fontSize")}</label>
+            <div className="seg">{([["sm", t("appearance.fontSm")], ["md", t("appearance.fontMd")], ["lg", t("appearance.fontLg")]] as const).map(([v, l]) => (
               <button key={v} className={draft.font === v ? "on" : ""} onClick={() => mutate({ font: v })}>{l}</button>
             ))}</div></div>
         </div>
         <div className="seg" style={{ maxInlineSize: 220, marginBlockStart: 8 }}>
-          <button className={draft.mode === "light" ? "on" : ""} onClick={() => mutate({ mode: "light" })}>روشن</button>
-          <button className={draft.mode === "dark" ? "on" : ""} onClick={() => mutate({ mode: "dark" })}>تیره</button>
+          <button className={draft.mode === "light" ? "on" : ""} onClick={() => mutate({ mode: "light" })}>{t("appearance.light")}</button>
+          <button className={draft.mode === "dark" ? "on" : ""} onClick={() => mutate({ mode: "dark" })}>{t("appearance.dark")}</button>
         </div>
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
-        <div className="card-title">نوار پایین موبایل</div>
+        <div className="card-title">{t("appearance.bottomNav")}</div>
         <p className="card-sub" style={{ marginBlock: "6px 12px" }}>
-          تنظیمات موبایل — مسیرهای مجاز پنل را انتخاب و ترتیب نمایش آن‌ها را تعیین کنید.
+          {t("appearance.bottomNavHint")}
         </p>
-        <div className="mobile-nav-options" role="group" aria-label="مسیرهای مجاز نوار پایین موبایل">
+        <div className="mobile-nav-options" role="group" aria-label={t("appearance.bottomNavGroup")}>
           <p className="card-sub" style={{ margin: 0 }}>
-            آیتم‌های انتخاب‌شده را با ماوس یا لمس بکشید؛ دکمه‌های بالا/پایین نیز برای دسترس‌پذیری فعال هستند.
+            {t("appearance.bottomNavDragHint")}
           </p>
           {selectedBottomNavItems.length > 0 ? (
             <DragDropList
@@ -344,10 +385,10 @@ export default function AppearancePage() {
               }
             />
           ) : (
-            <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>هنوز آیتمی برای نوار پایین انتخاب نشده است.</p>
+            <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>{t("appearance.bottomNavEmpty")}</p>
           )}
           {availableBottomNavItems.length > 0 ? (
-            <div role="list" aria-label="آیتم‌های انتخاب‌نشده نوار پایین" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div role="list" aria-label={t("appearance.bottomNavUnselected")} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {availableBottomNavItems.map((item) => (
                 <div key={item.href} role="listitem">
                   {renderNavOption(item, -1)}
@@ -357,21 +398,21 @@ export default function AppearancePage() {
           ) : null}
         </div>
         <div className="mobile-nav-actions">
-          <span className="card-sub" role="status">{draftBottomNav.length} از ۶ آیتم انتخاب شده است.</span>
+          <span className="card-sub" role="status">{t("appearance.bottomNavCount", { n: draftBottomNav.length })}</span>
           <button
             type="button"
             className="btn btn-primary"
             disabled={!bottomNavDirty || savingBottomNav}
             onClick={() => void saveBottomNav()}
           >
-            {savingBottomNav ? "در حال ذخیره…" : "ذخیره نوار پایین"}
+            {savingBottomNav ? t("appearance.saving") : t("appearance.bottomNavSave")}
           </button>
         </div>
       </div>
 
       {dirty ? (
         <SaveBar
-          dirtyText={`${activeDir.name} — ${activeDir.presets[draft.pi]?.label ?? ""}`}
+          dirtyText={`${dirName(activeDir.id)} — ${accentLabel(activeDir.id, activeDir.presets[draft.pi]?.accent ?? "")}`}
           onCancel={cancelAll}
           onSave={() => void confirmAll()}
           onReset={() => mutate({ preset: "amaliyat", pi: 0, mode: "dark", radius: "sharp", density: "compact", font: "md" })}

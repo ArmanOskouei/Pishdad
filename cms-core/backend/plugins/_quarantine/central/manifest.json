@@ -1,0 +1,639 @@
+{
+  "name": "مرکز",
+  "slug": "central",
+  "version": "1.0.0",
+  "description": "پنل مرکزی: مدیریت مشتریان، اشتراک، فاکتور، چابکان، آپدیت و بازبینی.",
+  "author": "Pishdad",
+  "api": {
+    "prefix": "central",
+    "routes": [
+      {
+        "method": "get",
+        "path": "plans",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@index",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "plans",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@store",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "plans/{plan}",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@show",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "put",
+        "path": "plans/{plan}",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@update",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "delete",
+        "path": "plans/{plan}",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\PlanController@destroy",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "invoices",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\InvoiceController@index",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "invoices",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\InvoiceController@store",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "put",
+        "path": "invoices/{invoice}/status",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\InvoiceController@updateStatus",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "invoices/{invoice}/remind",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\InvoiceController@remind",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "payments",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\PaymentController@index",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "subscriptions/suspended",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\SubscriptionAdminController@suspended",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "subscriptions/{subscription}/suspend",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\SubscriptionAdminController@suspend",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "subscriptions/{subscription}/resume",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\SubscriptionAdminController@resume",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "subscriptions/{subscription}/delete",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\SubscriptionAdminController@destroy",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "gateway-settings",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\GatewaySettingsController@show",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "put",
+        "path": "gateway-settings",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\GatewaySettingsController@update",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "gateway-settings/test",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\GatewaySettingsController@test",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "clients",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@index",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@store",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "clients/{client}",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@show",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients/{client}/upgrade-tier",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@upgradeTier",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients/{client}/support-token",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@supportToken",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients/{client}/support-token/consume",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@consumeSupportToken",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients/{client}/suspend",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@suspend",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients/{client}/resume",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@resume",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients/{client}/delete",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@destroy",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "clients/{client}/backups",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@backups",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients/{client}/backup",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@backup",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "clients/{client}/restore",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ClientController@restore",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "dashboard/stats",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\CentralDashboardController@stats",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "dashboard/charts",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\CentralDashboardController@charts",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "dashboard/open-cases",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\CentralDashboardController@openCases",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "chabokan/wallet",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@wallet",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "chabokan/wallet/charge",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@charge",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "chabokan/services/provision",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@provision",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "chabokan/services",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@services",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "chabokan/services/{name}/start",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@start",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "chabokan/services/{name}/stop",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@stop",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "chabokan/services/{name}/restart",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@restart",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "chabokan/services/{name}/resize",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@resize",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "chabokan/deployments",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@deployments",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "chabokan/redeploy",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@redeploy",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "chabokan/reconciliation",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ChabokanController@reconciliation",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "tickets/{id}/reply",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorReplyController@store",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "monitoring/health",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\MonitoringController@health",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "monitoring/logs",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\MonitoringController@logs",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "monitoring/uptime",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\MonitoringController@uptime",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "updates",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\UpdateController@index",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "updates/rollouts/current",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\UpdateController@current",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "updates/rollouts/{rollout}/pause",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\UpdateController@pause",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "updates/rollouts/{rollout}/resume",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\UpdateController@resume",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "updates/rollout",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\UpdateController@rollout",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "updates/installs/{install}/rollback",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\UpdateController@rollback",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "review/queue",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ReviewController@queue",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "review/{type}/{id}/approve",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ReviewController@approve",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "review/{type}/{id}/reject",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\ReviewController@reject",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "operator/2fa/hardware/setup",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorController@hardwareSetup",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "operator/2fa/hardware",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorController@hardwareKeys",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "operator/2fa/hardware",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorController@registerHardwareKey",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "operator/setup-tokens",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorController@createSetupToken",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "operator/kill-switch",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorController@killSwitch",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
+        "path": "operator/activity",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorController@activity",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "post",
+        "path": "internal/heartbeat",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\HeartbeatController@store",
+        "middleware": [
+          "throttle:60,1"
+        ]
+      }
+    ]
+  },
+  "db": {
+    "tables": [
+      {
+        "name": "backups"
+      },
+      {
+        "name": "billing_events"
+      },
+      {
+        "name": "chabokan_deployments"
+      },
+      {
+        "name": "chabokan_logs"
+      },
+      {
+        "name": "clients"
+      },
+      {
+        "name": "core_versions"
+      },
+      {
+        "name": "install_heartbeats"
+      },
+      {
+        "name": "invoices"
+      },
+      {
+        "name": "kill_switches"
+      },
+      {
+        "name": "logs"
+      },
+      {
+        "name": "operator_activities"
+      },
+      {
+        "name": "operator_hardware_keys"
+      },
+      {
+        "name": "operator_setup_tokens"
+      },
+      {
+        "name": "payments"
+      },
+      {
+        "name": "plans"
+      },
+      {
+        "name": "subscriptions"
+      },
+      {
+        "name": "support_tokens"
+      },
+      {
+        "name": "update_rollout_items"
+      },
+      {
+        "name": "update_rollouts"
+      }
+    ]
+  }
+}

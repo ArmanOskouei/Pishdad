@@ -102,6 +102,131 @@ class ProfileTest extends TestCase
             ->assertJsonPath('data.totp.enabled', false);
     }
 
+    /**
+     * E9 — کدهای بازیابی: «نمایش یک‌بار» + «یک‌بارمصرف» از مسیرِ عمومی.
+     *
+     * این تست دو ویژگی امنیتی را قفل می‌کند:
+     *  ۱) بدنهٔ plaintext کدها فقط در پاسخِ فعال‌سازی برمی‌گردد؛ نه در
+     *     `/2fa/methods` و نه در `/profile`.
+     *  ۲) مصرفِ یک کد از مسیرِ لاگین، آن را حذف می‌کند (`remaining` از ۸ به ۷)
+     *     و تلاشِ دوباره با همان کد شکست می‌خورد.
+     */
+    public function test_recovery_codes_are_shown_once_and_single_use(): void
+    {
+        $user = $this->user();
+        $auth = $this->actingAs($user, 'sanctum');
+        $google2fa = new Google2FA;
+
+        $secret = $auth->postJson('/api/v1/admin/profile/2fa/enable')->assertOk()->json('data.secret');
+        $codes = $auth->postJson('/api/v1/admin/profile/2fa/enable', [
+            'code' => $google2fa->getCurrentOtp($secret),
+        ])->assertOk()->json('data.recovery_codes');
+        $this->assertCount(8, $codes);
+
+        // نمایشِ یک‌بار: هیچ endpoint دیگری نباید plaintext را لو بدهد.
+        $methods = $auth->getJson('/api/v1/admin/profile/2fa/methods')->assertOk();
+        $methods->assertJsonMissingPath('data.recovery_codes');
+        $methods->assertJsonPath('data.recovery_codes_remaining', 8);
+
+        $show = $auth->getJson('/api/v1/admin/profile')->assertOk();
+        $show->assertJsonMissingPath('data.recovery_codes');
+
+        foreach ($codes as $plain) {
+            $this->assertStringNotContainsString($plain, (string) $methods->getContent());
+            $this->assertStringNotContainsString($plain, (string) $show->getContent());
+        }
+
+        // مصرفِ یک‌باره از مسیر لاگین.
+        $challenge = $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email, 'password' => 'OldPass!123',
+        ])->assertOk()->json('challenge');
+
+        $this->postJson('/api/v1/auth/2fa/verify', [
+            'challenge' => $challenge, 'code' => $codes[0],
+        ])->assertOk()->assertJsonStructure(['token']);
+
+        // ⭐ مصرف واقعی روی DB ثبت شد: از ۸ به ۷.
+        //
+        // عمداً از `$user->fresh()` می‌خوانیم نه از توکنِ تازه: `actingAs` در
+        // تست بر هدرِ Bearer اولویت دارد و همان نمونهٔ درون‌حافظهٔ کهنهٔ کاربر
+        // را برمی‌گرداند — پس `/2fa/methods` مقدارِ قبل از مصرف را نشان می‌داد.
+        $this->assertCount(7, $user->fresh()->recovery_codes);
+
+        // همان کد دوباره باید رد شود.
+        $challenge2 = $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email, 'password' => 'OldPass!123',
+        ])->assertOk()->json('challenge');
+        $this->postJson('/api/v1/auth/2fa/verify', [
+            'challenge' => $challenge2, 'code' => $codes[0],
+        ])->assertStatus(401);
+    }
+
+    /**
+     * E9 — بازتولید کدهای بازیابی: نیازمند مدرک، ابطال قبلی، نمایش یک‌باره.
+     *
+     * هم مسیر تأیید با رمز عبور و هم مسیر تأیید با کد TOTP پوشش داده می‌شود؛
+     * سپس ثابت می‌شود کدِ مجموعهٔ قبلی از مسیر لاگین رد و کدِ مجموعهٔ آخر کار
+     * می‌کند (و همچنان یک‌بارمصرف است).
+     */
+    public function test_regenerate_recovery_codes_requires_proof_and_invalidates_old(): void
+    {
+        $user = $this->user();
+        $auth = $this->actingAs($user, 'sanctum');
+        $google2fa = new Google2FA;
+
+        $secret = $auth->postJson('/api/v1/admin/profile/2fa/enable')->assertOk()->json('data.secret');
+        $old = $auth->postJson('/api/v1/admin/profile/2fa/enable', [
+            'code' => $google2fa->getCurrentOtp($secret),
+        ])->assertOk()->json('data.recovery_codes');
+        $this->assertCount(8, $old);
+
+        // بدون مدرک معتبر رد می‌شود.
+        $auth->postJson('/api/v1/admin/profile/2fa/recovery-codes')->assertStatus(422);
+        $auth->postJson('/api/v1/admin/profile/2fa/recovery-codes', ['password' => 'Wrong!1234'])
+            ->assertStatus(422);
+
+        // مسیر تأیید با رمز عبور.
+        $viaPassword = $auth->postJson('/api/v1/admin/profile/2fa/recovery-codes', ['password' => 'OldPass!123'])
+            ->assertOk()
+            ->assertJsonPath('message', 'کدهای بازیابی بازتولید شد. کدهای قبلی دیگر معتبر نیستند.');
+        $new = $viaPassword->json('data.recovery_codes');
+        $this->assertCount(8, $new);
+        $this->assertEmpty(array_intersect($old, $new), 'کدهای تازه نباید با کدهای قبلی یکی باشند');
+
+        // مسیر تأیید با کد TOTP — و ابطال مجموعهٔ قبلی.
+        $latest = $auth->postJson('/api/v1/admin/profile/2fa/recovery-codes', [
+            'code' => $google2fa->getCurrentOtp($secret),
+        ])->assertOk()->json('data.recovery_codes');
+        $this->assertCount(8, $latest);
+        $this->assertEmpty(array_intersect($new, $latest));
+
+        // نمایش یک‌بار: plaintext در هیچ endpoint دیگری لو نمی‌رود.
+        $methods = $auth->getJson('/api/v1/admin/profile/2fa/methods')->assertOk()
+            ->assertJsonPath('data.recovery_codes_remaining', 8);
+        $show = $auth->getJson('/api/v1/admin/profile')->assertOk();
+        foreach ($latest as $plain) {
+            $this->assertStringNotContainsString($plain, (string) $methods->getContent());
+            $this->assertStringNotContainsString($plain, (string) $show->getContent());
+        }
+
+        // کدِ مجموعهٔ قبلی (new) از مسیر لاگین رد می‌شود.
+        $challenge = $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email, 'password' => 'OldPass!123',
+        ])->assertOk()->json('challenge');
+        $this->postJson('/api/v1/auth/2fa/verify', [
+            'challenge' => $challenge, 'code' => $new[0],
+        ])->assertStatus(401);
+
+        // و کدِ مجموعهٔ آخر کار می‌کند.
+        $challenge2 = $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email, 'password' => 'OldPass!123',
+        ])->assertOk()->json('challenge');
+        $this->postJson('/api/v1/auth/2fa/verify', [
+            'challenge' => $challenge2, 'code' => $latest[0],
+        ])->assertOk()->assertJsonStructure(['token']);
+        $this->assertCount(7, $user->fresh()->recovery_codes);
+    }
+
     public function test_sections_returns_empty_ready_registry(): void
     {
         $this->actingAs($this->user(), 'sanctum')

@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { BottomNav } from "./BottomNav";
-import type { MenuGroup } from "@/lib/menu";
+import { localizeMenuGroups, type MenuGroup } from "@/lib/menu";
+import { useLang } from "@/lib/i18n";
 import type { ProfileData } from "@/lib/domain";
 import { crumbsForPath } from "@/lib/crumbs";
 
@@ -25,10 +26,20 @@ export function Shell({
   profile?: ProfileData | null;
 }) {
   const pathname = usePathname();
+  const { t } = useLang();
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
-  const flat = groups.flatMap((g) => g.items);
-  const activeCrumbs = crumbsForPath(pathname, groups, crumbs);
+
+  // I1-b — ترجمه **اینجا** انجام می‌شود، نه در `Sidebar`/`Topbar`. دلیلش در
+  // `lib/menu.ts` نوشته شده: crumb از روی `label` ساخته می‌شود، پس ترجمهٔ
+  // پایین‌دستی، breadcrumb را فارسی رها می‌کرد.
+  const localized = useMemo(() => localizeMenuGroups(groups, t), [groups, t]);
+
+  // ریشهٔ breadcrumb هم یک رشتهٔ فارسیِ هاردکد بود (`admin/layout.tsx`). حالا
+  // layout ریشه را نمی‌فرستد و اینجا از دیکشنری ساخته می‌شود.
+  const rootCrumbs = crumbs.length > 0 ? crumbs : [t("shell.panel")];
+  const flat = localized.flatMap((g) => g.items);
+  const activeCrumbs = crumbsForPath(pathname, localized, rootCrumbs);
 
   useEffect(() => {
     setDrawer(false);
@@ -36,10 +47,10 @@ export function Shell({
 
   return (
     <div className={`app${collapsed ? " collapsed" : ""}${drawer ? " drawer-open" : ""}`}>
-      <Sidebar groups={groups} brand={brand} suspended={suspended} collapsed={collapsed} user={user} />
+      <Sidebar groups={localized} brand={brand} suspended={suspended} collapsed={collapsed} user={user} />
       <div className="main">
         <Topbar
-          crumbs={activeCrumbs} user={user} profile={profile}
+          crumbs={activeCrumbs} user={user} profile={profile} groups={localized}
           onMenu={() => {
             if (window.innerWidth <= DRAWER_BREAKPOINT) setDrawer((d) => !d);
             else setCollapsed((c) => !c);

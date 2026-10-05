@@ -2,7 +2,8 @@
 import { Alert, Badge, EmptyState, StatCard } from "@/components/ui/primitives";
 import { Pagination } from "@/components/ui/Pagination";
 import { faNum, jalali, relativeFa } from "@/lib/fa";
-import type { CentralLogItem, HealthRow, Paginator, UptimeRow } from "@/lib/domain";
+import { HealthRow, Paginator, UptimeRow } from "@/lib/domain";
+import type { CentralLogItem } from "../types.ts";
 
 const stateTone = (s: string) => (s === "online" ? "green" : s === "silent" ? "amber" : "red") as "green" | "amber" | "red";
 const STATE_FA: Record<string, string> = { online: "آنلاین", silent: "ساکت", never: "بدون heartbeat" };

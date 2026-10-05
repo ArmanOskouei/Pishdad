@@ -58,7 +58,11 @@ class AuthController extends Controller
             ]);
         }
 
-        return $this->tokenResponse($request, $user);
+        // F1.1.F — سوپرادمینِ نصب‌شده با نصب‌کننده هنوز 2FA ندارد؛ اولین ورود
+        // باید راه‌اندازی‌اش را اجبار کند (EnsureTwoFactorSetup + این پرچم).
+        $setupRequired = (bool) $user->is_super_admin && ! (bool) $user->google2fa_enabled;
+
+        return $this->tokenResponse($request, $user, $setupRequired);
     }
 
     public function verifyTwoFactor(Request $request): JsonResponse
@@ -202,7 +206,7 @@ class AuthController extends Controller
      * صدور توکن + ثبت فراداده نشست (مسئله ۲): IP و user-agent زمان لاگین
      * روی خود توکن ذخیره می‌شود تا GET profile/sessions نمایش دهد.
      */
-    private function tokenResponse(Request $request, User $user): JsonResponse
+    private function tokenResponse(Request $request, User $user, bool $setupRequired = false): JsonResponse
     {
         $issued = $user->createToken('نشست وب', ['auth']);
         $issued->accessToken->forceFill([
@@ -215,6 +219,7 @@ class AuthController extends Controller
             'token' => $token,
             'token_type' => 'Bearer',
             'two_factor_required' => false,
+            'two_factor_setup_required' => $setupRequired,
             'user' => $this->userPayload($user),
         ]);
 

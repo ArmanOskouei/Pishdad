@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Cache;
  */
 class SystemPlugin extends Model
 {
-    protected $fillable = ['slug', 'notes'];
+    protected $fillable = ['slug', 'publisher_key_fingerprint', 'notes'];
 
     protected static function booted(): void
     {
@@ -41,6 +41,30 @@ class SystemPlugin extends Model
     public static function allows(?string $slug): bool
     {
         return $slug !== null && in_array($slug, self::allowedSlugs(), true);
+    }
+
+    /**
+     * L-B3 — پین ناشر ثبت‌شده برای slug سیستمی، یا null اگر هنوز پین نشده.
+     *
+     * null یعنی «اولین آپلود امضاشده پین می‌کند» (TOFU) — نه «هر ناشری مجاز
+     * است». گارد کنترلر همین را enforce می‌کند.
+     */
+    public static function pinnedFingerprint(string $slug): ?string
+    {
+        $row = self::query()->where('slug', $slug)->first(['publisher_key_fingerprint']);
+
+        $fp = $row?->publisher_key_fingerprint;
+
+        return is_string($fp) && $fp !== '' ? $fp : null;
+    }
+
+    /** ثبت پین در اولین مشاهدهٔ ناشر معتبر (idempotent؛ پین موجود عوض نمی‌شود). */
+    public static function pinFingerprint(string $slug, string $fingerprint): void
+    {
+        self::query()->where('slug', $slug)->whereNull('publisher_key_fingerprint')->update([
+            'publisher_key_fingerprint' => substr($fingerprint, 0, 64),
+        ]);
+        self::flush();
     }
 
     /** allowlist را برای slugهای داده‌شده تضمین می‌کند (idempotent). */

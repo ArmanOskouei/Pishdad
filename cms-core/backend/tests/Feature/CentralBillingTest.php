@@ -86,51 +86,33 @@ class CentralBillingTest extends TestCase
         $auth->deleteJson("/api/v1/p/central/plans/{$planId}")->assertStatus(422);
     }
 
-    public function test_webhook_paid_marks_invoice_and_auto_resumes(): void
+    /**
+     * J10/E1/K1.7 — مسیر callback درگاه **حذف شده** (تصمیم: بدون پرداخت،
+     * صورتحساب دستی توسط مدیر مرکزی). این تست عمداً به‌جای تست رفتار
+     * گرفته شده: قبلاً دو تست «وب‌هوک paid» و «امضای بد» اینجا بودند و بعد
+     * از حذف مسیر، ۴۰۴ می‌گرفتند و قرمز می‌شدند — یعنی تست‌ها دارند وعدهٔ
+     * درگاهی می‌دهند که دیگر وجود ندارد.
+     *
+     * نگهبانِ لازم الان این است که مسیر **نمی‌آید**، نه اینکه چه پاسخی می‌دهد.
+     */
+    public function test_payment_webhook_route_is_gone(): void
     {
-        $op = $this->operator();
-        $client = $this->client();
-        $sub = Subscription::query()->create([
-            'client_id' => $client->id, 'site_id' => $client->site_id,
-            'status' => Subscription::SUSPENDED, 'suspended_at' => now()->subDay(),
-            'due_at' => now()->subDay(),
-        ]);
-        $client->forceFill(['status' => 'suspended'])->save();
+        $this->postJson('/api/webhooks/payment', ['ref' => 'X', 'status' => 'paid'])
+            ->assertNotFound();
 
-        $invoice = Invoice::query()->create([
-            'client_id' => $client->id, 'subscription_id' => $sub->id,
-            'amount' => 300000, 'status' => Invoice::PENDING,
-            'gateway_ref' => 'STUB-TEST-1',
-        ]);
+        $this->assertFalse(
+            collect(app('router')->getRoutes())->contains(
+                fn ($r) => str_contains((string) $r->uri(), 'webhooks/payment')
+            ),
+            'مسیر callback درگاه نباید دوباره ثبت شود؛ صورتحساب دستی است (J10).'
+        );
 
-        $res = $this->webhook('STUB-TEST-1', 'paid');
-
-        $res->assertOk()->assertJsonPath('data.status', 'paid');
-        $this->assertTrue($invoice->fresh()->isPaid());
-        $this->assertSame(Subscription::ACTIVE, $sub->fresh()->status);
-        $this->assertSame('active', $client->fresh()->status);
-        $this->assertDatabaseHas('central_payments', ['ref' => 'STUB-TEST-1', 'status' => 'paid']);
-        $this->assertDatabaseHas('central_billing_events', [
-            'subscription_id' => $sub->id, 'type' => 'resume',
-        ]);
-
-        // وب‌هوک تکراری (همان ref) idempotent است.
-        $again = $this->webhook('STUB-TEST-1', 'paid');
-        $again->assertOk()->assertJsonPath('message', 'این پرداخت قبلاً ثبت شده است.');
-        $this->assertSame(1, Payment::query()->where('ref', 'STUB-TEST-1')->count());
-
-        $this->actingAs($op, 'sanctum')->getJson('/api/v1/p/central/payments')
-            ->assertOk()->assertJsonPath('data.total', 1);
-    }
-
-    public function test_webhook_rejects_bad_signature(): void
-    {
-        $body = json_encode(['ref' => 'X', 'status' => 'paid']);
-
-        $this->call('POST', '/api/webhooks/payment', [], [], [],
-            ['CONTENT_TYPE' => 'application/json', 'HTTP_X_SIGNATURE' => 'wrong'],
-            $body
-        )->assertStatus(401)->assertJsonPath('message', 'امضای وب‌هوک معتبر نیست.');
+        // `class_exists` با کلاس ناموجود، autoloader کامپوزر را به فایل حذف‌شده
+        // می‌کشاند و ErrorException می‌دهد ⇒ وجود فایل بررسی می‌شود نه کلاس.
+        $this->assertFileDoesNotExist(
+            app_path('Http/Controllers/Api/Webhooks/PaymentWebhookController.php'),
+            'کنترلر callback درگاه باید حذف‌شده بماند.'
+        );
     }
 
     public function test_central_invoice_status_change_resumes_suspended(): void
@@ -231,7 +213,7 @@ class CentralBillingTest extends TestCase
         $auth = $this->actingAs($op, 'sanctum');
 
         $auth->putJson('/api/v1/p/central/gateway-settings', [
-            'driver' => 'zarinpal-stub',
+            'driver' => 'zarinpal',
             'merchant_id' => 'SECRET-123456',
             'sandbox' => true,
         ])->assertOk()->assertJsonPath('message', 'تنظیمات درگاه ذخیره شد.');

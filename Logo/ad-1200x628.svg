@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="628" viewBox="0 0 1200 628">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#141B33"/>
+      <stop offset="55%" stop-color="#0E1323"/>
+      <stop offset="100%" stop-color="#0A0D18"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E7C069"/>
+      <stop offset="100%" stop-color="#C98A2B"/>
+    </linearGradient>
+    <pattern id="geo" width="56" height="56" patternUnits="userSpaceOnUse">
+      <path d="M28 0 L56 28 L28 56 L0 28 Z" fill="none" stroke="#E7C069" stroke-width="1"/>
+      <circle cx="28" cy="28" r="2.5" fill="#E7C069"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="628" fill="url(#bg)"/>
+  <rect width="1200" height="628" fill="url(#geo)" opacity="0.045"/>
+
+  <g transform="translate(72,58)">
+    <text x="0" y="46" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="52" font-weight="700" fill="#FAF7EF" letter-spacing="-0.5">Pishdad</text>
+    <rect x="1" y="62" width="182" height="3" fill="url(#gold)"/>
+    <text x="0" y="94" font-family="Consolas, Menlo, monospace" font-size="17" fill="#8E9AB8">Laravel 11 + Next.js 15</text>
+  </g>
+
+  <g transform="translate(72,232)" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <text x="0" y="60" font-size="62" font-weight="700" fill="#FAF7EF">Write a manifest.</text>
+    <text x="0" y="128" font-size="62" font-weight="700" fill="url(#gold)">Ship a feature.</text>
+  </g>
+
+  <g transform="translate(72,410)" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <text x="0" y="28" font-size="23" fill="#B7C0D6">Your plugin declares permissions, widgets and page types in</text>
+    <text x="0" y="60" font-size="23" fill="#B7C0D6"><tspan font-family="Consolas, Menlo, monospace" fill="#E7C069">manifest.json</tspan>. The core wires the routes, the settings form</text>
+    <text x="0" y="92" font-size="23" fill="#B7C0D6">and the role matrix. No boilerplate, no core edits.</text>
+  </g>
+
+  <g transform="translate(72,548)" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="19">
+    <text x="0" y="2" fill="#FAF7EF">Ed25519-signed plugins</text>
+    <text x="232" y="2" fill="#FAF7EF">MIT · self-hosted</text>
+    <text x="452" y="2" fill="#FAF7EF">135 typed endpoints</text>
+    <text x="700" y="2" fill="#FAF7EF">489 tests</text>
+  </g>
+
+  <g transform="translate(946,196)">
+    <circle cx="130" cy="130" r="128" fill="none" stroke="#E7C069" stroke-width="1" opacity="0.35"/>
+    <circle cx="130" cy="130" r="112" fill="none" stroke="#E7C069" stroke-width="1" opacity="0.22"/>
+    <circle cx="130" cy="130" r="72" fill="#111830"/>
+    <text x="130" y="168" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="104" font-weight="700" fill="url(#gold)" text-anchor="middle">P</text>
+  </g>
+</svg>

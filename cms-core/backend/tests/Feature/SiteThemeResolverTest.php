@@ -153,6 +153,53 @@ class SiteThemeResolverTest extends TestCase
         $this->assertSame('#123456', $tokens['--theme-primary'], 'نقشِ مجازِ همان‌جا باید بماند.');
     }
 
+    // ------------------------------------------------------------------
+    // ECO1 — اسلاگِ فعالِ قالب (انتخابِ کامپوننتِ فرانت)
+    // ------------------------------------------------------------------
+
+    /** بدون هیچ انتخابی باید قالبِ پیش‌فرض برگردد، نه `null` (صفحهٔ سفید). */
+    public function test_active_slug_falls_back_when_there_is_no_selection(): void
+    {
+        $this->assertSame(
+            SiteThemeResolver::FALLBACK_THEME,
+            SiteThemeResolver::activeSlug(),
+        );
+    }
+
+    /** ⭐ `Q4` — انتخابِ سراسریِ نصب، منبعِ اولِ اسلاگِ فعال است. */
+    public function test_active_slug_follows_the_global_selection(): void
+    {
+        SiteThemeResolver::select(SiteThemeResolver::GLOBAL_OWNER, 'commerce', 'rose', 'dark');
+
+        $this->assertSame('commerce', SiteThemeResolver::activeSlug());
+    }
+
+    /**
+     * placeholderِ `default` (بی‌توکن، تسک ۴.۲) نباید هرگز «فعال» به‌نظر
+     * برسد — وگرنه سایت بی‌رنگ می‌شود.
+     */
+    public function test_active_slug_ignores_the_default_placeholder(): void
+    {
+        DB::table('themes')->update(['active' => false]);
+
+        if (DB::table('themes')->where('slug', 'default')->doesntExist()) {
+            DB::table('themes')->insert(['name' => 'placeholder', 'slug' => 'default', 'active' => true]);
+        } else {
+            DB::table('themes')->where('slug', 'default')->update(['active' => true]);
+        }
+
+        $this->assertSame(SiteThemeResolver::FALLBACK_THEME, SiteThemeResolver::activeSlug());
+    }
+
+    /** مسیرِ قدیمیِ ZIP: وقتی انتخابِ سه‌قالبه‌ای نیست، `themes.active` معتبر است. */
+    public function test_active_slug_uses_the_legacy_active_theme_when_no_selection(): void
+    {
+        DB::table('themes')->update(['active' => false]);
+        DB::table('themes')->insert(['name' => 'قالب من', 'slug' => 'mine-zip', 'active' => true]);
+
+        $this->assertSame('mine-zip', SiteThemeResolver::activeSlug());
+    }
+
     /**
      * ⭐ `;` می‌تواند یک declaration تازه بسازد و `url()` می‌تواند از مرورگر
      * کاربر درخواست بدهد. هر دو باید رد شوند.

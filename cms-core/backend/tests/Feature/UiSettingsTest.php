@@ -37,6 +37,7 @@ class UiSettingsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.dir', 'rtl')
             ->assertJsonPath('data.preset', 'amaliyat')
+            ->assertJsonPath('data.accent', 'indigo')
             ->assertJsonPath('data.mode', 'dark')
             ->assertJsonPath('data.bottom_nav', UiSettingsController::BOTTOM_NAV_DEFAULTS);
     }
@@ -48,6 +49,7 @@ class UiSettingsTest extends TestCase
         $payload = [
             'dir' => 'rtl',
             'preset' => 'sahar',
+            'accent' => 'rose',
             'mode' => 'light',
             'radius' => 'rounded',
             'density' => 'loose',
@@ -61,7 +63,19 @@ class UiSettingsTest extends TestCase
             ->assertJsonPath('data', $payload);
 
         $this->assertDatabaseHas('settings', ['group' => 'ui', 'key' => 'global']);
-        $this->getJson('/api/v1/ui-settings')->assertJsonPath('data.preset', 'sahar');
+        // رنگِ انتخابی باید در رفرش باقی بماند — این کلِ باگِ «رنگ اعمال نمی‌شود» بود.
+        $this->getJson('/api/v1/ui-settings')
+            ->assertJsonPath('data.preset', 'sahar')
+            ->assertJsonPath('data.accent', 'rose');
+    }
+
+    public function test_accent_must_be_a_known_colour(): void
+    {
+        Sanctum::actingAs($this->makeUser('accent@example.com'));
+
+        $this->putJson('/api/v1/ui-settings', ['accent' => 'rainbow'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('accent');
     }
 
     public function test_update_stores_valid_bottom_nav_globally(): void

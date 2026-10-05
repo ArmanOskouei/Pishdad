@@ -1,5 +1,6 @@
 import { serverApi, apiQs } from "@/lib/server-api";
-import { asPaginator, type CentralClient } from "@/lib/domain";
+import { asPaginator } from "@/lib/domain";
+import type { CentralClient } from "../types.ts";
 import { Alert } from "@/components/ui/primitives";
 import { Pagination } from "@/components/ui/Pagination";
 import { ClientsTable } from "./ClientsTable";

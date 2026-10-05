@@ -34,6 +34,13 @@ class Plugin extends Model
     public const REVIEW_UNVERIFIED = 'unverified';
 
     /**
+     * K0.8 — سقف پلاگین فعال (تصمیم محصول: ۲۰).
+     * فقط پلاگین‌های غیرسیستمی شمرده می‌شوند؛ مرکزی/سیستمی همیشه جا دارد.
+     * دلیل عددی: بودجهٔ تجمیعی opcache (K5.10) — ۲۰ × ۵۰۰۰ فایل سقفِ امن است.
+     */
+    public const MAX_ACTIVE_PLUGINS = 20;
+
+    /**
      * هر تغییر در مجموعه پلاگین‌های فعال کش مانیفست را باطل می‌کند.
      *
      * بدون این، پلاگینی که همین حالا فعال شده تا پایان TTL در
@@ -55,7 +62,7 @@ class Plugin extends Model
     }
 
     protected $fillable = [
-        'user_id', 'name', 'slug', 'version', 'previous_version',
+        'user_id', 'name', 'description', 'slug', 'version', 'previous_version',
         'active', 'system',
         'source', 'publisher_key_id', 'publisher_verified',
         'content_digest', 'digest_verified_at',

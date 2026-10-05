@@ -3,14 +3,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authed } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
-import { Alert, Badge, Skeleton } from "@/components/ui/primitives";
+import { Badge, Skeleton } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/Overlays";
 import { ConfirmStepper } from "@/components/ui/ConfirmStepper";
 import { SchemaForm } from "@/components/ui/SchemaForm";
 import { DragDropList } from "@/components/ui/DragDropList";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { faNum, jalali } from "@/lib/fa";
-import { safeHtml } from "@/components/site/BlockRenderer";
+import { BlockRenderer } from "@/components/site/BlockRenderer";
+import { withResolvedMedia } from "@/lib/block-preview";
 import { mediaUrl, asList, type BlockDef, type BlockValue, type PageItem, type Revision, type SideName, type SidePreset } from "@/lib/domain";
 
 type Row = BlockValue & { _key: string };
@@ -310,7 +311,7 @@ export function PageEditor({
                           <button className="icon-btn" title="حذف" onClick={(e) => { e.stopPropagation(); setBlocks((p) => p.filter((x) => x._key !== b._key)); if (selected === b._key) setSelected(null); markDirty(); }}>✕</button>
                         </span>
                       </div>
-                      <div className="block-body"><BlockPreview row={b} mediaCache={mediaCache} /></div>
+                      <div className="block-body"><BlockPreview row={b} mediaCache={mediaCache} schema={def?.schema} /></div>
                       {isSel && def ? (
                         <div className="block-settings" onClick={(e) => e.stopPropagation()}>
                           <div className="card-title" style={{ marginBlockEnd: 8 }}>تنظیمات: {def.title}</div>
@@ -451,7 +452,7 @@ export function PageEditor({
           <div style={{ maxBlockSize: "60vh", overflowY: "auto" }}>
             {blocks.length === 0 ? <Skeleton lines={3} /> : blocks.map((b) => (
               <div key={b._key} style={{ marginBlockEnd: 14 }}>
-                <BlockPreview row={b} mediaCache={mediaCache} />
+                <BlockPreview row={b} mediaCache={mediaCache} schema={defOf(b.type)?.schema} />
               </div>
             ))}
           </div>
@@ -479,100 +480,40 @@ export function PageEditor({
   );
 }
 
-function BlockPreview({ row, mediaCache }: { row: Row; mediaCache: Record<number, string> }) {
-  const d = row.data ?? {};
-  if (row.type === "hero") {
-    return (
-      <div>
-        <h2 style={{ margin: 0 }}>{String(d.title ?? "")}</h2>
-        {d.subtitle ? <p style={{ color: "var(--text-muted)" }}>{String(d.subtitle)}</p> : null}
-        {typeof d.image_id === "number" && mediaCache[d.image_id] ? <img src={mediaCache[d.image_id]} alt="" style={{ inlineSize: "100%", borderRadius: 8 }} /> : null}
-      </div>
-    );
-  }
-  if (row.type === "text") {
-    const body = typeof d.body === "string" ? d.body : "";
-    if (!body) return <p style={{ color: "var(--text-muted)" }}>متن خالی است.</p>;
-    // محتوای Jodit حاوی HTML است — مثل سایت عمومی sanitize و رندر می‌شود.
-    return <div dangerouslySetInnerHTML={{ __html: safeHtml(body) }} style={{ lineHeight: 2 }} />;
-  }
-  if (row.type === "image") {
-    const id = typeof d.media_id === "number" ? d.media_id : 0;
-    return (
-      <figure style={{ margin: 0 }}>
-        {mediaCache[id] ? <img src={mediaCache[id]} alt={String(d.alt ?? "")} style={{ inlineSize: "100%", borderRadius: 8 }} /> : <div className="empty">تصویر #{faNum(id)}</div>}
-        {d.caption ? <figcaption style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{String(d.caption)}</figcaption> : null}
-      </figure>
-    );
-  }
-  if (row.type === "cta") {
-    return <span className="btn btn-primary">{String(d.label ?? "دکمه")}</span>;
-  }
-  if (row.type === "gallery") {
-    const ids = Array.isArray(d.media_ids) ? (d.media_ids as number[]) : [];
-    return (
-      <div className="mgrid">
-        {ids.map((id) => mediaCache[id]
-          ? <img key={id} src={mediaCache[id]} alt="" style={{ inlineSize: "100%", blockSize: 90, objectFit: "cover", borderRadius: 8 }} />
-          : <div key={id} className="empty">#{faNum(id)}</div>)}
-      </div>
-    );
-  }
-  if (row.type === "quote") {
-    const text = String(d.text ?? d.quote ?? d.body ?? "");
-    if (!text) return <div className="empty">نقل‌قول خالی — برای تنظیم انتخابش کن.</div>;
-    return (
-      <blockquote style={{ borderInlineStart: "3px solid var(--primary)", paddingInlineStart: 12, margin: 0 }}>
-        {text}
-        {d.author ? <footer style={{ fontSize: 12.5, color: "var(--text-muted)" }}>— {String(d.author)}</footer> : null}
-      </blockquote>
-    );
-  }
-  if (row.type === "video") {
-    const url = String(d.url ?? d.src ?? "");
-    if (!url) return <div className="empty">آدرس ویدیو ثبت نشده.</div>;
-    return (
-      <div>
-        {/\.mp4($|\?|#)/i.test(url)
-          ? <video src={url} controls style={{ inlineSize: "100%", borderRadius: 8 }} />
-          : <div className="empty">▶ کارت-لینک ویدیو: <span dir="ltr">{url.slice(0, 60)}</span></div>}
-        {d.caption ? <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBlock: "6px 0" }}>{String(d.caption)}</p> : null}
-      </div>
-    );
-  }
-  if (row.type === "faq") {
-    const items = Array.isArray(d.items) ? (d.items as Array<Record<string, unknown>>) : [];
-    const rows = items
-      .map((it) => ({ q: String(it.q ?? ""), a: String(it.a ?? "") }))
-      .filter((r) => r.q && r.a)
-      .slice(0, 20);
-    if (rows.length === 0) return <div className="empty">سؤالی ثبت نشده — برای تنظیم انتخابش کن.</div>;
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {rows.slice(0, 3).map((r, i) => (
-          <details key={i} className="site-faq-item" open={i === 0}>
-            <summary>{r.q}</summary>
-            <div className="site-faq-answer">{r.a.length > 140 ? `${r.a.slice(0, 140)}…` : r.a}</div>
-          </details>
-        ))}
-        {rows.length > 3 ? (
-          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>…و {rows.length - 3} سؤال دیگر (در سایت کامل نمایش داده می‌شود).</p>
-        ) : null}
-      </div>
-    );
-  }
-  if (row.type === "contact-form" || row.type === "contact") {
-    return (
-      <div>
-        <b style={{ fontSize: 13.5 }}>{String(d.title ?? "فرم تماس")}</b>
-        <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBlock: "4px 0" }}>
-          فرم نام{d.show_phone !== false ? "/تلفن" : ""}/متن → ثبت تیکت
-          {d.email ? <span> — مقصد: <span dir="ltr">{String(d.email)}</span></span> : null}
-        </p>
-      </div>
-    );
-  }
-  return <Alert tone="blue">بلوک {row.type}</Alert>;
+/**
+ * K6.13 — پیش‌نمایش زندهٔ تک‌بلوک با **همان** `BlockRenderer` سایت عمومی.
+ *
+ * چرا امروز این‌طور است و قبلاً نبود:
+ *  - قبل از این، ادیتور فقط `SchemaForm` را نشان می‌داد و `BlockRenderer` را
+ *    هرگز صدا نمی‌زد؛ پارامتر `diagnostics` هم بی‌مصرف مانده بود. یعنی ادمین
+ *    **فرم** می‌دید نه **نتیجه**، و بلوکِ افزونه پیش از انتشار دیده نمی‌شد.
+ *  - الان یکی‌سازی شد: WYSIWYG به‌معنای واقعی. هر الگویی که `BlockRenderer`
+ *    رندر می‌کند، این‌جا هم دیده می‌شود — بدون `build`، بدون اجرای JS افزونه.
+ *  - `diagnostics` روشن است تا بلوکِ رندر‌نشده در ادیتور به‌جای سکوت، اعلان
+ *    بدهد (همان هدفی که کامنتِ پارامتر در `BlockRenderer` نوشته بود).
+ *
+ * نگاشتِ `media_id`→`url` این‌جا انجام می‌شود چون دادهٔ ادیتور خام است و
+ * نشانیِ resolve‌شده فقط در `mediaCache` نشسته (بک‌اند در مسیر عمومی خودش
+ * `url` را تزریق می‌کند).
+ */
+function BlockPreview({
+  row,
+  mediaCache,
+  schema,
+}: {
+  row: Row;
+  mediaCache: Record<number, string>;
+  schema?: BlockDef["schema"];
+}) {
+  const data = withResolvedMedia(row.data ?? {}, mediaCache);
+  const schemas = schema ? { [row.type]: schema } : undefined;
+  return (
+    <BlockRenderer
+      blocks={[{ type: row.type, data }]}
+      schemas={schemas}
+      diagnostics
+    />
+  );
 }
 
 /* ── ستون‌های کناری: تب راست/چپ + فعال‌ساز + انتخاب پریست ── */

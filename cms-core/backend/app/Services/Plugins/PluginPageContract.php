@@ -30,8 +30,8 @@ namespace App\Services\Plugins;
  * کد لازم می‌شود. اینجا `type` فقط از `config('blocks')` انتخاب می‌شود؛ پوسته
  * دادهٔ اعلانی را تفسیر می‌کند و هیچ کدی از افزونه در مرورگر اجرا نمی‌شود.
  *
- * @see \App\Services\Plugins\PluginDbContract — هم‌شکل برای `db`
- * @see \App\Services\Plugins\PluginPackageContract — واژگان و الگوهای فیلد
+ * @see PluginDbContract — هم‌شکل برای `db`
+ * @see PluginPackageContract — واژگان و الگوهای فیلد
  */
 final class PluginPageContract
 {
@@ -114,6 +114,7 @@ final class PluginPageContract
                     'کلید صفحه «'.(is_string($key) ? $key : '(عدد)').'» معتبر نیست: باید با حرف یا رقم کوچک انگلیسی شروع شود و بعد فقط a-z، 0-9، نقطه، خط تیره و زیرخل بماند (۱ تا ۴۰ نویسه).',
                     $where
                 );
+
                 continue;
             }
 
@@ -123,6 +124,7 @@ final class PluginPageContract
                     'تعریف صفحهٔ «'.$key.'» باید آبجکت باشد.',
                     $where
                 );
+
                 continue;
             }
 
@@ -259,6 +261,7 @@ final class PluginPageContract
 
             if (! is_array($block) || array_is_list($block)) {
                 $issues[] = self::issue('blocks.entry_not_object', 'هر عضو «'.$where.'» باید آبجکت باشد.', $at);
+
                 continue;
             }
 

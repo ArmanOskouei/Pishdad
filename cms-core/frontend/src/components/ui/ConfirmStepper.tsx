@@ -1,10 +1,17 @@
 "use client";
 import { useState } from "react";
 import { Modal } from "./Overlays";
+import { Stepper, type StepState } from "./primitives";
 
 /**
  * تأیید دومرحله‌ای عملیات مخرب: مرحله ۱ بازبینی (+ تایپ عبارت اختیاری)،
  * مرحله ۲ اجرای async با وضعیت پیشرفت/نتیجه. دکمه‌ها تا پایان قفل‌اند.
+ *
+ * F0-B6 — وضعیتِ هر مرحله از `phase` مشتق می‌شود، نه از یک شمارندهٔ موازی. دلیلش
+ * این است که قبلاً فقط `now`/`done` رنگ می‌شدند: در فاز `error` هر دو مرحله
+ * «انجام‌شده/در حال انجام» به نظر می‌رسیدند، در حالی که واقعاً مرحلهٔ اجرا
+ * **شکست خورده** بود. یک منبعِ حقیقت (`phase`) یعنی این حالت‌ها هرگز از هم
+ * جدا نمی‌افتند.
  */
 export function ConfirmStepper({
   open, title, description, steps = ["بازبینی", "اجرا"],
@@ -27,6 +34,28 @@ export function ConfirmStepper({
   if (!open) return null;
   const canGo = !requirePhrase || phrase.trim() === requirePhrase;
 
+  /**
+   * `doing` در مرحلهٔ ۱ یعنی «بازبینی تمام شد» و در مرحلهٔ ۲ یعنی «اجرا تمام
+   * شد» — پس `current` دو حالت دارد و این تنها جایی است که باید صریح باشد.
+   *
+   * وضعیتِ هر مرحله **مشتق** است: یک جدولِ کوچک به‌جای شمارندهٔ موازی. اگر
+   * `current` و رنگ جدا نگه داشته شوند، در فاز `error` دوباره ناهماهنگ می‌شوند.
+   */
+  const finished = phase === "done";
+  const failed = phase === "error";
+  const current = phase === "review" || finished || failed ? 0 : 1;
+  const states: StepState[] = steps.map((_, i): StepState => {
+    if (i < current) return "done";
+    if (i > current) return "locked";
+    // i === current
+    if (finished) return "done";
+    if (failed) return "failed";
+    if (phase === "doing") return "now";
+    // فاز بازبینی: مرحلهٔ اول `now`، ولی اگر عبارتِ تأیید هنوز درست نیست
+    // قفل است — کاربر می‌بیند که تا کامل نکردن، راهِ جلو بسته است.
+    return canGo ? "now" : "locked";
+  });
+
   const run = async () => {
     setPhase("doing");
     try {
@@ -46,19 +75,7 @@ export function ConfirmStepper({
 
   return (
     <Modal title={title} onClose={close}>
-      <div className="stepper" aria-label="مراحل تأیید">
-        {steps.map((s, i) => {
-          const cur = phase === "review" ? 0 : 1;
-          return (
-            <span key={s} style={{ display: "contents" }}>
-              <span className={`step ${i === cur ? "now" : ""} ${i < cur ? "done" : ""}`}>
-                <span className="n">{i < cur ? "✓" : i + 1}</span>{s}
-              </span>
-              {i < steps.length - 1 ? <span className="step-line" /> : null}
-            </span>
-          );
-        })}
-      </div>
+      <Stepper steps={steps} current={current} states={states} />
       {phase === "review" ? (
         <>
           <p style={{ fontSize: 13.5, color: "var(--text-muted)" }}>{description}</p>

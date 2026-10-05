@@ -23,3 +23,44 @@ services:
     command: npm run dev
     # extra_hosts:
     #   - "host.docker.internal:host-gateway"
+
+  # J3 — بیلد مشتری بدون `(central)`: docker compose --profile client up web-front-client
+  # J3 — «فقط مشتری» یعنی بدون پوشهٔ `(central)` در **لایهٔ ایمیج**:
+  # `docker compose --profile client up web-front-client` (پورت ۳۱۰۱).
+  #
+  # `target: client` یعنی مرحله‌ای که `COPY --exclude='src/app/(central)'` دارد. یعنی
+  # ۲۱۴۷ خط TSXِ مرکزی نه فقط از باندل، که از روی دیسکِ مشتری هم بیرون است.
+  #
+  # ⚠️ پرچمِ runtime جدا از build-arg است و عمداً: اگر کسی `target` را عوض کند،
+  # پاسخِ `/central` باز هم توضیح می‌دهد «عمداً نیست» به‌جای یک ۴۰۴ِ مبهم.
+  web-front-client:
+    build:
+      context: .
+      target: client
+    container_name: cms-web-front-client
+    restart: unless-stopped
+    profiles: ["client"]
+    ports:
+      - "3101:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api
+      INTERNAL_API_URL: http://host.docker.internal:8080/api
+      PORT: 3000
+      CMS_CLIENT_ONLY_BUILD: "1"
+
+  # J3 — بیلدِ مرکزی (با پنل): `docker compose --profile central up web-front-central`
+  # (پورت ۳۱۰۲).
+  web-front-central:
+    build:
+      context: .
+      target: central
+    container_name: cms-web-front-central
+    restart: unless-stopped
+    profiles: ["central"]
+    ports:
+      - "3102:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api
+      INTERNAL_API_URL: http://host.docker.internal:8080/api
+      PORT: 3000
+      CMS_CLIENT_ONLY_BUILD: "0"

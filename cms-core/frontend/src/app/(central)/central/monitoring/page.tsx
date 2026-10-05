@@ -1,5 +1,6 @@
 import { serverApi } from "@/lib/server-api";
-import { asPaginator, type CentralLogItem, type HealthRow, type UptimeRow } from "@/lib/domain";
+import { asPaginator, type HealthRow, type UptimeRow } from "@/lib/domain";
+import type { CentralLogItem } from "../types.ts";
 import { Alert } from "@/components/ui/primitives";
 import { MonitoringClient } from "./MonitoringClient";
 

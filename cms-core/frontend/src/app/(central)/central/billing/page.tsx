@@ -1,5 +1,6 @@
 import { serverApi, serverOne, apiQs } from "@/lib/server-api";
-import { asPaginator, type CentralClient, type GatewaySettings, type Invoice, type Payment, type Plan, type SuspendedSub } from "@/lib/domain";
+import { asPaginator, type GatewaySettings, type Invoice, type Payment, type Plan, type SuspendedSub } from "@/lib/domain";
+import type { CentralClient } from "../types.ts";
 import { Alert } from "@/components/ui/primitives";
 import { Pagination } from "@/components/ui/Pagination";
 import { Tabs } from "@/components/ui/Tabs";

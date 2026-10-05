@@ -60,18 +60,26 @@ class PluginCoreTicketAccessTest extends TestCase
         // ⚠️ ریشه اینجا عمداً یک پوشهٔ **خالی** در temp است، نه
         // `plugins/central/Laravel/src`. تست می‌خواهد ثابت کند بارگذار
         // namespace را ثبت می‌کند و کلاسِ `App\Models` هنوز در دسترس است —
-        // پس به کدِ افزونه نیازی ندارد، و مسیرِ واقعی فقط آن را به تستِ
+        // پس به کدِ افزونه نیازی ندارد، و مسیرِ واقعی فقط آن را به تست
         // وابسته می‌کرد.
-        $root = sys_get_temp_dir().'/plugin-central';
-        if (! is_dir($root)) {
-            mkdir($root, 0o777, true);
-        }
+        //
+        // J11 — ولی اگر `TestCase` از قبل بستهٔ قرنطینه‌شده را ثبت کرده باشد
+        // (این تست به `HardwareKey` واقعی نیاز دارد)، ثبت با پوشهٔ خالی قبلی را
+        // **بازنویسی** می‌کرد و کلاس پیدا نمی‌شد. پس فقط وقتی چیزی ثبت نشده.
+        $loader = app(PluginAutoloader::class);
 
-        app(PluginAutoloader::class)->register(
-            'central',
-            $root,
-            PluginAutoloader::NAMESPACE_ROOT.Str::studly('central').'\\',
-        );
+        if (! $loader->isRegistered('central')) {
+            $root = sys_get_temp_dir().'/plugin-central';
+            if (! is_dir($root)) {
+                mkdir($root, 0o777, true);
+            }
+
+            $loader->register(
+                'central',
+                $root,
+                PluginAutoloader::NAMESPACE_ROOT.Str::studly('central').'\\',
+            );
+        }
 
         return $p;
     }

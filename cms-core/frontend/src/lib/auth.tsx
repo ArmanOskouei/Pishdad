@@ -8,6 +8,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, isChallenge, type LoginResult, type User } from "@/lib/api";
+import { LOGIN_PATH } from "@/lib/login-path";
 import { useTheme } from "@/lib/theme";
 
 type Ctx = {
@@ -107,7 +108,7 @@ export class ApiError extends Error {
 export async function authedForm<T>(path: string, form: FormData, method = "POST"): Promise<T> {
   const res = await fetch(`/api/proxy${path}`, { method, body: form, cache: "no-store" });
   const json = await res.json().catch(() => ({}));
-  if (res.status === 401) { window.location.href = "/login"; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
+  if (res.status === 401) { window.location.href = LOGIN_PATH; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
   // بدنهٔ کامل نگه داشته می‌شود: اعتبارسنجی پلاگین جزئیات ساختاریافته در
   // بدنهٔ خطا برمی‌گرداند و UI باید بتواند آن را رندر کند، نه فقط پیام را.
   if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
@@ -135,7 +136,7 @@ export async function authedEnvelope<T>(path: string, init?: { method?: string; 
     cache: "no-store",
   });
   const json = await res.json().catch(() => ({}));
-  if (res.status === 401) { window.location.href = "/login"; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
+  if (res.status === 401) { window.location.href = LOGIN_PATH; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
   if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
   return {
     data: (json?.data ?? json) as T,
@@ -157,7 +158,7 @@ export async function authed<T>(path: string, init?: { method?: string; body?: u
   // B7: هر دو مسیر `ApiError` می‌دهند و هر دو ۴۰۱ را `ApiError` با status 401.
   // پیام و `instanceof Error` تغییر نمی‌کند ⇒ هیچ مصرف‌کننده‌ای نمی‌شکند،
   // ولی UI می‌تواند «نشست منقضی» را از «خطای اعتبارسنجی» جدا کند.
-  if (res.status === 401) { window.location.href = "/login"; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
+  if (res.status === 401) { window.location.href = LOGIN_PATH; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
   if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
   return (json?.data ?? json) as T;
 }

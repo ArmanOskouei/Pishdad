@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { REVALIDATE_LEEWAY, isAllowedLocalTag } from "@/lib/revalidate";
 
 /**
  * Next 16 changed the signature: `revalidateTag(tag)` is gone and the second
@@ -26,8 +27,8 @@ const EXPIRE_NOW = { expire: 0 };
  */
 
 const SECRET = process.env.REVALIDATE_SECRET ?? "";
-const LEEWAY = 300;
-const ALLOWED_LOCAL_TAGS = new Set(["pages", "theme"]);
+// L-B8/F0.7 — سیاستِ allowlist در `lib/revalidate.ts` است (آزمون‌پذیر).
+const LEEWAY = REVALIDATE_LEEWAY;
 
 const seenNonces = new Map<string, number>(); // nonce -> expiresAt (ms)
 
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
     if (!(await hasValidSession(req))) {
       return NextResponse.json({ message: "نشست معتبر نیست." }, { status: 401 });
     }
-    const allowed = (tags as string[]).filter((t) => ALLOWED_LOCAL_TAGS.has(t));
+    const allowed = (tags as string[]).filter((t) => isAllowedLocalTag(t));
     for (const t of allowed) revalidateTag(t, EXPIRE_NOW);
     return NextResponse.json({ message: "کش باطل شد.", revalidated: allowed });
   }

@@ -1,6 +1,13 @@
 "use client";
 
-import { PLUGIN_PACKAGE_CONTRACT } from "../../scripts/generated/plugin-package-contract";
+import { useCallback, useEffect, useState } from "react";
+
+import { authed } from "@/lib/auth";
+import {
+  PLUGIN_CONTRACT_PATH,
+  parsePluginContract,
+  type PluginPackageContract,
+} from "@/lib/plugin-contract";
 
 /**
  * راهنمای توسعه‌دهنده پلاگین/قالب (مورد ۶) — بخش جمع‌شونده در صفحات
@@ -9,19 +16,28 @@ import { PLUGIN_PACKAGE_CONTRACT } from "../../scripts/generated/plugin-package-
  * window.print (بدون lib اضافی). بخش ۶ فقط برای پلاگین است: `db.tables`.
  * فقط var()، فارسی و RTL.
  *
- * K6.11 — بخش‌های ۱ و ۷ **از قرارداد تولید شده‌اند**، دستی نوشته نشده‌اند.
- * منبع حقیقت `PluginPackageContract.php` است و داده از راه
- * `scripts/generated/plugin-package-contract.ts` می‌آید؛ آن فایل را با
- * `npm run gen:plugin-contract` بازتولید و با `…:check` می‌سنجی که drift
- * نکرده باشد. دست‌نویسی این دو بخش دقیقاً همان باگی بود که K6.11 برای
- * حلش وجود دارد: راهنمایی که به کاربر دستور غلط بدهد.
+ * I2 — بخش‌های ۱ و ۷ دیگر `import` نمی‌شوند؛ **در runtime خوانده می‌شوند** از
+ * `GET /v1/admin/plugins/contract`، از راه همان `authed`/`/api/proxy` که بقیهٔ
+ * پنل ازش می‌خواند. قبلاً یک کپیِ تولیدشده
+ * (`scripts/generated/plugin-package-contract.ts`) ایمپورت می‌شد، یعنی دو
+ * نسخه از یک حقیقت و راهنمایی که تا بازتولیدِ دستی، دربارهٔ نسخهٔ کهنه حرف
+ * می‌زد.
+ *
+ * ## چرا fallback به آن کپی ممنوع است
+ *
+ * اگر endpoint در دسترس نباشد و UI بی‌صدا به فایلِ تولیدشده برگردد، دقیقاً همان
+ * باگی برمی‌گردد که I2 آمده تا حذفش کند — فقط حالا **پنهان‌تر**، چون کاربر فکر
+ * می‌کند داده زنده است. پس سه حالتِ صریح داریم: «در حال خواندن»، «داده هست»، و
+ * «نتوانستیم بخوانیم» — و حالتِ سوم نامِ کمبودها را نشان می‌دهد.
+ *
+ * بارگذاری در `useEffect` است، نه در بدنهٔ render (قانون ضد React #301 در
+ * AGENTS.md) و نه در `useState` مقداردهی‌شده با `authed`.
  *
  * بخش‌های دستی عمداً دستی مانده‌اند: امضای Ed25519، چک‌لیست امنیتی، SLA و
  * نمونهٔ مانیفست قراردادِ `PluginPackageContract` نیستند و به قضاوت
- * انسانی نیاز دارند. قالب هم در این قرارداد نیست، پس درختِ قالب دستی است.
+ * انسانی نیاز دارند. قالب هم در این قرارداد نیست، پس درختِ قالب دستی است و
+ * قالب اصلاً قرارداد نمی‌خواند.
  */
-
-const CONTRACT = PLUGIN_PACKAGE_CONTRACT;
 
 const STATUS_FA: Record<string, string> = {
   live: "زنده",
@@ -61,9 +77,60 @@ function fieldSignature(name: string, spec: { type: string; required: boolean })
   return `${name}${spec.required ? "" : "?"}: ${spec.type}`;
 }
 
+/** سه حالتِ صریح. هیچ‌کدام به دیگری برنمی‌گردد. */
+type ContractState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; value: PluginPackageContract }
+  | { status: "error"; message: string; missing: string[] };
+
+const errStyle = {
+  border: "1px solid var(--danger, #c0392b)",
+  borderRadius: 8,
+  padding: 10,
+  fontSize: 12.5,
+  lineHeight: 1.9,
+} as const;
+
 export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
   const isPlugin = kind === "plugin";
   const title = isPlugin ? "راهنمای توسعه‌دهنده پلاگین" : "راهنمای توسعه‌دهنده قالب";
+
+  // قالب در قراردادِ بستهٔ پلاگین نیست ⇒ هیچ درخواستی هم نمی‌رود.
+  const [contract, setContract] = useState<ContractState>({ status: "idle" });
+
+  const load = useCallback(async () => {
+    setContract({ status: "loading" });
+    try {
+      const raw = await authed<unknown>(PLUGIN_CONTRACT_PATH);
+      const parsed = parsePluginContract(raw);
+      if (parsed.ok) {
+        setContract({ status: "ready", value: parsed.value });
+      } else {
+        setContract({
+          status: "error",
+          message: "پاسخِ سرور ناقص است — این راهنما قراردادِ کامل را برنمی‌گرداند.",
+          missing: parsed.missing,
+        });
+      }
+    } catch (e) {
+      setContract({
+        status: "error",
+        message:
+          e instanceof Error && e.message
+            ? e.message
+            : "دسترسی به قراردادِ بسته ممکن نشد.",
+        missing: [],
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isPlugin) return;
+    void load();
+  }, [isPlugin, load]);
+
+  const CONTRACT = contract.status === "ready" ? contract.value : null;
 
   const manifestSample = isPlugin
     ? `{
@@ -98,16 +165,24 @@ export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
       </summary>
 
       <div className="print-guide" style={{ display: "grid", gap: 14, marginBlockStart: 12, fontSize: 13, lineHeight: 1.9 }}>
+        {isPlugin && <ContractStatus state={contract} onRetry={load} />}
+
         <section>
           <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۱. ساختار ZIP</h3>
           {isPlugin ? (
+            !CONTRACT ? (
+              <p style={{ color: "var(--text-muted)" }}>
+                این فهرست از قراردادِ زندهٔ هسته می‌آید. تا آن خوانده نشود چیزی
+                نشان داده نمی‌شود — نسخهٔ کهنه جایش گذاشته نمی‌شود.
+              </p>
+            ) : (
             <>
               <p style={{ color: "var(--text-muted)", marginBlockEnd: 6 }}>
                 بسته <b>دقیقاً</b> می‌تواند این مقصدها را داشته باشد (deny-by-default). هر مسیر
                 دیگری — حتی یک پوشهٔ کاری — رد می‌شود.
               </p>
               <ul style={{ paddingInlineStart: 18, display: "grid", gap: 4 }}>
-                {CONTRACT.allowedPaths.map((p) => (
+                {CONTRACT.allowed_paths.map((p) => (
                   <li key={p.path}>
                     <code dir="ltr" style={codeStyle}>{p.path}</code>{" — "}
                     {p.label_fa}
@@ -115,16 +190,17 @@ export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
                 ))}
               </ul>
               <p style={{ color: "var(--text-muted)" }}>
-                سقف حجم ZIP: {fa(CONTRACT.limits.maxZipBytes / 1024 / 1024)} مگابایت
-                {" "}({fa(CONTRACT.limits.maxZipBytes)} بایت) و حداکثر{" "}
-                {fa(CONTRACT.limits.maxFiles)} فایل. نسبت فشرده‌سازی بالاتر از{" "}
-                {fa(CONTRACT.limits.maxCompressionRatio)} یعنی zip bomb و رد می‌شود.
-                {" "}<span dir="ltr">{CONTRACT.package.manifestName}</span> باید در ریشهٔ ZIP باشد.
+                سقف حجم ZIP: {fa(CONTRACT.limits.max_zip_bytes / 1024 / 1024)} مگابایت
+                {" "}({fa(CONTRACT.limits.max_zip_bytes)} بایت) و حداکثر{" "}
+                {fa(CONTRACT.limits.max_files)} فایل. نسبت فشرده‌سازی بالاتر از{" "}
+                {fa(CONTRACT.limits.max_compression_ratio)} یعنی zip bomb و رد می‌شود.
+                {" "}<span dir="ltr">{CONTRACT.package.manifest_name}</span> باید در ریشهٔ ZIP باشد.
                 کلاس‌های افزونه باید داخل ریشهٔ{" "}
-                <code dir="ltr" style={codeStyle}>{CONTRACT.package.pluginNamespacePrefix}…</code>{" "}
+                <code dir="ltr" style={codeStyle}>{CONTRACT.package.plugin_namespace_prefix}…</code>{" "}
                 بنشینند.
               </p>
             </>
+            )
           ) : (
             <>
               <pre dir="ltr" style={{ ...preStyle }}>
@@ -212,13 +288,15 @@ $manifest['signature'] = base64_encode(
         </section>
         )}
 
-        {isPlugin && (
+        {isPlugin && CONTRACT && (
         <section>
           <h3 style={{ fontSize: 13.5, marginBlockEnd: 6 }}>۷. نقاط اتصال — از قرارداد هسته</h3>
           <p style={{ color: "var(--text-muted)" }}>
-            این فهرست دستی نوشته نشده؛ از{" "}
-            <code dir="ltr" style={codeStyle}>{CONTRACT.source}</code> تولید شده
-            {" "}(اثر انگشت <span dir="ltr">{CONTRACT.contractFingerprint}</span>).
+            این فهرست دستی نوشته نشده؛ همین حالا از{" "}
+            <code dir="ltr" style={codeStyle}>GET {PLUGIN_CONTRACT_PATH}</code> خوانده
+            شده — نسخهٔ{" "}
+            <span dir="ltr">{CONTRACT.core_contract_version}</span> که{" "}
+            <b>همین نصب</b> می‌فهمد.
             {" "}<b>وضعیت واقعی runtime</b> را می‌خوانی، نه وعدهٔ راهنما:{" "}
             <b>تعویق‌افتاده</b> یعنی اعلامش در مانیفست خطاست و بسته را سبز نشان
             می‌دهد ولی هیچ اتفاقی نمی‌افتد.
@@ -235,13 +313,13 @@ $manifest['signature'] = base64_encode(
                   fontSize: 12,
                 }}
               >
-                {STATUS_FA[status]}: {fa(CONTRACT.extensionPoints.filter((p) => p.status === status).length)}
+                {STATUS_FA[status]}: {fa(CONTRACT.extension_points.filter((p) => p.status === status).length)}
               </span>
             ))}
           </p>
 
           <div style={{ display: "grid", gap: 8 }}>
-            {CONTRACT.extensionPoints.map((point) => (
+            {CONTRACT.extension_points.map((point) => (
               <details key={point.key} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10 }}>
                 <summary style={{ cursor: "pointer", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline" }}>
                   <code dir="ltr" style={codeStyle}>{point.key}</code>
@@ -315,7 +393,7 @@ $manifest['signature'] = base64_encode(
               <b>نام‌های رزروشدهٔ هسته</b> (نام{" "}
               <span dir="ltr">type</span> یا <span dir="ltr">key</span> نباید یکی از این‌ها
               باشد، وگرنه رجیستری برخورد را بی‌صدا رد می‌کند):{" "}
-              <span dir="ltr" style={{ display: "inline-block" }}>{CONTRACT.reservedTypeNames.join(" · ")}</span>
+              <span dir="ltr" style={{ display: "inline-block" }}>{CONTRACT.reserved_type_names.join(" · ")}</span>
             </p>
             <p>
               <b>واژگان micro-schema:</b>{" "}
@@ -328,16 +406,19 @@ $manifest['signature'] = base64_encode(
               </span>
             </p>
             <p>
-              <b>رابط‌های قابل‌جایگزینی</b> (بسته، سه مورد — کلاس پیاده‌سازی خودت آزاد
+              {/* شمارش عمداً از داده خوانده می‌شود: عددِ دستی با افزوده‌شدن یک
+                  رابط دروغ می‌گفت — و همین باگی بود که drift را پنهان می‌کرد. */}
+              <b>رابط‌های قابل‌جایگزینی</b> (بسته،{" "}
+              {fa(CONTRACT.overridable_interfaces.length)} مورد — کلاس پیاده‌سازی خودت آزاد
               است ولی باید داخل ریشهٔ{" "}
-              <code dir="ltr" style={codeStyle}>{CONTRACT.package.pluginNamespacePrefix}…</code>{" "}
+              <code dir="ltr" style={codeStyle}>{CONTRACT.package.plugin_namespace_prefix}…</code>{" "}
               بنشیند):{" "}
-              <span dir="ltr" style={{ display: "inline-block" }}>{CONTRACT.overridableInterfaces.join(" · ")}</span>
+              <span dir="ltr" style={{ display: "inline-block" }}>{CONTRACT.overridable_interfaces.join(" · ")}</span>
             </p>
-            {Object.keys(CONTRACT.deferredExtensionPoints).length > 0 && (
+            {Object.keys(CONTRACT.deferred_extension_points).length > 0 && (
               <p>
                 <b>در نسخهٔ ۱ اصلاً پذیرفته نمی‌شوند</b> (وجودشان در مانیفست خطاست):{" "}
-                {Object.entries(CONTRACT.deferredExtensionPoints).map(([key, why]) => (
+                {Object.entries(CONTRACT.deferred_extension_points).map(([key, why]) => (
                   <span key={key}>
                     <code dir="ltr" style={codeStyle}>{key}</code>{" — "}{why}{" "}
                   </span>
@@ -349,5 +430,45 @@ $manifest['signature'] = base64_encode(
         )}
       </div>
     </details>
+  );
+}
+
+/**
+ * نوارِ وضعیتِ قرارداد: «در حال خواندن» / «خطا با دکمهٔ تلاش دوباره».
+ *
+ * حالتِ «آماده» چیزی رندر نمی‌کند — نبودِ نوار یعنی قرارداد هست.
+ *
+ * در حالتِ خطا **دقیقاً** می‌گوید چه چیزی کم است یا چه چیزی شکست خورد، و دکمهٔ
+ * تلاش دوباره می‌دهد. جایگزینِ این، برگشتنِ خاموش به یک کپیِ کهنه است که راهنمایی
+ * می‌سازد که در حالی که با هستهٔ نصب‌شده نمی‌خواند، سبز به نظر می‌رسد.
+ */
+function ContractStatus({ state, onRetry }: { state: ContractState; onRetry: () => void }) {
+  if (state.status === "ready" || state.status === "idle") return null;
+
+  if (state.status === "loading") {
+    return (
+      <p className="no-print" style={{ color: "var(--text-muted)", fontSize: 12.5 }}>
+        در حال خواندن قراردادِ بسته از هسته…
+      </p>
+    );
+  }
+
+  return (
+    <div className="no-print" style={errStyle}>
+      <b>قراردادِ بسته خوانده نشد.</b> {state.message}
+      {state.missing.length > 0 && (
+        <p style={{ margin: "6px 0 0" }}>
+          کلیدهای ناقص:{" "}
+          <span dir="ltr" style={{ display: "inline-block" }}>{state.missing.join(" · ")}</span>
+        </p>
+      )}
+      <p style={{ margin: "6px 0 0", color: "var(--text-muted)" }}>
+        بخش‌های ۱ و ۷ تا وقتی این خوانده نشود نشان داده نمی‌شوند؛ نسخهٔ ذخیره‌شدهٔ
+        قدیمی جایشان گذاشته نمی‌شود چون ممکن است با همین نصب نخواند.
+      </p>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={onRetry}>
+        تلاش دوباره
+      </button>
+    </div>
   );
 }

@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Plugin;
+use App\Models\SystemPlugin;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Plugins\PluginPackageValidator;
 use App\Services\Plugins\PluginPageContract;
-use App\Models\Plugin;
-use App\Models\SystemPlugin;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;

@@ -603,6 +603,29 @@ final class PluginReleaseManager
     public function activate(string $slug, string $version, string $hash): void
     {
         $slug = $this->normalizeSlug($slug);
+
+        // ── پلاگینِ داخلی: بدون نسخهٔ استخراج‌شده ──────────────────────
+        //
+        // ⚠️ اینجا یک بن‌بست واقعی شکسته شد.
+        //
+        // افزونه‌های داخلی (مرکز، اشتراک) با migration ثبت می‌شوند و
+        // `checksum` آن‌ها **`null`** است — چون هیچ بستهٔ ZIPای نبوده که
+        // `hash_file` بخورد. ولی `activate()` هش را `string` می‌گیرد، پس
+        // `(string) null` می‌شد `''` و `releaseLabel()` با
+        // «هش نسخه نامعتبر است» می‌پرید. نتیجه: **هر پلاگین داخلی از پنل
+        // قابل فعال‌سازی نبود** — نه به‌خاطر امنیت، فقط به‌خاطر یک نوعِ
+        // ناسازگار.
+        //
+        // راه درست: هش خالی یعنی «این نسخه از دیسکِ منبع آمده، نه از
+        // بازار»، و برچسبِ ثابتِ `source` می‌گیرد. گاردهای امنیتی دست‌نخورده
+        // می‌مانند: `normalizeHash` هنوز هر هشِ نامعتبرِ غیرخالی را رد
+        // می‌کند، و بعدش هنوز باید نسخه واقعاً روی دیسک باشد و قابل‌استفاده.
+        if (trim($hash) === '') {
+            $this->activateFromSource($slug, $version);
+
+            return;
+        }
+
         $label = $this->releaseLabel($version, $hash);
 
         $target = $this->resolveRelease($slug, $label);
@@ -621,6 +644,38 @@ final class PluginReleaseManager
 
         $this->ensureReleaseDir($slug);
         $this->swapPointer($slug, $label, remember: true);
+    }
+
+    /**
+     * فعال‌سازیِ پلاگینِ داخلی از پوشهٔ منبع، بدون نسخهٔ استخراج‌شده.
+     *
+     * افزونهٔ داخلی یک شاخهٔ ثابت است (`plugins/{slug}`) که با `git pull` عوض
+     * می‌شود؛ «نسخه» یعنی همان شاخهٔ فعلی. پس چیزی برای تعویضِ اشاره‌گر
+     * وجود ندارد و نوشتنِ برچسبِ ساختگی هم **دروغ** بود — بعداً
+     * `currentDir()` به شاخه‌ای اشاره می‌کرد که وجود نداشت.
+     *
+     * کاری که می‌کند فقط **وجودِ واقعیِ کد** را می‌سنجد: مانیفست معتبر و یک
+     * `Laravel/src` که داخل همان پوشه است. اگر نبود، همان پیامِ
+     * «روی دیسک نیست» را می‌دهد، پس رفتار برای پلاگینِ خراب همچنان fail-closed
+     * می‌ماند.
+     */
+    private function activateFromSource(string $slug, string $version): void
+    {
+        $dir = $this->sourceDir($slug);
+
+        if ($dir === null || ! $this->isUsable($dir)) {
+            throw new RuntimeException(
+                "افزونهٔ «{$slug}» روی دیسک نیست (".PluginPackageContract::MANIFEST.' معتبر ندارد)؛ فعال‌سازی انجام نشد.'
+            );
+        }
+
+        // فقط اعتبار مسیر را می‌سنجد، نه می‌سازد: `sourceAutoloadRoot()`
+        // همان محافظتِ symlink-escape را دارد که شاخهٔ release دارد.
+        if ($this->sourceAutoloadRoot($slug) === null) {
+            throw new RuntimeException(
+                "افزونهٔ «{$slug}» کدِ قابل بارگذاری ندارد (Laravel/src نامعتبر یا بیرون از پوشه)؛ فعال‌سازی انجام نشد."
+            );
+        }
     }
 
     /**

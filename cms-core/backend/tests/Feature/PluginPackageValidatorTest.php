@@ -2,14 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\Plugin;
+use App\Models\SystemPlugin;
 use App\Models\User;
 use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\PluginPackageValidator;
+use App\Services\Plugins\PluginReleaseManager;
 use App\Services\Plugins\PluginSignatureVerifier;
 use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use ReflectionClass;
 use ReflectionMethod;
 use Tests\TestCase;
@@ -274,6 +278,30 @@ class PluginPackageValidatorTest extends TestCase
 
         $this->assertFalse($result['ok']);
         $this->assertContains('path.symlink', $this->codes($result['errors']));
+    }
+
+    /**
+     * L-B10 — FIFO/socket/char/block باید همان‌جا در اعتبارسنجی رد شوند، نه
+     * اینکه validator سبز بدهد و installer بعداً «install.special_entry» بزند.
+     */
+    public function test_rejects_fifo_socket_and_device_entries(): void
+    {
+        foreach (['fifo' => 0x1000, 'socket' => 0xC000, 'chardev' => 0x2000, 'blockdev' => 0x6000] as $label => $mode) {
+            $path = 'Laravel/src/Dev-'.$label;
+
+            $result = $this->analyze($this->zip([
+                'manifest.json' => $this->manifestJson(),
+                'Laravel/src/Ok.php' => '<?php',
+                $path => '',
+            ], modes: [$path => $mode]));
+
+            $this->assertFalse($result['ok'], 'ورودیِ '.$label.' باید رد شود.');
+            $this->assertContains(
+                'path.special_entry',
+                $this->codes($result['errors']),
+                'کدِ خطا برای '.$label
+            );
+        }
     }
 
     /**
@@ -943,7 +971,105 @@ class PluginPackageValidatorTest extends TestCase
         ], $points);
     }
 
-    /** نصب باید با بستهٔ نامعتبر رد شود، و بدنهٔ پاسخ باید جزئیات را داشته باشد. */
+    /**
+ * K1.6.3 — `POST /v1/admin/plugins/validate` باید یک **تابعِ خالص** روی فهرستِ
+ * ZIP باشد: نه استخراج، نه نوشتنِ DB، نه نوشتنِ دیسک.
+ *
+ * ## چرا این تست لازم است وقتی کد ظاهراً درست است
+ *
+ * `analyze()` امروز فقط `statIndex()` می‌خواند. ولی «امروز» تضمین نیست: یک
+ * refactorِ آینده می‌تواند `verifyStaging` را اینجا هم صدا بزند و هیچ تستِ
+ * رفتاریِ دیگری **نریزد** — چون هیچ‌کدام به دیسک نگاه نمی‌کنند. این تست دقیقاً
+ * همان چیزی را می‌سنجد که نباید عوض شود.
+ *
+* ## چرا سنجش «کلِ درخت» را رها کردیم
+ *
+ * نسخهٔ اول این تست کلِ درختِ `storage/app/plugins` را قبل و بعد مقایسه می‌کرد.
+ * در اجرای انفرادی درست بود، ولی در این مخزن **همیشه** شکست می‌خورد: چند سشن
+ * روی یک کانتینر و یک فایل‌سیستم تست می‌کنند، پس تستِ `ManagersRolesTest` در
+ * همان لحظه می‌تواند `storage/app/plugins/demo-blog/…` بسازد و این تست آن را
+ * «اثرِ جانبیِ خودش» گزارش کند.
+ *
+ * یعنی آن شکل، نه یک نگهبان — یک **مزاحم** بود. جایگزینش سنجشِ **منتسب به همین
+ * بسته** است: هر نشانه‌ای که فقط از این slug می‌تواند ساخته شود. این هم
+ * سخت‌گیرانه‌تر است (اشاره‌گر، مهر، staging، فایلِ دائمی — همه جدا) و هم در
+ * برابرِ تستِ موازی مصون.
+ */
+public function test_validate_endpoint_is_pure_no_extract_no_db_write_no_disk_write(): void
+{
+    $auth = $this->actingAs($this->owner(), 'sanctum');
+
+    $releases = app(PluginReleaseManager::class);
+    $installRoot = $releases->basePath();
+    $token = $this->slipName();
+
+    // slugِ یکتا برای همین تست تا مسیرِ مشتق‌شده با تستِ دیگری قاطی نشود.
+    $slug = 'validate-purity-'.$token;
+
+    $manifest = $this->manifestJson(['slug' => $slug]);
+
+    $res = $auth->postJson('/api/v1/admin/plugins/validate', [
+        'file' => new UploadedFile(
+            // بستهٔ **سالم** — اگر خراب باشد، رد شدنش به‌خاطر خطاست و اثرِ
+            // جانبی را اصلاً امتحان نمی‌کند.
+            $this->zip([
+                'manifest.json' => $manifest,
+                'Laravel/src/Models/Post.php' => '<?php',
+                'Laravel/src/plugin_'.$token.'/Evil.php' => '<?php',
+            ]),
+            'p.zip', 'application/zip', null, true
+        ),
+    ])->assertOk();
+
+    // پیش‌نیازِ همهٔ assertionهای بعدی: تحلیل واقعاً اجرا شد و بسته را معتبر یافت.
+    // بدون این، یک ردِ زودهنگام همهٔ تست‌ها را سبز می‌کرد.
+    $this->assertTrue($res->json('analysis.ok'), 'بسته باید معتبر باشد وگرنه این تست چیزی را ثابت نمی‌کند.');
+    $this->assertSame($slug, $res->json('analysis.manifest.slug'));
+
+    // ── اثرِ جانبی ۱: هیچ مسیرِ استخراجی برای این بسته ──
+    //
+    // `assertDirectoryDoesNotExist` روی هر سه نقطه‌ای که مسیرِ نصب می‌تواند
+    // از این بسته بسازد. نبودنِ پوشهٔ بسته خودش کافی نیست: اگر لایه‌ای زودتر
+    // staging بسازد، همین سه‌تا می‌مانند ولی `releaseDir` هنوز نیست.
+    $this->assertDirectoryDoesNotExist(
+        $releases->releaseDir($slug),
+        'تحلیل نباید پوشهٔ نسخه بسازد — یعنی نباید استخراجی رخ داده باشد.'
+    );
+    $this->assertFileDoesNotExist($releases->pointerPath($slug), 'نباید اشاره‌گرِ نسخهٔ فعال نوشته شود.');
+    $this->assertSame(
+        [],
+        glob($releases->slugDir($slug).'*') ?: [],
+        'هیچ artifactِ مشتق‌شده از این slug نباید روی دیسک مانده باشد (staging، مهر، نسخه).'
+    );
+
+    // ── اثرِ جانبی ۲: نامِ ورودی نباید به مسیرِ نصب نشت کند ──
+    //
+    // ورودیِ `plugin_<token>` عمداً شبیه الگوی `mkdir plugin_{slug}` است: اگر
+    // لایه‌ای slugِ **خامِ بسته** را بی‌پاک‌سازی به مسیر بدهد، همین پوشه ساخته
+    // می‌شود. نشانی‌اش یکتایِ همین تست است.
+    $this->assertDirectoryDoesNotExist($installRoot.'/plugin_'.$token);
+    $this->assertFileDoesNotExist($installRoot.'/plugin_'.$token);
+
+    // ── اثرِ جانبی ۳: فایلِ دائمی روی دیسکِ استوریج ──
+    //
+    // `upload` بسته را در `storage/app/{disk}/` نگه می‌دارد؛ `validate` نباید.
+    // بررسی به slug محدود است تا تستِ موازیِ یک بستهٔ دیگر این را خراب نکند.
+    $this->assertSame(
+        [],
+        glob(Storage::disk('local')->path('plugins/'.$slug.'*')) ?: [],
+        'آپلودِ موقت باید پاک شود و فایلِ دائمیِ این بسته نباید بماند.'
+    );
+
+    // ── اثرِ جانبی ۴: هیچ نوشتنِ DB ──
+    $this->assertSame(
+        0,
+        Plugin::query()->where('slug', $slug)->count(),
+        'تحلیل نباید برای این بسته ردیفی بسازد.'
+    );
+    $this->assertSame(0, SystemPlugin::query()->where('slug', $slug)->count(), 'بستهٔ تحلیل‌شده نباید به `system_plugins` هم نشت کند.');
+}
+
+/** نصب باید با بستهٔ نامعتبر رد شود، و بدنهٔ پاسخ باید جزئیات را داشته باشد. */
     public function test_upload_rejects_broken_package_with_analysis(): void
     {
         $auth = $this->actingAs($this->owner(), 'sanctum');
@@ -979,6 +1105,16 @@ class PluginPackageValidatorTest extends TestCase
         $this->assertFalse(PluginPackageContract::isAllowedPath('resources/views/x.blade.php'));
         $this->assertFalse(PluginPackageContract::isAllowedPath('config/app.php'));
         $this->assertFalse(PluginPackageContract::isAllowedPath('Next.js/panel.json'));
+
+        // L-B5 — زنجیرهٔ تأمین: `vendor/` زیرِ هر مقصدِ پوشه‌ای مجاز نیست.
+        // پیش از رفع، `Laravel/src/vendor/**` به‌خاطر prefixِ پوشه‌ای ALLOWED
+        // می‌شد و کدِ شخص‌ثالثِ بازبینی‌نشده وارد بسته می‌شد.
+        $this->assertFalse(PluginPackageContract::isAllowedPath('Laravel/src/vendor/acme/lib/src/Evil.php'));
+        $this->assertFalse(PluginPackageContract::isAllowedPath('Laravel/src/Http/vendor/x.php'));
+        $this->assertFalse(PluginPackageContract::isAllowedPath('Next.js/panel/vendor/evil.js'));
+
+        // نامِ فایلی که فقط شاملِ رشتهٔ vendor است، سگمنتِ vendor نیست.
+        $this->assertTrue(PluginPackageContract::isAllowedPath('Laravel/src/vendor.php'));
     }
 
     public function test_manifest_path_cannot_be_used_as_a_directory_prefix(): void
@@ -1022,7 +1158,13 @@ class PluginPackageValidatorTest extends TestCase
             'admin.settings_schema' => ['deprecated', 'schema_defined'],
             'admin.data_collection' => ['declared_only', 'schema_defined'],
             'admin.dashboard_slot' => ['deferred', 'closed'],
-            'admin.plugin_tools' => ['deferred', 'closed'],
+            // K3.11 — `deferred` بود و به `declared_only` رفت، ولی **برخلاف
+            // K6.7 این‌بار schema هم آمد** (فیلدهایش از `normalizePluginTool` و
+            // `PluginToolsDrawer` بیرون کشیده شد). یعنی برخلاف
+            // `admin.settings_schema`، اینجا «deferred بودن» نشانهٔ نبودِ مصرف‌کننده
+            // نبود — مصرف‌کننده از K6.2 حاضر بود و فقط قرارداد عقب بود. `closed`
+            // می‌ماند چون فهرست فیلدها بسته است.
+            'admin.plugin_tools' => ['declared_only', 'closed'],
             'admin.page_registry' => ['deferred', 'schema_defined'],
             'core.service_provider' => ['declared_only', 'schema_defined'],
         ];
@@ -1086,9 +1228,25 @@ class PluginPackageValidatorTest extends TestCase
     }
 
     /**
-     * K3.8: schema فقط برای نقاطی که **مصرف‌کنندهٔ واقعی** دارند — یکی بسته، یکی
-     * باز، و `core.service_provider` که اعتبارسنج و رجیستری واقعی دارد.
-     * schema برای نقطهٔ بدون مصرف‌کننده یعنی «دروغ ساختاریافته».
+     * K3.8 + K3.9 — schema فقط برای نقاطی که **مصرف‌کنندهٔ واقعی** دارند.
+     *
+     * ⭐ K3.9 این فهرست را از سه به شش برد، ولی **سه** نقطه به آن اضافه شد و یکی
+     * تغییر کرد. دلیلش یکی است و در خودِ قرارداد هم نوشته شده:
+     *
+     *  • `site.header_widget` / `site.footer_widget` — از K6.4 مصرف‌کنندهٔ واقعی
+     *    دارند (`ManifestRegistry::widgetSchemas()` کانال `panel.extensions` را
+     *    می‌خواند و فرانت رندرش می‌کند). تا K3.9 `fields => []` بود، یعنی **هر**
+     *    اعلانی با `no_schema` رد می‌شد با اینکه رجیستری کاملش را می‌خواند.
+     *  • `admin.plugin_tools` — از K6.2 مصرف‌کننده دارد
+     *    (`ManifestRegistry::pluginTools()` + `PluginToolsDrawer`) ولی خودِ نقطه
+     *    `deferred` مانده بود، یعنی validator آن را قبل از بررسی فیلدها رد می‌کرد.
+     *
+     * و پنج نقطهٔ دیگر **عمداً** اضافه نشدند، چون schema برایشان یا «دروغِ
+     * ساختاریافته» است یا کانالِ سوم می‌سازد: `site.block_type` (عمداً رندر
+     * نمی‌شود)، `admin.settings_schema` (`deprecated`، منتقل شده)،
+     * `admin.page_registry` و `admin.data_collection` (هیچ‌کدام از کانال
+     * `panel.extensions` خوانده نمی‌شوند)، `admin.dashboard_slot` (deferred). برای
+     * هر کدام دلیلش بالای خودش در `PluginPackageContract` نوشته شده.
      */
     public function test_only_points_with_a_real_consumer_carry_a_schema(): void
     {
@@ -1099,10 +1257,24 @@ class PluginPackageValidatorTest extends TestCase
             }
         }
 
-        $this->assertSame(['admin.menu', 'site.page_type', 'core.service_provider'], $withSchema);
+        $this->assertSame(
+            ['admin.menu', 'site.header_widget', 'site.footer_widget', 'site.page_type', 'core.service_provider', 'admin.plugin_tools'],
+            $withSchema,
+            'فهرست نقاطِ دارای schema عوض شده. اگر نقطه‌ای اضافه شده، اول ثابت کن '
+            .'مصرف‌کننده‌اش وجود دارد؛ اگر کم شده، دلیلش را بالای همان نقطه بنویس.'
+        );
+
         $this->assertTrue(PluginPackageContract::EXTENSION_POINTS['site.page_type']['open_schema']);
-        $this->assertFalse(PluginPackageContract::EXTENSION_POINTS['admin.menu']['open_schema']);
-        $this->assertFalse(PluginPackageContract::EXTENSION_POINTS['core.service_provider']['open_schema']);
+
+        // بقیه میکرو-اسکیمای **بسته** دارند. اگر یکی‌شان باز شود، دیگر
+        // `open_vocabulary` نیست ولی برچسبش هنوز همان است — همان شکافی که
+        // `PluginContractExampleIntegrityTest` برای `site.block_type` نگهبانی می‌کند.
+        foreach (['admin.menu', 'site.header_widget', 'site.footer_widget', 'core.service_provider', 'admin.plugin_tools'] as $closed) {
+            $this->assertFalse(
+                PluginPackageContract::EXTENSION_POINTS[$closed]['open_schema'],
+                '«'.$closed.'» میکرو-اسکیمای بسته دارد پس `open_schema` باید false بماند.'
+            );
+        }
     }
 
     /**
@@ -1290,6 +1462,14 @@ class PluginPackageValidatorTest extends TestCase
         return app(PluginPackageValidator::class)->analyze($zipPath);
     }
 
+    /** نامِ یکتا برای این تست — تا مسیرِ مشتق‌شده با تستِ دیگری قاطی نشود. */
+    private function slipName(): string
+    {
+        return $this->slipName ??= bin2hex(random_bytes(4));
+    }
+
+    private ?string $slipName = null;
+
     /** `result()` خصوصی است، ولی نرمال‌سازی summary یک قرارداد داخلی است که باید محافظت شود. */
     private function callResult(bool $ok, array $errors, array $warnings, ?array $manifest, array $summary): array
     {
@@ -1314,8 +1494,9 @@ class PluginPackageValidatorTest extends TestCase
     /**
      * @param  array<string, string>  $files
      * @param  string|null  $symlink  نام ورودی‌ای که باید به‌صورت symlink نوشته شود
+     * @param  array<string, int>  $modes  نام ورودی ⇒ بیتِ نوعِ UNIX (fifo/socket/device)
      */
-    private function zip(array $files, ?string $symlink = null): string
+    private function zip(array $files, ?string $symlink = null, array $modes = []): string
     {
         $path = tempnam(sys_get_temp_dir(), 'pkg').'.zip';
         $zip = new ZipArchive;
@@ -1333,6 +1514,12 @@ class PluginPackageValidatorTest extends TestCase
                 ZipArchive::OPSYS_UNIX,
                 (0120777 << 16) | 0xA000
             );
+        }
+
+        // L-B10 — بیتِ نوعِ fifo/socket/char/block در ۱۶ بیتِ بالا، مطابقِ
+        // همان قراردادی که `readEntries()` می‌خواند.
+        foreach ($modes as $name => $mode) {
+            $zip->setExternalAttributesName($name, ZipArchive::OPSYS_UNIX, ($mode & 0xF000) << 16);
         }
 
         $zip->close();

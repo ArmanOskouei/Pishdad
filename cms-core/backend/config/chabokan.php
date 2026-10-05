@@ -5,9 +5,15 @@
 | در MVP درایور `stub` فعال است: موجودی و سرویس‌ها از همین کانفیگ خوانده
 | می‌شوند و هیچ تماس واقعی/شارژی انجام نمی‌شود.
 |
-| اتصال واقعی (TODO مرحله ۵): پیاده‌سازی ChabokanClientInterface با کلاینت
-| HTTP چابکان (توکن از CHABOKAN_API_TOKEN) و تعویض driver به `api` —
-| بدون تغییر کنترلرها (فقط binding در AppServiceProvider).
+| اتصال واقعی (E4): `ApiChabokanDriver` پیاده شده و `CHABOKAN_DRIVER=api`
+| با کلاینت HTTP چابکان کار می‌کند. ولی **بدون کلید، fail-closed است**: اگر
+| `CHABOKAN_DRIVER=api` باشد و `CHABOKAN_API_TOKEN`/`CHABOKAN_API_BASE`
+| خالی یا placeholder (`.example`) باشند، `ChabokanDriverFactory` پیامِ فارسی
+| با نامِ دقیقِ کلیدِ جاافتاده می‌دهد و اصلاً ساخته نمی‌شود.
+|
+| ⭐ `api_base` دیگر مقدارِ پیش‌فرض ندارد. پیش‌فرضِ قبلی یک آدرسِ `*.example`
+| بود که فقط شبیه تنظیم بود — DNS به جای ناموجود می‌رفت و خطای گمراه‌کننده
+| می‌داد. خالی بودن یعنی «هنوز آدرس نداده‌ای»، که صادقانه است.
 */
 return [
     'driver' => env('CHABOKAN_DRIVER', 'stub'),
@@ -28,7 +34,7 @@ return [
         'redis' => 'running',
     ],
 
-    // اتصال واقعی (غیرفعال تا مرحله ۵).
-    'api_base' => env('CHABOKAN_API_BASE', 'https://api.chabakan.example/v1'),
+    // اتصال واقعی (E4) — تا وقتی این‌ها خالی‌اند `driver=api` خطا می‌دهد.
+    'api_base' => env('CHABOKAN_API_BASE'),
     'api_token' => env('CHABOKAN_API_TOKEN'),
 ];

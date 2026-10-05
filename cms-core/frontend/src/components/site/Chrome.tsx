@@ -11,10 +11,12 @@ import {
   chromeWidgetDiagnosticsEnabled,
   describeUnknownWidgetType,
   isCoreChromeWidgetType,
-  unknownWidgetNoticeFa,
+  unknownWidgetNotice,
   unknownWidgetWarning,
 } from "@/lib/widget-type";
 import type { SiteChrome } from "@/lib/site";
+import { publicT, type PublicLocale, type PublicMessageKey } from "@/lib/i18n/public";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { SiteNav } from "./SiteNav";
 import { SiteSearchBox } from "./SiteSearchBox";
 
@@ -50,25 +52,29 @@ export function ChromeWidget({
   w,
   chrome,
   diagnostics,
+  locale = "fa",
 }: {
   w: WidgetValue;
   chrome: SiteChrome | null;
   diagnostics?: boolean;
+  /** ECO2 — زبانِ سایت؛ از URL می‌آید. پیش‌فرض `fa` یعنی پنل/پیش‌نمایش بدون تغییر. */
+  locale?: PublicLocale;
 }) {
   const s = (w.settings ?? {}) as Record<string, unknown>;
   const S = (k: string) => (typeof s[k] === "string" ? (s[k] as string) : "");
+  const t = (k: PublicMessageKey, values?: Record<string, string | number>) => publicT(locale, k, values);
   switch (w.type) {
     case "logo": {
       const src = typeof s.media_url === "string" && s.media_url ? (s.media_url as string) : (chrome?.logo_url ?? null);
       const showTitle = s.show_title !== false;
       const h = s.size === "sm" ? 28 : s.size === "lg" ? 52 : 40;
       return (
-        <a href="/" className="site-brand" aria-label={chrome?.title ?? "خانه"}>
+        <a href="/" className="site-brand" aria-label={t("chrome.brandHome")}>
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={src} alt={chrome?.title ?? "لوگو"} style={{ blockSize: h, inlineSize: "auto" }} />
+            <img src={src} alt={chrome?.title ?? t("chrome.logoAlt")} style={{ blockSize: h, inlineSize: "auto" }} />
           ) : null}
-          {showTitle ? <b>{chrome?.title ?? "وب‌سایت من"}</b> : null}
+          {showTitle ? <b>{chrome?.title ?? t("chrome.defaultTitle")}</b> : null}
         </a>
       );
     }
@@ -76,16 +82,16 @@ export function ChromeWidget({
       // آیتم page با title/url زنده از کروم می‌آید (تغییر نام/اسلاگ خودکار منعکس می‌شود).
       const links = Array.isArray(s.links)
         ? (s.links as ChromeLinkItem[])
-        : [{ label: "خانه", href: "/" }];
+        : [{ label: t("chrome.home"), href: "/" }];
       const style = typeof s.style === "string" ? s.style : "horizontal";
-      return <SiteNav links={links} style={style} />;
+      return <SiteNav links={links} style={style} locale={locale} />;
     }
     case "search":
-      return <SiteSearchBox placeholder={S("placeholder") || undefined} />;
+      return <SiteSearchBox placeholder={S("placeholder") || undefined} locale={locale} />;
     case "cta":
-      return <a className="btn btn-primary btn-sm" href={safeHref(S("href")) ?? "/"}>{S("label") || "اقدام"}</a>;
+      return <a className="btn btn-primary btn-sm" href={safeHref(S("href")) ?? "/"}>{S("label") || t("chrome.cta")}</a>;
     case "socials":
-      return <Socials socials={chrome?.socials ?? []} />;
+      return <Socials socials={chrome?.socials ?? []} locale={locale} />;
     case "about":
       return <p style={{ fontSize: 13.5, color: "var(--text-muted)", margin: 0 }}>{S("text") || chrome?.description || ""}</p>;
     case "links": {
@@ -104,13 +110,13 @@ export function ChromeWidget({
     case "contact":
       return (
         <div style={{ fontSize: 13.5, color: "var(--text-muted)" }}>
-          {chrome?.phone ? <div>تلفن: <span dir="ltr">{chrome.phone}</span></div> : null}
-          {chrome?.email ? <div>ایمیل: <span dir="ltr">{chrome.email}</span></div> : null}
-          {!chrome?.phone && !chrome?.email ? "تماس با پشتیبانی: support@example.ir" : null}
+          {chrome?.phone ? <div>{t("chrome.phone")} <span dir="ltr">{chrome.phone}</span></div> : null}
+          {chrome?.email ? <div>{t("chrome.email")} <span dir="ltr">{chrome.email}</span></div> : null}
+          {!chrome?.phone && !chrome?.email ? t("chrome.support") : null}
         </div>
       );
     case "newsletter":
-      return <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>{S("text") || "عضویت در خبرنامه به‌زودی."}</p>;
+      return <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>{S("text") || t("chrome.newsletter")}</p>;
     case "copyright":
       return <small style={{ color: "var(--text-muted)" }}>{S("text") || `© ${new Date().getFullYear()} ${chrome?.title ?? ""}`}</small>;
     // K6.4 — `type` ناشناس (شاخهٔ `default` بالا/پایین همین فایل). تصمیم‌ها و
@@ -155,7 +161,7 @@ export function ChromeWidget({
         console.warn(unknownWidgetWarning(w.type));
       }
       if (!(diagnostics ?? chromeWidgetDiagnosticsEnabled())) return null;
-      const named = describeUnknownWidgetType(w.type) || "(خالی)";
+      const named = describeUnknownWidgetType(w.type) || t("widget.emptyName");
       return (
         <span
           role="note"
@@ -163,7 +169,7 @@ export function ChromeWidget({
           data-widget-type={named}
           style={{ display: "inline-block", padding: 8, border: "1px dashed var(--border)", borderRadius: 10, color: "var(--text-muted)", fontSize: 12.5 }}
         >
-          {unknownWidgetNoticeFa(w.type)}
+          {unknownWidgetNotice(locale, w.type)}
         </span>
       );
     }
@@ -191,11 +197,11 @@ function socialLabel(x: SocialItem): string {
   return SOCIAL_FA[x.key] ?? x.key;
 }
 
-export function Socials({ socials }: { socials: SocialItem[] }) {
+export function Socials({ socials, locale = "fa" }: { socials: SocialItem[]; locale?: PublicLocale }) {
   const active = socials.filter((x) => x.active);
   if (active.length === 0) return null;
   return (
-    <div className="site-socials">
+    <div className="site-socials" aria-label={publicT(locale, "chrome.socialsAria")}>
       {active.map((x) => (
         <a key={x.key} href={safeHref(x.url) ?? "#"} target="_blank" rel="noreferrer" title={socialLabel(x)}>
           <span>{socialLabel(x)}</span>
@@ -205,19 +211,44 @@ export function Socials({ socials }: { socials: SocialItem[] }) {
   );
 }
 
-export function SiteHeader({ chrome, diagnostics }: { chrome: SiteChrome | null; diagnostics?: boolean }) {
+export function SiteHeader({
+  chrome,
+  diagnostics,
+  locale = "fa",
+  switcher,
+}: {
+  chrome: SiteChrome | null;
+  diagnostics?: boolean;
+  locale?: PublicLocale;
+  /**
+   * ECO2 — دکمهٔ تغییر زبان را مسیر صریح می‌دهد؛ نبودش یعنی دو زبانه نیست و
+   * هیچ دکمه‌ای رندر نمی‌شود (سایتِ تک‌زبانه دقیقاً مثل قبل).
+   */
+  switcher?: { locales: PublicLocale[]; primary: PublicLocale };
+}) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
         {(chrome?.header.widgets ?? []).map((w, i) => (
-          <ChromeWidget key={i} w={w} chrome={chrome} diagnostics={diagnostics} />
+          <ChromeWidget key={i} w={w} chrome={chrome} diagnostics={diagnostics} locale={locale} />
         ))}
+        {switcher && switcher.locales.length > 1 ? (
+          <LanguageSwitcher locales={switcher.locales} primary={switcher.primary} current={locale} />
+        ) : null}
       </div>
     </header>
   );
 }
 
-export function SiteFooter({ chrome, diagnostics }: { chrome: SiteChrome | null; diagnostics?: boolean }) {
+export function SiteFooter({
+  chrome,
+  diagnostics,
+  locale = "fa",
+}: {
+  chrome: SiteChrome | null;
+  diagnostics?: boolean;
+  locale?: PublicLocale;
+}) {
   // گرید واقعی ستون‌ها: هر ویجت links یک ستون (به ترتیب، راست‌به‌چپ)؛
   // تعداد = footer.layout.columns وگرنه تعداد واقعی (۱ تا ۴) — همان قاعده بک‌اند.
   const widgets = chrome?.footer.widgets ?? [];
@@ -235,10 +266,10 @@ export function SiteFooter({ chrome, diagnostics }: { chrome: SiteChrome | null;
       >
         {widgets.map((w, i) => (
           <div key={i} style={w.type === "copyright" ? { gridColumn: "1 / -1" } : undefined}>
-            <ChromeWidget w={w} chrome={chrome} diagnostics={diagnostics} />
+            <ChromeWidget w={w} chrome={chrome} diagnostics={diagnostics} locale={locale} />
           </div>
         ))}
-        <Socials socials={chrome?.socials ?? []} />
+        <Socials socials={chrome?.socials ?? []} locale={locale} />
       </div>
     </footer>
   );

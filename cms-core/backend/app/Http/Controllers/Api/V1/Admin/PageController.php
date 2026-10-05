@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Page;
 use App\Models\PageRevision;
 use App\Models\RevalidateLog;
+use App\Models\Setting;
 use App\Models\SidePreset;
 use App\Services\RevalidateDispatcher;
 use App\Services\RevalidateSigner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 /**
  * تسک ۱.۱ — مدیریت صفحات (ویرایشگر بلوکی).
@@ -40,13 +42,14 @@ class PageController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate($this->rules(), $this->messages());
+        $validated = $request->validate($this->rules(null, $request->input('locale')), $this->messages());
         $this->assertPresets($validated);
 
         $page = Page::query()->create([
             'user_id' => $request->user()->id,
             'title' => $validated['title'],
             'slug' => $validated['slug'] ?? Str::slug($validated['title']),
+            'locale' => $validated['locale'] ?? Page::LOCALE_DEFAULT,
             'status' => Page::STATUS_DRAFT,
             'is_single' => $validated['is_single'] ?? false,
             'blocks' => $validated['blocks'] ?? [],
@@ -77,12 +80,13 @@ class PageController extends Controller
     {
         // مشترک: بدون چک مالکیت.
 
-        $validated = $request->validate($this->rules($page->id), $this->messages());
+        $validated = $request->validate($this->rules($page->id, $request->input('locale', $page->locale)), $this->messages());
         $this->assertPresets($validated);
 
         $page->forceFill([
             'title' => $validated['title'] ?? $page->title,
             'slug' => $validated['slug'] ?? $page->slug,
+            'locale' => $validated['locale'] ?? $page->locale,
             'is_single' => array_key_exists('is_single', $validated) ? (bool) $validated['is_single'] : $page->is_single,
             'left_preset_id' => array_key_exists('left_preset_id', $validated) ? $validated['left_preset_id'] : $page->left_preset_id,
             'right_preset_id' => array_key_exists('right_preset_id', $validated) ? $validated['right_preset_id'] : $page->right_preset_id,
@@ -106,15 +110,24 @@ class PageController extends Controller
     public function destroy(Page $page, RevalidateDispatcher $dispatcher): JsonResponse
     {
         $slug = $page->slug;
+        // L-B9 — حذفِ صفحهٔ خانه باید تگ `site-homepage` را هم پاک کند، وگرنه
+        // `/` تا انقضای ISR همان صفحهٔ حذف‌شده را نشان می‌دهد. قبل از delete
+        // حساب می‌شود چون بعد از آن رکورد دیگر در دسترس نیست.
+        $tags = array_merge(['pages', "page:{$slug}"], $this->homepageTags($page));
         $page->delete();
-        $dispatcher->dispatch(['pages', "page:{$slug}"]);
+        $dispatcher->dispatch(array_values(array_unique($tags)));
 
         return response()->json(['message' => 'صفحه حذف شد.']);
     }
 
     /** انتشار = revision جدید + published + ثبت لاگ revalidate امضاشده. */
-    public function publish(Request $request, Page $page, RevalidateSigner $signer, RevalidateDispatcher $dispatcher): JsonResponse
-    {
+    public function publish(
+        Request $request,
+        Page $page,
+        RevalidateSigner $signer,
+        RevalidateDispatcher $dispatcher,
+        \App\Services\Push\ContentPublishedNotifier $pushNotifier,
+    ): JsonResponse {
         // مشترک: بدون چک مالکیت.
 
         $revision = $page->snapshot(
@@ -139,7 +152,18 @@ class PageController extends Controller
         ]);
 
         // ابطال فوری کش ISR فرانت (fire-and-forget — خرابی فرانت انتشار را نمی‌شکند).
-        $dispatcher->dispatch(['pages', "page:{$page->slug}"]);
+        // L-B9 — انتشار _صفحهٔ خانه_ باید `site-homepage` را هم باطل کند؛
+        // بدون آن، `/` تا ۳۰۰ ثانیه محتوای قدیمی را نگه می‌دارد و «انتشار» فقط
+        // با گذر زمان دیده می‌شود.
+        $tags = array_merge(['pages', "page:{$page->slug}"], $this->homepageTags($page));
+        $dispatcher->dispatch(array_values(array_unique($tags)));
+
+        // اعلام به زائرانی که opt-in کرده‌اند (P1.10).
+        //
+        // ⚠️ بعد از ابطال کش و **بیرون** از مسیر اصلی: خودش exception را
+        // می‌گیرد و لاگ می‌کند، ولی اگر روزی نشت کرد نباید کاربر پیام
+        // «انتشار ناموفق» ببیند وقتی صفحه واقعاً منتشر شده است.
+        $pushNotifier->announce($page->fresh());
 
         return response()->json([
             'message' => 'صفحه منتشر شد.',
@@ -178,8 +202,34 @@ class PageController extends Controller
         ]);
     }
 
+    /**
+     * L-B9 — تگ‌های اختصاصیِ صفحهٔ خانه، اگر این صفحه خانهٔ سایت باشد.
+     *
+     * «صفحهٔ خانه» دو راه تعریف دارد (همان ترتیب `Site/PageController::homepage()`):
+     * تنظیم `homepage_page_id` یا اسلاگِ `home`. اگر هیچ‌کدام نباشد خروجی خالی
+     * است و تگ اضافه‌ای dispatch نمی‌شود.
+     *
+     * @return list<string>
+     */
+    private function homepageTags(Page $page): array
+    {
+        return $this->isHomepage($page) ? ['site-homepage', 'page:home'] : [];
+    }
+
+    private function isHomepage(Page $page): bool
+    {
+        if ($page->slug === 'home') {
+            return true;
+        }
+
+        $site = Setting::get('site', 'global', []);
+
+        return is_array($site)
+            && (int) ($site['homepage_page_id'] ?? 0) === (int) $page->id;
+    }
+
     /** اعتبارسنجی بلوک‌ها در برابر رجیستری config/blocks.php + ستون‌های کناری. */
-    private function rules(?int $ignoreId = null): array
+    private function rules(?int $ignoreId = null, ?string $locale = null): array
     {
         $registry = collect(config('blocks', []))->where('active', true);
         $allowedTypes = $registry->keys()->all();
@@ -189,7 +239,14 @@ class PageController extends Controller
             // JSON-LD صفحهٔ عمومی می‌نشیند (`buildJsonLd`)؛ بدون این قاعده
             // تنها لایهٔ دفاع escape سمت فرانت است و هر رندرر تازه سوراخ می‌شود.
             'title' => ($ignoreId ? 'sometimes' : 'required').'|string|max:200|no_markup',
-            'slug' => 'sometimes|string|max:200|unique:pages,slug'.($ignoreId ? ",{$ignoreId}" : ''),
+            // F4.5 — یکتاییِ slug حالا per-locale است، نه سراسری.
+            'slug' => [
+                'sometimes', 'string', 'max:200',
+                Rule::unique('pages', 'slug')
+                    ->where(fn ($q) => $q->where('locale', $locale ?? Page::LOCALE_DEFAULT))
+                    ->ignore($ignoreId),
+            ],
+            'locale' => 'sometimes|string|max:8|in:fa,en',
             'is_single' => 'sometimes|boolean',
             'blocks' => 'sometimes|array',
             'blocks.*.type' => 'required_with:blocks|string|in:'.implode(',', $allowedTypes),

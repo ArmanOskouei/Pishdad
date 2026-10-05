@@ -17,6 +17,44 @@ use Illuminate\Support\Str;
  * ماتریس نقش‌ها، schema ویجت‌ها و تب‌های بلوک‌ها داینامیک باشند (نه هاردکد).
  *
  * فرمت‌ها در docs/PLUGIN-MANIFEST-CONTRACT.md مستند است.
+ *
+ * کانال اصلیِ همهٔ نقاط اتصال: `panel.extensions`
+ * ---------------------------------------------------------------
+ * برای **هر** نقطهٔ اتصال، شکلِ اعلانِ موردِ قرارداد این است:
+ *
+ *     { "panel": { "extensions": [ { "point": "<point>", … } ] } }
+ *
+ * و همهٔ خواندن‌ها از یک نقطهٔ واحد رد می‌شوند:
+ * `ManifestRegistry::pointDeclarations()`. یک کانال، یک شکل، یک validator —
+ * یعنی «نقطهٔ اتصال» دیگر دو تعریف ندارد که یک روز یکی‌شان یادش برود.
+ *
+ * کلیدهای سطح‌بالای قدیمی **لایهٔ سازگاری**‌اند، نه کانال موازی. یعنی:
+ *
+ * | نقطه | کانال قراردادی | کانال legacy (سازگاری) | در برخورد برنده |
+ * |---|---|---|---|
+ * | `admin.menu` | `panel.extensions` | `menu` | legacy |
+ * | `admin.plugin_tools` | `panel.extensions` | `tools` | legacy |
+ * | `site.header_widget` | `panel.extensions` | `widgets.header` | legacy |
+ * | `site.footer_widget` | `panel.extensions` | `widgets.footer` | legacy |
+ * | `site.page_type` | `panel.extensions` | `page_types` | legacy |
+ * | پرمیشن (نقطه نیست — I1.3) | `access` | `permissions` | کانال زنده |
+ * | `admin.settings_schema` | ❌ ندارد — `deprecated` | `settings` | — |
+ * | `hooks` | ❌ ندارد — K5.5 حذف شد، dispatcher وجود ندارد | ❌ | — |
+ *
+ * ⚠️ **legacy در پنج نقطهٔ اول برنده است.** این عمدی و fail-closed به‌سمت
+ * نصب‌های موجود است: بسته‌ای که امروز `manifest.menu` دارد، بعد از مهاجرت هم
+ * باید همان رفتار را بگیرد، نه اینکه یک اعلانِ نقطه‌ای — که شاید نویسنده
+ * امروز اضافه کرده — بی‌سروصدا جایش را بگیرد. تنها استثنا پرمیشن است، چون
+ * آنجا کانال زنده (`access`) تازه معرفی شده و چیزی را جابه‌جا نمی‌کند.
+ *
+ * پس دو جمله را باید با هم گفت وگو کرد:
+ *  • «`panel.extensions` تنها **اعلانِ** نقطهٔ اتصال است» — یعنی تنها چیزی که
+ *    validator می‌سنجد و در تحلیلگر به نویسنده نشان داده می‌شود.
+ *  • «کلید سطح‌بالا هنوز خودش هم اعلام می‌کند» — فقط برای نصب‌هایی که پیش از
+ *    این کانال نوشته شده‌اند.
+ *
+ * حذفِ لایهٔ دوم یک تصمیم جداگانه و پرهزینه است (شمارش نصب‌های فعال، مهاجرت
+ * داده، و بازگردانی‌پذیری)، نه چیزی که در این مهاجرت انجام می‌شود.
  */
 class ManifestRegistry
 {
@@ -33,13 +71,49 @@ class ManifestRegistry
         'delete' => 'حذف',
     ];
 
+    /**
+     * ⭐ I1-b — نقاطی که کانال اصلی (`panel.extensions`) برایشان **زنده** است.
+     *
+     * نه فقط این کلاس: `ServiceProviderRegistry::declaredSearchProviders()` هم
+     * از همین کانال می‌خواند، پس `core.service_provider` هم اینجاست. فهرست یکی
+     * است تا فرانت هم نداند کدام نقاط را باید در فرمِ ساخت بسته نشان دهد.
+     * فهرست **نام‌برده** است نه مشتق‌شده، چون «مشتق‌شده از قرارداد» یعنی هر
+     * نقطه‌ای که فقط در `EXTENSION_POINTS` ثبت شده باشد خودکار «خوانده‌شده»
+     * اعلام شود — و همان‌جا دروغ می‌گوید: `admin.dashboard_slot` و
+     * `site.block_type` در قراردادند ولی هیچ رجیستری‌ای نمی‌خواندشان. اگر
+     * روزی برایشان رندرر نوشته شد، این فهرست باید همان‌جا به‌روز شود.
+     *
+     * ⛔ پرمیشن در این فهرست **نیست**: نقطهٔ اتصال نیست (I1.3) و کانالش
+     * `access` است — دلیل در `PluginPackageContract::PERMISSIONS_FIELD`.
+     * ⛔ `hooks` هم نیست: K5.5 حذفش کرد و dispatcher ساخته نشد.
+     *
+     * @var list<string>
+     */
+    public const EXTENSION_POINT_DECLARABLE = [
+        'admin.menu',
+        'admin.plugin_tools',
+        'core.service_provider',
+        'site.header_widget',
+        'site.footer_widget',
+        'site.page_type',
+    ];
+
     /** برچسب فارسی هر نوع ادغام — فقط برای پیام گزارش برخورد. */
     private const KIND_FA = [
         'permission' => 'ماژول دسترسی',
         'widget' => 'ویجت',
         'page_type' => 'نوع صفحه',
         'settings' => 'فرم تنظیمات',
+        'block' => 'بلوک',
     ];
+
+    /**
+     * K6.12 — کلیدهایی که از schema بلوک افزونه حذف می‌شوند.
+     *
+     * افزونه هرگز React/JS نمی‌فرستد؛ این فقط لایهٔ دفاعی است تا اگر روزی
+     * مصرف‌کنندهٔ تازه‌ای schema را به‌عنوان کد تفسیر کرد، کلید اجرایی نبیند.
+     */
+    private const BLOCK_SCHEMA_FORBIDDEN = ['component', 'render', 'js', 'import', 'eval'];
 
     /** @var array<string, array<int, array<string, string>>> برخوردهای آخرین ادغام، به تفکیک kind. */
     private static array $collisions = [];
@@ -218,51 +292,40 @@ class ManifestRegistry
         // حلقهٔ `activeManifests()` آمده — همان‌جایی که ترتیب واقعاً دیده
         // می‌شود.
         $mergePointChannel = function (array $manifest, string $source) use (&$out, &$owner): void {
-            $extensions = $manifest['panel']['extensions'] ?? null;
-            if (! is_array($extensions)) {
-                return;
-            }
-
             // نگاشت نقطهٔ اتصال به ناحیه. هر چیز دیگری ویجت نیست.
             $areas = [
                 'site.header_widget' => 'header',
                 'site.footer_widget' => 'footer',
             ];
 
-            foreach ($extensions as $ext) {
-                if (! is_array($ext)) {
-                    continue;
-                }
-                $area = $areas[$ext['point'] ?? ''] ?? null;
-                if ($area === null) {
-                    continue;
-                }
+            foreach ($areas as $point => $area) {
+                foreach (self::pointDeclarations($manifest, $point) as $ext) {
+                    $type = $ext['type'] ?? null;
+                    if (! is_string($type) || $type === '') {
+                        continue;
+                    }
 
-                $type = $ext['type'] ?? null;
-                if (! is_string($type) || $type === '') {
-                    continue;
+                    $key = "{$area}:{$type}";
+                    if (isset($owner[$key])) {
+                        self::recordCollision('widget', $key, $owner[$key], $source);
+
+                        continue;
+                    }
+
+                    $owner[$key] = $source;
+                    $out[] = [
+                        'area' => $area,
+                        'type' => $type,
+                        'title' => is_string($ext['title'] ?? null) ? $ext['title'] : $type,
+                        'description' => is_string($ext['description'] ?? null) ? $ext['description'] : null,
+                        // اسکیمای `fields` خالی است (K6.4) ⇒ هر اعلانی `no_schema`
+                        // می‌گیرد و رد می‌شود. پس عملاً همیشه پیش‌فرض خالی است، و
+                        // هسته آن را با `SchemaForm` تخت رندر می‌کند.
+                        'schema' => is_array($ext['schema'] ?? null) ? $ext['schema'] : ['type' => 'object'],
+                        'ui' => is_array($ext['ui'] ?? null) ? $ext['ui'] : [],
+                        'source' => $source,
+                    ];
                 }
-
-                $key = "{$area}:{$type}";
-                if (isset($owner[$key])) {
-                    self::recordCollision('widget', $key, $owner[$key], $source);
-
-                    continue;
-                }
-
-                $owner[$key] = $source;
-                $out[] = [
-                    'area' => $area,
-                    'type' => $type,
-                    'title' => is_string($ext['title'] ?? null) ? $ext['title'] : $type,
-                    'description' => is_string($ext['description'] ?? null) ? $ext['description'] : null,
-                    // اسکیمای `fields` خالی است (K6.4) ⇒ هر اعلانی `no_schema`
-                    // می‌گیرد و رد می‌شود. پس عملاً همیشه پیش‌فرض خالی است، و
-                    // هسته آن را با `SchemaForm` تخت رندر می‌کند.
-                    'schema' => is_array($ext['schema'] ?? null) ? $ext['schema'] : ['type' => 'object'],
-                    'ui' => is_array($ext['ui'] ?? null) ? $ext['ui'] : [],
-                    'source' => $source,
-                ];
             }
         };
 
@@ -363,6 +426,46 @@ class ManifestRegistry
     }
 
     /**
+     * ⭐ I1-b — تنها راه خواندن اعلان‌های یک نقطه از یک مانیفست.
+     *
+     * عمداً یک متد است و نه چهار پراکندگیِ `$manifest['panel']['extensions']`:
+     * کانال اصلیِ `panel.extensions` باید در **یک** جا تعریف شود، وگرنه یک روز
+     * یک نقطه کانال دوم را از یاد می‌برد و اعلانش بی‌صدا از رجیستری می‌افتد —
+     * همان باگی که K6.4 برای `site.header_widget` داشت.
+     *
+     * شکل آبجکتی و شکل «کلید ⇒ اعلان» هر دو پذیرفته می‌شوند (همان قاعدهٔ
+     * `ServiceProviderRegistry::serviceProviderDeclarations()`)، ولی در شکل
+     * دوم فقط اعلان‌هایی برگردانده می‌شوند که خودشان `point` دارند — وگرنه کلیدِ
+     * نقشه به‌عنوان نقطه جا زده می‌شد.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function pointDeclarations(array $manifest, string $point): array
+    {
+        $declared = $manifest['panel']['extensions'] ?? null;
+
+        if (! is_array($declared)) {
+            return [];
+        }
+
+        if (array_is_list($declared) === false) {
+            $declared = array_values(array_filter(
+                $declared,
+                fn ($d) => is_array($d) && ($d['point'] ?? null) === $point
+            ));
+        }
+
+        $out = [];
+        foreach ($declared as $decl) {
+            if (is_array($decl) && ($decl['point'] ?? null) === $point) {
+                $out[] = $decl;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * آیتم‌های منوی پنل که افزونه‌های فعال اعلام کرده‌اند (K6.1).
      *
      * @return list<array{slug: string, key: string, label: string, href: string, icon: string|null, order: int, permission: string|null}>
@@ -420,17 +523,10 @@ class ManifestRegistry
         $byKey = [];
 
         // کانال ۲ — `panel.extensions` (کم‌اولویت‌تر).
-        $extensions = $manifest['panel']['extensions'] ?? null;
-        if (is_array($extensions)) {
-            foreach ($extensions as $ext) {
-                if (! is_array($ext) || ($ext['point'] ?? null) !== 'admin.menu') {
-                    continue;
-                }
-
-                $item = self::normalizeMenuItem($ext, $slug);
-                if ($item !== null) {
-                    $byKey[$item['key']] = $item;
-                }
+        foreach (self::pointDeclarations($manifest, 'admin.menu') as $ext) {
+            $item = self::normalizeMenuItem($ext, $slug);
+            if ($item !== null) {
+                $byKey[$item['key']] = $item;
             }
         }
 
@@ -617,7 +713,7 @@ class ManifestRegistry
             return [];
         }
 
-        $allowed = PluginPageContract::allowedBlockTypes();
+        $allowed = self::allowedBlockTypes();
         $out = [];
 
         foreach ($blocks as $block) {
@@ -649,6 +745,166 @@ class ManifestRegistry
 
             if (count($out) >= PluginPageContract::MAX_BLOCKS_PER_PAGE) {
                 break;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * K6.12 — انواع بلوک مجاز برای مسیر خواندن/رندرِ عمومی.
+     *
+     * برخلاف `PluginPageContract::allowedBlockTypes()` که فقط رجیستری هسته را
+     * می‌شناسد (و دروازهٔ نصب باید بسته بماند)، این یکی **کانال زندهٔ
+     * `manifest.blocks`** را هم می‌خواند. بدون آن، بلوکی که افزونه فقط schema‌اش
+     * را می‌فرستد در `normalizePageBlocks()` بی‌صدا حذف می‌شد — یعنی «نصب شد
+     * ولی دیده نشد» از نوع محتوایی.
+     *
+     * @return list<string>
+     */
+    public static function allowedBlockTypes(): array
+    {
+        return array_keys(self::blockSchemas());
+    }
+
+    /**
+     * K6.12 — رجیستری بلوک‌های schema-only (هسته + افزونه‌های فعال).
+     *
+     * خروجی `[type => schema]` است؛ همان شکلی که `BlockRenderer` فرانت با
+     * پراپِ `schemas` می‌فهمد. افزونه هیچ کد React/JS نمی‌فرستد — فقط
+     * `manifest.blocks.{type}.schema` را اعلام می‌کند و هسته با ۱۱ الگوی عمومی
+     * رندر می‌کند.
+     *
+     * ترتیب برنده در برخورد عمداً «هسته اول» است: یک افزونه هرگز نباید بلوک
+     * هسته را بپوشاند، وگرنه رندرِ ثابتِ هسته با رجیستریِ افزونه عوض می‌شود.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function blockSchemas(): array
+    {
+        $schemas = [];
+        $owner = [];
+
+        foreach (config('blocks', []) as $type => $def) {
+            if (! is_string($type) || $type === '') {
+                continue;
+            }
+            if (is_array($def) && ($def['active'] ?? true) === false) {
+                continue;
+            }
+            $schema = is_array($def) && is_array($def['schema'] ?? null) ? $def['schema'] : ['type' => 'object'];
+            $schemas[$type] = self::normalizeBlockSchema($schema);
+            $owner[$type] = 'core';
+        }
+
+        self::$collisions['block'] = [];
+
+        foreach (self::activeManifests() as $slug => $manifest) {
+            foreach (self::declaredBlockSchemas($manifest) as $type => $schema) {
+                if (isset($owner[$type])) {
+                    self::recordCollision('block', $type, $owner[$type], "plugin:{$slug}");
+
+                    continue;
+                }
+                $owner[$type] = "plugin:{$slug}";
+                $schemas[$type] = $schema;
+            }
+        }
+
+        return $schemas;
+    }
+
+    /**
+     * اعلان‌های بلوک یک مانیفست — دو کانال، یک قاعده (هم‌شکل `pageTypes()`).
+     *
+     *  ۱. `manifest.blocks.{type}` — کانال سطح‌بالا و مستقیم (برنده).
+     *  ۲. `panel.extensions` با `point === 'site.block_type'` — نقطهٔ قراردادی.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function declaredBlockSchemas(array $manifest): array
+    {
+        $byType = [];
+
+        foreach (self::pointDeclarations($manifest, 'site.block_type') as $ext) {
+            $type = $ext['type'] ?? $ext['slug'] ?? null;
+            if (! is_string($type) || ! self::validBlockType($type)) {
+                continue;
+            }
+            $byType[$type] = self::normalizeBlockSchema(is_array($ext['schema'] ?? null) ? $ext['schema'] : $ext);
+        }
+
+        $blocks = $manifest['blocks'] ?? null;
+        if (is_array($blocks)) {
+            foreach ($blocks as $type => $def) {
+                if (! is_string($type) || ! self::validBlockType($type) || ! is_array($def)) {
+                    continue;
+                }
+                $byType[$type] = self::normalizeBlockSchema(is_array($def['schema'] ?? null) ? $def['schema'] : $def);
+            }
+        }
+
+        return $byType;
+    }
+
+    /** الگوی نام نوع بلوک — همان الگوی کلید قرارداد. */
+    private static function validBlockType(string $type): bool
+    {
+        return preg_match('/^[a-z0-9][a-z0-9._-]{0,39}$/', $type) === 1;
+    }
+
+    /**
+     * schema بلوک افزونه را به شکلِ مصرف‌پذیر می‌رساند: کلیدهای اجرایی حذف
+     * می‌شوند و شکلِ آبجکت تضمین می‌شود. هرگز استثنا پرتاب نمی‌کند.
+     *
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>
+     */
+    private static function normalizeBlockSchema(array $schema): array
+    {
+        $clean = self::stripForbiddenKeys($schema);
+
+        return is_array($clean) ? $clean : ['type' => 'object'];
+    }
+
+    /**
+     * حذف بازگشتیِ کلیدهای اجرایی از یک ساختار JSON.
+     *
+     * عمق محدود است تا یک مانیفستِ ساختگی کل حافظه را نگیرد؛ مقدار غیرآرایه‌ای
+     * دست‌نخورده می‌ماند. `null` یعنی «همه‌چیز حذف شد».
+     */
+    private static function stripForbiddenKeys(mixed $value, int $depth = 0): mixed
+    {
+        if ($depth > 8) {
+            return null;
+        }
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            $list = [];
+            foreach ($value as $item) {
+                $pruned = self::stripForbiddenKeys($item, $depth + 1);
+                if ($pruned !== null) {
+                    $list[] = $pruned;
+                }
+            }
+
+            return $list;
+        }
+
+        $out = [];
+        foreach ($value as $key => $item) {
+            if (! is_string($key) || $key === '') {
+                continue;
+            }
+            if (in_array(strtolower($key), self::BLOCK_SCHEMA_FORBIDDEN, true)) {
+                continue;
+            }
+            $pruned = self::stripForbiddenKeys($item, $depth + 1);
+            if ($pruned !== null) {
+                $out[$key] = $pruned;
             }
         }
 
@@ -711,16 +967,10 @@ class ManifestRegistry
         $byKey = [];
 
         // کانال ۲ — نقطهٔ micro-schema (بازنده در برخورد).
-        $extensions = $manifest['panel']['extensions'] ?? null;
-        if (is_array($extensions)) {
-            foreach ($extensions as $ext) {
-                if (! is_array($ext) || ($ext['point'] ?? null) !== 'admin.plugin_tools') {
-                    continue;
-                }
-                $tool = self::normalizePluginTool($ext, $slug);
-                if ($tool !== null) {
-                    $byKey[$tool['key']] = $tool;
-                }
+        foreach (self::pointDeclarations($manifest, 'admin.plugin_tools') as $ext) {
+            $tool = self::normalizePluginTool($ext, $slug);
+            if ($tool !== null) {
+                $byKey[$tool['key']] = $tool;
             }
         }
 
@@ -862,20 +1112,20 @@ class ManifestRegistry
      */
     private static function declaredPageTypes(array $manifest): array
     {
-        $extensions = $manifest['panel']['extensions'] ?? null;
-
-        if (! is_array($extensions)) {
-            return [];
-        }
-
         $out = [];
 
-        foreach ($extensions as $entry) {
-            if (! is_array($entry) || ($entry['point'] ?? null) !== 'site.page_type') {
-                continue;
-            }
-
-            $type = $entry['type'] ?? null;
+        foreach (self::pointDeclarations($manifest, 'site.page_type') as $entry) {
+            // ⭐ نامِ نوع، `slug` است — نه `type`.
+            //
+            // قرارداد (`site.page_type`) فیلد اجباری را `slug` نام گذاشته و
+            // `example_ok` هم `slug` می‌دهد. ولی این متد تا حالا فقط `type` را
+            // می‌خواند، یعنی **اعلانی که خودِ validator قبول می‌کند هرگز به رجیستری
+            // نمی‌رسید** — همان «نصب شد ولی دیده نشد» با یک پیامِ سبزِ دروغین.
+            //
+            // `type` به‌عنوان نام مستعار خوانده می‌شود، ولی **دوم** — تا مانیفست‌های
+            // قدیمیِ نوشته‌شده با شکل پیش از K3.9 هم کار کنند و کانال اصلی به‌طور
+            // ناخواسته سخت‌گیرانه‌تر از legacy نشود.
+            $type = $entry['slug'] ?? $entry['type'] ?? null;
 
             if (! is_string($type) || $type === '') {
                 continue;
@@ -970,8 +1220,14 @@ class ManifestRegistry
             // `orderBy('slug')` عمدی است: بدون آن ترتیب بازگشتی PostgreSQL
             // تضمین نشده، یعنی دو درخواست پشت‌سرهم می‌توانستند منوی متفاوت
             // بدهند و برخورد «کدام افزونه برنده است» بین دو رندر فرق کند.
+            // K1.5-B — ردشده‌ها هرگز dispatch نمی‌شوند، حتی اگر flag فعال
+            // به‌هرلیل set مانده باشد. بقیهٔ وضعیت‌ها دست‌نخورده‌اند: گیت
+            // فعال‌سازی (mayActivate) در زمان activate اعمال می‌شود و پلاگین
+            // محلیِ تأییدنشده که با حالت توسعه‌دهنده فعال شده (K0.11: بله با
+            // هشدار) باید در dispatch بماند، وگرنه dev mode بی‌اثر می‌شد.
             return Plugin::query()
                 ->where('active', true)
+                ->where('review_status', '!=', Plugin::REVIEW_REJECTED)
                 ->orderBy('slug')
                 ->pluck('manifest', 'slug')
                 ->filter(fn ($m) => is_array($m))
@@ -985,6 +1241,82 @@ class ManifestRegistry
      * باید بعد از هر تغییر در مجموعه پلاگین‌های فعال صدا زده شود، وگرنه
      * پلاگین تازه‌فعال‌شده تا پایان TTL در پاسخ‌ها غایب می‌ماند.
      */
+    /**
+     * ECO3 — مستندات API که افزونه‌های فعال خودشان اعلام می‌کنند.
+     *
+     * فقط **داده** است: هیچ کد افزونه‌ای رندر نمی‌شود و هیچ URL خارجی‌ای
+     * fetch نمی‌شود. هر ورودی نامعتبر بی‌صدا حذف می‌شود (fail-closed) تا یک
+     * مانیفست خراب کل صفحهٔ مستندات را نترکاند.
+     *
+     * @return list<array{slug: string, name: string, version: string, entries: list<array<string, mixed>>}>
+     */
+    public static function developerDocs(): array
+    {
+        $out = [];
+        foreach (self::activeManifests() as $slug => $manifest) {
+            $entries = [];
+            foreach (is_array($manifest['docs'] ?? null) ? $manifest['docs'] : [] as $raw) {
+                $entry = self::normalizeDocEntry($raw);
+                if ($entry !== null) {
+                    $entries[] = $entry;
+                }
+            }
+            if ($entries === []) {
+                continue;
+            }
+            $out[] = [
+                'slug' => (string) $slug,
+                'name' => is_string($manifest['name'] ?? null) && $manifest['name'] !== '' ? $manifest['name'] : (string) $slug,
+                'version' => is_string($manifest['version'] ?? null) ? $manifest['version'] : '',
+                'entries' => $entries,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * نرمال‌سازی یک ورودی `manifest.docs` — رشته‌ها trim و اجباری‌ها سنجیده.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function normalizeDocEntry(mixed $raw): ?array
+    {
+        if (! is_array($raw)) {
+            return null;
+        }
+        $str = static function (mixed $v): string {
+            return is_string($v) ? trim($v) : '';
+        };
+        $titleFa = $str($raw['title_fa'] ?? null);
+        $titleEn = $str($raw['title_en'] ?? null);
+        $path = $str($raw['path'] ?? null);
+        if ($titleFa === '' && $titleEn === '') {
+            return null;
+        }
+        if ($path === '') {
+            return null;
+        }
+
+        $entry = [
+            'title_fa' => $titleFa !== '' ? $titleFa : $titleEn,
+            'title_en' => $titleEn !== '' ? $titleEn : $titleFa,
+            'method' => strtoupper($str($raw['method'] ?? null)) ?: 'GET',
+            'path' => $path,
+            'description_fa' => $str($raw['description_fa'] ?? null),
+            'description_en' => $str($raw['description_en'] ?? null),
+            'auth' => $str($raw['auth'] ?? null),
+        ];
+        if (isset($raw['request']) && is_array($raw['request'])) {
+            $entry['request'] = $raw['request'];
+        }
+        if (isset($raw['response']) && is_array($raw['response'])) {
+            $entry['response'] = $raw['response'];
+        }
+
+        return $entry;
+    }
+
     public static function flushCache(): void
     {
         Cache::forget(self::CACHE_KEY);
@@ -995,13 +1327,46 @@ class ManifestRegistry
     }
 
     /**
-     * نرمال‌سازی هوک permissions مانیفست به [{module, title_fa, actions}].
+     * نرمال‌سازی پرمیشن‌های مانیفست به [{module, name, title_fa, actions}].
+     *
+     * ## ⭐ I1.3 — چرا این **نقطهٔ اتصال نیست** و چرا کانالش جداست
+     *
+     * `panel.extensions` برای چیزی است که هسته **رندر** می‌کند. پرمیشن رندر
+     * نمی‌شود؛ هسته آن را در `permission_modules` می‌نویسد و میان‌افزار `perm:`
+     * می‌سنجدش. جا دادنش در میکرو-اسکیمای نقاط یعنی یا `max_depth` برای همهٔ
+     * نقاط بالا می‌رود، یا `actions` بیرون اعلان می‌ماند و هیچ‌کس اعتبارسنجی‌اش
+     * نمی‌کند — و «باز بودنِ» نقطه برای پرمیشن یعنی هر افزونه هر اسمی می‌سازد و
+     * `perm:` همان را می‌خواند: یک سطح تازهٔ اختیار بدون مهار. دلیل کامل در
+     * `PluginPackageContract::PERMISSIONS_FIELD`.
+     *
+     * ## دو کانال، fail-closed در خواندن
+     *
+     *  ۱. `manifest.access.*` — کانال زنده (ثابت `PERMISSIONS_FIELD`).
+     *  ۲. `manifest.permissions` — کانال قدیمی، فقط برای نصب‌های موجود.
+     *
+     * اولی **برنده** است: اگر هر دو باشند، فقط `access` خوانده می‌شود تا یک
+     * افزونه نتواند با تکرار `permissions` مجموعهٔ ناقصی بسازد و نیمی از
+     * دسترسی‌هایش را از دست بدهد. `access` غایب و فقط `permissions` موجود =
+     * نصب قدیمی، کار می‌کند و در report نگفته می‌شود چون سکوت اینجا بی‌خطر است
+     * (رفتار همان رفتار قبلی است).
+     *
      * ورودی نامعتبر نادیده گرفته می‌شود (fail-soft در خواندن؛ اعتبارسنجی
-     * سخت‌گیرانه هنگام فعال‌سازی با ensurePermissions انجام می‌شود).
+     * سخت‌گیرانه هنگام فعال‌سازی با `ensurePermissions` انجام می‌شود).
      */
     public static function manifestPermissions(array $manifest, string $slug = ''): array
     {
-        $entries = $manifest['permissions'] ?? null;
+        $primary = PluginPackageContract::PERMISSIONS_FIELD;
+        $legacy = PluginPackageContract::PERMISSIONS_FIELD_LEGACY;
+
+        if (array_key_exists($primary, $manifest)) {
+            // fail-closed: کانال زنده حاضر است ⇒ تصمیم نویسنده همین است، حتی اگر
+            // خراب باشد. برگشتن به کانال قدیمی یعنی «شاید منظورش این بود» و
+            // نتیجه‌اش دسترسی‌هایی است که نویسنده حذف کرده بود.
+            $entries = $manifest[$primary];
+        } else {
+            $entries = $manifest[$legacy] ?? null;
+        }
+
         if (! is_array($entries)) {
             return [];
         }

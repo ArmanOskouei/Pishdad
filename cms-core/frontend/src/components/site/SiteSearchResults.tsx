@@ -4,6 +4,7 @@ import Link from "next/link";
 import { runSiteSearch, siteSearchTypeFa, type SiteSearchHit } from "@/lib/site-search";
 import { Highlight } from "@/components/search/Highlight";
 import { faNum, jalaliDate } from "@/lib/fa";
+import { localizeHref, publicT, type PublicLocale } from "@/lib/i18n/public";
 
 /**
  * نتایج جستجوی عمومی: کارت کامل (عنوان، snippet با هایلایت، بخش، تاریخ شمسی).
@@ -11,7 +12,7 @@ import { faNum, jalaliDate } from "@/lib/fa";
  *   <SiteRating slug={hit.slug} /> رندر شود (avg/count + فرم ثبت).
  * TODO(analytics): لاگ کلیک نتیجه (provider دوم search-analytics) برای بهبود رتبه.
  */
-export function SiteSearchResults({ initialQ }: { initialQ: string }) {
+export function SiteSearchResults({ initialQ, locale = "fa" }: { initialQ: string; locale?: PublicLocale }) {
   const [q, setQ] = useState(initialQ);
   const [hits, setHits] = useState<SiteSearchHit[] | null>(null);
 
@@ -41,8 +42,8 @@ export function SiteSearchResults({ initialQ }: { initialQ: string }) {
     <div>
       <div className="page-head">
         <div>
-          <h1>جستجو در سایت</h1>
-          <p>جستجو در همه صفحات منتشرشده (عنوان و متن)</p>
+          <h1>{publicT(locale, "search.pageTitle")}</h1>
+          <p>{publicT(locale, "search.hint")}</p>
         </div>
       </div>
 
@@ -58,50 +59,50 @@ export function SiteSearchResults({ initialQ }: { initialQ: string }) {
         }}
       >
         <div className="field grow">
-          <label htmlFor="site-q">عبارت جستجو</label>
+          <label htmlFor="site-q">{publicT(locale, "search.queryLabel")}</label>
           <input
             id="site-q"
             name="q"
             className="input"
-            placeholder="مثلاً: تماس، خدمات، سوالات متداول…"
+            placeholder={publicT(locale, "search.placeholderLong")}
             defaultValue={q}
             key={initialQ}
             minLength={2}
           />
         </div>
         <button className="btn btn-primary" type="submit">
-          جستجو
+          {publicT(locale, "search.submit")}
         </button>
       </form>
 
       {hits === null ? (
         <div className="card card-pad">
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>در حال جستجو…</p>
+          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{publicT(locale, "search.loading")}</p>
         </div>
       ) : null}
 
       {hits !== null && q.trim().length < 2 ? (
         <div className="card card-pad" role="status">
-          <b>عبارت جستجو را بنویسید</b>
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>حداقل ۲ نویسه لازم است.</p>
+          <b>{publicT(locale, "search.needQuery")}</b>
+          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{publicT(locale, "search.needQueryHint")}</p>
         </div>
       ) : null}
 
       {hits !== null && q.trim().length >= 2 && hits.length === 0 ? (
         <div className="card card-pad" role="status">
-          <b>نتیجه‌ای برای «{q.trim()}» پیدا نشد.</b>
+          <b>{publicT(locale, "search.noResult", { q: q.trim() })}</b>
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-            املا را بررسی کنید یا از واژه‌های ساده‌تر استفاده کنید.
+            {publicT(locale, "search.noResultHint")}
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBlockStart: 8 }}>
-            <Link className="btn btn-ghost btn-sm" href="/">خانه</Link>
+            <Link className="btn btn-ghost btn-sm" href={localizeHref("/", locale)}>{publicT(locale, "chrome.home")}</Link>
           </div>
         </div>
       ) : null}
 
       {hits !== null && hits.length > 0 ? (
         <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          {faNum(hits.length)} نتیجه برای «{q.trim()}»
+          {publicT(locale, "search.count", { n: faNum(hits.length), q: q.trim() })}
         </p>
       ) : null}
 
@@ -113,7 +114,7 @@ export function SiteSearchResults({ initialQ }: { initialQ: string }) {
               <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{jalaliDate(h.updated_at)}</span>
             </div>
             <Link
-              href={`/${h.slug.replace(/^\/+/, "")}`}
+              href={localizeHref(`/${h.slug.replace(/^\/+/, "")}`, locale)}
               style={{ display: "block", fontSize: 16, fontWeight: 800, marginBlock: "6px 4px", color: "var(--text)" }}
             >
               <Highlight text={h.title} query={q} />

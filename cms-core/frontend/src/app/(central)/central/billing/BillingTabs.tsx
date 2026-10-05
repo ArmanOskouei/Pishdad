@@ -3,10 +3,8 @@ import { useRouter } from "next/navigation";
 import { Badge, Alert } from "@/components/ui/primitives";
 import { PlanManager, InvoiceCreate, InvoiceRemind, InvoiceStatus, SuspensionActions, GatewayForm } from "./BillingClients";
 import { faNum, jalali } from "@/lib/fa";
-import {
-  INVOICE_STATUS_FA, TIER_FA,
-  type CentralClient, type GatewaySettings, type Invoice, type Paginator, type Payment, type Plan, type SuspendedSub,
-} from "@/lib/domain";
+import { INVOICE_STATUS_FA, TIER_FA, type GatewaySettings, type Invoice, type Paginator, type Payment, type Plan, type SuspendedSub } from "@/lib/domain";
+import type { CentralClient } from "../types.ts";
 
 /** پوسته تب‌های Billing: رندر جدول‌های سرور + اتصال اکشن‌های تعاملی. */
 export function BillingTabs({

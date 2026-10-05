@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\Plugin;
 use App\Models\User;
 use App\Services\Billing\PaymentGatewayInterface;
-use App\Services\Billing\ZarinpalStubDriver;
+use App\Services\Billing\ManualBillingDriver;
 use App\Services\Chabokan\ChabokanClientInterface;
 use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\ServiceProviderRegistry;
@@ -113,7 +113,7 @@ class ServiceProviderRegistryTest extends TestCase
 
         $bad = PluginPackageContract::validateDeclaration('core.service_provider', [
             'interface' => PaymentGatewayInterface::class,
-            'class' => 'App\\Services\\Billing\\ZarinpalStubDriver',
+            'class' => 'App\\Services\\Billing\\ManualBillingDriver',
         ]);
         $this->assertContains('core.service_provider.bad_plugin_namespace', array_column($bad, 'code'));
 
@@ -164,7 +164,7 @@ class ServiceProviderRegistryTest extends TestCase
     {
         $gateway = app(PaymentGatewayInterface::class);
         $this->assertInstanceOf(
-            ZarinpalStubDriver::class,
+            ManualBillingDriver::class,
             $gateway,
             'پیش از نصب افزونه باید درایور پیش‌فرض هسته برگردد.'
         );
@@ -175,7 +175,7 @@ class ServiceProviderRegistryTest extends TestCase
         ));
 
         // binding باید دوباره ثبت شود تا وضعیت تازهٔ افزونه را ببیند.
-        $this->registry()->bind(PaymentGatewayInterface::class, fn () => new ZarinpalStubDriver);
+        $this->registry()->bind(PaymentGatewayInterface::class, fn () => new ManualBillingDriver);
         $this->app->forgetInstance(PaymentGatewayInterface::class);
 
         $this->assertInstanceOf(
@@ -197,11 +197,11 @@ class ServiceProviderRegistryTest extends TestCase
             'Pishdad\\Plugins\\Ghost\\Missing'
         ));
 
-        $this->registry()->bind(PaymentGatewayInterface::class, fn () => new ZarinpalStubDriver);
+        $this->registry()->bind(PaymentGatewayInterface::class, fn () => new ManualBillingDriver);
         $this->app->forgetInstance(PaymentGatewayInterface::class);
 
         $this->assertInstanceOf(
-            ZarinpalStubDriver::class,
+            ManualBillingDriver::class,
             app(PaymentGatewayInterface::class),
             'افزونهٔ خراب باید به پیاده‌سازی پیش‌فرض هسته برگردد.'
         );
@@ -260,7 +260,7 @@ class ServiceProviderRegistryTest extends TestCase
         // هسته است و افزونه نباید بتواند خودش را جای افزونه جا بزند.
         $this->installPlugin($this->manifestWithBinding(
             PaymentGatewayInterface::class,
-            ZarinpalStubDriver::class
+            ManualBillingDriver::class
         ));
 
         $this->assertSame([], $this->registry()->declaredBindings());
@@ -318,7 +318,7 @@ class ServiceProviderRegistryTest extends TestCase
         $this->registry()->bind(PaymentGatewayInterface::class, function () use (&$called) {
             $called = true;
 
-            return new ZarinpalStubDriver;
+            return new ManualBillingDriver;
         });
 
         $this->assertInstanceOf(PaymentGatewayInterface::class, app(PaymentGatewayInterface::class));

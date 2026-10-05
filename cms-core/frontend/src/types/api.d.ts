@@ -1540,7 +1540,20 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** شروع پرداخت فاکتور (session درگاه مرکزی Stub زرین‌پال — بدون شارژ واقعی) */
+        /**
+         * شروع پرداخت فاکتور (J10) — درگاهی وجود ندارد، صورتحساب دستی است
+         * @description این endpoint دیگر `authority` و `pay_url` برنمی‌گرداند. پیش از J10 یک
+         *     `authority` ساختگی با پیشوند `STUB-` و یک لینک `sandbox.zarinpal.com`
+         *     برمی‌گشت: ظاهرِ یک جریانِ کامل با هیچ درگاهی پشتش.
+         *
+         *     حالا درایورِ پیش‌فرض `manual` است و هیچ session پرداختی نمی‌سازد. کاربر
+         *     باید بداند پرداخت را بیرون از سامانه انجام می‌دهد و اپراتور مرکزی
+         *     وضعیت را دستی `paid` می‌کند.
+         *
+         *     نکته: وقتی درگاه واقعی اضافه شود، مسیرِ «انتقال به درگاه» در
+         *     `SubscriptionData::startPayment` زنده نگه داشته شده — این endpoint برای
+         *     آن روز آماده است و لازم نیست دوباره طراحی شود.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1552,15 +1565,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description در حال انتقال به درگاه (authority + pay_url) */
+                /** @description صورتحساب دستی است — data: { manual_billing, status, amount, currency } */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
                 };
-                /** @description فاکتور متعلق به شما نیست */
-                403: {
+                /** @description فاکتور متعلق به شما نیست (وجودش هم لو نمی‌رود) */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2244,56 +2257,6 @@ export interface paths {
             responses: {
                 /** @description نتیجه تست اتصال */
                 200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/webhooks/payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** وب‌هوک درگاه — تأیید HMAC (هدر X-Signature روی بدنه خام) + idempotent با ref؛ موفق → paid + رفع تعلیق خودکار */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        ref: string;
-                        /** @enum {string} */
-                        status: "paid" | "failed";
-                        gateway?: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description ثبت شد (یا تکراری) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description امضای وب‌هوک معتبر نیست */
-                401: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -5520,7 +5483,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/internal/heartbeat": {
+    "/api/v1/p/central/internal/heartbeat": {
         parameters: {
             query?: never;
             header?: never;
@@ -5529,7 +5492,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** heartbeat نصب (توکن per-install + HMAC + ضد replay؛ upsert وضعیت) (تسک ۵.۵) */
+        /** heartbeat نصب (توکن per-install + HMAC + ضد replay؛ upsert وضعیت) — تسک ۵.۵، J5 این مسیر از هسته به افزونه منتقل شد */
         post: {
             parameters: {
                 query?: never;

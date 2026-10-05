@@ -98,10 +98,27 @@ final class PluginDbContract
         'job_batches',
         'jobs',
         'media',
+        // بازار (سشنِ قبلی — migration `2026_10_14` این‌ها را ساخت ولی فهرستِ
+        // ممنوع به‌روز نشد، و نگهبانِ `test_the_deny_list_matches_the_real_schema`
+        // قرمز ماند). این‌ها هم جدولِ هسته‌اند: پلاگین نباید بتواند سفارش یا
+        // پرداختِ بازارِ نصب را بخواند یا بازنویسی کند.
+        'market_ledger_entries',
+        'market_licenses',
+        'market_notices',
+        'market_orders',
+        'market_payouts',
         'migrations',
         'model_has_permissions',
         'model_has_roles',
         'notifications',
+        // F1.3/F4.2.B — صفِ تحویل و ترجیحاتِ اعلان. هر دو جدولِ **هسته**اند: پلاگین
+        // نباید بتواند خودش را در صفِ تحویل جا بزند (اعلانِ جعلی از مسیر
+        // پلاگین) یا ترجیحاتِ کاربر را بازنویسی کند. بدون این دو سطر،
+        // `test_the_deny_list_matches_the_real_schema` آن‌ها را «جدولِ هستهٔ
+        // ثبت‌نشده» اعلام می‌کرد — دقیقاً همان باگی که `F4.1.C` برای سه جدولِ
+        // قالب داشت.
+        'notification_deliveries',
+        'notification_preferences',
         'page_revisions',
         'pages',
         'password_reset_tokens',
@@ -110,12 +127,21 @@ final class PluginDbContract
         'plugin_table_prefixes',
         'plugins',
         'publisher_keys',
+        // P1 — اشتراک‌های Web Push. هسته، نه مالک: نسانی
+        // اشتراک است همان مقصدً است — باریانکی‌که دراوند، محتودی مورد برای خودنان،
+        // موستانی. اذر داده نم‌ي‌وند بودند‌انی، اما نشانی
+        // آن‌ها رافتهاد و نم‌گذریودن می‌شودی، و هر افزونه‌ای دورشافت رائته شدند‌انست،
+        // پس از افزونه نم‌تواند بلیستانی بلکه بدهد بمودیان از خودتنان بنريبری‌دهیدشانی اصالي دارید.
+        'push_subscriptions',
         'revalidate_logs',
         'role_has_permissions',
         'roles',
         'sessions',
         'settings',
         'side_presets',
+        'site_theme_presets',
+        'site_theme_settings',
+        'site_themes',
         'system_plugins',
         'themes',
         'ticket_messages',

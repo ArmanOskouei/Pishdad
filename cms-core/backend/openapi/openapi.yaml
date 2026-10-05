@@ -5,7 +5,24 @@ info:
     قرارداد هسته بک‌اند (تسک‌های ۰.۱، ۰.۲، ۱.۱ تا ۱.۴، ۲.۲، ۲.۳، ۳.۲، ۳.۳، ۴.۱ تا ۴.۳، ۵.۱ تا ۵.۷ — contract-first per DEV-TASKS).
     همه پیام‌ها فارسی. احراز هویت با Bearer (Sanctum) + کوکی httpOnly `auth_token`.
     مسیرهای /api/v1/p/central/* فقط برای role=operator (یا سوپرادمین مخفی).
-    مورد ۶: گردش تایید پلاگین/قالب (review_status) + صف مرکزی /api/v1/p/central/review/*.
+     J6 — این ۵۵ مسیرِ مرکزی **می‌مانند** و حذف نمی‌شوند. دلیل قابل راستی‌آزمایی است
+     نه سلیقه: آن‌ها API زندهٔ همین استقرارند. افزونهٔ مرکزی ۶۱ عملیات در
+     `plugins/central/manifest.json` اعلام می‌کند و `PluginRouteTable` همه را در
+     جدول route ثبت و dispatch می‌کند؛ پنل Next.js در
+     `frontend/src/app/(central)/central/**` همان مسیرها را صدا می‌زند. حذفشان از
+     این سند، مستند را از واقعیت جدا می‌کرد بدون آنکه چیزی در محصول کم شود.
+     آنچه J6 واقعاً پاک کرد فیلدهای مرده بود (مثل `hooks_count`)، نه مسیرهای زنده.
+     مورد ۶: گردش تایید پلاگین/قالب (review_status) + صف مرکزی /api/v1/p/central/review/*.
+
+     ⚠️ J5 استدلالِ بالا را **باریک‌تر** کرد، نه باطل: این مسیرها دیگر مالِ هسته
+     نیستند (هسته هیچ کلاس یا جدولِ مرکزی نمی‌شناسد و `CentralBoundaryTest`
+     خالی‌بودنِ allowlist را تضمین می‌کند)، ولی هنوز در همین استقرار زنده‌اند و
+     پنلِ مرکزی هنوز از همین ریشه سرو می‌شود. پس از «هسته» جدا هستند ولی از
+     «این سند» نه — تا وقتی J3/J4 پنل را از این استقرار جدا کند و افزونه سندِ
+     خودش را بیاورد.
+     تنها استثنای این قاعده `/api/internal/heartbeat` بود که J5 حذفش کرد: مسیرش
+     به `POST /api/v1/p/central/internal/heartbeat` منتقل شده و نسخهٔ قدیمی دیگر
+     سرو نمی‌شود، پس از سند هم پاک شد — نگهبانی‌اش در `MonitoringTest`.
      نسخه ۱.۱۱: داده‌های محتوایی و مدیریتی نصب بین همه مدیران مشترک است؛ user_id فقط سازنده/حسابرسی است. پروفایل، نشست‌ها و داده‌های مالی شخصی از این قاعده مستثنا هستند.
   version: 1.11.0
 servers:
@@ -536,13 +553,25 @@ paths:
         '200': { description: لیست فاکتورها }
   /api/v1/admin/subscription/invoices/{id}/pay:
     post:
-      summary: شروع پرداخت فاکتور (session درگاه مرکزی Stub زرین‌پال — بدون شارژ واقعی)
+      summary: 'شروع پرداخت فاکتور (J10) — درگاهی وجود ندارد، صورتحساب دستی است'
+      description: |-
+        این endpoint دیگر `authority` و `pay_url` برنمی‌گرداند. پیش از J10 یک
+        `authority` ساختگی با پیشوند `STUB-` و یک لینک `sandbox.zarinpal.com`
+        برمی‌گشت: ظاهرِ یک جریانِ کامل با هیچ درگاهی پشتش.
+
+        حالا درایورِ پیش‌فرض `manual` است و هیچ session پرداختی نمی‌سازد. کاربر
+        باید بداند پرداخت را بیرون از سامانه انجام می‌دهد و اپراتور مرکزی
+        وضعیت را دستی `paid` می‌کند.
+
+        نکته: وقتی درگاه واقعی اضافه شود، مسیرِ «انتقال به درگاه» در
+        `SubscriptionData::startPayment` زنده نگه داشته شده — این endpoint برای
+        آن روز آماده است و لازم نیست دوباره طراحی شود.
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
-        '200': { description: در حال انتقال به درگاه (authority + pay_url) }
-        '403': { description: فاکتور متعلق به شما نیست }
+        '200': { description: 'صورتحساب دستی است — data: { manual_billing, status, amount, currency }' }
+        '404': { description: فاکتور متعلق به شما نیست (وجودش هم لو نمی‌رود) }
         '422': { description: فاکتور قبلاً پرداخت شده }
   /api/v1/admin/subscription/plans:
     get:
@@ -717,23 +746,8 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: نتیجه تست اتصال }
-  /api/webhooks/payment:
-    post:
-      summary: وب‌هوک درگاه — تأیید HMAC (هدر X-Signature روی بدنه خام) + idempotent با ref؛ موفق → paid + رفع تعلیق خودکار
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [ref, status]
-              properties:
-                ref: { type: string }
-                status: { type: string, enum: [paid, failed] }
-                gateway: { type: string }
-      responses:
-        '200': { description: ثبت شد (یا تکراری) }
-        '401': { description: امضای وب‌هوک معتبر نیست }
+  # J10 — `/api/webhooks/payment` حذف شد (دورهٔ آزمایشی بدون درگاه؛
+  # مدیر مرکزی تیر/مدت را دستی تنظیم می‌کند).
   /api/v1/p/central/clients:
     get:
       summary: لیست مشتریان (فیلتر tier/status/health + جستجوی متنی نام/دامنه/site_id/ایمیل مالک — دسته ۱)
@@ -1622,9 +1636,9 @@ paths:
       responses:
         '200': { description: حذف شد }
         '422': { description: پلاگین سیستمی محافظت می‌شود }
-  /api/internal/heartbeat:
+  /api/v1/p/central/internal/heartbeat:
     post:
-      summary: heartbeat نصب (توکن per-install + HMAC + ضد replay؛ upsert وضعیت) (تسک ۵.۵)
+      summary: 'heartbeat نصب (توکن per-install + HMAC + ضد replay؛ upsert وضعیت) — تسک ۵.۵، J5 این مسیر از هسته به افزونه منتقل شد'
       parameters:
         - { name: X-Install-Token, in: header, required: true, schema: { type: string } }
       requestBody:
@@ -1875,6 +1889,7 @@ components:
       properties:
         dir: { type: string, enum: [rtl, ltr], example: rtl }
         preset: { type: string, enum: [sahar, amaliyat, arya, narm, divan], example: amaliyat }
+        accent: { type: string, enum: [teal, indigo, violet, blue, amber, rose, clay], example: indigo }
         mode: { type: string, enum: [light, dark, system], example: dark }
         radius: { type: string, enum: [sharp, default, rounded], example: sharp }
         density: { type: string, enum: [compact, comfortable, loose], example: compact }

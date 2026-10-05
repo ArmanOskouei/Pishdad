@@ -10,10 +10,16 @@ import {
   blockDiagnosticsEnabled,
   describeUnknownType,
   isBuiltinBlockType,
-  unknownBlockNoticeFa,
+  unknownBlockNotice,
   unknownBlockWarning,
 } from "@/lib/block-type";
+import { publicT, type PublicLocale, type PublicMessageKey } from "@/lib/i18n/public";
+// K6.12 — انتخابِ الگوی عمومیِ رندر برای بلوک‌های اعلانی (افزونه). افزونه هیچ
+// React/JS نمی‌فرستد؛ هسته با ~۱۱ الگو رندر می‌کند. نگاشتِ خالص در
+// `lib/block-pattern.ts` است تا آزمون‌پذیر باشد و اینجا فقط `switch` بماند.
+import { selectBlockPattern } from "@/lib/block-pattern";
 import { ContactForm } from "./ContactForm";
+import { DeclaredBlock } from "./DeclaredBlock";
 
 /**
  * F3 — رندر بلوک‌های صفحه عمومی به کامپوننت.
@@ -53,22 +59,41 @@ function mediaSrc(d: Record<string, unknown>): string | null {
  * را ببیند. مصرف‌کننده‌های فعلی (`app/page.tsx`، `app/[...path]/page.tsx`) این
  * را پاس نمی‌دهند و رفتارشان همان پیش‌فرض محیط است.
  */
+/**
+ * K6.12 — رجیستریِ اعلانیِ بلوک‌ها برای انتخابِ الگو.
+ *
+ * کلید = `type`، مقدار = `schema` بلوک (همان `BlockDef["schema"]`). فقط
+ * `properties` مصرف می‌شود (`x-pattern`)، پس نوع عمداً سبک نگه داشته شده و
+ * `domain.ts` این‌جا import نمی‌شود تا جهتِ وابستگی معکوس نشود.
+ */
+export type BlockSchemaRegistry = Record<string, { properties?: Record<string, { default?: unknown; enum?: unknown }> | null }>;
+
 export function BlockRenderer({
   blocks,
   diagnostics,
+  schemas,
+  locale = "fa",
 }: {
   blocks: BlockValue[];
   diagnostics?: boolean;
+  /**
+   * K6.12 — رجیستریِ schema برای مسیرِ «schema-only». اگر بدهید، افزونه‌ای که
+   * `x-pattern` اعلام کرده به همان الگو نگاشت می‌شود. نبودش رفتار قبلی را
+   * می‌دهد (نگاشت بر اساس نوع) — یعنی سایت عمومی بدون تغییر کار می‌کند.
+   */
+  schemas?: BlockSchemaRegistry;
+  /** ECO2 — زبانِ سایت. پیش‌فرض `fa` یعنی پنل/پیش‌نمایش بدون تغییر. */
+  locale?: PublicLocale;
 }) {
   const visible = blocks.filter((b) => (b.data as Record<string, unknown>)?._enabled !== false);
   if (visible.length === 0) {
-    return <p style={{ color: "var(--text-muted)" }}>محتوایی برای این صفحه ثبت نشده است.</p>;
+    return <p style={{ color: "var(--text-muted)" }}>{publicT(locale, "block.empty")}</p>;
   }
   const showUnknown = diagnostics ?? blockDiagnosticsEnabled();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       {visible.map((b, i) => (
-        <Block key={i} type={b.type} data={(b.data ?? {}) as Record<string, unknown>} diagnostics={showUnknown} />
+        <Block key={i} type={b.type} data={(b.data ?? {}) as Record<string, unknown>} schemas={schemas} diagnostics={showUnknown} locale={locale} />
       ))}
     </div>
   );
@@ -77,12 +102,31 @@ export function BlockRenderer({
 function Block({
   type,
   data,
+  schemas,
   diagnostics,
+  locale,
 }: {
   type: string;
   data: Record<string, unknown>;
+  schemas?: BlockSchemaRegistry;
   diagnostics: boolean;
+  locale: PublicLocale;
 }) {
+  const t = (k: PublicMessageKey, values?: Record<string, string | number>) => publicT(locale, k, values);
+  // K6.12 — بلوکِ **اعلانیِ افزونه** (نه هسته) با الگوی عمومی رندر می‌شود.
+  //
+  // نکتهٔ امنیتی: این شاخه فقط برای `type`های بیرون از `BUILTIN_BLOCK_TYPES`
+  // اجرا می‌شود، پس **هرگز نمی‌تواند بلوک هسته را بپوشاند** — همان گارانتیِ
+  // شاخهٔ `default`. اگر `x-pattern` صریح در schema اعلان آمده باشد، همان
+  // برنده است؛ وگرنه نگاشتِ نوع. الگوی `default` یعنی نوع ناشناس ⇒ سیاستِ
+  // K6.3 پایین‌تر (لاگ + اعلان).
+  if (!isBuiltinBlockType(type)) {
+    // schema از رجیستری می‌آید؛ `data.__schema` فقط fallbackِ سازگاری است.
+    const schema = schemas?.[type] ?? (data.__schema as never);
+    const pattern = selectBlockPattern(type, schema);
+    if (pattern !== "default") return <DeclaredBlock pattern={pattern} data={data} />;
+  }
+
   switch (type) {
     case "hero": {
       const align = data.align === "center" ? "center" : data.align === "left" ? "left" : "right";
@@ -112,7 +156,7 @@ function Block({
       if (!src) {
         return (
           <figure style={{ margin: 0, padding: 16, border: "1px dashed var(--border)", borderRadius: 12, color: "var(--text-muted)", fontSize: 13 }}>
-            تصویر #{String(data.media_id ?? "—")} — resolve عمومی مدیا در بک‌اند نیست (TODO).
+            {t("block.imagePending", { id: String(data.media_id ?? "—") })}
             {str(data.caption) ? <figcaption>{str(data.caption)}</figcaption> : null}
           </figure>
         );
@@ -120,7 +164,7 @@ function Block({
       return (
         <figure style={{ margin: 0 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt={str(data.alt) || "تصویر"} loading="lazy" style={{ maxInlineSize: "100%", borderRadius: 12 }} />
+          <img src={src} alt={str(data.alt) || t("block.imageAlt")} loading="lazy" style={{ maxInlineSize: "100%", borderRadius: 12 }} />
           {str(data.caption) ? <figcaption style={{ fontSize: 12.5, color: "var(--text-muted)", marginBlockStart: 6 }}>{str(data.caption)}</figcaption> : null}
         </figure>
       );
@@ -129,7 +173,7 @@ function Block({
       const style = data.style === "secondary" ? "btn-ghost" : data.style === "ghost" ? "btn-ghost" : "btn-primary";
       return (
         <div>
-          <a className={`btn ${style}`} href={safeHref(data.href) ?? "#"}>{str(data.label) || "ادامه"}</a>
+          <a className={`btn ${style}`} href={safeHref(data.href) ?? "#"}>{str(data.label) || t("block.ctaDefault")}</a>
         </div>
       );
     }
@@ -141,13 +185,13 @@ function Block({
         .map((u) => safeSrc(u))
         .filter((u): u is string => Boolean(u));
       if (urls.length === 0) {
-        return <p style={{ color: "var(--text-muted)", fontSize: 13 }}>گالری {ids.length} تصویر دارد — resolve عمومی مدیا در بک‌اند نیست (TODO).</p>;
+        return <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("block.galleryPending", { n: ids.length })}</p>;
       }
       return (
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 10 }}>
           {urls.map((u) => (
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={u} src={u} alt="گالری" loading="lazy" style={{ inlineSize: "100%", borderRadius: 10 }} />
+            <img key={u} src={u} alt={t("block.galleryAlt")} loading="lazy" style={{ inlineSize: "100%", borderRadius: 10 }} />
           ))}
         </div>
       );
@@ -189,7 +233,7 @@ function Block({
         >
           <span aria-hidden style={{ fontSize: 22 }}>▶</span>
           <span>
-            <b style={{ display: "block", fontSize: 14 }}>{caption || "مشاهده ویدیو"}</b>
+            <b style={{ display: "block", fontSize: 14 }}>{caption || t("block.watchVideo")}</b>
             <small dir="ltr" style={{ display: "block", textAlign: "end", color: "var(--text-muted)", fontSize: 11.5 }}>{href.slice(0, 80)}</small>
           </span>
         </a>
@@ -217,7 +261,7 @@ function Block({
     case "contact": {
       return (
         <ContactForm
-          title={str(data.title) || "فرم تماس"}
+          title={str(data.title) || t("block.contactForm")}
           showPhone={data.show_phone !== false}
           destinationEmail={str(data.email) || undefined}
         />
@@ -259,7 +303,7 @@ function Block({
           data-block-type={named}
           style={{ margin: 0, padding: 16, border: "1px dashed var(--border)", borderRadius: 12, color: "var(--text-muted)", fontSize: 13 }}
         >
-          {unknownBlockNoticeFa(type)}
+          {unknownBlockNotice(locale, type)}
         </div>
       );
     }

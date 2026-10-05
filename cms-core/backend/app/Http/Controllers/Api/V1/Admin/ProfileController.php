@@ -7,12 +7,12 @@ use App\Models\Media;
 use App\Models\User;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Sessions\SessionDeviceParser;
+use App\Services\Sms\SmsDriverFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Pishdad\Plugins\Central\Models\HardwareKey;
 use PragmaRX\Google2FA\Google2FA;
 
 /**
@@ -234,8 +234,6 @@ class ProfileController extends Controller
         return response()->json(['data' => [
             'totp' => ['enabled' => (bool) $user->google2fa_enabled],
             'recovery_codes_remaining' => count($user->recovery_codes ?? []),
-            'hardware_keys' => HardwareKey::query()->where('user_id', $user->id)
-                ->get(['id', 'name', 'created_at']),
             // دسته UIUX (افزودنی): وضعیت تأیید پیامکی.
             'sms' => [
                 'enabled' => (bool) Cache::get("sms_verified:{$user->id}", false),
@@ -332,6 +330,51 @@ class ProfileController extends Controller
     }
 
     /**
+     * E9 — بازتولید کدهای بازیابی: ۸ کد تازه، کدهای قبلی باطل، نمایش یک‌باره.
+     *
+     * نیازمند مدرک مالکیت (کد TOTP فعلی یا رمز عبور) — همان سیاستِ غیرفعال‌سازی.
+     * کدهای جدید هش‌شده ذخیره و plaintext دقیقاً یک‌بار در همین پاسخ برمی‌گردد.
+     */
+    public function regenerateRecoveryCodes(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user->google2fa_enabled) {
+            return response()->json(['message' => 'برای بازتولید کدهای بازیابی، ابتدا تأیید دومرحله‌ای را فعال کنید.'], 422);
+        }
+
+        $request->validate([
+            'code' => 'sometimes|string',
+            'password' => 'sometimes|string',
+        ]);
+
+        $ok = false;
+        if ($request->filled('code') && $user->google2fa_secret) {
+            $code = str_replace(' ', '', (string) $request->string('code'));
+            $ok = (new Google2FA)->verifyKey($user->google2fa_secret, $code, 1);
+        }
+        if (! $ok && $request->filled('password')) {
+            $ok = Hash::check((string) $request->string('password'), $user->password);
+        }
+        if (! $ok) {
+            return response()->json(['message' => 'برای بازتولید کدهای بازیابی، کد TOTP یا رمز عبور لازم است.'], 422);
+        }
+
+        $plainCodes = collect(range(1, 8))
+            ->map(fn () => Str::upper(Str::random(10)))->all();
+
+        $user->forceFill([
+            'recovery_codes' => array_map(fn ($c) => Hash::make($c), $plainCodes),
+        ])->save();
+        Cache::put("2fa_fresh:{$user->id}", true, now()->addMinutes(5));
+
+        return response()->json([
+            'message' => 'کدهای بازیابی بازتولید شد. کدهای قبلی دیگر معتبر نیستند.',
+            'data' => ['recovery_codes' => $plainCodes],
+        ]);
+    }
+
+    /**
      * اسلات بخش‌های پروفایل برای اکستنشن پلاگین‌ها — فعلاً خالی با ساختار آماده.
      * پلاگین با همین شکل ثبت می‌کند: {key, title, component, order}.
      */
@@ -424,8 +467,20 @@ class ProfileController extends Controller
 
     /**
      * دسته UIUX (افزودنی): تأیید پیامکی — گام ۱: صدور کد ۶ رقمی (۵ دقیقه).
-     * درگاه واقعی TODO است؛ فعلاً کد در کش نگه داشته می‌شود و در
-     * محیط غیرپروداکشن برای تست دستی برگردانده می‌شود.
+     *
+     * ⭐ F0.4/E3 — این متد **هیچ‌وقت** «ارسال شد» نمی‌گوید مگر آنکه درایورِ
+     * پیامک واقعاً پیام را تحویل داده باشد (`SmsSenderInterface::delivers()` و
+     * `send()` هر دو باید true باشند).
+     *
+     * رفتارِ هر حالت:
+     *  - درایور `null`/`log` ⇒ `sms.not_configured` + بدون `debug_code` در پروداکشن.
+     *  - درایور `panel` ولی کلیدها ناقص ⇒ exception از `SmsDriverFactory` بالا می‌رود
+     *    (fail-closed با نامِ دقیقِ کلید) — بهتر از ۴۲۲ِ مبهم.
+     *  - درایور `panel` و ارسال شکست خورد ⇒ همان پیامِ صادقانه، به‌علاوهٔ دلیل.
+     *
+     * ⭐ چرا کد فقط وقتی در کش می‌رود که پیام واقعاً رفته باشد: اگر کد را نگه
+     * داریم ولی پیام نرفته، کاربر `sms/verify` را صدا می‌زند، کد را از یک جای
+     * نامرئی حدس می‌زند و گازی داده می‌شود — بدترین حالت ممکن.
      */
     public function smsRequest(Request $request): JsonResponse
     {
@@ -436,15 +491,40 @@ class ProfileController extends Controller
             'phone.regex' => 'شماره موبایل معتبر نیست (مثل 09123456789).',
         ]);
 
+        $phone = $validated['phone'];
         $code = (string) random_int(100000, 999999);
         $user = $request->user();
-        Cache::put("sms_pending:{$user->id}", [
-            'phone' => $validated['phone'], 'code' => $code,
-        ], now()->addMinutes(5));
 
-        $payload = ['message' => 'کد تأیید پیامکی ارسال شد (۵ دقیقه اعتبار دارد).'];
+        // fail-closed: درایورِ واقعیِ بدونِ کلید، همین‌جا می‌ایستد.
+        $sender = SmsDriverFactory::make();
+        $sent = $sender->send($phone, "کد تأیید شما: {$code}");
+
+        if ($sent) {
+            Cache::put("sms_pending:{$user->id}", [
+                'phone' => $phone, 'code' => $code,
+            ], now()->addMinutes(5));
+
+            return response()->json([
+                'message' => 'کد تأیید به شمارهٔ شما پیامک شد.',
+                'code' => 'sms.sent',
+            ]);
+        }
+
+        $payload = [
+            'message' => 'سرویس پیامک هنوز فعال نشده است؛ کدی ارسال نشد. (کد فقط در محیط غیرپروداکشن برای تست برمی‌گردد)',
+            'code' => 'sms.not_configured',
+        ];
+
+        if ($sender->lastError() !== null) {
+            $payload['data'] = ['driver' => $sender->driverName(), 'reason' => $sender->lastError()];
+        }
+
         if (! app()->isProduction()) {
-            $payload['data'] = ['debug_code' => $code];
+            // محیط غیرپروداکشن: کد را می‌دهیم تا مسیر قابلِ تست باشد.
+            $payload['data'] = array_merge($payload['data'] ?? [], ['debug_code' => $code]);
+            Cache::put("sms_pending:{$user->id}", [
+                'phone' => $phone, 'code' => $code,
+            ], now()->addMinutes(5));
         }
 
         return response()->json($payload);

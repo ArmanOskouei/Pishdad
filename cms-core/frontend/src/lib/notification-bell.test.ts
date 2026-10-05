@@ -14,8 +14,33 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const read = (p: string) => readFileSync(ROOT + p, "utf8");
 
 const BELL = read("components/admin/NotificationBell.tsx");
+const INBOX = read("app/(client)/admin/notifications/NotificationInbox.tsx");
+const PREFS = read("app/(client)/admin/notifications/NotificationPreferences.tsx");
 const TOPBAR = read("components/layout/Topbar.tsx");
 const CSS = read("app/globals.css");
+
+/**
+ * ⭐ چرا کامنت‌ها پاک می‌شوند.
+ *
+ * این فایل‌ها دربارهٔ تصمیم‌ها توضیح می‌دهند و طبیعتاً **نامِ همان چیزی را که
+ * ممنوع کرده‌اند** داخل کامنت می‌آورند («`router.push` نه»، «ایموجی `🔔` بود»).
+ * بدون پاک‌کردن، نگهبان یک کامنت را جرم می‌گیرد — و بدترین حالت این است که
+ * کسی برای سبزشدن تست، توضیح را پاک کند.
+ *
+ * پاک‌سازی محافظه‌کارانه است: فقط بلوک‌های کامنتِ چندخطی و خطوطی که با
+ * `//` شروع می‌شوند. `//` وسطِ رشته (مثل URL) دست‌نخورده می‌ماند.
+ */
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+    .join("\n");
+}
+
+const BELL_CODE = stripComments(BELL);
+const INBOX_CODE = stripComments(INBOX);
+const PREFS_CODE = stripComments(PREFS);
 const CONTROLLER = readFileSync(
   fileURLToPath(
     new URL(
@@ -77,12 +102,112 @@ test("زنگ هیچ URL حدسی نمی‌سازد", () => {
   // `notification_id` فقط وقتی مسیر می‌شود که آن مسیر در `pageRegistry()`
   // ثبت شده باشد. این کامپوننت رجیستری را ندارد، پس ساختن لینک با URL
   // حدسی دقیقاً همان کاری است که این سرویس برای جلوگیری از آن ساخته شد.
+  //
+  // ⭐ F4.2.F استثنا را **محدود** کرد: `action_href` حالا از کاتالوگ می‌آید و
+  // سرور آن را از allowlist رد کرده، پس `<a href={…}>` مجاز است — ولی فقط
+  // همین یک منبع. هر چیز دیگری (به‌ویژه `router.push`) هنوز ممنوع است.
   assert.equal(
-    /router\.push|href=\{/.test(BELL),
+    /router\.push/.test(BELL_CODE),
     false,
-    "زنگ نباید لینک بسازد.",
+    "زنگ نباید مسیر بسازد — `<a>` کنترلِ مرورگر را می‌دهد و history را درست نگه می‌دارد.",
   );
-  assert.match(BELL, /notification_id/, "فیلد را می‌خواند ولی به مسیر تبدیلش نمی‌کند.");
+  const hrefs = [...BELL_CODE.matchAll(/href=\{([^}]+)\}/g)].map((m) => m[1]!.trim());
+  assert.ok(hrefs.length > 0, "لینکِ اقدامِ کاتالوگ باید رندر شود.");
+  for (const h of hrefs) {
+    assert.match(
+      h,
+      /^(href|n\.action_href|"\/admin\/notifications")$/,
+      `href فقط از منبعِ قابلِ اعتماد می‌آید؛ «${h}» از کجا آمده؟`,
+    );
+  }
+  assert.match(BELL_CODE, /safeActionHref\(/, "لینکِ کاتالوگ هم باید از allowlistِ فرانت رد شود.");
+});
+
+test("متنِ اعلان هرگز HTML نیست", () => {
+  // بک‌اند `strip_tags` می‌کند، ولی دفاعِ چهارم در فرانت است: اگر روزی یک
+  // مسیرِ تازه بدون `plain()` اضافه شود، همین‌جا رندر می‌شکند نه اینکه
+  // XSS خاموش بماند.
+  for (const [name, src] of [["زنگ", BELL_CODE], ["صندوق", INBOX_CODE]] as const) {
+    assert.equal(
+      /dangerouslySetInnerHTML/.test(src),
+      false,
+      `${name} نباید HTML تزریق کند.`,
+    );
+  }
+  assert.match(BELL_CODE, /\{n\.title\}/, "عنوان باید به‌عنوان متنِ ری‌اکت رندر شود.");
+  assert.match(BELL_CODE, /\{n\.body\}/, "بدنه باید به‌عنوان متنِ ری‌اکت رندر شود.");
+});
+
+test("زنگ از مسیرِ صندوقِ کاربر می‌خواند، نه سرویسِ افزونه", () => {
+  // `POST /v1/admin/notifications` رزروِ `K5.8` است (سرویسِ افزونه) و
+  // `GET` روی همان مسیر عنوانِ قابل‌نمایش ندارد — فقط `type` خام.
+  assert.match(
+    BELL,
+    /\/v1\/admin\/notification-inbox/,
+    "باید از `notification-inbox` بخواند.",
+  );
+  assert.equal(
+    /authed[^\n]*"\/v1\/admin\/notifications"/.test(BELL),
+    false,
+    "`/v1/admin/notifications` متعلق به K5.8 است.",
+  );
+});
+
+test("زنگ به‌جای ایموجی، SVG درون‌خطی دارد", () => {
+  // ایموجی `🔔` روی هر سیستم‌عامل یک شکلِ متفاوت است و با Vazirmatn می‌جنگد.
+  assert.match(BELL_CODE, /<svg[\s\S]*?aria-hidden/, "آیکون باید SVG درون‌خطی و تزئینی باشد.");
+  assert.equal(/🔔/.test(BELL_CODE), false, "ایموجی جای SVG را نگیرد.");
+});
+
+test("درختِ DOM اعلان در گیتِ تست هم هست", () => {
+  // مسیرهایی که پرکننده‌ای هستند باید صفحهٔ واقعی داشته باشند، وگرنه لینکِ
+  // «همهٔ اعلان‌ها» به ۴۰۴ می‌رود.
+  for (const p of ["app/(client)/admin/notifications/page.tsx", "app/(client)/admin/notifications/preferences/page.tsx"]) {
+    assert.ok(read(p).length > 0, `${p} باید وجود داشته باشد.`);
+  }
+  const menu = read("lib/menu.ts");
+  assert.match(menu, /href: "\/admin\/notifications"/, "صندوق باید در منو باشد — زنگ فقط ۸ ردیف آخر را نشان می‌دهد.");
+});
+
+test("هم بارگذاری در صندوق و هم در ترجیحات در useEffect است", () => {
+  // قانون پروژه: شرطِ فراخوانی در بدنهٔ رندر یعنی React #301 و کرشِ کل صفحه.
+  for (const [name, src] of [["صندوق", INBOX], ["ترجیحات", PREFS]] as const) {
+    assert.match(src, /useEffect\(/, `${name}: بارگذاری باید در useEffect باشد.`);
+    assert.equal(
+      /if\s*\(\s*!?\s*\w+\s*\)\s*\{?\s*void\s+\w+\(/.test(src),
+      false,
+      `${name}: شرطِ فراخوانی در بدنهٔ رندر یعنی حلقهٔ رندر.`,
+    );
+  }
+});
+
+test("کلیدِ مادر سه‌حالته است", () => {
+  // «بعضی روشن» وضعیتِ سوم است. با `role="switch"` بیان نمی‌شود (ARIA آن را رد
+  // می‌کند) و در نتیجه فقط با رنگ گفته می‌شد — که برای صفحه‌خوان یعنی هیچ.
+  assert.match(PREFS, /role="checkbox"/, "کلیدِ مادر باید checkbox باشد.");
+  assert.match(
+    PREFS,
+    /aria-checked=\{mixed \? "mixed" : on\}/,
+    "حالتِ «بعضی روشن» باید اعلام شود.",
+  );
+  // و از داده مشتق می‌شود، نه از stateِ جدا که با DB ناهماهنگ شود.
+  assert.match(PREFS, /rows\.every\(\(r\) => r\.on === r\.total\)/, "روشنیِ مادر از ماتریس می‌آید.");
+});
+
+test("ترجیحات هر کارت را از پاسخِ سرور می‌گیرد، نه از حدسِ محلی", () => {
+  // اگر state محلی نگه داشته شود، دو کلیدِ پشت‌سرهم (کاربر سریع می‌زند) با هم
+  // می‌جنگند و یکی بی‌صدا گم می‌شود.
+  assert.match(PREFS, /if \(json\?\.matrix\) setMatrix\(json\.matrix\);/, "پاسخ، منبعِ حقیقت است.");
+  assert.match(PREFS, /method: "PUT"/, "نوشتن باید PUT باشد — سطر (کاربر، گروه، کانال) یک تک‌مورد است.");
+});
+
+test("کارت‌ها و کانال‌ها از بک‌اند می‌آیند، نه از فهرستِ ثابت", () => {
+  // `Catalog::GROUPS` و `Catalog::CHANNELS` در بک‌اند تعریف می‌شوند و با هر
+  // نسخه عوض می‌شوند. فهرستِ ثابت در فرانت یعنی کارتِ جاافتاده یا کانالِ
+  // غیرقابل‌خاموش‌کردن.
+  assert.match(PREFS, /json\?\.groups/, "برچسبِ گروه باید از بک‌اند بیاید.");
+  assert.match(PREFS, /json\?\.channels/, "کانال‌ها باید از بک‌اند بیایند.");
+  assert.match(PREFS, /tGroup\(g, labels\[g\] \?\? g\)/, "ترجمهٔ گروه باید از کلید بخواند و به برچسبِ بک‌اند بیفتد.");
 });
 
 test("شمار خوانده‌نشده با ویژگی‌های منطقی می‌نشیند", () => {

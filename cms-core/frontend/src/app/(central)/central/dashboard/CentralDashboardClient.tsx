@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { Badge, StatCard } from "@/components/ui/primitives";
 import { faNum } from "@/lib/fa";
-import type { CentralCharts, CentralStats, OpenCase } from "@/lib/domain";
+import { OpenCase } from "@/lib/domain";
+import type { CentralCharts, CentralStats } from "../types.ts";
 
 const kindFa = (k: string) =>
   k === "wallet" ? "کیف پول" : k === "pool" ? "استخر" : k === "suspension" ? "تعلیق" : k === "deploy" ? "دیپلوی" : k === "overdue" ? "سررسید" : k;

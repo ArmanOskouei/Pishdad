@@ -7,7 +7,8 @@ import { Modal } from "@/components/ui/Overlays";
 import { ConfirmStepper } from "@/components/ui/ConfirmStepper";
 import { JalaliDatePicker } from "@/components/ui/JalaliDatePicker";
 import { faNum } from "@/lib/fa";
-import { TIER_FA, type CentralClient, type GatewaySettings, type Plan } from "@/lib/domain";
+import { TIER_FA, type GatewaySettings, type Plan } from "@/lib/domain";
+import type { CentralClient } from "../types.ts";
 
 /* ── پلن‌ها: ساخت/ویرایش/حذف ── */
 

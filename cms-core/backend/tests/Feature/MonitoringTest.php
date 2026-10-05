@@ -46,13 +46,37 @@ class MonitoringTest extends TestCase
         ];
     }
 
+    /**
+     * J5 — مسیرِ قدیمیِ heartbeat در هسته **گم شده** و نباید برگردد.
+     *
+     * ⚠️ این نگهبانی با افزونهٔ **حاضر** اجرا می‌شود، و فرقش با «۴۰۴ بدون افزونه»
+     * معناست: آن فقط می‌گوید افزونه نبود؛ این می‌گوید جابه‌جایی واقعاً انجام شده.
+     *
+     * اگر کسی `/api/v1/internal/heartbeat` را به هسته برگرداند، دو مسیر برای یک
+     * کنترلر زندگی می‌کنند: یکی زیر prefix افزونه، یکی در هسته. آن وقت یک نصبِ
+     * عمومی که افزونه ندارد همچنان از راه هسته پاسخ می‌داد — دقیقاً همان چیزی که
+     * J5 حذفش کرد و `CentralZeroFootprintTest` دیگر نمی‌تواند بگیردش چون آن
+     * تست پوشه را برمی‌دارد.
+     *
+     * انتظار `404` است نه `401`: `401` یعنی مسیر هست و فقط احراز هویت خورده.
+     */
+public function test_the_old_core_heartbeat_path_is_gone(): void
+    {
+        foreach (['/api/v1/internal/heartbeat', '/api/internal/heartbeat'] as $uri) {
+            $this->postJson($uri, [])->assertNotFound(
+                "«{$uri}» در هسته نباید وجود داشته باشد. مسیرِ رسمی زیر prefix افزونه است:"
+                .' `POST /api/v1/p/central/internal/heartbeat`.'
+            );
+        }
+    }
+
     public function test_heartbeat_upserts_with_token_and_hmac(): void
     {
         $client = $this->client();
         $this->assertNotEmpty($client->install_token);
 
         $hb = $this->signedHeartbeat($client);
-        $this->withHeaders($hb['headers'])->postJson('/api/internal/heartbeat', $hb['body'])
+        $this->withHeaders($hb['headers'])->postJson('/api/v1/p/central/internal/heartbeat', $hb['body'])
             ->assertOk()->assertJsonPath('message', 'heartbeat ثبت شد.');
 
         $this->assertDatabaseHas('central_install_heartbeats', [
@@ -63,13 +87,13 @@ class MonitoringTest extends TestCase
         // امضای اشتباه، توکن اشتباه، timestamp قدیمی → 401.
         $bad = $hb['body'];
         $bad['signature'] = 'x';
-        $this->withHeaders($hb['headers'])->postJson('/api/internal/heartbeat', $bad)->assertUnauthorized();
+        $this->withHeaders($hb['headers'])->postJson('/api/v1/p/central/internal/heartbeat', $bad)->assertUnauthorized();
 
         $this->withHeaders(['X-Install-Token' => 'wrong'])
-            ->postJson('/api/internal/heartbeat', $hb['body'])->assertUnauthorized();
+            ->postJson('/api/v1/p/central/internal/heartbeat', $hb['body'])->assertUnauthorized();
 
         $old = $this->signedHeartbeat($client, 'online', time() - 600);
-        $this->withHeaders($old['headers'])->postJson('/api/internal/heartbeat', $old['body'])
+        $this->withHeaders($old['headers'])->postJson('/api/v1/p/central/internal/heartbeat', $old['body'])
             ->assertUnauthorized();
     }
 
@@ -79,7 +103,7 @@ class MonitoringTest extends TestCase
         $client = $this->client();
 
         $hb = $this->signedHeartbeat($client);
-        $this->withHeaders($hb['headers'])->postJson('/api/internal/heartbeat', $hb['body']);
+        $this->withHeaders($hb['headers'])->postJson('/api/v1/p/central/internal/heartbeat', $hb['body']);
 
         $grid = $auth->getJson('/api/v1/p/central/monitoring/health')->assertOk()->json('data.grid');
         $this->assertEquals('online', collect($grid)->firstWhere('site_id', $client->site_id)['state']);

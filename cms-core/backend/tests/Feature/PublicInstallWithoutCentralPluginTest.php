@@ -10,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Tests\TestCase;
@@ -160,6 +161,139 @@ class PublicInstallWithoutCentralPluginTest extends TestCase
 
         $response->assertOk();
         $this->assertSame('active', $response->json('data.status'));
+    }
+
+    /**
+     * J12 — نبودِ سرویسِ اشتراک نباید «اشتراک نداری» بگوید.
+     *
+     * نسخهٔ قدیمیِ `SubscriptionStatusController` با هر نبودِ رکورد یک ۴۰۴ با
+     * پیامِ «اشتراکی یافت نشد» می‌داد — یعنی یک نصبِ رایگانِ کاملاً سالم به
+     * کاربر دروغ می‌گفت. حالا نبودِ سرویس یعنی `available=false`، وضعیت
+     * `active`، و پیامِ مالِ هسته (`SubscriptionStatusMessage`) — نه ۴۰۴.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_subscription_status_is_honest_without_any_plugin(): void
+    {
+        $this->withoutPlugin();
+
+        $response = $this->getJson('/api/v1/subscription-status?site_id=site-1');
+
+        $response->assertOk();
+        $this->assertFalse($response->json('data.available'), 'نبودِ سرویس باید صریحاً available=false باشد.');
+        $this->assertSame('active', $response->json('data.status'), 'نبودِ سرویس یعنی محدودیت نیست، نه تعلیق.');
+        $this->assertStringNotContainsString('یافت نشد', (string) $response->json('data.message'));
+    }
+
+    /**
+     * ⭐⭐ ادعای اصلیِ J5: نصبِ تازهٔ هسته **صفر** جدولِ `central_*` دارد.
+     *
+     * تا پیش از J5 این ادعا غلط بود: چهار migration در
+     * `database/migrations/` این جدول‌ها را می‌ساختند، پس هر نصبِ تازه — حتی
+     * عمومی که `plugins/central/` روی دیسکش نیست — ۱۹ جدولِ افزونه را در
+     * دیتابیسش داشت. آن جدول‌ها را هیچ‌کدام نمی‌خواندند (کد مرکزی از
+     * `ClientSubscriptionResolver` رد می‌شود) و در عوض schema با بسته‌های موجود
+     * روی دیسک ناهمخوان بود.
+     *
+     * ## چرا `Schema::getTables()` و نه `information_schema` دستی
+     *
+     * چون نگهبان باید دقیقاً همان چیزی را بسنجد که لارavel می‌بیند. یک پرسشِ
+     * دستی که فیلترِ کمی متفاوت دارد، می‌تواند همین ادعا را بی‌صدا بی‌ارزش کند.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a_fresh_core_install_contains_no_central_table(): void
+    {
+        $this->withoutPlugin();
+
+        /** @var list<string> $central */
+        $central = array_values(array_filter(
+            array_map(static fn (array $t): string => (string) $t['name'], Schema::getTables()),
+            static fn (string $name): bool => str_starts_with($name, 'central_'),
+        ));
+
+        $this->assertSame(
+            [],
+            $central,
+            "نصبِ تازهٔ هسته نباید هیچ جدولِ `central_*` بسازد. جدول‌های افزونهٔ مرکزی\n"
+            ."باید فقط با فعال‌سازیِ افزونه ساخته شوند — یعنی از راه `PluginMigrator`.\n"
+            .'جدول‌های باقی‌مانده: '.implode('، ', $central)
+        );
+    }
+
+    /**
+     * ⭐ و نیمهٔ دیگرِ ادعا: `migrations` خودِ هسته هم نباید دربارهٔ این جدول‌ها
+     * چیزی بداند.
+     *
+     * اگر یک migration در core جدولِ مرکزی بسازد ولی بعداً پاک شود، جدول روی
+     * نصب‌های موجود می‌ماند و نصب تازه ندارد — یعنی schema بین دو نصب فرق
+     * می‌کند و هیچ‌کس نمی‌فهمد چرا. این تست دقیقاً همان را می‌گیرد.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_no_core_migration_file_still_creates_a_central_table(): void
+    {
+        $offenders = [];
+
+        foreach (File::files(database_path('migrations')) as $file) {
+            $source = (string) file_get_contents($file->getPathname());
+
+            // ⚠️ **کامنت‌ها حذف می‌شوند، و این شرطِ درستیِ گارد است.**
+            //
+            // نسخهٔ اول روی متنِ خام می‌جست و همین تست خودش را قرمز کرد: توضیحِ
+            // J5 داخلِ docblockِ `2026_09_26_000001` نامِ جدول را نقل می‌کند و آن
+            // نقل‌قول «DDL» شمرده می‌شد.
+            //
+            // و راهِ فرارِ آسان — کوتاه‌کردنِ docblock — **همان راهی است که یک
+            // گارد را از کار می‌اندازد**: نویسنده‌ها یاد می‌گیرند که توضیح را
+            // مبهم بنویسند تا تست سبز شود. پس گارد باید کد را بخواند، نه prose
+            // را. `token_get_all` تنها راهِ درستِ تفکیکِ این دو از هم است.
+            $code = $this->withoutComments($source);
+
+            // `create`/`table`/`drop` یعنی DDL روی جدولِ مرکزی. صرفِ
+            // `hasTable`/`dropIfExists` نیست: guardِ idempotent و مسیرِ
+            // مهاجرتِ دادهٔ نصب‌های موجود (`2026_10_05`) هر دو مجازند.
+            if (preg_match('/Schema::(?:create|table|drop)\(\s*[\'"]central_/i', $code) === 1) {
+                $offenders[] = $file->getFilename();
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            "این migrationهای هسته هنوز روی جدولِ `central_*` DDL می‌کنند:\n"
+            .implode("\n", $offenders)
+        );
+    }
+
+    /**
+     * متنِ PHP بدونِ کامنت‌ها و رشته‌ها، برای جست‌وجوی الگو.
+     *
+     * چرا رشته‌ها هم حذف می‌شوند: یک نامِ جدول داخلِ رشته (مثل `DB::raw` یا متنِ
+     * خطا) نباید به‌حساب DDL نوشته شود. چیزی که می‌ماند ساختار است — همان چیزی که
+     * `Schema::` در آن یک فراخوانیِ واقعی است.
+     */
+    private function withoutComments(string $source): string
+    {
+        $out = '';
+
+        foreach (token_get_all($source) as $token) {
+            if (is_string($token)) {
+                $out .= $token;
+
+                continue;
+            }
+
+            if (in_array($token[0], [T_COMMENT, T_DOC_COMMENT, T_CONSTANT_ENCAPSED_STRING], true)) {
+                $out .= ' ';
+
+                continue;
+            }
+
+            $out .= $token[1];
+        }
+
+        return $out;
     }
 
     #[RunInSeparateProcess]

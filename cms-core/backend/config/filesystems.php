@@ -16,6 +16,19 @@ return [
     'default' => env('FILESYSTEM_DISK', 'local'),
 
     /*
+    | «اپراتور واقعاً این کلید را داده یا نه» — برای `pishdad:doctor`.
+    |
+    | دلیلش مثل `mail.env_present`: این کلیدها پیش‌فرضِ رشته‌ای ندارند ولی
+    | خواندنِ `env()` بعد از `config:cache` بیرون از این فایل `null` می‌دهد.
+    | ذخیره کردنِ نتیجه داخلِ کانفیگ، گزارش را در هر دو حالت درست نگه می‌دارد.
+    */
+    'env_present' => [
+        'AWS_ACCESS_KEY_ID' => env('AWS_ACCESS_KEY_ID') !== null,
+        'AWS_SECRET_ACCESS_KEY' => env('AWS_SECRET_ACCESS_KEY') !== null,
+        'AWS_BUCKET' => env('AWS_BUCKET') !== null,
+    ],
+
+    /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------

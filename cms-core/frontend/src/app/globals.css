@@ -27,6 +27,183 @@
   --density: 1;
 }
 
+/*
+ * ── F4.1.C + F0.8 — توکن‌های قالبِ سایتِ عمومی، در scopeِ خودش ──
+ *
+ * `themeVars()` در `Chrome.tsx:28` متغیرها را با پیشوند `--theme-` روی کانتینر
+ * سایت می‌نویسد. **پیش از این بلوک هیچ CSSای آن‌ها را نمی‌خواند** — یعنی
+ * قالبِ سایت رنگش اعمال نمی‌شد. این همان یافتهٔ `L-B7` بود.
+ *
+ * چرا `var(--theme-x, var(--y))` و نه بازنویسیِ `--x`:
+ *  - قالب می‌تواند **بعضی** نقش‌ها را بدهد و بقیه پیش‌فرض بمانند. آرگومانِ دومِ
+ *    `var()` همان کار را می‌کند و نیازی به نوشتن `--primary` دوباره نیست.
+ *  - `-soft`ها باید **صریح** بازنویسی شوند. پایه از
+ *    `color-mix(in srgb, var(--primary) 16%, transparent)` استفاده می‌کند و
+ *    `color-mix` نمی‌تواند به متغیرِ پویا ارجاع دهد، پس اگر `--primary` عوض
+ *    شود ولی `--primary-soft` نه، رنگِ نرمِ دکمه‌ها با رنگِ دکمه ناهماهنگ می‌شود.
+ *    این همان تله‌ای است که `F4.1.U` دربارهٔ `--primary-soft` نوشته بود.
+ *
+ * ⚠️ **بازاعلام `-soft` را حذف نکنید.** اگر پاک شود، قالب نیمه‌ساز می‌شود:
+ * رنگ‌ها عوض می‌شوند و سایه‌های نرم روی رنگِ قبلی می‌مانند.
+ *
+ * ⭐ **چرا بلوکِ پایه با نامِ `--site-*` جدا است (F0.8 — نشتِ تم)**
+ *
+ * نسخهٔ قبلی اینجا `var(--theme-primary, var(--primary))` بود، یعنی آرگومانِ
+ * دوم **همان `--primary` ارث‌بری‌شده از `:root` پنل** بود. سه پیامد داشت:
+ *
+ *  1. سایتِ عمومی به ظاهرِ پنلِ مدیریت قفل بود. مدیری که تمِ تیرهٔ پنل را
+ *     انتخاب می‌کرد، سایت مشتری‌اش را هم در `--bg: #0b0f17` می‌دید.
+ *  2. `[data-direction="..."]` هم روی `<html>` می‌نشست، پس «جهت بصریِ پنل»
+ *     مستقیماً روی سایتِ عمومی می‌افتاد.
+ *  3. چون `--primary` روی **همان عنصر** بازاعلام می‌شد، ارجاع به خودش
+ *     **چرخه‌ای (cyclic)** بود. مرورگر آن را «نامعتبر در زمان محاسبه» می‌گرفت
+ *     و به مقدارِ ارث‌بری‌شده می‌افتاد — یعنی نگاشت فقط *تصادفاً* کار می‌کرد.
+ *
+ * پس پایه‌ی سایت با **نامِ خودش** (`--site-*`) همین‌جا تعریف می‌شود و آرگومانِ
+ * دومِ نگاشت به آن اشاره می‌کند. نه چرخه‌ای در کار است، نه ارث‌بری از `:root`.
+ * `--font` عمداً دست‌نخورده می‌ماند: فونتِ سایت و پنل یکی است و ربطی به تم ندارد.
+ * ⚠️ `--shadow-*` هم اینجا کنار گذاشته شد و **بعداً برگشت** — پایین‌تر توضیح داده
+ * شده چرا: «بی‌نقش بودنِ قالبی» دلیلِ کافی نیست وقتی `[data-direction]` روی
+ * `<html>` می‌نشیند و مقدارش را بازنویسی می‌کند.
+ */
+.site {
+  --site-primary: #6366f1;
+  --site-primary-hover: #5457e5;
+  --site-primary-soft: color-mix(in srgb, var(--site-primary) 16%, transparent);
+  --site-accent: #f59e0b;
+  --site-accent-soft: color-mix(in srgb, var(--site-accent) 14%, transparent);
+  --site-bg: #0b0f17;
+  --site-surface: #121826;
+  --site-surface-2: #1a2233;
+  --site-text: #e6eaf2;
+  --site-text-muted: #8b94a7;
+  --site-border: #232c40;
+  --site-radius-sm: 4px;
+  --site-radius-md: 6px;
+  --site-radius-lg: 8px;
+  --site-radius-xl: 10px;
+  --site-fs-body: 14px;
+  --site-fs-small: 12.5px;
+  --site-fs-h: 18px;
+  --site-density: 1;
+}
+
+.site {
+  --primary: var(--theme-primary, var(--site-primary));
+  --primary-hover: var(--theme-primary-hover, var(--site-primary-hover));
+  --primary-soft: var(--theme-primary-soft, var(--site-primary-soft));
+  --accent: var(--theme-accent, var(--site-accent));
+  --accent-soft: var(--theme-accent-soft, var(--site-accent-soft));
+  --bg: var(--theme-bg, var(--site-bg));
+  --surface: var(--theme-surface, var(--site-surface));
+  --surface-2: var(--theme-surface-2, var(--site-surface-2));
+  --text: var(--theme-text, var(--site-text));
+  --text-muted: var(--theme-text-muted, var(--site-text-muted));
+  --border: var(--theme-border, var(--site-border));
+
+  --radius-sm: var(--theme-radius-sm, var(--site-radius-sm));
+  --radius-md: var(--theme-radius-md, var(--site-radius-md));
+  --radius-lg: var(--theme-radius-lg, var(--site-radius-lg));
+  --radius-xl: var(--theme-radius-xl, var(--site-radius-xl));
+  --fs-body: var(--theme-fs-body, var(--site-fs-body));
+  --fs-small: var(--theme-fs-small, var(--site-fs-small));
+  --fs-h: var(--theme-fs-h, var(--site-fs-h));
+  --density: var(--theme-density, var(--site-density));
+}
+
+/**
+ * حالت روشنِ سایت. `:root[data-mode="light"]` عمداً **نه** — روشن‌کردنِ سایت
+ * یک تصمیمِ قالب است، نه تمِ پنل، و نباید پنل را روشن کند یا از آن روشن شود.
+ * `Chrome.tsx` همین `data-mode` را روی wrapper می‌گذارد.
+ */
+.site[data-mode="light"] {
+  --site-bg: #ffffff;
+  --site-surface: #ffffff;
+  --site-surface-2: #f4f5f7;
+  --site-text: #16181d;
+  --site-text-muted: #5b6472;
+  --site-border: #e3e6ec;
+  --site-primary-soft: color-mix(in srgb, var(--site-primary) 12%, transparent);
+  --site-accent-soft: color-mix(in srgb, var(--site-accent) 12%, transparent);
+}
+
+/*
+ * ── F0.8 دنباله — توکن‌هایی که هنوز از پنل به سایت نشت می‌کردند ──
+ *
+ * بلوک‌های بالا نقش‌های «قالب» را جدا کردند، ولی **هر** توکنی را نه. اینها
+ * باقی‌مانده بودند و همه از راهِ قاعده‌های پنل که سایتِ عمومی هم استفاده می‌کند
+ * (`.card`، `.btn-primary`، `.field`، `.alert`، `.a-green`/`.a-red` در فرم تماس)
+ * به سایت می‌رسیدند:
+ *
+ *  - `--shadow-lg` از `.site-sub` (منوی بازشوی هدرِ سایت) و `.card`.
+ *  - `--space-4` از `.card-pad`.
+ *  - `--primary-text` از `.btn-primary`.
+ *  - `--success/warning/danger/info` و `-soft`هایشان از `.alert` و `.a-green`/`.a-red`.
+ *
+ * ⚠️ نشتِ `-soft`ها از یک مسیرِ ظریف‌تر می‌آید: `:root` می‌نویسد
+ * `--success-soft: color-mix(… var(--success) …)`. چون توکن‌های CSS تنبل
+ * substitute می‌شوند، `var(--success)` **هنگام مصرف** روی همان عنصرِ سایت حل
+ * می‌شود — یعنی مقدارِ `[data-direction]` که روی `<html>` نشسته. پس حتی وقتی
+ * خودِ `-soft` را بازنویسی نکنی، رنگ از تمِ پنل می‌آید. به همین دلیل `-soft`ها
+ * اینجا **صریح** تعریف می‌شوند، دقیقاً مثل همان تلهٔ `F4.1.U`.
+ *
+ * ⭐ چرا `var(--theme-x, …)` ندارند: واژگانِ قالبِ سایت
+ * (`SiteThemeResolver::ROLES`) فقط primary/accent/bg/surface/text/border/
+ * radius/fs/density را می‌دهد. پوشاندنِ اینها با `var(--theme-*)` یعنی وعدهٔ
+ * یک قابلیتِ ناموجود — قالبِ سایت نمی‌تواند سایه را بدهد، پس نباید وانمود کند.
+ * `--font` همچنان عمداً ارث می‌برد: فونتِ سایت و پنل یکی است و ربطی به تم ندارد.
+ */
+.site {
+  --site-primary-text: #ffffff;
+  --site-success: #22c55e;
+  --site-warning: #f59e0b;
+  --site-danger: #f87171;
+  --site-info: #60a5fa;
+  --site-success-soft: color-mix(in srgb, var(--site-success) 14%, transparent);
+  --site-warning-soft: color-mix(in srgb, var(--site-warning) 16%, transparent);
+  --site-danger-soft: color-mix(in srgb, var(--site-danger) 14%, transparent);
+  --site-info-soft: color-mix(in srgb, var(--site-info) 14%, transparent);
+  --site-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --site-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --site-shadow-lg: 0 12px 34px rgba(0, 0, 0, 0.5);
+  --site-space-4: 16px;
+}
+
+.site {
+  --primary-text: var(--site-primary-text);
+  --success: var(--site-success);
+  --warning: var(--site-warning);
+  --danger: var(--site-danger);
+  --info: var(--site-info);
+  --success-soft: var(--site-success-soft);
+  --warning-soft: var(--site-warning-soft);
+  --danger-soft: var(--site-danger-soft);
+  --info-soft: var(--site-info-soft);
+  --shadow-sm: var(--site-shadow-sm);
+  --shadow-md: var(--site-shadow-md);
+  --shadow-lg: var(--site-shadow-lg);
+  --space-4: var(--site-space-4);
+}
+
+/**
+ * روشنِ سایت. بلوکِ جدا و نه ادغام در بالایی — تا آنچه قبلاً نوشته شده دستِ
+ * کسی نخورَد. تکرارِ `data-mode` اینجا عمدی است: قاعدهٔ روشن باید بعد از
+ * بلوکِ پایه بیاید وگرنه مقدارِ تیره برنده می‌شود (specificity برابر، ترتیب فایل).
+ */
+.site[data-mode="light"] {
+  --site-success: #16a34a;
+  --site-warning: #d97706;
+  --site-danger: #dc2626;
+  --site-info: #2563eb;
+  --site-success-soft: color-mix(in srgb, var(--site-success) 12%, transparent);
+  --site-warning-soft: color-mix(in srgb, var(--site-warning) 12%, transparent);
+  --site-danger-soft: color-mix(in srgb, var(--site-danger) 12%, transparent);
+  --site-info-soft: color-mix(in srgb, var(--site-info) 12%, transparent);
+  --site-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --site-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08);
+  --site-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.14);
+}
+
 /* ── جهت سپیده (پیش‌فرض پنل مشتری) ── */
 [data-direction="sahar"] {
   --primary: #0d9488; --primary-hover: #0b7a70;
@@ -189,6 +366,8 @@ input, select, textarea { font-family: inherit; }
   border-radius: 3px; background: var(--primary);
 }
 .nav-item.locked { opacity: 0.45; cursor: not-allowed; }
+.nav-sub { display: grid; gap: 2px; margin-inline-start: 18px; }
+.nav-sub-item { font-size: 12.5px; min-block-size: 38px; }
 .nav-badge {
   margin-inline-start: auto; background: var(--danger); color: #fff;
   font-size: 11px; min-inline-size: 20px; block-size: 20px; padding: 0 6px; border-radius: 999px;
@@ -379,6 +558,29 @@ table.tbl { inline-size: 100%; border-collapse: collapse; font-size: 13px; }
 .step.now { color: var(--text); font-weight: 700; }
 .step.now .n { background: var(--primary); color: #fff; }
 .step.done .n { background: var(--success-soft); color: var(--success); }
+/*
+ * ⭐ F0-B6 — سه حالتِ گم‌شدهٔ Stepper.
+ *
+ * `ConfirmStepper` چهار فاز دارد (`review/doing/done/error`) ولی CSS فقط
+ * `now` و `done` را می‌شناخت. یعنی هنگام خطا نشانگر هنوز «در حال انجام» رنگ
+ * می‌شد و مرحلهٔ بعدی هم قفل‌نشده به نظر می‌رسید؛ کاربر نمی‌فهمید کجا ایستاده.
+ *
+ * `failed`  = فاز خطا. `locked`  = مرحله‌ای که هنوز نرسیده‌ایم و *نمی‌شود*
+ *             پریدش (قفلِ صریح، نه صرفاً «هنوز نه»). `skipped` = مرحله‌ای که
+ *             از آن عبور شد بدون اجرا.
+ * حالتِ `locked` عمداً کم‌کنتراست است ولی `aria-disabled` را در JSX می‌گذاریم،
+ * چون رنگ تنها راهِ رساندنِ این پیام نیست.
+ */
+.step.failed .n { background: var(--danger-soft); color: var(--danger); }
+.step.failed { color: var(--danger); font-weight: 700; }
+.step-line.failed { background: var(--danger); }
+.step.locked { opacity: .55; }
+.step.locked .n { background: transparent; box-shadow: inset 0 0 0 1px var(--border); color: var(--text-muted); }
+.step-line.locked { background: repeating-linear-gradient(90deg, var(--border) 0 4px, transparent 4px 8px); }
+.step.skipped .n { background: transparent; box-shadow: inset 0 0 0 1px var(--border); color: var(--text-muted); }
+.step.skipped { text-decoration: line-through; text-decoration-thickness: 1px; }
+.step-line.skipped { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.step-line.done { background: var(--success); }
 .step-line { flex: 1; block-size: 2px; background: var(--border); border-radius: 2px; min-inline-size: 24px; }
 .empty { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 13px; }
 .skel { border-radius: var(--radius-md); background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: sk 1.2s infinite; }
@@ -459,9 +661,102 @@ body.has-savebar .content { padding-block-end: 120px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: var(--surface-2); border-radius: 99px; padding: 3px 10px; }
 .chip button { border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 13px; padding: 0; }
 .switch { position: relative; inline-size: 44px; block-size: 24px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); cursor: pointer; flex-shrink: 0; }
-.switch::after { content: ""; position: absolute; inset-block-start: 2px; inset-inline-start: 3px; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--text-muted); transition: transform .15s; }
+.switch::after { content: ""; position: absolute; inset-block-start: 2px; inset-inline-start: 3px; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--text-muted); transition: inset-inline-start .15s, background-color .15s; }
 .switch[aria-checked="true"] { background: var(--primary); border-color: var(--primary); }
-.switch[aria-checked="true"]::after { background: #fff; transform: translateX(-18px); }
+.switch[aria-checked="true"]::after { background: var(--primary-text, #fff); inset-inline-start: 23px; }
+/*
+ * ⭐ F0-B4 — سوییچ در جهتِ انگلیسی برعکس می‌پرید.
+ *
+ * نسخهٔ قبلی `transform: translateX(-18px)` بود. `translateX` یک ویژگیِ
+ * **فیزیکی** است، نه منطقی: در RTL منفی یعنی «به چپ» (درست) و در LTR یعنی
+ * «به چپ» (غلط — باید به راست برود). یعنی هرکس زبانِ رابط را عوض می‌کرد (F4.4)،
+ * کلیدِ سوییچ به سمتِ مخالفِ سمتِ خواندن می‌پرید و کاربر دکمه را برعکس می‌دید.
+ *
+ * راه‌حل: انیمیشن روی `inset-inline-start` — ویژگیِ منطقی. `3px` در حالت خاموش
+ * و `23px` در حالت روشن (۴۴ − ۳ − ۱۸). در هر دو جهت درست است و نیازی به
+ * `dir` selector ندارد، پس عوض‌کردنِ `dir` هم آن را نمی‌شکند.
+ */
+
+/*
+ * ⭐ F0-B5 — `.dot`: نقطهٔ وضعیت.
+ *
+ * کلاسِ وضعیت (کارتِ ترجیحِ اعلان، نشانِ خوانده‌نشده) فقط یک دایرهٔ کوچک است
+ * و هیچ قاعده‌ای نداشت ⇒ مرورگر آن را `<span>` خالی با ارتفاع صفر می‌گرفت و
+ * **نامرئی** بود. یعنی کلاس در کد بود و اثرش در صفحه نبود.
+ */
+.dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--border);
+  display: inline-block;
+}
+.dot.on { background: var(--primary); }
+.dot.ok { background: var(--success); }
+.dot.warn { background: var(--warning); }
+.dot.err { background: var(--danger); }
+.dot.mute { background: var(--text-muted); }
+/* حلقهٔ «خوانده‌نشده» دور دکمهٔ هدر — جای `box-shadow` ثابت تا با تغییرِ
+   رنگِ دکمه هماهنگ بماند. */
+.dot.ring { box-shadow: 0 0 0 2px var(--surface); }
+
+/*
+ * ⭐ F4.2.F — زنگ اعلان: دکمه + popover.
+ *
+ * `position` و اندازه روی خودِ `.bell-wrap` است تا popover بتواند به آن
+ * چسبیده بماند؛ در `dir=ltr` (F4.4) هم `inset-inline-end` درست جابه‌جا می‌شود
+ * چون منطقی است. اگر `right` فیزیکی بود، در انگلیسی popover از لبهٔ اشتباه
+ * بیرون می‌زد.
+ */
+.bell-wrap { position: relative; display: inline-flex; }
+.bell-icon { inline-size: 20px; block-size: 20px; display: block; }
+.bell-count {
+  position: absolute;
+  inset-block-start: -2px;
+  inset-inline-end: -6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  min-inline-size: 18px;
+  block-size: 16px;
+  border-radius: 99px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+.bell-pop {
+  position: absolute;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  z-index: 120;
+  inline-size: min(360px, calc(100vw - 24px));
+  max-block-size: min(60dvh, 520px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.bell-pop-head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-block-end: 1px solid var(--border); flex-shrink: 0; }
+.bell-pop-body { padding: 12px; overflow-y: auto; }
+.bell-pop-list { overflow-y: auto; overscroll-behavior: contain; }
+.bell-pop-foot { padding: 8px 12px; border-block-start: 1px solid var(--border); flex-shrink: 0; }
+.bell-pop-foot a { font-size: 12.5px; color: var(--primary); text-decoration: none; }
+.bell-pop-foot a:hover { text-decoration: underline; }
+.bell-row { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-block-end: 1px solid var(--border); }
+.bell-row:last-child { border-block-end: 0; }
+.bell-row-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.bell-row-body { font-size: 12px; color: var(--text-muted); margin-block-start: 2px; }
+.bell-row-meta { display: flex; gap: 8px; align-items: center; margin-block-start: 4px; font-size: 11.5px; color: var(--text-muted); }
+.bell-row-cta { color: var(--primary); text-decoration: none; margin-inline-start: auto; }
+.bell-row-cta:hover { text-decoration: underline; }
 
 /* ── F2: ویرایشگر immersive صفحات ── */
 .ed-bar { position: sticky; inset-block-start: 0; z-index: 30; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 14px; margin-block-end: 14px; }
@@ -650,6 +945,19 @@ mark.search-hl { background: var(--primary-soft, var(--surface-2)); color: var(-
 .site-socials a { color: var(--text-muted); font-size: 13.5px; text-decoration: none; }
 .site-socials a:hover { color: var(--primary); }
 .site-body { max-inline-size: 1200px; margin-inline: auto; padding: 24px 16px 64px; display: grid; gap: 24px; align-items: start; grid-template-columns: minmax(0, 1fr); }
+
+/* F4.1.F — نوارِ پیش‌نمایشِ `/preview`.
+   عمداً **بیرون از `.site`** نیست: داخلش است ولی چون رنگ‌ها را از توکن‌های
+   خودِ سایت می‌گیرد، با عوض‌شدنِ رنگ‌بندی هماهنگ می‌ماند و ثابت (خاکستریِ پنل)
+   نمی‌شود — که در آن صورت خودش یک نشانهٔ «این پنل است» می‌شد. */
+.preview-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 16px; font-size: 12.5px;
+  background: var(--surface-2); color: var(--text-muted);
+  border-block-end: 1px solid var(--border);
+}
+.preview-bar a { color: var(--primary); text-decoration: none; }
+.preview-bar a:hover { text-decoration: underline; }
 /* RTL: ترک اول گرید سمت راست است — ترتیب DOM: [راست، محتوا، چپ] */
 .site-body.cols-right-only { grid-template-columns: 280px minmax(0, 1fr); }
 .site-body.cols-left-only { grid-template-columns: minmax(0, 1fr) 280px; }
@@ -706,6 +1014,36 @@ mark.search-hl { background: var(--primary-soft, var(--surface-2)); color: var(-
 }
 @media (prefers-reduced-motion: reduce) {
   .topbar-action { transition: none; }
+
+  /*
+   * ⭐ F0-B7 — پوششِ کامل، نه یک کلاس.
+   *
+   * نسخهٔ قبلی فقط `.topbar-action` را خاموش می‌کرد. یعنی سایدرِ جمع‌شونده با
+   * انیمیشنِ عرض، اسکلتِ بارگذاری (`sk`) با درخششِ بی‌پایان، اسپینرِ OTP و
+   * دراپ‌زون — همه برای کاربری که در سیستم‌عاملش «کاهش حرکت» را روشن کرده
+   * همچنان حرکت می‌کردند.
+   *
+   * راهبرد: هر انیمیشن/ترنزیشنِ پروژه با `animation`/`transition` خاموش و
+   * با `!important` اعمال می‌شود، چون خودِ قاعده‌ها specificity برابر دارند و
+   * بدون آن بسته به ترتیب فایل برنده می‌شدند (یعنی باز-هم بستگی به شانس).
+   *
+   * `scroll-behavior` هم شامل است: پیمایشِ نرم برای کسی که آن را خواسته نیست
+   * خودش یک نوع حرکت است.
+   */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* اما «لود شد» باید دیده شود: اسکلتِ ساکن، انیمیشنِ بی‌پایان ندارد. */
+  .skel { background-position: 0 0; }
+  /* و دکمهٔ سوییچ نباید بین دو حالت «جابه‌جا» به نظر برسد — فقط رنگ عوض کند. */
+  .switch::after { transition: background-color .01ms; }
+  .stepper, .step { transition: none; }
 }
 
 /* header-footer columns */
@@ -784,4 +1122,120 @@ mark.search-hl { background: var(--primary-soft, var(--surface-2)); color: var(-
   .layout-footer-transfer { inline-size: 100%; justify-content: space-between; }
   .layout-footer-transfer .select { flex: 1 1 auto; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ECO1/F4.1 — سه قالبِ سایت که از نظرِ ساختاری و بصری **کاملاً** متفاوت‌اند
+   (نه فقط رنگ). هر قالب: هدر، عرض، ریتمِ فاصله، تایپوگرافی، کارت‌ها و فوترِ
+   خودش را دارد. رنگ‌ها همچنان از توکن‌های `--theme-*` (قابل تنطیم در پنل) می‌آید.
+   انتخابِ قالب = ردیفِ active در جدول `themes` (صفحهٔ قالب‌های پنل).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── ۱) «مینیمال»: هوای زیاد، تک‌ستونِ باریک، تزئینِ صفر، هدرِ وسط‌چین ─── */
+.site.theme-minimal { background: var(--bg); }
+.site.theme-minimal .site-header {
+  background: transparent; border-block-end: 1px solid var(--border);
+}
+.site.theme-minimal .site-header-inner {
+  max-inline-size: 780px; flex-direction: column; justify-content: center; align-items: center;
+  gap: 10px; padding-block: 28px 18px; text-align: center;
+}
+.site.theme-minimal .site-brand { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.site.theme-minimal .site-nav { justify-content: center; gap: 18px; }
+.site.theme-minimal .site-nav-link { font-size: 13.5px; }
+.site.theme-minimal .site-body { max-inline-size: 760px; padding-block: 56px 80px; gap: 40px; }
+.site.theme-minimal .site-sidebar { border: 0; background: transparent; padding: 0; }
+.site.theme-minimal article { line-height: 2.05; font-size: 15.5px; color: var(--text); }
+.site.theme-minimal article h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin-block: 0 10px; }
+.site.theme-minimal article h2 { font-size: 22px; font-weight: 700; margin-block: 34px 8px; }
+.site.theme-minimal article h3 { font-size: 18px; font-weight: 600; }
+.site.theme-minimal .card,
+.site.theme-minimal .card-pad { border: 0; box-shadow: none; background: transparent; padding: 0; }
+.site.theme-minimal article img { border-radius: var(--radius-lg); }
+.site.theme-minimal .btn { background: transparent; border: 1px solid var(--border); color: var(--text); box-shadow: none; }
+.site.theme-minimal .btn:hover { border-color: var(--primary); color: var(--primary); }
+.site.theme-minimal .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
+.site.theme-minimal .site-footer { border-block-start: 1px solid var(--border); background: transparent; margin-block-start: 48px; }
+.site.theme-minimal .site-footer-inner { max-inline-size: 760px; justify-content: center; text-align: center; gap: 18px; padding-block: 30px; }
+
+/* ─── ۲) «تحریری»: مستهدِ درشت، قواعدِ دوبل، drop-cap، ستونِ خواندنی ─── */
+.site.theme-editorial { background: var(--bg); }
+.site.theme-editorial .site-header { background: var(--surface); border-block: 3px double var(--border); }
+.site.theme-editorial .site-header-inner {
+  flex-direction: column; align-items: center; gap: 14px;
+  padding-block: 34px 16px; max-inline-size: 1080px;
+}
+.site.theme-editorial .site-brand { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
+.site.theme-editorial .site-brand img { block-size: 46px; }
+.site.theme-editorial .site-nav {
+  justify-content: center; gap: 4px; inline-size: 100%;
+  border-block-start: 1px solid var(--border); padding-block-start: 12px;
+}
+.site.theme-editorial .site-nav-link {
+  font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
+}
+.site.theme-editorial .site-nav-link:hover { color: var(--primary); }
+.site.theme-editorial .site-body { max-inline-size: 1080px; padding-block: 40px 72px; gap: 34px; }
+.site.theme-editorial article { font-size: 16.5px; line-height: 1.95; }
+.site.theme-editorial article h1 { font-size: 42px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; margin-block: 0 14px; }
+.site.theme-editorial article h2 {
+  font-size: 27px; font-weight: 800; margin-block: 46px 12px;
+  border-block-start: 2px solid var(--text); padding-block-start: 10px;
+}
+.site.theme-editorial article h3 { font-size: 20px; font-weight: 700; font-style: italic; }
+.site.theme-editorial article p:first-of-type::first-letter {
+  float: inline-start; font-size: 3.6em; line-height: 0.9; font-weight: 800;
+  padding-inline-end: 8px; color: var(--primary);
+}
+.site.theme-editorial article blockquote {
+  margin: 26px 0; padding-inline-start: 20px; border-inline-start: 4px solid var(--primary);
+  font-size: 21px; font-style: italic; color: var(--text-muted);
+}
+.site.theme-editorial .card,
+.site.theme-editorial .card-pad { border: 0; border-block-start: 1px solid var(--border); border-radius: 0; box-shadow: none; background: transparent; padding: 18px 0; }
+.site.theme-editorial article img { border: 1px solid var(--border); border-radius: 0; }
+.site.theme-editorial .btn { border-radius: 0; border: 2px solid var(--text); background: transparent; color: var(--text); }
+.site.theme-editorial .btn-primary { background: var(--text); border-color: var(--text); color: var(--bg); }
+.site.theme-editorial .site-footer { border-block-start: 3px double var(--border); background: var(--surface); margin-block-start: 56px; }
+.site.theme-editorial .site-footer-inner { max-inline-size: 1080px; padding-block: 40px; }
+
+/* ─── ۳) «فروشگاهی»: تمام‌عرض، هدرِ چسبان، کارت‌های برجسته، CTAِ قوی ─── */
+.site.theme-commerce { background: var(--surface-2); }
+.site.theme-commerce .site-header {
+  position: sticky; inset-block-start: 0; z-index: 40;
+  background: var(--surface); border-block-end: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.site.theme-commerce .site-header-inner { max-inline-size: 1320px; justify-content: space-between; padding-block: 12px; gap: 20px; }
+.site.theme-commerce .site-brand { font-size: 19px; }
+.site.theme-commerce .site-brand img { block-size: 38px; }
+.site.theme-commerce .site-nav { gap: 2px; }
+.site.theme-commerce .site-nav-link { font-size: 14px; font-weight: 600; }
+.site.theme-commerce .site-nav-link:hover { background: var(--primary); color: var(--primary-text); }
+.site.theme-commerce .btn-primary { box-shadow: var(--shadow-sm); }
+.site.theme-commerce .site-body { max-inline-size: 1320px; padding-block: 24px 72px; gap: 18px; }
+.site.theme-commerce article { font-size: 14.5px; line-height: 1.8; }
+.site.theme-commerce article h1 { font-size: 34px; font-weight: 800; margin-block: 0 8px; }
+.site.theme-commerce article h2 { font-size: 23px; font-weight: 800; margin-block: 30px 8px; }
+.site.theme-commerce article h3 { font-size: 18px; font-weight: 700; }
+.site.theme-commerce .card,
+.site.theme-commerce .card-pad {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); padding: 18px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.site.theme-commerce .card:hover,
+.site.theme-commerce .card-pad:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--primary); }
+.site.theme-commerce article img { border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.site.theme-commerce .btn { border-radius: var(--radius-md); font-weight: 700; }
+.site.theme-commerce .btn-primary { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
+.site.theme-commerce .site-sidebar { background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.site.theme-commerce .site-footer { background: var(--surface-2); border-block-start: 1px solid var(--border); margin-block-start: 56px; }
+.site.theme-commerce .site-footer-inner { max-inline-size: 1320px; padding-block: 36px; }
+
+/* کارتِ تیرهٔ فروشگاهی روی سایتِ تیره/روشن هم بیاید: از توکن‌ها پیروی می‌کند. */
+@media (prefers-reduced-motion: reduce) {
+  .site.theme-commerce .card, .site.theme-commerce .card-pad { transition: none; }
+  .site.theme-commerce .card:hover, .site.theme-commerce .card-pad:hover { transform: none; }
+}
+
 

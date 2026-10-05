@@ -48,7 +48,7 @@ class SuperAdminSeeder extends Seeder
 
         $this->command->warn('— Superadmin ready (hidden, 2FA enforced) —');
         $this->command->line("  email:    {$email}");
-        $this->command->line("  password: ".(env('SUPERADMIN_PASSWORD') ? '(from env)' : 'ChangeMe!123  ← CHANGE IT, set SUPERADMIN_PASSWORD'));
+        $this->command->line('  password: '.(env('SUPERADMIN_PASSWORD') ? '(from env)' : 'ChangeMe!123  ← CHANGE IT, set SUPERADMIN_PASSWORD'));
         $this->command->line("  totp secret: {$user->google2fa_secret}");
         $this->command->line('  recovery codes (each single-use, shown once): '.implode(', ', $plainCodes));
     }

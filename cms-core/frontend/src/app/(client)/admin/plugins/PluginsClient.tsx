@@ -209,6 +209,14 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
                     <b>{p.name}</b> <small dir="ltr" style={{ color: "var(--text-muted)" }}>{p.slug}</small>
                     {hasUpdate(p) ? <Badge tone="amber">آپدیت موجود</Badge> : null}
                     {p.system ? <Badge tone="gray">سیستمی</Badge> : null}
+                    {/* B35 — کاربر باید بفهمد این افزونه چه می‌کند. نبودِ توضیح
+                        (null) با توضیحِ خالی فرق دارد، پس هیچ متن جایگزینی
+                        ساخته نمی‌شود: نبودِ واقعی همان «چیزی نیست» است. */}
+                    {p.description ? (
+                      <div style={{ marginBlockStart: 4, fontSize: 12, color: "var(--text-muted)" }}>
+                        {p.description}
+                      </div>
+                    ) : null}
                     {p.review_status === "rejected" && p.review_note ? (
                       <div style={{ marginBlockStart: 6, fontSize: 12, color: "var(--danger)" }}>
                         دلیل رد: {p.review_note}

@@ -5,18 +5,15 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\Plugins\PluginSignatureVerifier;
 use Database\Seeders\RolesPermissionsSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
-use Tests\TestCase;
+use Tests\PluginDdlTestCase;
 use ZipArchive;
 
 /** تسک ۵.۱ — DoD: ساخت مدیر + تخصیص نقش + مخفی بودن سوپرادمین + ماتریس نقش‌ها. */
-class ManagersRolesTest extends TestCase
+class ManagersRolesTest extends PluginDdlTestCase
 {
-    use RefreshDatabase;
-
     private function owner(): User
     {
         $this->seed(RolesPermissionsSeeder::class);

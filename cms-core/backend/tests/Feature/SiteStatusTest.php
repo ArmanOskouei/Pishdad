@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Pishdad\Plugins\Central\Models\Client;
 use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
@@ -71,6 +72,32 @@ class SiteStatusTest extends TestCase
     public function test_unknown_site_is_404(): void
     {
         $this->getJson('/api/v1/site/status?site_id=nope')->assertNotFound();
+    }
+
+    /**
+     * L-B4 — مسیر عمومی سایت بدون جداول مرکزی نباید ۵۰۰ بدهد.
+     *
+     * رگرسیونِ ثبت‌شده: با `ALTER TABLE central_subscriptions RENAME` (شبیه‌سازی
+     * نصبِ مشتری بدون مرکز) صفحهٔ خانه ۵۰۰ می‌داد. حالا منبعِ اشتراک خودش
+     * `tablesExist()` را می‌سنجد و «نمی‌دانیم» برمی‌گرداند. اینجا جدول فقط
+     * **تغییر نام** می‌دهد (نه drop) تا FKهای مرکزی نشکنند؛ همان شبیه‌سازیِ
+     * دقیقِ باگ.
+     */
+    public function test_public_site_fails_soft_when_central_tables_are_missing(): void
+    {
+        $table = (new Subscription)->getTable();
+        Schema::rename($table, $table.'_lb4_missing');
+
+        foreach ([
+            '/api/v1/site/status',
+            '/api/v1/site/chrome',
+            '/api/v1/site/homepage',
+            '/api/v1/site/pages',
+        ] as $uri) {
+            $res = $this->getJson($uri);
+
+            $this->assertNotSame(500, $res->status(), "{$uri} بدون جدول مرکزی نباید ۵۰۰ بدهد.");
+        }
     }
 
     public function test_brand_message_uses_site_title(): void

@@ -28,6 +28,29 @@ use App\Services\Settings\CachedSettings;
  */
 final class NullSubscriptionSource implements SubscriptionSource
 {
+    /**
+     * J5 — سایتِ ناشناخته یعنی «نمی‌دانیم»، نه «فعال».
+     *
+     * تفاوتش با `status()` عمدی است: آن یکی برای سایتِ عمومی `active` می‌دهد چون
+     * بستنِ بی‌دلیلِ سایت بدتر است. این یکی `null` می‌دهد تا مصرف‌کننده بتواند
+     * «نصبِ مشترک نیست» را از «فعال» جدا کند.
+     */
+    public function statusForSite(?string $siteId = null): ?array
+    {
+        return null;
+    }
+
+    /**
+     * J5 — بدونِ افزونه، کاربر **کارتِ اشتراک ندارد**.
+     *
+     * نه `null` کامل و نه یک کارتِ ساختگی: `null` یعنی «این قابلیت برای این
+     * کاربر نیست» و داشبورد بخش را پنهان می‌کند — که همان رفتارِ درست است.
+     */
+    public function forUser(?int $ownerUserId): ?array
+    {
+        return null;
+    }
+
     public function status(?int $ownerUserId = null): ?array
     {
         // برند از تنظیمات می‌آید تا پیام هم مثل بقیهٔ سایت، نامِ خودِ سایت را

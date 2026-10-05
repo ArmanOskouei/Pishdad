@@ -1,5 +1,5 @@
 import { Shell } from "@/components/layout/Shell";
-import { CENTRAL_MENU } from "@/lib/menu";
+import { CENTRAL_MENU } from "./menu";
 
 /** لایه‌بندی پنل مرکزی (جهت عملیات). */
 export default function CentralLayout({ children }: { children: React.ReactNode }) {

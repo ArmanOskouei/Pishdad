@@ -1,8 +1,10 @@
 <?php
 
-use App\Http\Middleware\EnsureCentralOperator;
+use App\Http\Controllers\Install\EnsureTwoFactorSetup;
+use App\Http\Controllers\Install\InstallGuard;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\GateDevModeUpload;
+use App\Http\Middleware\RequireUserRole;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,10 +17,22 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // F1.1.F — مسیرهای نصب عمداً بیرون از گروه `web` لود می‌شوند تا با
+        // APP_KEY خالی هم کار کنند (InstallGuard هیچ‌چیز رمزنگاری‌شده‌ای نمی‌خواهد).
+        then: function () {
+            require __DIR__.'/../routes/install.php';
+        },
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'central.operator' => EnsureCentralOperator::class,
+            // L-B12 — این alias قبلاً `central.operator` بود و به کلاسی می‌رفت که
+            // نامش نامِ افزونهٔ خصوصی را لو می‌داد و `operator` را ثابت چک می‌کرد.
+            // حالا عمومی است: هر افزونه‌ای می‌تواند بگوید «این route فقط برای نقشِ
+            // X»، بدون اینکه هسته را ویرایش کند.
+            //
+            // ⚠️ نامِ alias هم عمداً عمومی است، چون رشتهٔ alias در مانیفست افزونه
+            // می‌آید و همان در build عمومی دیده می‌شد.
+            'role' => RequireUserRole::class,
             'perm' => EnsurePermission::class,
             'devmode.gate' => GateDevModeUpload::class,
         ]);
@@ -31,6 +45,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // makes Authenticate throw a proper AuthenticationException, which the
         // handler below turns into a 401 for API routes.
         $middleware->redirectGuestsTo(fn () => null);
+
+        // F1.1.B/F — نگهبان نصب (سراسری، بدون وابستگی به web) + اجبار راه‌اندازی
+        // 2FA سوپرادمین در اولین ورود (فقط گروه api). هر دو در محیط تست
+        // پیش‌فرض خاموش‌اند تا تست‌های موجود نشکنند (config/installer.*).
+        $middleware->append(InstallGuard::class);
+        $middleware->appendToGroup('api', EnsureTwoFactorSetup::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // U90: this backend is token-based (Sanctum) and has no `login` route

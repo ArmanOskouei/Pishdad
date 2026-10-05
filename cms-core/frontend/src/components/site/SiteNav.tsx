@@ -4,12 +4,19 @@ import type { ChromeLinkItem } from "@/lib/domain";
 // F0.2: منوی هدر هم `href` می‌دهد و تا امروز بدون sanitize بود ⇒
 // `javascript:` در ناوبری *همهٔ صفحات* سایت زنده بود.
 import { safeHref } from "@/lib/sanitize";
+import { localizeHref, publicT, type PublicLocale } from "@/lib/i18n/public";
 
 type Path = number[];
 const keyOf = (p: Path) => p.join("-");
 
-function hrefOf(l: ChromeLinkItem): string {
-  return safeHref(l.url ?? l.href) ?? "#";
+/**
+ * ECO2 — لینکِ داخلیِ صفحه با پیشوندِ زبان.
+ * زبان پایه در ریشه می‌ماند؛ زبان دوم `/{locale}` می‌گیرد. این فقط برای
+ * لینک‌های داخلیِ رزولو‌شدهٔ `kind=page` است؛ لینک دستی دست‌نخورده می‌ماند.
+ */
+function navHref(l: ChromeLinkItem, locale: PublicLocale): string {
+  const raw = safeHref(l.url ?? l.href) ?? "#";
+  return l.kind === "page" ? localizeHref(raw, locale) : raw;
 }
 
 function labelOf(l: ChromeLinkItem): string {
@@ -22,7 +29,7 @@ function labelOf(l: ChromeLinkItem): string {
  * - موبایل: آکاردئونی (دکمه همبرگری + بازشوی هر والد).
  * - فقط var() و logical properties (استایل در globals.css).
  */
-export function SiteNav({ links, style }: { links: ChromeLinkItem[]; style?: string }) {
+export function SiteNav({ links, style, locale = "fa" }: { links: ChromeLinkItem[]; style?: string; locale?: PublicLocale }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [open, setOpen] = useState<Set<string>>(new Set());
 
@@ -49,7 +56,7 @@ export function SiteNav({ links, style }: { links: ChromeLinkItem[]; style?: str
 
   return (
     <nav
-      aria-label="ناوبری اصلی"
+      aria-label={publicT(locale, "chrome.navAria")}
       className={`site-nav${style === "mega" ? " site-nav-mega" : ""}${menuOpen ? " open" : ""}`}
       onKeyDown={onKey}
     >
@@ -60,7 +67,7 @@ export function SiteNav({ links, style }: { links: ChromeLinkItem[]; style?: str
         aria-controls="site-nav-list"
         onClick={() => setMenuOpen((v) => !v)}
       >
-        <span aria-hidden>{menuOpen ? "✕" : "☰"}</span> فهرست
+        <span aria-hidden>{menuOpen ? "✕" : "☰"}</span> {publicT(locale, "chrome.menu")}
       </button>
       <ul id="site-nav-list" className="site-nav-list">
         {links.map((l, i) => (
@@ -71,6 +78,7 @@ export function SiteNav({ links, style }: { links: ChromeLinkItem[]; style?: str
             open={open}
             toggle={toggle}
             closeAll={closeAll}
+            locale={locale}
           />
         ))}
       </ul>
@@ -79,21 +87,23 @@ export function SiteNav({ links, style }: { links: ChromeLinkItem[]; style?: str
 }
 
 function NavItem({
-  link, path, open, toggle, closeAll,
+  link, path, open, toggle, closeAll, locale,
 }: {
   link: ChromeLinkItem;
   path: Path;
   open: Set<string>;
   toggle: (p: Path) => void;
   closeAll: () => void;
+  locale: PublicLocale;
 }) {
   const kids = Array.isArray(link.children) ? link.children : [];
   const k = keyOf(path);
   const isOpen = open.has(k);
+  const submenuLabel = publicT(locale, "chrome.submenu", { label: labelOf(link) });
   if (kids.length === 0) {
     return (
       <li className="site-nav-item">
-        <a className="site-nav-link" href={hrefOf(link)} onClick={closeAll}>
+        <a className="site-nav-link" href={navHref(link, locale)} onClick={closeAll}>
           {labelOf(link)}
         </a>
       </li>
@@ -101,7 +111,7 @@ function NavItem({
   }
   return (
     <li className={`site-nav-item has-children${isOpen ? " open" : ""}`}>
-      <a className="site-nav-link" href={hrefOf(link)} onClick={closeAll}>
+      <a className="site-nav-link" href={navHref(link, locale)} onClick={closeAll}>
         {labelOf(link)}
       </a>
       <button
@@ -109,14 +119,14 @@ function NavItem({
         className="site-nav-toggle"
         aria-expanded={isOpen}
         aria-haspopup="true"
-        aria-label={`زیرمنوی ${labelOf(link)}`}
+        aria-label={submenuLabel}
         onClick={() => toggle(path)}
       >
         <span aria-hidden>⌄</span>
       </button>
-      <ul className="site-sub" aria-label={`زیرمنوی ${labelOf(link)}`}>
+      <ul className="site-sub" aria-label={submenuLabel}>
         {kids.map((c, j) => (
-          <NavItem key={j} link={c} path={[...path, j]} open={open} toggle={toggle} closeAll={closeAll} />
+          <NavItem key={j} link={c} path={[...path, j]} open={open} toggle={toggle} closeAll={closeAll} locale={locale} />
         ))}
       </ul>
     </li>

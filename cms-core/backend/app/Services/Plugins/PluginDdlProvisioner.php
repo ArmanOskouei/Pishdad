@@ -50,12 +50,42 @@ final class PluginDdlProvisioner
         // نسخهٔ اول: `if (roleExists() && isAvailable()) { grantMinimal(); return; }`
         // ولی `isAvailable()` فقط می‌پرسد «آیا می‌توانم **وصل** شوم؟» — و
         // وصل شدن ربطی به داشتنِ `SELECT` روی رجیستری ندارد. پس وقتی نقش بود
-        // ولی امتیازهایش ناقص بود، `ensureRole` زودتر برمی‌گشت و **هرگز
+        // ولی امتیازهایش ناقص بود، `ensureRole` زودتر برمی‌گشت و **هرگز**
         // `grantMinimal` صدا نمی‌زد**. نتیجه: `permission denied for table
         // plugin_table_prefixes` — دقیقاً چیزی که تست لو داد.
         //
         // راه درست: `grantMinimal()` **همیشه** اجرا شود، چون کارش «ترمیم» است نه
         // «اعطا». بعد تصمیم بگیریم ساخت لازم است یا نه.
+        //
+        // ⚠️ **J5 — این «همیشه» دوباره برگشت، چون بدونش ۸ تست می‌مردند.**
+        //
+        // چرا اول پس گرفته شد: `PluginController::activate()` نوشته بود که ترمیمِ
+        // امتیازها کارِ `plugin-ddl:reset-password` است، «نه اثر جانبیِ هر
+        // فعال‌سازی» — و درست می‌گفت، چون `REVOKE … ON ALL TABLES` قفلِ انحصاری
+        // روی `relacl`ِ تک‌تکِ جدول‌های هسته می‌گیرد و روی mountی که گزارش شده
+        // نصب را ۱۵ دقیقه طول کشیده بود.
+        //
+        // ولی همان guard یک راهِ فرار ساخت که امتیازها هرگز ترمیم نمی‌شدند:
+        // `dropRole()` (پاک‌سازیِ تست و uninstall) `revokeAll()` را صدا می‌زند که
+        // امتیازِ نقش را از **همهٔ** دیتابیس‌ها می‌تراشد — از جمله رجیستری. بعد
+        // نقش دوباره ساخته می‌شد ولی `roleExists()` true بود و `isAvailable()`
+        // هم true بود، پس `ensureRole()` زودتر برمی‌گشت و `grantMinimal()` صدا
+        // نمی‌شد. وضعیتِ نهایی: **نقش هست، وصل می‌شود، ولی رجیستری را نمی‌تواند
+        // بخواند** — یعنی همان `permission denied for table plugin_table_prefixes`
+        // که `PluginPrefixGuardTest` و `PluginDdlProvisioningFlowTest` را قرمز کرد.
+        //
+        // آن وضعیت «نیمه‌سالم» خطرناک‌ترین حالت است: نقش موجود بود پس کسی فکر
+        // نمی‌کرد مشکل از امتیاز باشد.
+        //
+        // راه درست: ترمیم، ولی **فقط وقتی امن است** — بیرون از تراکنش. داخل
+        // تراکنش هم ریسکِ قفل دارد و هم اصلاً commit نمی‌شود، پس بی‌فایده است.
+        // قاعدهٔ `PluginController` («فقط وجودِ نقش را چک کن») دست‌نخورده ماند؛
+        // آنجا یک تصمیمِ درست دربارهٔ **مسیرِ درخواست** است و اینجا تصمیمِ درست
+        // دربارهٔ **سلامتِ نقش**.
+        if ($this->roleExists() && ! $this->inTransaction()) {
+            $this->grantMinimal();
+        }
+
         if ($this->roleExists() && $this->connection->isAvailable()) {
             return;
         }
@@ -69,7 +99,7 @@ final class PluginDdlProvisioner
         // باگ** است: داده‌هایی که تست تا آن لحظه نوشته بود در تراکنشِ کنارگذاشته
         // می‌مانند و در تراکنشِ تازه ناپدید می‌شوند. نسخهٔ اول این کار را کرد و
         // ۳۵ تست `PluginsTest` را خراب کرد.
-        if (DB::connection()->transactionLevel() > 0) {
+        if ($this->inTransaction()) {
             throw new \RuntimeException(
                 'ساختِ نقش دیتابیس نمی‌تواند داخل تراکنشِ باز انجام شود — `CREATE ROLE`'
                 .' با `COMMIT` واقعی می‌شود و تا آن لحظه برای اتصالِ جدا نامرئی است.'
@@ -81,6 +111,19 @@ final class PluginDdlProvisioner
 
         $this->ensureRoleInner();
     }
+
+    /**
+     * تراکنشِ باز هست یا نه — برای تصمیمِ «ترمیمِ امتیازها امن است؟».
+     *
+     * جدا از متد است چون **دو** شاخه به آن نیاز دارند و یکی از آن‌ها استثنای صریح
+     * می‌دهد؛ با یک فراخوانی درون‌خطی یکی از دو یادش می‌رفت — که دقیقاً همان باگی
+     * است که این سطرها دارند درستش می‌کنند.
+     */
+    private function inTransaction(): bool
+    {
+        return DB::connection()->transactionLevel() > 0;
+    }
+
 
     private function ensureRoleInner(): void
     {
@@ -182,6 +225,23 @@ final class PluginDdlProvisioner
         DB::unprepared(sprintf('REVOKE ALL ON SCHEMA public FROM %s', $role));
         DB::unprepared(sprintf('GRANT USAGE, CREATE ON SCHEMA public TO %s', $role));
         DB::unprepared(sprintf('REVOKE ALL ON ALL TABLES IN SCHEMA public FROM %s', $role));
+
+        // ⚠️ ترتیب این دو **همان ترتیبِ اصلی** است و عمداً دست‌نخورده ماند.
+        //
+        // وسوسه‌انگیز بود که `GRANT SELECT` رجیستری را اول بیاوریم تا خطای
+        // `REVOKE ALL ON ALL TABLES` نتواند جلویش را بگیرد — و J5 دقیقاً همین را
+        // امتحان کرد. نتیجه: **۸ تست قرمز شد.**
+        //
+        // علتش این بود که `REVOKE ALL ON ALL TABLES IN SCHEMA public` امتیازهای نقش
+        // را از **هر** جدولِ شِما می‌تراشد — از جمله از رجیستری، اگر نقش در
+        // `relacl`ِ آن باشد. پس با `GRANT` اول، این `REVOKE` آن را بلافاصله
+        // پس می‌گیرد و نتیجه‌ی خالص **بدتر** از ترتیبِ اول است: نه فقط خطا که
+        // هرگز از دست نمی‌رفت، بلکه وضعیتی که «فقط اجرا شد» به نظر می‌رسد و در
+        // واقعیت بی‌اثر است.
+        //
+        // یعنی این ترتیبِ ظاهراً نامنظم درست است: اول امتیازهای کلی پس گرفته
+        // می‌شوند، **بعد** استثنای رجیستری داده می‌شود. ترتیب اینجا بارِ امنیتی
+        // دارد و به خوشایندی جابه‌جا نمی‌شود.
         DB::unprepared('REVOKE ALL ON plugin_table_prefixes FROM PUBLIC');
         DB::unprepared(sprintf('GRANT SELECT ON plugin_table_prefixes TO %s', $role));
 

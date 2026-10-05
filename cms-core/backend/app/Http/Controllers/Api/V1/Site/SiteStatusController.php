@@ -19,22 +19,25 @@ class SiteStatusController extends Controller
     {
         $siteId = $request->query('site_id');
 
-        $subscription = $siteId
-            ? ClientSubscriptionResolver::bySiteId((string) $siteId)
-            : ClientSubscriptionResolver::default();
+        // K7.2 — از بابت نبودِ «مدلِ» افزونهٔ مرکزی در core نگران نباش. منبعِ
+        // اشتراک از طریق `SubscriptionSource` پیاده شده و در نبودِ افزونه، حالت
+        // پیش‌فرضِ «سرویس عمومی» جواب می‌دهد.
+        $subscription = ClientSubscriptionResolver::forSiteId(
+            $siteId !== null ? (string) $siteId : null,
+        );
 
-        if (! $subscription) {
+        // دو حالتِ متفاوت که نباید قاطی شوند:
+        //  ۱) افزونهٔ اشتراک نصب است ولی این `site_id` وجود ندارد → ۴۰۴
+        //  ۲) افزونهٔ اشتراک اصلاً نصب نیست → سایت عمومی محدودیتی ندارد → ۲۰۰
+        if ($subscription === null && ClientSubscriptionResolver::isAvailable()) {
             return response()->json(['message' => 'سایتی یافت نشد.'], 404);
         }
 
-        $cacheKey = 'site-'.($siteId ?: 'default-'.$subscription->id);
+        $cacheKey = 'site-'.($siteId ?: 'default');
 
-        $data = CachedSettings::remember('site_status', $cacheKey, 60, function () use ($subscription) {
-            return [
-                'status' => ClientSubscriptionResolver::publicStatus($subscription),
-                'message' => ClientSubscriptionResolver::statusMessage($subscription),
-            ];
-        });
+        $data = CachedSettings::remember('site_status', $cacheKey, 60,
+            fn (): array => ClientSubscriptionResolver::statusFor($subscription),
+        );
 
         return response()->json(['data' => $data])
             ->header('Cache-Control', 'public, max-age=60');

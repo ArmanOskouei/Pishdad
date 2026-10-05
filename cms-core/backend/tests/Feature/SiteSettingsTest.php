@@ -219,7 +219,27 @@ class SiteSettingsTest extends TestCase
         $auth->getJson('/api/v1/admin/settings/site')
             ->assertOk()
             ->assertJsonPath('data.logo_url', $base.'/media/1/site-logo.png')
-            ->assertJsonPath('data.favicon_url', null);
+            // برندِ پیش‌فرضِ نصب وقتی رسانه‌ای انتخاب نشده (کلون از گیت‌هاب).
+            ->assertJsonPath('data.favicon_url', '/favicon.ico');
+    }
+
+    /** برندِ پیش‌فرضِ نصب: بدون هیچ رسانه‌ای، لوگو/فاوآیکون باید پیش‌فرض باشند. */
+    public function test_default_brand_urls_when_nothing_is_selected(): void
+    {
+        $this->actingAs($this->user(), 'sanctum')
+            ->getJson('/api/v1/admin/settings/site')
+            ->assertOk()
+            ->assertJsonPath('data.logo_url', '/pishdad-logo.png')
+            ->assertJsonPath('data.favicon_url', '/favicon.ico');
+    }
+
+    /** سایت عمومی هم در نبودِ رسانه، برندِ پیش‌فرض را می‌دهد. */
+    public function test_public_chrome_exposes_default_brand_urls(): void
+    {
+        $this->getJson('/api/v1/site/chrome')
+            ->assertOk()
+            ->assertJsonPath('data.logo_url', '/pishdad-logo.png')
+            ->assertJsonPath('data.favicon_url', '/favicon.ico');
     }
 
     /** مشترک نصب: تنظیم ذخیره‌شده توسط یک مدیر برای مدیر دیگر خوانده می‌شود. */
@@ -269,6 +289,101 @@ class SiteSettingsTest extends TestCase
         $this->actingAs($admin, 'sanctum')->getJson('/api/v1/admin/settings/site')
             ->assertOk()
             ->assertJsonPath('data.title', 'سایت مدیر');
+    }
+
+    public function test_site_language_mode_single_by_default(): void
+    {
+        $user = $this->user();
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/settings/site')
+            ->assertOk()
+            ->assertJsonPath('data.language_mode', 'single')
+            ->assertJsonPath('data.locales', ['fa'])
+            ->assertJsonPath('data.primary_locale', 'fa');
+    }
+
+    public function test_site_language_mode_dual_exposes_primary_then_secondary(): void
+    {
+        $user = $this->user();
+        $auth = $this->actingAs($user, 'sanctum');
+
+        $auth->putJson('/api/v1/admin/settings/site', [
+            'title' => 'سایت دوزبانه',
+            'locale' => 'fa',
+            'language_mode' => 'dual',
+            'secondary_locale' => 'en',
+        ])->assertOk();
+
+        $auth->getJson('/api/v1/admin/settings/site')
+            ->assertOk()
+            ->assertJsonPath('data.language_mode', 'dual')
+            ->assertJsonPath('data.locales', ['fa', 'en'])
+            ->assertJsonPath('data.primary_locale', 'fa');
+    }
+
+    public function test_site_language_primary_can_be_en_with_fa_secondary(): void
+    {
+        $user = $this->user();
+        $auth = $this->actingAs($user, 'sanctum');
+
+        $auth->putJson('/api/v1/admin/settings/site', [
+            'title' => 'English primary',
+            'locale' => 'en',
+            'language_mode' => 'dual',
+            'secondary_locale' => 'fa',
+        ])->assertOk();
+
+        $auth->getJson('/api/v1/admin/settings/site')
+            ->assertOk()
+            ->assertJsonPath('data.locales', ['en', 'fa'])
+            ->assertJsonPath('data.primary_locale', 'en');
+    }
+
+    public function test_site_rejects_secondary_locale_equal_to_primary(): void
+    {
+        $user = $this->user();
+
+        $res = $this->actingAs($user, 'sanctum')->putJson('/api/v1/admin/settings/site', [
+            'title' => 'تست',
+            'locale' => 'fa',
+            'language_mode' => 'dual',
+            'secondary_locale' => 'fa',
+        ]);
+
+        $res->assertStatus(422);
+        $res->assertJsonValidationErrors(['secondary_locale']);
+    }
+
+    public function test_site_rejects_invalid_language_mode(): void
+    {
+        $user = $this->user();
+
+        $res = $this->actingAs($user, 'sanctum')->putJson('/api/v1/admin/settings/site', [
+            'title' => 'تست',
+            'language_mode' => 'triple',
+        ]);
+
+        $res->assertStatus(422);
+        $res->assertJsonValidationErrors(['language_mode']);
+    }
+
+    /** ECO2 — کروم عمومی باید زبان‌ها را بدهد تا سایت/میدل‌ور مسیر را بسازد. */
+    public function test_chrome_exposes_available_locales_and_primary(): void
+    {
+        $user = $this->user();
+        $auth = $this->actingAs($user, 'sanctum');
+
+        $auth->putJson('/api/v1/admin/settings/site', [
+            'title' => 'سایت دوزبانه',
+            'locale' => 'fa',
+            'language_mode' => 'dual',
+            'secondary_locale' => 'en',
+        ])->assertOk();
+
+        $this->getJson('/api/v1/site/chrome')
+            ->assertOk()
+            ->assertJsonPath('data.locales', ['fa', 'en'])
+            ->assertJsonPath('data.primary_locale', 'fa');
     }
 
     public function test_site_seo_geo_fields_roundtrip(): void

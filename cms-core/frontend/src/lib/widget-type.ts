@@ -48,6 +48,10 @@
  * همین وضعیت است: لاگِ همیشگی + اعلانِ دیداری برای اپراتور.
  */
 
+// ECO2 — import نسبیِ `.ts` (بدون alias) چون این فایل در مسیر `node --test`
+// هم بار می‌شود (`widget-type.test.ts`) و alias آنجا resolve نمی‌شود.
+import { publicT, type PublicLocale } from "./i18n/public/index.ts";
+
 /**
  * واژگانِ ویجت‌های هسته. تنها منبع حقیقتِ «چه چیزی ویجتِ هسته است».
  *
@@ -155,10 +159,18 @@ export function unknownWidgetWarning(
     : `[site] chrome widget type "${named}" has no case in the ChromeWidget switch — a plugin/theme widget declared in manifest.widgets.{header,footer} renders nothing. site.header_widget / site.footer_widget cannot change this: the contract declares them with an empty schema, so any declaration is a validation error.`;
 }
 
-/** متنِ فارسیِ اعلانِ دیداری (فقط وقتی تشخیص روشن است رندر می‌شود). */
+/**
+ * ECO2 — اعلانِ دیداری به زبانِ سایتِ عمومی. در پنل/پیش‌نمایش که زبان از URL
+ * نمی‌آید، فراخوان با پیش‌فرضِ `fa` رفتار قبلی را می‌دهد.
+ */
+export function unknownWidgetNotice(locale: PublicLocale, type: unknown): string {
+  const named = describeUnknownWidgetType(type) || publicT(locale, "widget.emptyName");
+  return publicT(locale, "widget.unknownNotice", { name: named });
+}
+
+/** متنِ فارسیِ اعلانِ دیداری (سازگاریِ عقب‌رو + پیش‌فرضِ زبان پایه). */
 export function unknownWidgetNoticeFa(type: unknown): string {
-  const named = describeUnknownWidgetType(type) || "(خالی)";
-  return `ویجت «${named}» رندر نشد — این نوع ویجت در رندرر هسته پیاده‌سازی نشده است.`;
+  return unknownWidgetNotice("fa", type);
 }
 
 /**

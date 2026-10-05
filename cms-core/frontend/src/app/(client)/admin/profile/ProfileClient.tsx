@@ -215,8 +215,16 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
   const [code, setCode] = useState("");
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [proof, setProof] = useState("");
+  const [regenBusy, setRegenBusy] = useState(false);
+  const [remaining, setRemaining] = useState(methods?.recovery_codes_remaining ?? 0);
   const confirmingRef = useRef(false);
   const codeInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setRemaining(methods?.recovery_codes_remaining ?? 0);
+  }, [methods]);
 
   useEffect(() => {
     setEnabled(initial.google2fa_enabled);
@@ -293,6 +301,7 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
     try {
       const r = await authed<{ recovery_codes: string[] }>(`/v1/admin/profile/2fa/enable`, { method: "POST", body: { code: normalizedCode } });
       setRecovery(r.recovery_codes);
+      setRemaining(r.recovery_codes.length);
       setEnabled(true);
       setQr(null);
       setCode("");
@@ -324,11 +333,37 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
       setEnabled(false);
       setQr(null);
       setCode("");
+      setRecovery(null);
+      setRegenOpen(false);
+      setProof("");
+      setRemaining(0);
       toast("تأیید دومرحله‌ای غیرفعال شد.", "ok");
     } catch (e) {
       toast(e instanceof Error ? e.message : "غیرفعال‌سازی ناموفق بود (کد TOTP لازم است).", "err");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const regenerate = async () => {
+    const value = proof.trim();
+    if (!value) return;
+    const normalizedProof = normalizeTotpCode(value);
+    const body = OTP_PATTERN.test(normalizedProof)
+      ? { code: normalizedProof }
+      : { password: value };
+    setRegenBusy(true);
+    try {
+      const r = await authed<{ recovery_codes: string[] }>(`/v1/admin/profile/2fa/recovery-codes`, { method: "POST", body });
+      setRecovery(r.recovery_codes);
+      setRemaining(r.recovery_codes.length);
+      setRegenOpen(false);
+      setProof("");
+      toast("کدهای بازیابی بازتولید شد.", "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "بازتولید کدهای بازیابی ناموفق بود.", "err");
+    } finally {
+      setRegenBusy(false);
     }
   };
 
@@ -350,8 +385,13 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
       </div>
       {methods ? (
         <div>
-          <div className="kv"><span>کدهای بازیابی باقی‌مانده</span><span>{faNum(methods.recovery_codes_remaining)}</span></div>
-          <div className="kv"><span>کلیدهای سخت‌افزاری</span><span>{faNum(methods.hardware_keys.length)}</span></div>
+          <div className="kv"><span>کدهای بازیابی باقی‌مانده</span><span>{faNum(remaining)}</span></div>
+          {/* J5 — کلید سخت‌افزاری دادهٔ افزونهٔ مرکزی است و در پاسخِ پروفایلِ
+              هسته نیست. روی نصبِ بدون افزونه این کلید غایب است، و سطر باید
+              پنهان شود — نه اینکه `undefined.length` بیندازد. */}
+          {methods.hardware_keys ? (
+            <div className="kv"><span>کلیدهای سخت‌افزاری</span><span>{faNum(methods.hardware_keys.length)}</span></div>
+          ) : null}
         </div>
       ) : null}
 
@@ -435,6 +475,35 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
             <input className="input" dir="ltr" style={{ textAlign: "left" }} value={code} onChange={(e) => setCode(normalizeTotpCode(e.target.value))} placeholder="123456" inputMode="numeric" autoComplete="one-time-code" disabled={busy} />
           </div>
           <button className="btn btn-ghost" onClick={() => void disable()} disabled={busy}>{busy ? "…" : "غیرفعال‌سازی 2FA"}</button>
+
+          <div className="field" style={{ marginBlockStart: 14 }}>
+            {!regenOpen ? (
+              <button type="button" className="btn btn-ghost" onClick={() => { setRegenOpen(true); setProof(""); }} disabled={busy || regenBusy}>
+                بازتولید کدهای بازیابی
+              </button>
+            ) : (
+              <div>
+                <Alert tone="amber">با بازتولید، کدهای بازیابی قبلی باطل می‌شوند. برای تأیید، کد TOTP یا رمز عبور خود را وارد کنید.</Alert>
+                <label htmlFor="regen-proof">کد TOTP یا رمز عبور</label>
+                <input
+                  id="regen-proof"
+                  className="input"
+                  dir="ltr"
+                  style={{ textAlign: "left" }}
+                  value={proof}
+                  onChange={(e) => setProof(e.target.value)}
+                  autoComplete="off"
+                  disabled={regenBusy}
+                />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBlockStart: 8 }}>
+                  <button type="button" className="btn btn-ghost" onClick={() => { setRegenOpen(false); setProof(""); }} disabled={regenBusy}>انصراف</button>
+                  <button type="button" className="btn btn-primary" onClick={() => void regenerate()} disabled={regenBusy || !proof.trim()}>
+                    {regenBusy ? "…" : "تأیید و بازتولید"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
@@ -492,16 +561,26 @@ function SmsCard({ methods }: { methods: TwoFactorMethods | null }) {
   const [pending, setPending] = useState(false);
   const [verified, setVerified] = useState(methods?.sms?.enabled ?? false);
   const [busy, setBusy] = useState(false);
+  // L-B6/F0.4 — تصمیم (ب): «نمایش‌با-غیرفعال». درگاه واقعی وصل نیست (E3) پس
+  // گفتن «ارسال شد» دروغ است؛ سرور کد sms.not_configured می‌دهد و UI شاخهٔ
+  // صادقانه را نشان می‌دهد، نه فرم تأیید.
+  const [unavailable, setUnavailable] = useState(false);
+  const [unavailableMsg, setUnavailableMsg] = useState("");
 
   const request = async () => {
     if (!/^09\d{9}$/.test(phone.trim())) { toast("شماره موبایل معتبر نیست (مثل 09123456789).", "err"); return; }
     setBusy(true);
     try {
-      const r = await authed<{ debug_code?: string }>(`/v1/admin/profile/sms/request`, {
+      const r = await authed<{ debug_code?: string; code?: string; message?: string }>(`/v1/admin/profile/sms/request`, {
         method: "POST", body: { phone: phone.trim() },
       });
+      if (r?.code === "sms.not_configured") {
+        setUnavailable(true);
+        setUnavailableMsg(r?.message ?? "سرویس پیامک هنوز فعال نشده است؛ کدی ارسال نشد.");
+        return;
+      }
       setPending(true);
-      toast(r?.debug_code ? `کد تست: ${r.debug_code}` : "کد تأیید پیامکی ارسال شد.", "ok");
+      toast(r?.debug_code ? `کد تست: ${r.debug_code}` : (r?.message ?? "کد تأیید پیامکی ارسال شد."), "ok");
     } catch (e) {
       toast(e instanceof Error ? e.message : "ارسال کد ناموفق بود.", "err");
     } finally {
@@ -544,11 +623,16 @@ function SmsCard({ methods }: { methods: TwoFactorMethods | null }) {
       </div>
       {!verified ? (
         <div>
+          {unavailable ? (
+            <p role="note" style={{ color: "var(--text-muted)", fontSize: 13 }}>
+              {unavailableMsg || "سرویس پیامک هنوز فعال نشده است؛ کدی ارسال نمی‌شود."}
+            </p>
+          ) : null}
           <div className="field"><label>شماره موبایل</label>
-            <input className="input" dir="ltr" style={{ textAlign: "left" }} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09123456789" />
+            <input className="input" dir="ltr" style={{ textAlign: "left" }} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09123456789" disabled={unavailable} />
           </div>
           {!pending ? (
-            <button className="btn btn-primary" onClick={() => void request()} disabled={busy}>{busy ? "…" : "ارسال کد تست"}</button>
+            <button className="btn btn-primary" onClick={() => void request()} disabled={busy || unavailable}>{busy ? "…" : "ارسال کد تست"}</button>
           ) : (
             <div>
               <div className="field"><label>کد ۶ رقمی پیامک</label>

@@ -1,0 +1,22 @@
+; Pishdad — portable npm config template
+;
+; By default npm stores its cache (downloaded tarballs + registry metadata) in
+; the user profile, e.g. C:\Users\<you>\AppData\Local\npm-cache on Windows.
+; If you prefer the cache to live inside the checkout, copy this file to
+; `.npmrc` (which is gitignored) and point `cache` at a local folder.
+;
+; Linux / macOS (relative to this directory):
+;   cache=../../.local/cache/npm
+;
+; Windows (use forward slashes and quote if the path contains spaces):
+;   cache=E:/path/to/ArmanOskouei.ir/.local/cache/npm
+;
+; Then verify with:
+;   npm config get cache
+;   npm ci --offline      # must succeed with no network access
+;
+; `.local/` is gitignored, so the cache is never committed or uploaded.
+; This file only changes WHERE npm keeps downloaded bytes. Dependency versions
+; are still pinned exclusively by package-lock.json.
+audit=false
+fund=false

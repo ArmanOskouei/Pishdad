@@ -103,7 +103,7 @@ return new class extends Migration
 
     /**
      * @param  array<mixed, mixed>  $pages
-     * @return array<mixed, mixed>|null  null یعنی هیچ تغییری لازم نبود
+     * @return array<mixed, mixed>|null null یعنی هیچ تغییری لازم نبود
      */
     private function rewritePages(array $pages, int &$changed): ?array
     {
@@ -134,6 +134,7 @@ return new class extends Migration
             if (! is_array($blocks) || ! array_is_list($blocks)) {
                 $out[$key]['blocks'] = [];
                 $dirty = true;
+
                 continue;
             }
 

@@ -83,6 +83,8 @@ export function isChallenge(r: LoginResult): r is ChallengeResponse {
 export type UiSettings = {
   dir: "rtl" | "ltr";
   preset: "sahar" | "amaliyat" | "arya" | "narm" | "divan";
+  /** رنگِ درونِ جهت بصری. باید ذخیره شود وگرنه با رفرش به پیش‌فرضِ جهت برمی‌گردد. */
+  accent?: "teal" | "indigo" | "violet" | "blue" | "amber" | "rose" | "clay";
   mode: "light" | "dark" | "system";
   radius: "sharp" | "default" | "rounded";
   density: "compact" | "comfortable" | "loose";
@@ -96,7 +98,22 @@ export type DashboardStats = {
   open_tickets: number;
   /** دسته ۱: دلتای واقعی «جدید در ۷ روز اخیر» (افزودنی). */
   recent?: { pages_new_7d: number; media_new_7d: number; tickets_new_7d: number };
-  subscription: { status: string; tier: string; due_at: string | null; days_remaining: number };
+  /**
+   * `null` یعنی «افزونهٔ اشتراک نصب نیست» — نه «اشتراک خراب».
+   *
+   * قرارداد را `DashboardController` صریح تعیین کرده (data.subscription = null
+   * وقتی resolver چیزی برنگرداند). اینجا **قبلاً** غیرقابل‌null تیپ شده بود و
+   * داشبورد `stats.subscription.status` را بدون guard می‌خواند؛ نتیجه برای
+   * سوپرادمین (که اصلاً اشتراک ندارد) کرشِ
+   * «Cannot read properties of null (reading 'status')» بود. تایپ باید حقیقت
+   * سرور را بازتاب دهد تا هر مصرف‌کننده‌ای مجبور به guard شود.
+   */
+  subscription: {
+    status: string;
+    tier: string;
+    due_at: string | null;
+    days_remaining: number;
+  } | null;
 };
 
 export type DashboardAlert = {

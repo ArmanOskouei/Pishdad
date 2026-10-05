@@ -3,8 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Search\PersianText;
-use App\Search\SearchableProvider;
-use App\Services\Plugins\ServiceProviderRegistry;
+use App\Search\SearchProviderRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,13 +19,18 @@ use Illuminate\Http\Request;
  * حالا افزونه فقط **یک کلاس** اعلام می‌کند (`core.service_provider` →
  * `SearchableProvider`) و جستجو اینجا و در سرور اتفاق می‌افتد.
  *
+ * ⭐ I7 — providerها از `SearchProviderRegistry` می‌آیند، نه از کانفیگ ثابت و نه
+ * از یک override تک‌خانه. برای جستو، اعلان افزونه **افزایشی** است: دو افزونه
+ * هر دو در نتایج‌اند (به `ServiceProviderRegistry::declaredSearchProviders()`
+ * نگاه کنید) — وگرنه افزونهٔ دوم بی‌سروصدا حذف می‌شد.
+ *
  * تفکیک با `SearchController` مهم است: آن یکی جستجوی **عمومی سایت** است
  * (بازدیدکننده، بدون احراز هویت، فقط محتوای منتشرشده). این یکی جستجوی
  * **داخل پنل** است و احراز هویت و پرمیشن می‌خواهد.
  */
 class AdminSearchController
 {
-    public function __invoke(Request $request, ServiceProviderRegistry $registry): JsonResponse
+    public function __invoke(Request $request, SearchProviderRegistry $registry): JsonResponse
     {
         $data = $request->validate([
             'q' => ['required', 'string', 'min:2', 'max:120'],
@@ -42,9 +46,10 @@ class AdminSearchController
         $query = $data['q'];
 
         $rows = [];
-        foreach ($this->providers($registry) as $provider) {
+        foreach ($registry->providers(SearchProviderRegistry::CHANNEL_ADMIN) as $provider) {
             // یک provider خراب نباید کل جستجو را از کار بیندازد — ولی باید
-            // دیده شود، وگرنه افزونه‌نویس تا ابد دنبالش می‌گردد.
+            // دیده شود، وگرنه افزونه‌نویس تا ابد دنبالش می‌گردد. لاگش در خودِ
+            // `SearchProviderRegistry::make()` است.
             try {
                 $rows = array_merge($rows, $provider->search($query, PersianText::normalize($query), $perPage));
             } catch (\Throwable $e) {
@@ -55,45 +60,5 @@ class AdminSearchController
         }
 
         return response()->json(['data' => array_slice($rows, 0, $perPage)]);
-    }
-
-    /**
-     * providerهای افزونه‌ای + provider پیش‌فرض هسته.
-     *
-     * @return list<SearchableProvider>
-     */
-    private function providers(ServiceProviderRegistry $registry): array
-    {
-        $out = [];
-
-        $override = $registry->resolveOverride(SearchableProvider::class);
-        if ($override !== null) {
-            try {
-                $instance = app($override);
-                if ($instance instanceof SearchableProvider) {
-                    $out[] = $instance;
-                }
-            } catch (\Throwable $e) {
-                // ساکت‌کردن این خطا یعنی «افزونه ثبت شد ولی جستجو کار نمی‌کند»
-                // — همان بی‌صدایی که B30 درباره‌اش هشدار می‌دهد. پس
-                // بازگشت خالی نیست؛ کاربر باید بفهمد جستجو ناقص است.
-                Log::error('admin_search.provider_failed', [
-                    'class' => $override,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        foreach ((array) config('search.admin_providers', []) as $class) {
-            if (! is_string($class) || ! class_exists($class)) {
-                continue;
-            }
-            $instance = app($class);
-            if ($instance instanceof SearchableProvider) {
-                $out[] = $instance;
-            }
-        }
-
-        return $out;
     }
 }

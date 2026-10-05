@@ -260,14 +260,22 @@ function PointRow({ p, used }: { p: ExtensionPoint; used: boolean }) {
         </div>
       ) : null}
 
-      {p.example_ok ? (
+      {/* I3 — آرایهٔ خالی در JS truthy است، پس شرطِ قبلی برای نقطه‌ای که
+          `example_ok` ندارد یک بلوک خالی با متن «[]» نشان می‌داد. حالا طول
+          آرایه سنجیده می‌شود و جای آن دلیلِ نبودِ مثال رندر می‌شود — سکوت یا
+          صفرِ بی‌معنا هر دو دروغ‌اند. */}
+      {Array.isArray(p.example_ok) && p.example_ok.length > 0 ? (
         <details style={{ marginBlockStart: 6 }}>
           <summary style={{ cursor: "pointer", fontSize: 12 }}>نمونهٔ درست</summary>
           <pre dir="ltr" style={{ fontSize: 11, marginBlockStart: 4, overflowX: "auto", whiteSpace: "pre-wrap" }}>
             {JSON.stringify(p.example_ok, null, 2)}
           </pre>
         </details>
-      ) : null}
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBlockStart: 6 }}>
+          این نقطه نمونهٔ معتبر ندارد — هر اعلانی برایش با قاعدهٔ اسکیمای خودش رد می‌شود.
+        </div>
+      )}
 
       {p.example_bad && p.example_bad.length ? (
         <details style={{ marginBlockStart: 4 }}>

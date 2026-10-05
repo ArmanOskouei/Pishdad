@@ -10,7 +10,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type UiSettings } from "@/lib/api";
 
-export type ThemeState = UiSettings & { accent: string };
+export type ThemeState = Omit<UiSettings, "accent"> & { accent: string };
 
 const LS_KEY = "cms-ui-f1";
 
@@ -41,7 +41,21 @@ export function applyTheme(t: ThemeState) {
   h.dataset.radius = t.radius;
   h.dataset.density = t.density;
   h.dataset.fontSize = t.font;
-  h.dir = t.dir;
+  /**
+   * ECO2 — روی سایتِ عمومی جهت/زبان مالکش سرور است (از لوکالِ مسیر)، نه تمِ
+   * پنل. بدون این شرط، هر بازدیدِ صفحه (حتی `/en`) پس از hydration با تمِ
+   * ذخیره‌شدهٔ پنل به `rtl/fa` می‌پرید.
+   *
+   * F4.4 — `lang` کنارِ `dir`، در همین تابع.
+   *
+   * نه یک `useEffect` جدا: اگر `dir` از یک جا بیاید و `lang` از جای دیگر، یک روز
+   * ناهمگام می‌شوند (`dir=ltr` + `lang=fa` ⇒ صفحه‌خوان انگلیسی را فارسی می‌خواند)
+   * و هیچ خطایی هم نمی‌دهد. جهت و زبان یک تصمیم‌اند.
+   */
+  if (h.dataset.cmsSurface !== "site") {
+    h.dir = t.dir;
+    h.lang = t.dir === "ltr" ? "en" : "fa";
+  }
 }
 
 function load(): ThemeState {
@@ -90,7 +104,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       fetch("/api/proxy/v1/ui-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dir: t.dir, preset: t.preset, mode: t.mode, radius: t.radius, density: t.density, font: t.font }),
+        body: JSON.stringify({ dir: t.dir, preset: t.preset, accent: t.accent, mode: t.mode, radius: t.radius, density: t.density, font: t.font }),
         cache: "no-store",
       }).catch(() => undefined);
     }, 600);
@@ -112,7 +126,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         const s = (json?.data ?? json) as UiSettings;
         if (!s || !s.preset) return;
         loggedInRef.current = true;
-        const merged: ThemeState = { ...DEFAULT_THEME, ...s, accent: PRESET_ACCENT[s.preset] ?? "indigo" };
+        const merged: ThemeState = { ...DEFAULT_THEME, ...s, accent: s.accent ?? PRESET_ACCENT[s.preset] ?? "indigo" };
         themeRef.current = merged;
         setTheme(merged);
         try { localStorage.setItem(LS_KEY, JSON.stringify(merged)); } catch { /* ignore */ }
@@ -150,7 +164,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const t = load();
     await api("/v1/ui-settings", {
       method: "PUT", token,
-      body: { dir: t.dir, preset: t.preset, mode: t.mode, radius: t.radius, density: t.density, font: t.font },
+      body: { dir: t.dir, preset: t.preset, accent: t.accent, mode: t.mode, radius: t.radius, density: t.density, font: t.font },
     }).catch(() => undefined);
   }, []);
 
@@ -158,7 +172,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const s = await api<UiSettings>("/v1/ui-settings", { token }).catch(() => null);
     if (s) {
       loggedInRef.current = true;
-      set({ ...s, accent: PRESET_ACCENT[s.preset] ?? "indigo" }, { persist: false });
+      set({ ...s, accent: s.accent ?? PRESET_ACCENT[s.preset] ?? "indigo" }, { persist: false });
     }
   }, [set]);
 

@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\RequireUserRole;
 use App\Services\Plugins\PluginDispatcher;
+use App\Services\Plugins\PluginIntegritySeal;
 use App\Services\Plugins\PluginRouteTable;
+use Closure;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -99,15 +102,60 @@ class PluginRouter extends Controller
      * بازاری ممکن است نام کلاس بدهد و `compileMiddleware` اجازه‌اش می‌دهد.
      * هر دو حالت به همان `Container::make` می‌رسند، پس تفاوتی در مسیر ندارد.
      */
-    private function resolvePipe(string $name): object
+    /**
+     * یک ورودیِ middleware مانیفست را به شیءِ قابل‌فراخوانی تبدیل می‌کند.
+     *
+     * ## چرا آرگومان را جدا می‌کنیم (L-B12)
+     *
+     * پیش از این، نگهبانِ نقش یک aliasِ **بدون آرگومان** بود و `operator` را ثابت
+     * چک می‌کرد. نسخهٔ عمومی `role:operator` است: نقش از مانیفست می‌آید.
+     *
+     * ولی `Container::make()` آرگومان‌های `handle()` را **نادیده می‌گیرد** — این
+     * تنها جایی است که لاراول خودش میان‌افزارِ آرگومان‌دار را نمی‌سازد. پس اینجا
+     * خودمان فراخوانی می‌کنیم و آرگومان را دستی پاس می‌دهیم.
+     */
+    private function resolvePipe(string $entry): object
     {
         $router = $this->container->make(Router::class);
+        $aliases = method_exists($router, 'getMiddleware') ? $router->getMiddleware() : [];
 
-        $resolved = method_exists($router, 'getMiddleware')
-            ? ($router->getMiddleware()[$name] ?? null)
-            : null;
+        $resolved = $aliases[$entry] ?? null;
 
-        return $this->container->make(is_string($resolved) ? $resolved : $name);
+        if (is_string($resolved)) {
+            return $this->container->make($resolved);
+        }
+
+        // `role:operator` — کلیدِ alias آرگومان ندارد، ولی کل entry دارد.
+        // `getMiddleware()` با کلیدِ `role:operator` هم جواب نمی‌دهد، پس باید
+        // بخشِ قبل از `:` را نگاه کرد.
+        $bare = str_contains($entry, ':') ? explode(':', $entry, 2)[0] : $entry;
+        $bareClass = $aliases[$bare] ?? null;
+
+        if (is_string($bareClass)) {
+            return $this->container->make($bareClass);
+        }
+
+        return $this->container->make($entry);
+    }
+
+    /**
+     * اجرای یک گام از زنجیره، با آرگومان‌های خودش.
+     *
+     * جدا از `resolvePipe` چون آن یکی فقط **کلاس** را برمی‌گرداند و این باید
+     * آرگومانِ نقش را هم بدهد. برای بقیهٔ میان‌افزارها آرگومان `null` است و رفتار
+     * قبلی حفظ می‌شود.
+     */
+    private function runPipe(string $entry, Request $request, Closure $next): mixed
+    {
+        $pipe = $this->resolvePipe($entry);
+
+        if (! $pipe instanceof RequireUserRole) {
+            return $pipe->handle($request, $next);
+        }
+
+        $argument = str_contains($entry, ':') ? explode(':', $entry, 2)[1] : null;
+
+        return $pipe->handle($request, $next, (string) $argument);
     }
 
     public function __construct(
@@ -132,6 +180,28 @@ class PluginRouter extends Controller
 
         if ($route === null) {
             return response()->json(['message' => self::NOT_FOUND], 404);
+        }
+
+        // K5.2-W — دروازهٔ مهر یکپارچگی، **پیش از** هر کار دیگری.
+        //
+        // ترتیب عمداً این است: حتی پیش از بررسیِ `auth:`. اگر یک بسته دستکاری
+        // شده باشد، هیچ‌کس — حتی یک درخواستِ بی‌احراز هویت — نباید کدش را
+        // بارگذاری کند؛ و پاسخِ ۴۰۹ به یک ربات هیچ اطلاعاتی نمی‌دهد چون کد
+        // اصلاً اجرا نشده.
+        $guard = app(PluginIntegritySeal::class)->guardForDispatch($slug);
+
+        if (! $guard['ok']) {
+            Log::error('plugin.dispatch_blocked_integrity', [
+                'slug' => $slug,
+                'status' => $guard['status'],
+                'code' => $guard['code'],
+                'release' => $guard['release'],
+            ]);
+
+            return response()->json([
+                'message' => 'این بسته به دلیل نقض یکپارچگی اجرا نشد: '.$guard['reason'],
+                'code' => $guard['code'],
+            ], 409);
         }
 
         // K5.4 — میان‌افزارهای route **اجرا** می‌شوند.
@@ -223,7 +293,8 @@ class PluginRouter extends Controller
         ));
 
         foreach ($pipes as $pipe) {
-            $result = $this->resolvePipe($pipe)->handle(
+            $result = $this->runPipe(
+                $pipe,
                 $request,
                 fn (Request $passed) => $this->dispatcher->dispatch($passed, $route),
             );

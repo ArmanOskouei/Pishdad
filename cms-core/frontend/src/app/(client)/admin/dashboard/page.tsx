@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authed } from "@/lib/auth";
 import type { DashboardStats, DashboardAlert } from "@/lib/api";
+import { deriveSubscriptionView } from "@/lib/dashboard-subscription";
 import { faNum, jalali, jalaliDate, relativeFa } from "@/lib/fa";
 import { Alert, StatCard, Skeleton, Badge } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
@@ -91,11 +92,16 @@ export default function DashboardPage() {
     );
   }
 
-  const suspended = stats.subscription.status === "suspended";
+  // ⚠️ `subscription` می‌تواند `null` باشد و یعنی «افزونهٔ اشتراک نصب نیست» —
+  // نه خطا. این را خودِ `DashboardController` مستند کرده. سوپرادمین همیشه
+  // همین حالت را دارد، پس خواندنِ بدون guard کل صفحه را می‌کشت
+  // («Cannot read properties of null (reading 'status')»).
+  const sub = stats.subscription;
+  const subView = deriveSubscriptionView(sub);
+  const suspended = subView.suspended;
   const recent = stats.recent ?? { pages_new_7d: 0, media_new_7d: 0, tickets_new_7d: 0 };
   const deltaOf = (n: number) => (n > 0 ? `+${faNum(n)} در ۷ روز` : "—");
-  // progress دوره اشتراک (فرض چرخه ۳۰ روزه از روی روز باقی‌مانده واقعی).
-  const periodPct = Math.min(100, Math.max(0, Math.round(((30 - stats.subscription.days_remaining) / 30) * 100)));
+  const periodPct = subView.periodPct;
   return (
     <div>
       <div className="page-head">
@@ -115,11 +121,13 @@ export default function DashboardPage() {
         <StatCard icon="▤" value={faNum(stats.pages_count)} label="صفحات" delta={deltaOf(recent.pages_new_7d)} up={recent.pages_new_7d > 0} />
         <StatCard icon="🗎" value={faNum(stats.media_count)} label="فایل‌ها" delta={deltaOf(recent.media_new_7d)} up={recent.media_new_7d > 0} />
         <StatCard icon="✉" value={faNum(stats.open_tickets)} label="تیکت‌های باز" delta={recent.tickets_new_7d > 0 ? `${faNum(recent.tickets_new_7d)} جدید در ۷ روز` : "—"} up={false} />
-        <StatCard icon="◈" value={stats.subscription.tier} label="پلن اشتراک" delta={stats.subscription.due_at ? relativeFa(stats.subscription.due_at) : "—"} up={!suspended} />
+        {sub ? <StatCard icon="◈" value={sub.tier} label="پلن اشتراک" delta={sub.due_at ? relativeFa(sub.due_at) : "—"} up={!suspended} /> : null}
       </div>
 
       <div className="grid c2" style={{ alignItems: "start" }}>
-        <div className="card card-pad">
+        {/* وقتی کارتِ اشتراک پنهان است، میانبرها تمام عرض را می‌گیرد تا
+            نیمهٔ خالیِ ستون دوم جا نماند. */}
+        <div className="card card-pad" style={sub ? undefined : { gridColumn: "1 / -1" }}>
           <div className="card-title">میانبرها</div>
           <p className="card-sub">کارهای پرتکرار امروز</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -146,17 +154,24 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+        {sub ? (
         <div className="card card-pad">
           <div className="card-title">وضعیت اشتراک {suspended ? <Badge tone="red">معلق</Badge> : null}</div>
-          <div className="kv"><span>وضعیت</span><span>{stats.subscription.status}</span></div>
-          <div className="kv"><span>سررسید</span><span>{jalaliDate(stats.subscription.due_at)} ({relativeFa(stats.subscription.due_at)})</span></div>
-          <div className="kv"><span>روز باقی‌مانده</span><span>{faNum(stats.subscription.days_remaining)}</span></div>
-          <div className="progress" style={{ marginBlockStart: 10 }} role="progressbar" aria-valuenow={periodPct} aria-valuemin={0} aria-valuemax={100} aria-label="پیشرفت دوره اشتراک">
+          <div className="kv"><span>وضعیت</span><span>{sub.status}</span></div>
+          <div className="kv"><span>سررسید</span><span>{jalaliDate(sub.due_at)} ({relativeFa(sub.due_at)})</span></div>
+          <div className="kv"><span>روز باقی‌مانده</span><span>{faNum(sub.days_remaining)}</span></div>
+          {/* ⭐ `aria-valuetext` لازم است، نه تزئینی.
+              `aria-valuenow="7"` برای صفحه‌خوان یعنی «عدد ۷» که هیچ ربطی
+              به «۷ درصد» ندارد. متنِ صریح می‌گوید چه معنایی دارد — و متنِ
+              مجاور هم در DOM هست ولی صفحه‌خوان آن را به نوارِ پیشرفت نسبت
+              نمی‌دهد. */}
+          <div className="progress" style={{ marginBlockStart: 10 }} role="progressbar" aria-valuenow={periodPct} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${faNum(periodPct)}٪ از دوره گذشته`} aria-label="پیشرفت دوره اشتراک">
             <i style={{ inlineSize: `${periodPct}%` }} />
           </div>
           <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBlock: "6px 10px" }}>{faNum(periodPct)}٪ از دوره گذشته</div>
           <Link className="btn btn-soft btn-sm btn-block" href="/admin/subscription">مدیریت اشتراک</Link>
         </div>
+        ) : null}
       </div>
     </div>
   );

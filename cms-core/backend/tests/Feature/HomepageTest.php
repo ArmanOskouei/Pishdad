@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Models\Page;
 use App\Models\PageRevision;
 use App\Models\User;
+use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Pishdad\Plugins\Central\Models\Client;
 use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
@@ -141,6 +143,48 @@ class HomepageTest extends TestCase
     {
         $this->getJson('/api/v1/site/homepage')->assertNotFound()
             ->assertJsonPath('message', 'صفحه خانه‌ای تنظیم نشده است.');
+    }
+
+    /**
+     * L-B9 — انتشار صفحهٔ خانه باید تگ `site-homepage` را dispatch کند.
+     *
+     * بدون آن، `/` تا انقضای ISR (۳۰۰ثانیه) محتوای قدیمی را نگه می‌داشت و
+     * «انتشار» فقط با گذر زمان دیده می‌شد.
+     */
+    public function test_publishing_the_homepage_dispatches_site_homepage_tag(): void
+    {
+        Http::fake(['*' => Http::response(['message' => 'ok'], 200)]);
+        config(['revalidate.url' => 'http://front.local/api/revalidate']);
+        $this->seed(RolesPermissionsSeeder::class);
+
+        $user = $this->user();
+        $user->givePermissionTo('pages.edit');
+        $page = $this->page($user, 'home', Page::STATUS_DRAFT);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson("/api/v1/admin/pages/{$page->id}/publish")
+            ->assertOk();
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/api/revalidate')
+            && in_array('site-homepage', $req['tags'], true)
+            && in_array('page:home', $req['tags'], true));
+    }
+
+    public function test_publishing_a_non_home_page_does_not_dispatch_site_homepage(): void
+    {
+        Http::fake(['*' => Http::response(['message' => 'ok'], 200)]);
+        config(['revalidate.url' => 'http://front.local/api/revalidate']);
+        $this->seed(RolesPermissionsSeeder::class);
+
+        $user = $this->user();
+        $user->givePermissionTo('pages.edit');
+        $page = $this->page($user, 'articles', Page::STATUS_DRAFT);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson("/api/v1/admin/pages/{$page->id}/publish")
+            ->assertOk();
+
+        Http::assertNotSent(fn ($req) => in_array('site-homepage', $req['tags'] ?? [], true));
     }
 
     public function test_chrome_exposes_homepage_slug(): void

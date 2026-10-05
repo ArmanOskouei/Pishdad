@@ -79,8 +79,8 @@ docker compose exec app php artisan test
 - **Billing مرکزی** (فقط `role=operator` یا سوپرادمین — میدل‌ویر `central.operator`):
   CRUD `/api/central/plans`، `/api/central/invoices` + `PUT .../{id}/status`،
   `GET /api/central/payments`، `GET /api/central/subscriptions/suspended` (با `days_remaining`)،
-  `POST .../{id}/suspend|resume|delete`، `GET/PUT /api/central/gateway-settings` (کلید ماسک‌شده)،
-  `POST /api/webhooks/payment` (HMAC هدر `X-Signature` + idempotent با ref → paid + رفع تعلیق خودکار).
+  `POST .../{id}/suspend|resume|delete`، `GET/PUT /api/central/gateway-settings` (کلید ماسک‌شده).
+  (J10 — `POST /api/webhooks/payment` حذف شد: دورهٔ آزمایشی بدون درگاه.)
 - **مشتریان مرکزی**: CRUD `/api/central/clients` (فیلتر `tier/status/health`)، `GET .../{id}`،
   `POST .../upgrade-tier` (فقط Budget→Standard→Enterprise + لاگ)،
   `POST .../support-token` (خام فقط یک‌بار؛ ذخیره هش + TTL ۱۵ دقیقه) + `POST .../support-token/consume` (یکباره)،
@@ -88,6 +88,30 @@ docker compose exec app php artisan test
 - **Cron مرکزی** (ثبت در `routes/console.php`، روزانه ۰۸:۰۰/۰۸:۱۵/۰۸:۳۰):
   `billing:remind` (D-7..D-0، روزی یک‌بار برای هر اشتراک)، `billing:suspend` (به‌محض گذشتن لحظه سررسید)،
   `billing:purge` (≥۷ روز تعلیق → حذف منطقی). رویدادها در `central_billing_events` قابل حسابرسی‌اند.
+
+### فرمان‌های نگهداری
+
+- **`backup:run`** (E5) — یک dump از دیتابیس با `pg_dump`، در `storage/app/backups`:
+  فایل زمان‌دار + `manifest.json` (sha256/حجم/تاریخ هر نسخه) + چرخش `BACKUP_KEEP` نسخه.
+  زمان‌بندی: روزانه ۰۳:۱۵. **fail-closed**: بدون `DATABASE_URL` یا بدون `pg_dump`، هیچ فایلی
+  نوشته نمی‌شود و پیام فارسی + `FAILURE` می‌دهد. فایل نیم‌کاره هرگز به اسم `.dump` دیده نمی‌شود.
+  ```bash
+  docker compose exec app php artisan backup:run --keep=7
+  # بازگردانی: pg_restore --dbname=postgresql://… --clean --if-exists storage/app/backups/cms-<ts>.dump
+  ```
+- **`pishdad-plugin:make {slug}`** (K1.4) — اسکلتِ حداقلیِ افزونه: درختِ سورس + یک ZIP که
+  همان لحظه از `PluginPackageValidator` رد می‌شود. مسیر پیش‌فرض: `storage/app/plugin-skeletons`.
+  اگر `PLUGIN_PUBLISHER_SECRET_KEY` تنظیم باشد بسته امضا و سخت‌گیرانه اعتبارسنجی می‌شود،
+  وگرنه فقط هشدار «امضا نشده» می‌دهد.
+
+### ایمیل (F0.10 — فقط پیکربندی)
+
+- پیش‌فرض `failover` است: اول `smtp`، اگر نشد `log`. یعنی SMTP مرده نه پیام را گم می‌کند
+  نه worker را روی خودش نگه می‌دارد (`timeout` = ۱۰ ثانیه، `MAIL_TIMEOUT`).
+- کلیدهای لازم: `MAIL_MAILER`، `MAIL_SCHEME`، `MAIL_HOST`، `MAIL_PORT`، `MAIL_USERNAME`،
+  `MAIL_PASSWORD`، `MAIL_FROM_ADDRESS`، `MAIL_FROM_NAME` — همه در `.env.example` با توضیح.
+- **اعتبارنامهٔ واقعی در ریپو نیست** (تسک E2 همچنان `pending`). تا آن زمان هیچ ایمیلی
+  به بیرون نمی‌رود؛ اعلان‌های داخل پنل (مثل پیام فرم تماس) از مسیر دیتابیس کار می‌کنند.
 
 ### مالکیت جدول‌های مرکزی (همان Postgres، تفکیک منطقی)
 

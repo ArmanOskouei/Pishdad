@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="728" height="90" viewBox="0 0 728 90">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#141B33"/>
+      <stop offset="100%" stop-color="#0A0D18"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E7C069"/>
+      <stop offset="100%" stop-color="#C98A2B"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="728" height="90" rx="8" fill="url(#bg)"/>
+  <rect x="1" y="1" width="726" height="88" rx="7" fill="none" stroke="#E7C069" stroke-opacity="0.18"/>
+
+  <g transform="translate(26,15)">
+    <circle cx="30" cy="30" r="29" fill="#111830"/>
+    <text x="30" y="46" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="42" font-weight="700" fill="url(#gold)" text-anchor="middle">P</text>
+  </g>
+
+  <g transform="translate(104,20)" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <text x="0" y="24" font-size="26" font-weight="700" fill="#FAF7EF">Pishdad <tspan fill="#E7C069">— Laravel + Next.js CMS</tspan></text>
+    <text x="0" y="52" font-size="16" fill="#A8B2C9">Declarative, Ed25519-signed plugins. MIT, self-hosted.</text>
+  </g>
+</svg>

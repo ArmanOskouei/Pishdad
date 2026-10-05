@@ -2,6 +2,28 @@
 
 Next.js 15 + App Router + TypeScript strict. قرارداد مرجع: `../backend/openapi/openapi.yaml` نسخه 1.6.0.
 
+## گیت‌ها (gate ها)
+
+```bash
+npx tsc --noEmit                # typecheck
+npm test                        # تست‌های واحد (node:test، بدون jest)
+npm run lint                    # ← tsc --noEmit  (توضیح پایین)
+npm run gen:plugin-contract:check   # drift قراردادِ بستهٔ پلاگین
+```
+
+### چرا `npm run lint` همان `tsc --noEmit` است
+
+`next lint` در **Next 16 حذف شده** — اسکریپت قبلی با `Invalid project directory …/lint` می‌افتاد و
+هیچ‌چیز را نمی‌سنجید. جایگزین‌های واقعی (`eslint`، `oxlint`، `biome`) در این پروژه **وابستگی
+نیستند** و عمداً اضافه نشده‌اند تا دامنهٔ پروژه بزرگ نشود. پس `lint` به سنجش سطحِ تایپ می‌افتد،
+که در این کدبیس ارزشِ واقعی دارد: `strict` روشن است و کامپوننت‌ها تایپِ داده را دستی می‌نویسند.
+
+برای همین `lint` **همان** فرمانِ گیت است، نه یک چیزِ جدا: اگر روزی لینترِ واقعی اضافه شد،
+همین اسکریپت را گسترش بده، نه اینکه یک اسکریپتِ موازی بساز.
+
+درِ دوم، `gen:plugin-contract:check`، driftِ فایلِ تولیدشدهٔ قرارداد را می‌سنجد و در CI اجرا
+می‌شود — همان ایدهٔ `docs/tools/plugin-contract-guard.php` در سمت بک‌اند.
+
 ## اجرا
 
 ```bash

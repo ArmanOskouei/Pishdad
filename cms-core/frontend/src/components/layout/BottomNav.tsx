@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { authed } from "@/lib/auth";
 import type { UiSettings } from "@/lib/api";
 import { BOTTOM_NAV_DEFAULTS, type MenuItem } from "@/lib/menu";
+import { useLang } from "@/lib/i18n";
 
 export const BOTTOM_NAV_UPDATED_EVENT = "cms-bottom-nav-updated";
 
@@ -16,6 +17,7 @@ function normalizePaths(value: unknown): string[] | null {
 
 export function BottomNav({ items }: { items: MenuItem[] }) {
   const path = usePathname();
+  const { t } = useLang();
   const [bottomNavPaths, setBottomNavPaths] = useState<string[]>(() => [...BOTTOM_NAV_DEFAULTS]);
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export function BottomNav({ items }: { items: MenuItem[] }) {
   if (visibleItems.length === 0) return null;
 
   return (
-    <nav className="bottomnav" aria-label="ناوبری موبایل">
+    <nav className="bottomnav" aria-label={t("shell.bottomNav")}>
       <div className="bn-row">
         {visibleItems.map((it) => (
           <Link
