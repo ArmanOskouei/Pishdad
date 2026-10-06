@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { authed, authedEnvelope, authedForm, ApiError } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, EmptyState } from "@/components/ui/primitives";
-import { ConfirmDialog } from "@/components/ui/Overlays";
+import { ConfirmDialog, Modal } from "@/components/ui/Overlays";
 import { DeveloperGuide } from "@/components/DeveloperGuide";
 import { PackageAnalyzer, type PackageAnalysis } from "@/components/PackageAnalyzer";
 import { faNum, jalali } from "@/lib/fa";
@@ -20,6 +20,8 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
   const [uploading, setUploading] = useState(false);
   const [upgrading, setUpgrading] = useState<PluginItem | null>(null);
   const [uninstalling, setUninstalling] = useState<PluginItem | null>(null);
+  // WF-H17: پیش از انتخاب فایل نسخه جدید، تغییرات (changelog) نشان داده می‌شود.
+  const [changelogFor, setChangelogFor] = useState<PluginItem | null>(null);
   // نتیجهٔ تحلیل بسته پس از رد شدن آپلود — تا کاربر دلیل واقعی را ببیند.
   const [analysis, setAnalysis] = useState<PackageAnalysis | null>(null);
   // دسته UIUX (افزودنی): جستجو + فیلتر وضعیت.
@@ -116,13 +118,34 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
     }
   };
 
+  /**
+   * WF-H17 — «آپدیت موجود» از فرانت درباره امنیت/نسخه حدس نمی‌زند؛ بک‌اند
+   * هر دو نسخه را می‌دهد. fallbackِ مانیفست فقط برای payloadهای قدیمی است.
+   */
   const hasUpdate = (p: PluginItem) => {
+    if (typeof p.update_available === "boolean") return p.update_available;
     const manifest = p.manifest as { latest_version?: string } | null | undefined;
     const latest = typeof manifest?.latest_version === "string" ? manifest.latest_version : null;
     if (!latest) return false;
     try {
       return latest.localeCompare(p.version, undefined, { numeric: true }) > 0;
     } catch { return latest !== p.version; }
+  };
+
+  /** آخرین نسخهٔ بازار، فقط وقتی از نسخهٔ نصب‌شده جلوتر باشد. */
+  const latestVersion = (p: PluginItem): string | null => {
+    if (!hasUpdate(p)) return null;
+    const latest = typeof p.latest_version === "string" ? p.latest_version : null;
+    return latest && latest !== p.version ? latest : null;
+  };
+
+  /** پیش از انتخاب فایل، اگر متن تغییرات هست اول نشانش بده. */
+  const startUpgrade = (p: PluginItem) => {
+    if (hasUpdate(p) && typeof p.changelog === "string" && p.changelog.trim() !== "") {
+      setChangelogFor(p);
+      return;
+    }
+    setUpgrading(p);
   };
 
   const reviewTone = (s: ReviewStatus | undefined): "amber" | "green" | "red" =>
@@ -223,7 +246,14 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
                       </div>
                     ) : null}
                   </td>
-                  <td data-label="نسخه"><span dir="ltr">{p.version}</span></td>
+                  <td data-label="نسخه">
+                    <span dir="ltr">{p.version}</span>
+                    {latestVersion(p) ? (
+                      <div style={{ marginBlockStart: 4, fontSize: 12, color: "var(--text-muted)" }}>
+                        <span aria-label="آخرین نسخهٔ بازار">← <span dir="ltr">{latestVersion(p)}</span></span>
+                      </div>
+                    ) : null}
+                  </td>
                   <td data-label="وضعیت">
                     <label style={{ display: "inline-flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
                       <input type="checkbox" checked={p.active} onChange={() => void toggle(p)} aria-label={`فعال‌بودن ${p.name}`} />
@@ -241,7 +271,7 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
                   </td>
                   <td data-label="اکشن">
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setUpgrading(p)}>ارتقا…</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => startUpgrade(p)}>ارتقا…</button>
                       {!p.system ? <button className="btn btn-ghost btn-sm" onClick={() => setUninstalling(p)} title="حذف برای آزادسازی فضا">حذف</button> : null}
                     </div>
                     <small style={{ color: "var(--text-muted)" }}>{jalali(p.created_at)}</small>
@@ -264,6 +294,38 @@ export function PluginsClient({ initial }: { initial: Paginator<PluginItem> }) {
           onConfirm={() => { upgradeRef.current?.click(); }}
           onCancel={() => setUpgrading(null)}
         />
+      ) : null}
+      {changelogFor ? (
+        <Modal title={`تغییرات ${changelogFor.name}`} onClose={() => setChangelogFor(null)}>
+          <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+              نسخهٔ نصب‌شده <span dir="ltr">{changelogFor.version}</span>
+              {latestVersion(changelogFor) ? <> و نسخهٔ بازار <span dir="ltr">{latestVersion(changelogFor)}</span></> : null}
+            </div>
+            <div
+              style={{
+                whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.9,
+                maxBlockSize: 320, overflowY: "auto",
+                background: "var(--surface-2, rgba(127,127,127,.06))",
+                borderRadius: 8, padding: 12,
+              }}
+            >
+              {changelogFor.changelog}
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+              تنظیمات فعلی این افزونه در هنگام ارتقا حفظ می‌شود.
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBlockStart: 4 }}>
+              <button className="btn btn-ghost" onClick={() => setChangelogFor(null)}>انصراف</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => { const p = changelogFor; setChangelogFor(null); setUpgrading(p); }}
+              >
+                انتخاب فایل نسخه جدید…
+              </button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
       {uninstalling ? (
         <ConfirmDialog

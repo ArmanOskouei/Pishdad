@@ -63,13 +63,14 @@ export function PushOptInBanner() {
   const onAccept = useCallback(async () => {
     setPhase('asking');
 
-    const ok = await subscribeToPush();
+    // بنرِ زائر ⇒ مسیر عمومی `push/subscribe` (بدون نشست).
+    const ok = await subscribeToPush({ authenticated: false });
 
     setPhase(ok ? 'done' : 'failed');
   }, []);
 
   const onDismiss = useCallback(() => {
-    void unsubscribeFromPush();
+    void unsubscribeFromPush({ authenticated: false });
     setPhase('hidden');
   }, []);
 

@@ -49,7 +49,7 @@ final class Catalog
      * `database` اینجا نیست چون از outbox رد نمی‌شود: `DatabaseChannel` خودش
      * سطرِ `notifications` است و «خاموش‌کردنش» یعنی نگفتنِ قالب، نه تحویل.
      */
-    public const CHANNELS = ['email', 'sms', 'push'];
+    public const CHANNELS = ['email', 'sms', 'push', 'telegram'];
 
     /** حداکثر طول بدنه — `notifications.data` و کارتِ drawer هر دو این را می‌بینند. */
     public const MAX_BODY = 400;
@@ -239,13 +239,13 @@ final class Catalog
             'title' => 'سقفِ منابع تمام شد',
             'body' => 'یکی از منابع نصب از سقف گذشته است: %s. تا رفعش، رشد سایت متوقف می‌شود.',
             'action' => ['label' => 'ارتقا', 'href' => '/admin/subscription'],
-            'channels' => ['email'],
+            'channels' => ['email', 'telegram'],
         ],
         'system.maintenance' => [
             'group' => 'system',
             'title' => 'نگه‌داری برنامه‌ریزی شد',
             'body' => 'نگه‌داری برنامه‌ریزی‌شده از %s تا %s انجام می‌شود و سایت در این بازه در دسترس نیست.',
-            'channels' => ['email', 'sms'],
+            'channels' => ['email', 'sms', 'telegram'],
         ],
     ];
 
@@ -429,6 +429,6 @@ final class Catalog
      */
     public static function isOutboxChannel(string $channel): bool
     {
-        return in_array($channel, [Outbox::CHANNEL_EMAIL, Outbox::CHANNEL_SMS, Outbox::CHANNEL_PUSH], true);
+        return in_array($channel, [Outbox::CHANNEL_EMAIL, Outbox::CHANNEL_SMS, Outbox::CHANNEL_PUSH, Outbox::CHANNEL_TELEGRAM], true);
     }
 }

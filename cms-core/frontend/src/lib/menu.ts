@@ -63,7 +63,10 @@ export const ADMIN_MENU: MenuGroup[] = [
   {
     items: [
       { href: "/admin/dashboard", label: "داشبورد", icon: "▦", key: "dashboard", labelKey: "menu.dashboard" },
+      { href: "/admin/analytics", label: "تحلیل سایت", icon: "◔", key: "analytics", labelKey: "menu.analytics" },
+      { href: "/admin/search-report", label: "گزارش جستجو", icon: "⌕", key: "search-report", labelKey: "menu.searchReport" },
       { href: "/admin/pages", label: "صفحات", icon: "▤", key: "pages", labelKey: "menu.pages" },
+      { href: "/admin/forms", label: "فرم‌ساز", icon: "⌸", key: "forms", labelKey: "menu.forms" },
       { href: "/admin/media", label: "فایل‌ها", icon: "🗎", key: "media", labelKey: "menu.media" },
       { href: "/admin/tickets", label: "تیکت‌ها", icon: "✉", key: "tickets", labelKey: "menu.tickets" },
     ],

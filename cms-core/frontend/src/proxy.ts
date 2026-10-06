@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
 import { isLoginPath, LOGIN_PATH } from "@/lib/login-path";
 import { inspectSessionToken } from "@/lib/session-cookie";
 import {
@@ -22,7 +22,17 @@ import {
  * ⛔ این احراز هویت نیست؛ اصالت توکن را بک‌اند با `Authorization: Bearer`
  * راستی‌آزمایی می‌کند. این لایه فقط دروازهٔ اولیهٔ پوستهٔ پنل است.
  */
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest, event: NextFetchEvent) {
+  // WF-C2 — ریدایرکت‌های سایت پیش از هر چیز (پیش از بازنویسیِ زبان).
+  //
+  // مسیرِ ورودی باید **پیش از** `siteLocale` تطبیق داده شود، وگرنه مسیرِ
+  // بدون‌پیشوند (`/old`) اول به `/{primary}/old` بازنویسی می‌شود و ریدایرکت
+  // هرگز شلیک نمی‌شود.
+  if (req.method === "GET" && !panelRoots().has(firstSegment(req.nextUrl.pathname))) {
+    const hit = await matchRedirect(req, event);
+    if (hit) return hit;
+  }
+
   // L-B12 — ریشه‌های محافظت‌شده از پیکربندی می‌آیند، نه از کدِ هسته.
   //
   // قبلاً matcher دقیقاً `/admin` و `/central` بود، یعنی هستهٔ منتشرشده نامِ
@@ -72,6 +82,81 @@ function panelRoots(): Set<string> {
 
 function firstSegment(pathname: string): string {
   return pathname.split("/").filter(Boolean)[0] ?? "";
+}
+
+/* ── WF-C2 — ریدایرکت‌های سایت (۳۰۱/۳۰۲) ─────────────────────────────────
+ * فهرستِ فعال از بک‌اند با TTL کوتاه کش می‌شود تا هر درخواست یک fetch نگیرد.
+ * در نبودِ بک‌اند کاملاً fail-open است: سایت هرگز به‌خاطر ریدایرکت‌ها نمی‌شکند.
+ */
+type RedirectRule = { from_path: string; to_path: string; status_code: number };
+
+const REDIRECT_TTL_MS = 30_000;
+let redirectCache: { at: number; rules: RedirectRule[] } | null = null;
+let redirectInflight: Promise<RedirectRule[]> | null = null;
+
+function apiBase(): string {
+  return (
+    process.env.NEXT_PUBLIC_API_URL ??
+    process.env.INTERNAL_API_URL ??
+    "http://localhost:8080/api"
+  ).replace(/\/+$/, "");
+}
+
+function normalizeRedirectPath(path: string): string {
+  const withSlash = "/" + path.replace(/^\/+/, "");
+  return withSlash.length > 1 ? withSlash.replace(/\/+$/, "") : withSlash;
+}
+
+async function redirectRules(): Promise<RedirectRule[]> {
+  if (redirectCache && Date.now() - redirectCache.at < REDIRECT_TTL_MS) {
+    return redirectCache.rules;
+  }
+  if (redirectInflight) return redirectInflight;
+
+  redirectInflight = (async () => {
+    try {
+      const res = await fetch(`${apiBase()}/v1/site/redirects`, { cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      const json = (await res.json()) as { data?: RedirectRule[] };
+      const rules = Array.isArray(json.data) ? json.data : [];
+      redirectCache = { at: Date.now(), rules };
+      return rules;
+    } catch {
+      redirectCache = { at: Date.now(), rules: redirectCache?.rules ?? [] };
+      return redirectCache.rules;
+    } finally {
+      redirectInflight = null;
+    }
+  })();
+
+  return redirectInflight;
+}
+
+async function matchRedirect(req: NextRequest, event: NextFetchEvent): Promise<NextResponse | null> {
+  const pathname = req.nextUrl.pathname;
+  if (pathname.startsWith("/api") || pathname.startsWith("/_next")) return null;
+
+  const rules = await redirectRules();
+  if (rules.length === 0) return null;
+
+  const wanted = normalizeRedirectPath(pathname);
+  const rule = rules.find((r) => normalizeRedirectPath(r.from_path) === wanted);
+  if (!rule) return null;
+
+  const status = rule.status_code === 302 ? 302 : 301;
+  const dest = /^https?:\/\//i.test(rule.to_path)
+    ? rule.to_path
+    : new URL(rule.to_path.startsWith("/") ? rule.to_path : `/${rule.to_path}`, req.nextUrl.origin);
+
+  event.waitUntil(
+    fetch(`${apiBase()}/v1/site/redirects/hit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: wanted }),
+    }).catch(() => undefined),
+  );
+
+  return NextResponse.redirect(dest, status);
 }
 
 /**

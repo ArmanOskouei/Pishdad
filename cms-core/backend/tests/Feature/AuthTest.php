@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\Settings\SecuritySettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -52,6 +53,64 @@ class AuthTest extends TestCase
 
         $wrongPassword->assertStatus(401)->assertJsonPath('message', 'اعتبار ورود نامعتبر است.');
         $unknownEmail->assertStatus(401)->assertJsonPath('message', 'اعتبار ورود نامعتبر است.');
+    }
+
+    /** WF-M7 — بدنهٔ پاسخ برای ایمیل ناشناس و رمز اشتباه باید **مو‌به‌مو** یکی باشد. */
+    public function test_login_failure_bodies_are_byte_identical_to_prevent_enumeration(): void
+    {
+        $this->makeUser(['email' => 'known@example.com']);
+
+        $wrong = $this->postJson('/api/v1/auth/login', [
+            'email' => 'known@example.com', 'password' => 'Wrong!123',
+        ]);
+        $unknown = $this->postJson('/api/v1/auth/login', [
+            'email' => 'nobody@example.com', 'password' => 'Secret!123',
+        ]);
+
+        $this->assertSame(401, $wrong->status());
+        $this->assertSame(401, $unknown->status());
+        $this->assertSame($wrong->getContent(), $unknown->getContent());
+    }
+
+    /**
+     * WF-M7 — سقفِ per-IP جدای از سقفِ (ایمیل+IP) عمل می‌کند.
+     *
+     * هر تلاش ایمیلِ متفاوت دارد تا سقفِ حساب فعال نشود؛ پس فقط سقفِ per-IP
+     * باید بعد از ۳ تلاش، درخواست چهارم را ۴۲۹ کند.
+     */
+    public function test_per_ip_login_attempt_cap_locks_out_across_different_emails(): void
+    {
+        SecuritySettings::save(['allowed_admin_ips' => [], 'login_attempt_cap' => 3]);
+
+        $statuses = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $statuses[] = $this->postJson('/api/v1/auth/login', [
+                'email' => "cap{$i}@example.com", 'password' => 'Wrong!123',
+            ])->status();
+        }
+
+        $this->assertSame([401, 401, 401, 429, 429], $statuses);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'cap6@example.com', 'password' => 'Wrong!123',
+        ])->assertStatus(429)
+            ->assertJsonPath('message', 'تلاش‌های ورود بیش از حد مجاز است. لطفاً دقایقی دیگر تلاش کنید.');
+    }
+
+    /** WF-M7 — سقفِ پیش‌فرضِ per-IP نباید ۱۲ تلاشِ test قبلی را زودتر از سقفِ حساب ببندد. */
+    public function test_default_per_ip_cap_does_not_preempt_the_account_throttle(): void
+    {
+        $this->makeUser(['email' => 'locked2@example.com']);
+
+        $last = null;
+        for ($i = 0; $i < 12; $i++) {
+            $last = $this->postJson('/api/v1/auth/login', [
+                'email' => 'locked2@example.com', 'password' => 'Wrong!123',
+            ]);
+        }
+
+        $last->assertStatus(429)
+            ->assertJsonPath('message', 'تلاش‌های ورود بیش از حد مجاز است. لطفاً دقایقی دیگر تلاش کنید.');
     }
 
     public function test_login_brute_force_locks_out(): void

@@ -4,7 +4,21 @@
  * کش با تگ `pages` تا Route Handler امن revalidate باطلش کند.
  */
 
-import type { LayoutData, SitePage, SiteStatus, SocialItem } from "@/lib/domain";
+import { cache } from "react";
+import {
+  asPaginator,
+  type LayoutData,
+  type Paginator,
+  type SitePage,
+  type SiteStatus,
+  type SocialItem,
+} from "@/lib/domain";
+import { applyAssetBase, normalizeAssetBase, resolveAssetBase } from "@/lib/asset-base";
+import { buildRssFeed, type FeedItem } from "@/lib/public/rss-feed";
+import { blogFeedHref } from "@/lib/blog";
+import { DEFAULT_PUBLIC_LOCALE, isPublicLocale, type PublicLocale } from "@/lib/i18n/public";
+
+export { applyAssetBase, normalizeAssetBase, resolveAssetBase } from "@/lib/asset-base";
 
 const UPSTREAM =
   process.env.INTERNAL_API_URL ??
@@ -14,11 +28,32 @@ const UPSTREAM =
 export const SITE_REVALIDATE = 300; // ثانیه — ISR معقول برای صفحات عمومی
 export const SITE_TAG = "pages";
 
-async function get<T>(path: string, tags: string[]): Promise<T | null> {
+/**
+ * کلیدِ سراسریِ «کش سایت» از بک‌اند (بدون کش؛ مموایزِ per-request با `cache()`).
+ *
+ * خاموش ⇒ همهٔ دادهٔ سایت با `no-store` می‌آید (تنظیمات بی‌درنگ روی سایت دیده
+ * می‌شود با یک رفرش ساده). روشن ⇒ ISR + باطل‌سازیِ تگی (سریع‌تر، کم‌مصرف‌تر).
+ */
+export const siteCacheEnabled = cache(async (): Promise<boolean> => {
+  try {
+    const res = await fetch(`${UPSTREAM}/v1/site/cache`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!res.ok) return true;
+    const j = (await res.json().catch(() => ({}))) as { data?: { enabled?: boolean } };
+    return (j?.data?.enabled ?? true) !== false;
+  } catch {
+    return true;
+  }
+});
+
+async function get<T>(path: string, tags: string[], fresh = false): Promise<T | null> {
+  const cached = await siteCacheEnabled();
   try {
     const res = await fetch(`${UPSTREAM}${path}`, {
       headers: { Accept: "application/json" },
-      next: { tags, revalidate: SITE_REVALIDATE },
+      ...(fresh || !cached ? { cache: "no-store" as const } : { next: { tags, revalidate: SITE_REVALIDATE } }),
     });
     if (!res.ok) return null;
     const json = await res.json().catch(() => ({}));
@@ -32,6 +67,25 @@ async function get<T>(path: string, tags: string[]): Promise<T | null> {
 export function fetchSitePage(slug: string, locale?: string): Promise<SitePage | null> {
   const qs = locale ? `?locale=${encodeURIComponent(locale)}` : "";
   return get<SitePage>(`/v1/site/pages/${encodeURIComponent(slug)}${qs}`, [SITE_TAG, `page:${slug}`]);
+}
+
+/**
+ * WF-H15 — واکشی صفحه با `fallback` زبان.
+ *
+ * نسخهٔ هر زبان مستقل است؛ اگر صفحه در زبانِ درخواستی منتشر نشده باشد،
+ * به ترتیبِ `chain` زبان‌های دیگر امتحان می‌شوند. زبانِ واقعیِ یافته‌شده هم
+ * برگردانده می‌شود تا مسیر بتواند در صورت تفاوت، canonical/redirect را درست
+ * بسازد. `null` یعنی صفحه در هیچ‌یک از زبان‌های کاندید منتشر نشده است.
+ */
+export async function fetchSitePageFallback(
+  slug: string,
+  chain: readonly string[],
+): Promise<{ page: SitePage; locale: string } | null> {
+  for (const loc of chain) {
+    const page = await fetchSitePage(slug, loc).catch(() => null);
+    if (page) return { page, locale: loc };
+  }
+  return null;
 }
 
 /** وضعیت اشتراک برای رندر تعلیق خودکار (۱.۱۶). null = نامشخص/سرویس پایین. */
@@ -61,7 +115,15 @@ export type SiteChrome = {
   og_image_url?: string | null;
   ai_summary?: string | null;
   robots_index?: boolean;
+  /** WF-H1 — متن سفارشی robots.txt (null = پیش‌فرضِ حساس: اجازه + sitemap). */
+  robots_txt?: string | null;
+  /** WF-H1 — کد تأیید مالکیت Google Search Console (متای سر همهٔ صفحات). */
+  google_site_verification?: string | null;
   address?: string | null;
+  /** WF-M20 — متن سیاست حریم خصوصی برای صفحهٔ /privacy (بدون HTML). */
+  privacy_policy?: string | null;
+  /** WF-M17 — متن بیانیهٔ دسترس‌پذیری برای صفحهٔ /accessibility (بدون HTML). */
+  accessibility_statement?: string | null;
   locale?: string | null;
   /** ECO2 — زبان‌های موجودِ سایت (زبانِ اصلی اول). تک‌زبانه ⇒ یک عضو. */
   locales?: string[] | null;
@@ -85,6 +147,16 @@ export type SiteChrome = {
   theme?: { name: string; slug: string; version: string; globals?: Record<string, string> } | null;
   /** K6.12 — رجیستری بلوک افزونه‌های فعال (schema-only، بدون JS). */
   blocks?: SiteBlockSchemas;
+  /**
+   * WF-M13 — دامنهٔ دارایی/CDN برای فایل‌های ایستای محلی (بدون اسلش پایانی).
+   * خالی/نبود = بدون CDN (رفتار قبلی). عمداً روی فونت اثر ندارد — فونت همیشه
+   * محلی است (قانون ضد CDN خارجی).
+   */
+  asset_domain?: string | null;
+  /** WF-M13 — lazy-load تصاویر سایت (پیش‌فرض روشن). */
+  lazy_load_enabled?: boolean | null;
+  /** WF-M13 — preload فونت وزیرمتن در `<head>` (پیش‌فرض روشن). */
+  font_preload_enabled?: boolean | null;
 };
 
 const CHROME_DEFAULTS: SiteChrome = {
@@ -112,6 +184,124 @@ export function fetchSitePages(locale?: string): Promise<SitePageIndex[]> {
   return get<SitePageIndex[]>(`/v1/site/pages${qs}`, [SITE_TAG]).then((v) => v ?? []);
 }
 
+/* ── WF-C7 — بایگانی بلاگ ── */
+
+export const BLOG_TAG = "blog";
+
+/** نوشتهٔ سبک در فهرست/فید بلاگ (بدون بلوک). */
+export type BlogPostItem = {
+  title: string;
+  slug: string;
+  excerpt?: string | null;
+  image_url?: string | null;
+  author?: string | null;
+  category?: string | null;
+  tags?: string[];
+  published_at?: string | null;
+  updated_at?: string | null;
+};
+
+/** فهرست صفحه‌بندی‌شدهٔ نوشته‌های بلاگ (فقط published — تضمین سمت بک‌اند). */
+export function fetchBlogPosts(
+  locale: string,
+  opts: { page?: number; perPage?: number; category?: string; tag?: string } = {},
+): Promise<Paginator<BlogPostItem>> {
+  const params = new URLSearchParams({ locale });
+  if (opts.page) params.set("page", String(opts.page));
+  if (opts.perPage) params.set("per_page", String(opts.perPage));
+  if (opts.category) params.set("category", opts.category);
+  if (opts.tag) params.set("tag", opts.tag);
+  return get<unknown>(`/v1/site/blog?${params.toString()}`, [SITE_TAG, BLOG_TAG]).then((v) =>
+    asPaginator<BlogPostItem>(v),
+  );
+}
+
+/**
+ * تک‌نوشتهٔ بلاگ: اول اسلاگ خام، بعد `blog/{slug}` (سازگاری با نصب‌هایی که
+ * اسلاگ را با پیشوند `blog/` ذخیره کرده‌اند).
+ */
+export async function fetchBlogPost(slug: string, locale: string): Promise<SitePage | null> {
+  const direct = await fetchSitePage(slug, locale).catch(() => null);
+  if (direct) return direct;
+  return fetchSitePage(`blog/${slug}`, locale).catch(() => null);
+}
+
+/** فید RSS بک‌اند عیناً برگردانده می‌شود تا یک منبعِ حقیقت بماند. */
+export async function fetchBlogFeedXml(locale?: string): Promise<string | null> {
+  const cached = await siteCacheEnabled();
+  const qs = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+  try {
+    const res = await fetch(`${UPSTREAM}/v1/site/blog/feed${qs}`, {
+      headers: { Accept: "application/rss+xml, application/xml, text/xml" },
+      ...(cached
+        ? { next: { tags: [SITE_TAG, BLOG_TAG], revalidate: SITE_REVALIDATE } }
+        : { cache: "no-store" as const }),
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+/* ── WF-M19 — فید RSS از همهٔ محتوای منتشرشده ── */
+
+export const FEED_TAG = "feed";
+
+export type { FeedItem } from "@/lib/public/rss-feed";
+
+/**
+ * WF-M19 — آیتم‌های فید از endpoint عمومی `site/feed` (همهٔ صفحات منتشرشده).
+ *
+ * برخلاف `fetchSitePages` این یکی خلاصه و تاریخِ انتشار دارد؛ برخلاف
+ * `fetchBlogPosts` به بلاگ محدود نیست.
+ *
+ * `null` یعنی بک‌اند در دسترس نیست (fail-soft: فیدِ خالی + `no-store`) و با
+ * «سایت هیچ محتوای منتشرشده‌ای ندارد» فرق دارد — دومی آرایهٔ خالی است و کش می‌شود.
+ */
+export function fetchSiteFeedItems(locale?: string): Promise<FeedItem[] | null> {
+  const qs = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+  return get<FeedItem[]>(`/v1/site/feed${qs}`, [SITE_TAG, FEED_TAG]).then((v) =>
+    Array.isArray(v) ? v : null,
+  );
+}
+
+/** کدام فید؟ ریشه (`/feed.xml`) یا مسیرِ زبان‌دار (`/[locale]/blog/feed.xml`). */
+export type SiteFeedKind = "root" | "localized";
+
+/**
+ * WF-M19 — XML فید سراسری (همهٔ محتوای منتشرشده، جدیدترین اول).
+ *
+ * دامنه از تنظیماتِ سایت (`site_url`) خوانده می‌شود و فقط به `origin` درخواست
+ * fallback دارد، تا لینک‌های فید هرگز میزبانِ داخلیِ API را لو ندهند.
+ * `null` فقط یعنی بک‌اند در دسترس نیست (فیدِ خالی برمی‌گردد، نه ۵۰۰).
+ */
+export async function buildSiteFeedXml(opts: {
+  locale?: PublicLocale;
+  origin?: string | null;
+  kind?: SiteFeedKind;
+}): Promise<string | null> {
+  const locale = opts.locale ?? DEFAULT_PUBLIC_LOCALE;
+
+  const [items, chrome] = await Promise.all([
+    fetchSiteFeedItems(locale),
+    fetchSiteChrome().catch(() => null),
+  ]);
+  if (items === null) return null;
+
+  const base = siteBaseUrl(chrome) ?? opts.origin ?? null;
+  const primaryRaw = chrome?.primary_locale;
+  const primary = isPublicLocale(primaryRaw) ? primaryRaw : DEFAULT_PUBLIC_LOCALE;
+  const self = (opts.kind ?? "root") === "localized" ? blogFeedHref(locale, primary) : "/feed.xml";
+
+  return buildRssFeed({
+    baseUrl: base,
+    locale,
+    items,
+    channel: { title: chrome?.title ?? "", description: chrome?.description ?? "", self },
+  });
+}
+
 /** صفحه خانه عمومی (کار دوم): homepage_page_id ← home ← جدیدترین؛ null = چیزی منتشر نشده. F4.5: locale اختیاری. */
 export function fetchHomepage(locale?: string): Promise<SitePage | null> {
   const siteId = process.env.NEXT_PUBLIC_SITE_ID ?? "";
@@ -121,6 +311,21 @@ export function fetchHomepage(locale?: string): Promise<SitePage | null> {
   const qs = params.toString();
   return get<SitePage>(`/v1/site/homepage${qs ? `?${qs}` : ""}`, [SITE_TAG, "site-homepage"]);
 }
+
+/**
+ * WF-H15 — واکشی صفحهٔ خانه با `fallback` زبان (هم‌منطق با
+ * `fetchSitePageFallback`): اولین زبانی که خانه در آن موجود است برمی‌گردد.
+ */
+export async function fetchHomepageFallback(
+  chain: readonly string[],
+): Promise<{ page: SitePage; locale: string } | null> {
+  for (const loc of chain) {
+    const page = await fetchHomepage(loc).catch(() => null);
+    if (page) return { page, locale: loc };
+  }
+  return null;
+}
+
 /** نشانی پایه سایت: اولویت با تنظیمات (site_url)، بعد env، بعد null. */
 export function siteBaseUrl(chrome: Pick<SiteChrome, "site_url"> | null): string | null {
   const fromSettings = chrome?.site_url?.trim().replace(/\/+$/, "");
@@ -128,17 +333,90 @@ export function siteBaseUrl(chrome: Pick<SiteChrome, "site_url"> | null): string
   const fromEnv = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim().replace(/\/+$/, "");
   return fromEnv || null;
 }
+
+/**
+ * WF-M13 — دامنهٔ دارایی/CDN. اول تنظیمات (`asset_domain`)، بعد
+ * `NEXT_PUBLIC_ASSET_URL` به‌عنوان fallbackِ محیطی. خالی ⇒ null (بدون CDN).
+ */
+export function assetBaseUrl(chrome: Pick<SiteChrome, "asset_domain"> | null): string | null {
+  return resolveAssetBase(chrome) ?? normalizeAssetBase(process.env.NEXT_PUBLIC_ASSET_URL);
+}
+
+/** WF-M13 — lazy-load تصاویر سایت روشن است مگر صریحاً خاموش شود. */
+export function siteLazyLoadEnabled(chrome: Pick<SiteChrome, "lazy_load_enabled"> | null): boolean {
+  return chrome?.lazy_load_enabled !== false;
+}
+
+/** WF-M13 — preload فونت روشن است مگر صریحاً خاموش شود. */
+export function siteFontPreloadEnabled(chrome: Pick<SiteChrome, "font_preload_enabled"> | null): boolean {
+  return chrome?.font_preload_enabled !== false;
+}
+/** F4.1.F — توکن/چیدمان یک قالبِ مشخص (برای `/preview/{slug}`، حتی غیرفعال). */
+export type SiteThemeColorway = {  key: string;
+  name: string;
+  light: Record<string, string>;
+  dark: Record<string, string>;
+};
+
+export type SiteThemeTokens = {
+  name: string;
+  slug: string;
+  version?: string;
+  layout?: string | null;
+  globals?: Record<string, string>;
+  builtin?: boolean;
+  /** توکن‌های چیدمان (شعاع/فونت/تراکم). */
+  layout_tokens?: Record<string, string>;
+  /** رنگ‌بندی‌های پیشنهادیِ قالب (هرکدام دو نیمهٔ روشن/تیره). */
+  colorways?: SiteThemeColorway[];
+  default_colorway?: string | null;
+};
+
+export function fetchSiteTheme(slug: string): Promise<SiteThemeTokens | null> {
+  return get<SiteThemeTokens>(`/v1/site/theme/${encodeURIComponent(slug)}`, [SITE_TAG, `theme:${slug}`]);
+}
+
 /** کروم واقعی سایت از اندپوینت عمومی (سبک، بدون احراز هویت) + fallback به پیش‌فرض‌ها وقتی خالی است. */
 export async function fetchSiteChrome(): Promise<SiteChrome> {
   const siteId = process.env.NEXT_PUBLIC_SITE_ID ?? "";
   const qs = siteId ? `?site_id=${encodeURIComponent(siteId)}` : "";
   const live = await get<SiteChrome>(`/v1/site/chrome${qs}`, [SITE_TAG, "site-chrome"]);
   if (!live) return CHROME_DEFAULTS;
-  return {
+  const merged: SiteChrome = {
     ...CHROME_DEFAULTS,
     ...live,
     header: live.header?.widgets ? live.header : CHROME_DEFAULTS.header,
     footer: live.footer?.widgets ? live.footer : CHROME_DEFAULTS.footer,
     socials: Array.isArray(live.socials) ? live.socials : [],
   };
+  // WF-M13 — دارایی‌های محلیِ برند (لوگو/فاوآیکون/OG) روی دامنهٔ دارایی سرو شوند.
+  // فقط نشانی‌های محلی (شروع با `/`) بازنویسی می‌شوند؛ MinIO/S3 دست‌نخورده است.
+  const base = assetBaseUrl(merged);
+  return {
+    ...merged,
+    logo_url: applyAssetBase(base, merged.logo_url ?? null),
+    favicon_url: applyAssetBase(base, merged.favicon_url ?? null),
+    og_image_url: applyAssetBase(base, merged.og_image_url ?? null),
+  };
+}
+
+/**
+ * WF-H2 — پیش‌نمایشِ پیش‌نویس با توکنِ اشتراک.
+ *
+ * عمومی است (بدون احراز هویت) ولی نه کش‌شدنی و نه ایندکس‌شدنی: توکن خودش
+ * مجوز است و سرور فقط نسخهٔ همان revision را با `noindex` برمی‌گرداند.
+ * `null` یعنی توکن نامعتبر/منقضی/لغو‌شده یا صفحه/نسخه یافت نشد.
+ */
+export async function fetchSharedPreview(token: string): Promise<SitePage | null> {
+  try {
+    const res = await fetch(`${UPSTREAM}/v1/site/share/${encodeURIComponent(token)}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => ({}));
+    return ((json as { data?: unknown })?.data ?? json) as SitePage;
+  } catch {
+    return null;
+  }
 }

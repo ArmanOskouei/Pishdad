@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
-import { fetchSiteChrome, fetchSitePage, siteBaseUrl, type SiteChrome } from "@/lib/site";
+import { notFound, redirect } from "next/navigation";
+import { fetchSiteChrome, fetchSitePageFallback, siteBaseUrl, type SiteChrome } from "@/lib/site";
 import { resolveTheme } from "@/themes/registry";
 import type { SitePage } from "@/lib/domain";
-import { isPublicLocale, publicHreflang, type PublicLocale } from "@/lib/i18n/public";
-import { parseLocalesHeader, SITE_LOCALES_HEADER } from "@/lib/public-routing";
+import { isPublicLocale, publicOgLocale, type PublicLocale } from "@/lib/i18n/public";
+import {
+  buildAlternatesLanguages,
+  localeFallbackChain,
+  localePublicPath,
+  parseLocalesHeader,
+  pickBrowserLocale,
+  SITE_LOCALES_HEADER,
+} from "@/lib/public-routing";
 import { effectiveLocale } from "@/components/site/PublicPage";
+import { buildBreadcrumbList } from "@/lib/public-json-ld";
 
 /**
  * ECO2 — صفحهٔ عمیقِ زبانِ دوم (`/en/about`, `/en/blog/post`).
@@ -49,43 +57,50 @@ async function localeAvailable(locale: PublicLocale): Promise<boolean> {
   return list.length === 0 || list.includes(locale);
 }
 
+/**
+ * WF-H15 — متادیتای صفحهٔ عمیق با `hreflang` کامل.
+ *
+ * `alternates.languages` برای همهٔ زبان‌های پیکربندی‌شده ساخته می‌شود (چون API
+ * زبان‌های واقعیِ صفحه را افشا نمی‌کند) به‌همراه `x-default` که به نسخهٔ زبانِ
+ * پایه اشاره می‌کند؛ `canonical` نیز همان نسخهٔ یافته‌شده است تا محتوای تکراری
+ * در گوگل ساخته نشود.
+ */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale: raw, path } = await params;
   const locale: PublicLocale = isPublicLocale(raw) ? raw : "fa";
   const slug = path.join("/");
-  const [page, chrome] = await Promise.all([
-    fetchSitePage(slug, locale).catch(() => null),
-    fetchSiteChrome().catch(() => null),
-  ]);
-  if (!page) return { title: "Not found" };
+  const chrome = await fetchSiteChrome().catch(() => null);
+  const { locales, primary } = effectiveLocale(chrome, locale);
+  const h = await headers();
+  const browserPreferred = pickBrowserLocale(h.get("accept-language"), locales, primary);
+  const chain = localeFallbackChain(locale, locales, primary, browserPreferred);
+  const found = await fetchSitePageFallback(slug, chain);
+  if (!found) return { title: "Not found" };
+  const page = found.page;
+  const resolved: PublicLocale = isPublicLocale(found.locale) ? found.locale : locale;
   const meta = (page.meta ?? {}) as Record<string, unknown>;
   const base = siteBaseUrl(chrome);
   const title = metaStr(meta, "title") ?? page.title;
   const description = trunc(metaStr(meta, "description") ?? chrome?.description);
   const pageNoIndex = metaBool(meta, "noindex") || (metaStr(meta, "robots") ?? "").toLowerCase().includes("noindex");
   const index = (chrome?.robots_index ?? true) && !pageNoIndex;
-  const ogImage = metaStr(meta, "og_image") ?? chrome?.og_image_url ?? chrome?.logo_url ?? undefined;
-  const { locales, primary } = effectiveLocale(chrome, locale);
-  const publicPath = locale === primary ? `/${slug}` : `/${locale}/${slug}`;
-  const canonical = base ? `${base}${publicPath}` : undefined;
+  const ogImage = metaStr(meta, "og_image_url") ?? chrome?.og_image_url ?? chrome?.logo_url ?? undefined;
+  const canonical = metaStr(meta, "canonical") ?? (base ? `${base}${localePublicPath(resolved, slug, primary)}` : undefined);
   const url = canonical;
-  const languages: Record<string, string> = {};
-  for (const loc of locales) {
-    languages[publicHreflang(loc)] = loc === primary ? `${base}/${slug}` : `${base}/${loc}/${slug}`;
-  }
+  const languages = base ? buildAlternatesLanguages({ base, slug, locales, primary }) : undefined;
 
   return {
     ...(base ? { metadataBase: new URL(base) } : null),
     title,
     description,
-    ...(canonical ? { alternates: { canonical, languages } } : null),
+    ...(canonical ? { alternates: { canonical, ...(languages ? { languages } : null) } } : null),
     robots: index ? { index: true, follow: true } : { index: false, follow: false },
     openGraph: {
       title: metaStr(meta, "og_title") ?? title,
       description: description ?? metaStr(meta, "og_description"),
       ...(url ? { url } : null),
       siteName: chrome?.title ?? undefined,
-      locale: locale === "en" ? "en_US" : "fa_IR",
+      locale: publicOgLocale(resolved),
       type: "article",
       ...(page.published_at ? { publishedTime: page.published_at } : null),
       ...((page.updated_at ?? page.published_at) ? { modifiedTime: (page.updated_at ?? page.published_at) as string } : null),
@@ -123,7 +138,14 @@ function textFromBlocks(blocks: unknown): string {
   return out.join(" ").slice(0, 500);
 }
 
-function buildJsonLd(chrome: SiteChrome | null, page: SitePage, slug: string, base: string | null, locale: PublicLocale) {
+function buildJsonLd(
+  chrome: SiteChrome | null,
+  page: SitePage,
+  slug: string,
+  base: string | null,
+  locale: PublicLocale,
+  primary: PublicLocale,
+) {
   const inLanguage = locale === "en" ? "en-US" : "fa-IR";
   const meta = ((page.meta ?? {}) as Record<string, unknown>);
   const desc =
@@ -132,7 +154,7 @@ function buildJsonLd(chrome: SiteChrome | null, page: SitePage, slug: string, ba
     textFromBlocks(page.blocks) ||
     undefined;
   const pageUrl = base ? `${base}/${slug}` : undefined;
-  const image = (typeof meta.og_image === "string" && meta.og_image) || chrome?.og_image_url || chrome?.logo_url || undefined;
+  const image = (typeof meta.og_image_url === "string" && meta.og_image_url) || chrome?.og_image_url || chrome?.logo_url || undefined;
   const graph: Record<string, unknown>[] = [
     {
       "@type": "WebSite",
@@ -158,6 +180,7 @@ function buildJsonLd(chrome: SiteChrome | null, page: SitePage, slug: string, ba
       },
     },
   ];
+  graph.push(buildBreadcrumbList({ base, slug, locale, primary }) as unknown as Record<string, unknown>);
   if (chrome?.phone || chrome?.email || chrome?.address) {
     graph.push({
       "@type": "Organization",
@@ -171,22 +194,36 @@ function buildJsonLd(chrome: SiteChrome | null, page: SitePage, slug: string, ba
   return { "@context": "https://schema.org", "@graph": graph };
 }
 
+/**
+ * WF-H15 — fallback زبان بدون ۴۰۴.
+ *
+ * اگر صفحه در زبانِ درخواستی منتشر نشده باشد، به ترتیبِ «زبانِ مرورگر ← زبانِ
+ * پایه ← بقیهٔ زبان‌های پیکربندی‌شده» دنبال می‌شود. اولین نسخهٔ موجود، ۳۰۸ به
+ * مسیرِ همان زبان ریدایرکت می‌شود (فقط زبان‌های پیکربندی‌شده کاندید‌اند، پس
+ * حلقهٔ ریدایرکت ممکن نیست). اگر هیچ نسخه‌ای نباشد، همان ۴۰۴ قبلی برمی‌گردد.
+ */
 export default async function LocaleSitePageRoute({ params }: Props) {
   const { locale: raw, path } = await params;
   const locale: PublicLocale = isPublicLocale(raw) ? raw : "fa";
   const slug = path.join("/");
 
-  const [page, chrome] = await Promise.all([
-    fetchSitePage(slug, locale).catch(() => null),
-    fetchSiteChrome().catch(() => null),
-  ]);
   if (!(await localeAvailable(locale))) notFound();
-  if (!page) notFound();
 
-  const base = siteBaseUrl(chrome);
-  const ld = buildJsonLd(chrome, page as SitePage, slug, base, locale);
-  const theme = resolveTheme(chrome?.theme?.slug);
+  const chrome = await fetchSiteChrome().catch(() => null);
   const { locales, primary } = effectiveLocale(chrome, locale);
+  const h = await headers();
+  const browserPreferred = pickBrowserLocale(h.get("accept-language"), locales, primary);
+  const chain = localeFallbackChain(locale, locales, primary, browserPreferred);
+  const found = await fetchSitePageFallback(slug, chain);
+  if (!found) notFound();
+
+  const resolved: PublicLocale = isPublicLocale(found.locale) ? found.locale : locale;
+  if (resolved !== locale) redirect(localePublicPath(resolved, slug, primary));
+
+  const page = found.page;
+  const base = siteBaseUrl(chrome);
+  const ld = buildJsonLd(chrome, page as SitePage, slug, base, resolved, primary);
+  const theme = resolveTheme(chrome?.theme?.slug);
   const switcher = locales.length > 1 ? { locales, primary } : undefined;
 
   return (
@@ -194,7 +231,7 @@ export default async function LocaleSitePageRoute({ params }: Props) {
       page={page as SitePage}
       chrome={chrome}
       schemas={chrome?.blocks}
-      locale={locale}
+      locale={resolved}
       switcher={switcher}
       jsonLd={ld ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(ld) }} /> : undefined}
     />

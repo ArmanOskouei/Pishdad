@@ -17,6 +17,7 @@ use App\Services\Plugins\PluginPackageValidator;
 use App\Services\Plugins\PluginReleaseManager;
 use App\Services\Plugins\PluginSignatureVerifier;
 use App\Services\Plugins\PluginTrustStore;
+use App\Services\Plugins\PluginUpdateResolver;
 use App\Support\Plugins\PackageAnalysis;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,6 +63,20 @@ class PluginController extends Controller
      * یعنی هر سازندهٔ دستیِ این کنترلر (در تست یا در یک job) می‌شکند. دسترسیِ
      * تنبل این ریسک را ندارد.
      */
+    /**
+     * حل‌کنندهٔ «آپدیت موجود»، تنبل و memoized در طول همین درخواست.
+     *
+     * همان دلیلِ `seal()`: تزریق در سازنده هر سازندهٔ دستیِ این کنترلر را
+     * می‌شکند. memoize هم لازم است چون `present()` به‌ازای هر ردیفِ فهرست صدا
+     * زده می‌شود و هر فراخوانی نباید یک کوئری بازار تازه بزند.
+     */
+    private ?PluginUpdateResolver $updateResolver = null;
+
+    private function updates(): PluginUpdateResolver
+    {
+        return $this->updateResolver ??= app(PluginUpdateResolver::class);
+    }
+
     private function seal(): PluginIntegritySeal
     {
         return app(PluginIntegritySeal::class);
@@ -998,7 +1013,7 @@ class PluginController extends Controller
     {
         $user = $request->user();
 
-        return (bool) ($user->is_super_admin ?? false) || (($user->role ?? null) === 'operator');
+        return ($user->role ?? null) === 'operator';
     }
 
     private function trustStore(): PluginTrustStore
@@ -1149,6 +1164,11 @@ class PluginController extends Controller
             'trust' => $plugin->trustSummary(),
             'is_system' => $plugin->isSystem(),
             'description' => $description,
+            // WF-H17 — مقایسهٔ نسخهٔ نصب‌شده با آخرین نسخهٔ بازار (و اطلاعات
+            // انتشار مانیفست). افزودنی است، پس مصرف‌کننده‌های قبلی بی‌اثر
+            // می‌مانند. `latest_version` وقتی null است یعنی «اطلاعات انتشار
+            // نیست»، نه «نسخهٔ ۰».
+            ...$this->updates()->forPlugin($plugin),
         ]);
     }
 

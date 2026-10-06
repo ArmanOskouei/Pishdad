@@ -7,6 +7,7 @@ use App\Services\Push\Curve;
 use App\Services\Push\Ecdh;
 use App\Services\Push\Point;
 use App\Services\Push\PushEncryptor;
+use PHPUnit\Framework\ExpectationFailedException;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -22,9 +23,23 @@ use PHPUnit\Framework\TestCase;
  * • `decryptAsBrowser` — آنچه کتابخانهٔ سمت مرورگر می‌خواند.
  *
  * اگر این دو روی هم بخوانند، هر دو باید با RFC 8291 یکی باشند.
+ *
+ * ## ⚠️ دامِ «تست دایره‌ای»
+ *
+ * نسخهٔ اولِ این فایل **حلقوی** بود: هر دو طرف — سرور و «مرورگرِ تقلیدی» —
+ * یک اشتباهِ یکسان را تکرار می‌کردند، پس تست سبز می‌شد در حالی که مرورگر
+ * واقعی پیام را دور می‌ریخت. نمونه‌اش همین جداکنندهٔ `0x02` بود: نه رمزکننده
+ * آن را اضافه می‌کرد، نه رمزگشاییِ تقلیدی چکش می‌کرد.
+ *
+ * پس `decryptAsBrowser()` حالا جداکننده را **الزامی** می‌کند (RFC 8291 §4) و
+ * تستِ منفیِ `test_a_body_without_the_delimiter_is_rejected` همان باگ را
+ * دوباره می‌سازد تا مطمئن شویم باز هم گرفته می‌شود.
  */
 class PushEncryptionRoundTripTest extends TestCase
 {
+    /** جداکنندهٔ padding (RFC 8291 §4). */
+    private const DELIMITER = "\x02";
+
     public function test_it_round_trips_a_payload_with_keys(): void
     {
         $browser = $this->makeBrowserKeyPair();
@@ -38,7 +53,14 @@ class PushEncryptionRoundTripTest extends TestCase
         $result = PushEncryptor::encrypt($payload, $browser['public'], $browser['auth']);
 
         $this->assertSame('aes128gcm', $result['headers']['Content-Encoding']);
-        $this->assertArrayHasKey('Encryption', $result['headers']);
+
+        // ⚠️ برای `aes128gcm` نباید هدر `Encryption` بفرستیم: salt خودش
+        // ۱۶ بایت اولِ body است و آن هدر متعلق به قالبِ کهنِ `aes128` بود.
+        $this->assertArrayNotHasKey(
+            'Encryption',
+            $result['headers'],
+            'هدر Encryption برای aes128gcm اضافه و بی‌معناست؛ salt داخل body است.',
+        );
 
         // متن اصلی نباید خوانا باشد
         $this->assertStringNotContainsString('منتشر', $result['body']);
@@ -62,6 +84,11 @@ class PushEncryptionRoundTripTest extends TestCase
 
         // ‎rs **قبل** از داده می‌آید.
         $this->assertSame(pack('N', 4096), substr($body, 16, 4));
+
+        // salt = ۱۶ بایت اولِ body (به همین دلیل هدر `Encryption` لازم نیست).
+        $this->assertSame(16, strlen(substr($body, 0, 16)));
+
+        $this->assertLessThanOrEqual(4096, strlen($body), 'record نباید از ۴۰۹۶ بایت بگذرد');
     }
 
     public function test_salt_makes_every_message_unique(): void
@@ -72,7 +99,12 @@ class PushEncryptionRoundTripTest extends TestCase
         $second = PushEncryptor::encrypt(['x' => 1], $browser['public'], $browser['auth']);
 
         $this->assertNotSame($first['body'], $second['body']);
-        $this->assertNotSame($first['headers']['Encryption'], $second['headers']['Encryption']);
+
+        // salt از ۱۶ بایت اولِ body خوانده می‌شود، نه از هدر.
+        $this->assertNotSame(
+            substr($first['body'], 0, 16),
+            substr($second['body'], 0, 16),
+        );
     }
 
     /**
@@ -174,31 +206,117 @@ public function test_subscription_without_keys_falls_back_to_plain_body(): void
     }
 
     /**
-     * رمزگشایی، از دیدِ کتابخانهٔ سمت مرورگر.
+     * ⚠️ مرزِ دقیقِ اندازه: ‎`4096 − 86(header) − 16(tag) − 1(delimiter) = 3993`.
      *
-     * ## چرا `Ecdh` خودمان را استفاده می‌کند
+     * نسخهٔ اول این `- 1` را نداشت، پس متنی که دقیقاً در مرز جا می‌شد
+     * record را از ۴۰۹۶ بایت بیرون می‌زد و سرویس push کل بدنه را رد می‌کرد.
+     */
+    public function test_size_guard_accounts_for_the_padding_delimiter(): void
+    {
+        $browser = $this->makeBrowserKeyPair();
+
+        // ‎`{"body":"…"}` یعنی ۱۱ بایت قالب + محتوا. این assert خودِ حساب را
+        // نگه می‌دارد تا اگر روزی قالب عوض شد، تست خودش توضیح بدهد.
+        $atLimitJson = str_repeat('a', 3993 - 11);
+        $this->assertSame(3993, strlen((string) json_encode(
+            ['body' => $atLimitJson],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        )));
+
+        $atLimit = PushEncryptor::encrypt(['body' => $atLimitJson], $browser['public'], $browser['auth']);
+
+        $this->assertLessThanOrEqual(4096, strlen($atLimit['body']));
+        $this->assertSame(
+            ['body' => $atLimitJson],
+            json_decode($this->decryptAsBrowser($atLimit, $browser), true),
+            'متنِ دقیقاً روی مرز باید رمز/رمزگشایی شود.',
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        PushEncryptor::encrypt(['body' => str_repeat('a', 3994 - 11)], $browser['public'], $browser['auth']);
+    }
+
+    /**
+     * ⚠️ رگرسیونِ اصلی: بدنه‌ای که جداکنندهٔ `0x02` ندارد **نباید** معتبر
+     * تلقی شود.
      *
-     * `openssl_pkey_derive()` روی این محیط خراب است، پس تست هم نمی‌تواند
-     * از آن بهره بگیرد. در عوض ECDH را از `Ecdh` می‌گیریم — که جداگانه با
-     * بردارهای NIST تست شده — ولی **هیچ متدی از `PushEncryptor` را صدا
-     * نمی‌زنیم`.
+     * این همان باگِ نسخهٔ قبلی است: رمزنگاری درست بود ولی بدنه به `0x02` ختم
+     * نمی‌شد، و رمزگشاییِ تقلیدی هم آن را چک نمی‌کرد ⇒ تست سبز، پیام‌ها مرده.
+     * مرورگر واقعی (RFC 8291 §4) چنین متنی را دور می‌ریزد، پس تست هم باید
+     * دورش بدهد.
+     */
+    public function test_a_body_without_the_delimiter_is_rejected(): void
+    {
+        $browser = $this->makeBrowserKeyPair();
+
+        $result = PushEncryptor::encrypt(['title' => 'بدون جداکننده'], $browser['public'], $browser['auth']);
+
+        // همان رمزنگاری، ولی **بدون** بایت جداکننده = باگ نسخهٔ قبلی.
+        $buggy = $this->forgeBodyWithoutDelimiter($result, $browser);
+
+        $raw = $this->decryptRawAsBrowser($buggy, $browser);
+
+        $this->assertNotFalse($raw, 'پیش از بررسیِ جداکننده باید رمزگشایی موفق باشد');
+        $this->assertNotSame(
+            "\x02",
+            substr($raw, -1),
+            'این بدنه عمداً جداکننده ندارد؛ اگر دارد یعنی forge خراب است.',
+        );
+        $this->assertFalse($this->hasPaddingDelimiter($raw));
+
+        // حالا همان چیزی که مرورگر واقعی می‌کند: دور انداختنِ پیام.
+        $this->expectException(ExpectationFailedException::class);
+        $this->expectExceptionMessage('جداکنندهٔ padding');
+
+        $this->decryptAsBrowser($buggy, $browser);
+    }
+
+    /**
+     * رمزگشایی، از دیدِ کتابخانهٔ سمت مرورگر — **همان کاری که مرورگر واقعی
+     * می‌کند، با همان سخت‌گیری**.
      *
-     * یعنی هنوز دو مسیرِ مستقل داریم: ترکیب‌بندیِ HKDF و رمزنگاری از
-     * سمت سرور، در برابر ترکیب‌بندی و رمزگشایی از سمت گیرنده. یک خطای
-     * مشترک در هر دو، تست را سبز نمی‌کند.
+     * تفاوتِ حیاتی با `decryptRawAsBrowser()`: اینجا جداکنندهٔ `0x02` چک و
+     * حذف می‌شود (RFC 8291 §4). بدون این assert، سرور و تست هر دو می‌توانستند
+     * یک اشتباهِ یکسان را مرتکب شوند و تست باز هم سبز شود.
      */
     private function decryptAsBrowser(array $result, array $browser): string
     {
-        $body = $result['body'];
-        $salt = Ecdh::b64d($result['headers']['Encryption']);
+        $plain = $this->decryptRawAsBrowser($result, $browser);
 
-        $this->assertSame(16, strlen($salt));
+        $this->assertTrue(
+            $this->hasPaddingDelimiter($plain),
+            'متنِ رمزگشایی‌شده باید به جداکنندهٔ padding (0x02) ختم شود؛ بدون آن مرورگر پیام را دور می‌ریزد.',
+        );
+
+        return substr($plain, 0, -1);
+    }
+
+    /** آیا متن به بایت جداکنندهٔ RFC 8291 ختم می‌شود؟ */
+    private function hasPaddingDelimiter(string $plain): bool
+    {
+        return $plain !== '' && str_ends_with($plain, self::DELIMITER);
+    }
+
+    /**
+     * رمزگشاییِ خام — بدون هیچ بررسیِ جداکننده.
+     *
+     * فقط برای ساختنِ fixtureِ تستِ منفی و برای اثباتِ اینکه رمزگشایی خودش سالم
+     * است. مسیرِ اصلیِ تست‌ها `decryptAsBrowser()` است.
+     */
+    private function decryptRawAsBrowser(array $result, array $browser): string
+    {
+        $body = $result['body'];
+
+        // salt در `aes128gcm` **از خودِ body** خوانده می‌شود: ۱۶ بایت اول.
+        $salt = substr($body, 0, 16);
 
         $rs = substr($body, 16, 4);
         $idlen = ord($body[20]);
         $senderPublic = substr($body, 21, $idlen);
         $ciphertextAndTag = substr($body, 21 + $idlen);
 
+        $this->assertSame(16, strlen($salt));
         $this->assertSame(pack('N', 4096), $rs);
         $this->assertSame(65, $idlen);
 
@@ -246,6 +364,81 @@ public function test_subscription_without_keys_falls_back_to_plain_body(): void
         $this->assertNotFalse($plain, 'رمزگشایی باید موفق باشد');
 
         return $plain;
+    }
+
+    /**
+     * همان بدنه را **بدون** بایت جداکننده می‌سازد — بازتولیدِ باگ نسخهٔ قبلی.
+     *
+     * salt و کلیدها را دست نمی‌زنیم (فقط ciphertext عوض می‌شود)، پس تنها
+     * تفاوت با بدنهٔ درست، همان یک بایتِ جداکننده است. هر چیزِ دیگری که خراب
+     * باشد، در تستِ منفی گم می‌شود — برای همین `decryptRawAsBrowser` را اول
+     * صدا می‌زنیم تا مطمئن شویم رمزگشایی سالم است.
+     */
+    private function forgeBodyWithoutDelimiter(array $result, array $browser): array
+    {
+        $body = $result['body'];
+        $idlen = ord($body[20]);
+        $headerLength = 21 + $idlen;
+
+        $plain = $this->decryptRawAsBrowser($result, $browser);
+
+        $this->assertTrue(
+            $this->hasPaddingDelimiter($plain),
+            'بدنهٔ اصلی باید جداکننده داشته باشد تا بتوانیم باگ را شبیه‌سازی کنیم.',
+        );
+
+        // جداکننده را بردار ⇒ متنِ رمزشدهٔ نسخهٔ باگ‌دار.
+        $buggyPlain = substr($plain, 0, -1);
+
+        $salt = substr($body, 0, 16);
+        $rs = substr($body, 16, 4);
+        $senderPublic = substr($body, 21, $idlen);
+
+        $cek = $this->deriveCek($salt, $rs, $senderPublic, $browser);
+        $nonce = $this->deriveNonce($salt, $rs, $senderPublic, $browser);
+
+        $ciphertext = openssl_encrypt(
+            $buggyPlain,
+            'aes-128-gcm',
+            $cek,
+            OPENSSL_RAW_DATA,
+            $nonce,
+            $tag,
+            'PUSH'.$rs.chr($idlen).$senderPublic,
+            16,
+        );
+
+        $this->assertNotFalse($ciphertext, 'ساختِ fixtureِ باگ‌دار نباید شکست بخورد');
+
+        $result['body'] = substr($body, 0, $headerLength).$ciphertext.$tag;
+
+        return $result;
+    }
+
+    /** ‎`Content-Encoding: aes128gcm` ⇒ گامِ HKDF شمارهٔ ۱. */
+    private function deriveCek(string $salt, string $rs, string $senderPublic, array $browser): string
+    {
+        return substr(hash_hmac('sha256', "Content-Encoding: aes128gcm\x00\x01", $this->derivePrk($salt, $rs, $senderPublic, $browser), true), 0, 16);
+    }
+
+    /** ‎`Content-Encoding: nonce` ⇒ گامِ HKDF شمارهٔ ۲. */
+    private function deriveNonce(string $salt, string $rs, string $senderPublic, array $browser): string
+    {
+        return substr(hash_hmac('sha256', "Content-Encoding: nonce\x00\x01", $this->derivePrk($salt, $rs, $senderPublic, $browser), true), 0, 12);
+    }
+
+    /** ‎HKDF ‎(RFC 8291 §3.4)، سمت گیرنده. */
+    private function derivePrk(string $salt, string $rs, string $senderPublic, array $browser): string
+    {
+        $secret = Ecdh::sharedSecret($browser['private'], $senderPublic);
+
+        $prkKey = hash_hmac('sha256', $secret, Ecdh::b64d($browser['auth']), true);
+
+        $keyInfo = "WebPush: info\x00".Ecdh::encodePoint($browser['point']).$senderPublic;
+
+        $ikm = hash_hmac('sha256', $keyInfo."\x01", $prkKey, true);
+
+        return hash_hmac('sha256', $ikm, $salt, true);
     }
 
     /**

@@ -3,10 +3,19 @@ import assert from "node:assert/strict";
 
 import {
   ONBOARDING_KEY_PREFIX,
+  ONBOARDING_CHECKLIST_KEY_PREFIX,
+  CHECKLIST_STEPS,
+  checklistDismissKey,
+  checklistProgress,
+  isChecklistComplete,
   onboardingSeenKey,
+  readChecklistDismissed,
   readOnboardingSeen,
+  shouldShowChecklist,
   shouldShowOnboarding,
+  writeChecklistDismissed,
   writeOnboardingSeen,
+  type OnboardingChecklist,
   type StorageLike,
 } from "./onboarding.ts";
 
@@ -97,4 +106,80 @@ test("missing storage is treated as unseen and writing is a no-op", () => {
 test("a known storage value of '1' is the only thing that counts as seen", () => {
   assert.equal(readOnboardingSeen(memoryStorage({ [onboardingSeenKey(3)]: "0" }), 3), false);
   assert.equal(readOnboardingSeen(memoryStorage({ [onboardingSeenKey(3)]: "1" }), 3), true);
+});
+
+/* ─────────────── WF-H21 — چک‌لیست راه‌اندازی اولین ورود ─────────────── */
+
+/** همهٔ گام‌ها انجام‌شده؛ تست‌ها روی نمونهٔ ناتمام تغییرش می‌دهند. */
+const DONE: OnboardingChecklist = { logo: true, page: true, seo: true, contact: true, published: true };
+const NONE: OnboardingChecklist = { logo: false, page: false, seo: false, contact: false, published: false };
+
+test("چک‌لیست دقیقاً پنج گام دارد و کلیدها یکتا و هم‌شکلِ قرارداد سرورند", () => {
+  assert.equal(CHECKLIST_STEPS.length, 5);
+  const keys = CHECKLIST_STEPS.map((s) => s.key);
+  assert.deepEqual([...keys].sort(), Object.keys(DONE).sort());
+  assert.equal(new Set(keys).size, keys.length, "کلید تکرارشده یعنی یک گام دوبار شمرده می‌شود");
+  for (const step of CHECKLIST_STEPS) {
+    assert.ok(step.label.length > 0, "هر گام باید برچسب فارسی داشته باشد");
+    assert.ok(step.href.startsWith("/admin/"), "هر گام باید به صفحهٔ پنل لینک بدهد");
+  }
+});
+
+test("پیشرفت از روی وضعیت واقعی محاسبه می‌شود", () => {
+  assert.deepEqual(checklistProgress(NONE), { completed: 0, total: 5, percent: 0 });
+  assert.deepEqual(checklistProgress(DONE), { completed: 5, total: 5, percent: 100 });
+  assert.deepEqual(
+    checklistProgress({ ...NONE, logo: true, page: true, published: true }),
+    { completed: 3, total: 5, percent: 60 },
+  );
+});
+
+test("کامل‌بودن یعنی هر پنج گام انجام شده باشد", () => {
+  assert.equal(isChecklistComplete(NONE), false);
+  assert.equal(isChecklistComplete({ ...DONE, published: false }), false);
+  assert.equal(isChecklistComplete(DONE), true);
+});
+
+test("علامتِ پنهان‌کردنِ چک‌لیست per-user است", () => {
+  assert.notEqual(checklistDismissKey(1), checklistDismissKey(2));
+  assert.ok(checklistDismissKey(9).startsWith(`${ONBOARDING_CHECKLIST_KEY_PREFIX}:`));
+
+  const storage = memoryStorage();
+  assert.equal(readChecklistDismissed(storage, 1), false);
+  assert.equal(writeChecklistDismissed(storage, 1), true);
+  assert.equal(readChecklistDismissed(storage, 1), true);
+  // مدیرِ دوم روی همان مرورگر نباید پنهان‌شده ببیند.
+  assert.equal(readChecklistDismissed(storage, 2), false);
+});
+
+test("چک‌لیست تا پایان بررسی نشست نشان داده نمی‌شود", () => {
+  assert.equal(shouldShowChecklist({ loading: true, userId: 1, complete: false, dismissed: false }), false);
+});
+
+test("چک‌لیست برای مهمان/کاربر نامشخص نشان داده نمی‌شود", () => {
+  assert.equal(shouldShowChecklist({ loading: false, userId: null, complete: false, dismissed: false }), false);
+  assert.equal(shouldShowChecklist({ loading: false, userId: "", complete: false, dismissed: false }), false);
+});
+
+test("چک‌لیست با تکمیل همهٔ گام‌ها خودکار پنهان می‌شود", () => {
+  assert.equal(shouldShowChecklist({ loading: false, userId: 7, complete: true, dismissed: false }), false);
+});
+
+test("پنهان‌کردنِ دستی چک‌لیست را نگه می‌دارد", () => {
+  assert.equal(shouldShowChecklist({ loading: false, userId: 7, complete: false, dismissed: true }), false);
+  assert.equal(shouldShowChecklist({ loading: false, userId: 7, complete: false, dismissed: false }), true);
+});
+
+test("Storageِ خراب، چک‌لیست را از بین نمی‌برد", () => {
+  const throwing: StorageLike = {
+    getItem: () => {
+      throw new Error("denied");
+    },
+    setItem: () => {
+      throw new Error("denied");
+    },
+  };
+  assert.equal(readChecklistDismissed(throwing, 1), false);
+  assert.equal(writeChecklistDismissed(throwing, 1), false);
+  assert.equal(shouldShowChecklist({ loading: false, userId: 1, complete: false, dismissed: readChecklistDismissed(throwing, 1) }), true);
 });

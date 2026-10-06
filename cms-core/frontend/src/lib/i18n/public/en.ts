@@ -41,7 +41,11 @@ export const publicEn: Record<PublicMessageKey, string> = {
   "search.noResult": "No results found for “{q}”.",
   "search.noResultHint": "Check the spelling or try simpler words.",
   "search.count": "{n} result(s) for “{q}”",
-  "notFound.title": "Not found",
+  "notFound.title": "Page not found",
+  "notFound.description": "The page you were looking for could not be found. Try searching or use the suggested links below.",
+  "notFound.searchPlaceholder": "Search for what you need…",
+  "notFound.searchCta": "Search",
+  "notFound.suggested": "Suggested pages",
 
   // ── Public chrome (header/footer) ──
   "chrome.navAria": "Main navigation",
@@ -58,6 +62,12 @@ export const publicEn: Record<PublicMessageKey, string> = {
   "chrome.defaultTitle": "My website",
   "chrome.socialsAria": "Social networks",
 
+  // ── WF-L3 — breadcrumb + site light/dark mode ──
+  "crumbs.aria": "Breadcrumb",
+  "mode.toggle": "Toggle light/dark mode",
+  "mode.light": "Light",
+  "mode.dark": "Dark",
+
   // ── Page blocks ──
   "block.empty": "No content has been added to this page.",
   "block.unknownNotice": "Block “{name}” was not rendered — this block type is not implemented in the core.",
@@ -69,8 +79,44 @@ export const publicEn: Record<PublicMessageKey, string> = {
   "block.watchVideo": "Watch the video",
   "block.contactForm": "Contact form",
   "block.ctaDefault": "Continue",
+  "block.formLoading": "Loading the form…",
+  "block.formUnavailable": "This form is unavailable.",
+  "block.formSubmit": "Submit",
+  "block.formSending": "Sending…",
+  "block.formSuccess": "Your response has been recorded. Thank you.",
+  "block.formError": "Submission failed. Please try again.",
+  "block.formRequired": "Please fill in the required fields.",
 
   // ── Unknown widget ──
   "widget.unknownNotice": "Widget “{name}” was not rendered — this widget type is not implemented in the core renderer.",
   "widget.emptyName": "(empty)",
+
+  // ── Blog archive (WF-C7) ──
+  "blog.archiveTitle": "Blog",
+  "blog.categoryTitle": "Category: {name}",
+  "blog.tagTitle": "Tag: {name}",
+  "blog.empty": "No posts have been published yet.",
+  "blog.readMore": "Read more",
+  "blog.backToBlog": "Back to the blog",
+  "blog.feed": "RSS feed",
+  "blog.pagination": "Posts pagination",
+  "blog.prev": "Previous",
+  "blog.next": "Next",
+  "blog.notFound": "Post not found",
+
+  // ── WF-M20 — cookie consent banner + privacy policy ──
+  "cookie.aria": "Cookie consent",
+  "cookie.message": "This site uses only essential cookies. It sets no analytics or advertising cookies.",
+  "cookie.accept": "Accept",
+  "cookie.privacyLink": "Privacy policy",
+  "privacy.title": "Privacy policy",
+  "privacy.empty": "The privacy policy text has not been set yet.",
+
+  // ── WF-M17 — accessibility statement ──
+  "accessibility.link": "Accessibility statement",
+  "accessibility.title": "Accessibility statement",
+  "accessibility.contact": "How to report an accessibility barrier",
+  "accessibility.phoneLabel": "Phone",
+  "accessibility.emailLabel": "Email",
+  "accessibility.noContact": "No phone number or email address has been set for accessibility reports yet.",
 };

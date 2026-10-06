@@ -13,9 +13,12 @@ return [
     'media' => ['title_fa' => 'فایل‌ها', 'description' => 'کتابخانه رسانه'],
     'settings' => ['title_fa' => 'تنظیمات', 'description' => 'تنظیمات سایت و شبکه‌ها'],
     'tickets' => ['title_fa' => 'تیکت‌ها', 'description' => 'تیکت‌های پشتیبانی'],
+    'forms' => ['title_fa' => 'فرم‌ساز', 'description' => 'فرم‌های دلخواه سایت و پاسخ‌های ثبت‌شده'],
     'plugins' => ['title_fa' => 'پلاگین‌ها', 'description' => 'نصب و مدیریت پلاگین'],
     'themes' => ['title_fa' => 'قالب‌ها', 'description' => 'قالب‌های سایت'],
     'layouts' => ['title_fa' => 'چیدمان', 'description' => 'هدر، فوتر و بلوک‌ها'],
     'users' => ['title_fa' => 'مدیران و نقش‌ها', 'description' => 'مدیران و سطوح دسترسی'],
     'subscription' => ['title_fa' => 'اشتراک', 'description' => 'اشتراک و صورت‌حساب‌ها'],
+    // WF-H12 — در انتها افزوده شد تا ترتیب ایندکس‌های ماتریس دسترسی موجود نشکند.
+    'analytics' => ['title_fa' => 'تحلیل سایت', 'description' => 'بازدیدهای سایت عمومی'],
 ];

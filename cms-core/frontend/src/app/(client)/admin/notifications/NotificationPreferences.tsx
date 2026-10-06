@@ -4,7 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { authed } from "@/lib/auth";
 import { useLang } from "@/lib/i18n";
 import { useToast } from "@/components/ui/Toast";
-import { CHANNELS, isChannel, type Channel, type PrefMatrix, type PrefResponse } from "@/lib/notifications";
+import {
+  CHANNELS,
+  isChannel,
+  type Channel,
+  type NotificationChannelSettings,
+  type PrefMatrix,
+  type PrefResponse,
+} from "@/lib/notifications";
 import { Alert, Skeleton } from "@/components/ui/primitives";
 
 /**
@@ -39,10 +46,14 @@ type GroupLabels = Record<string, string>;
  * `t()` رشتهٔ خام برمی‌گرداند و UI یک کلیدِ فنی نشان می‌دهد. اینجا یک کانالِ
  * تازه یعنی یک خطِ صریح، نه یک bug خاموش.
  */
-const CHANNEL_LABEL: Record<Channel, "inbox.channelEmail" | "inbox.channelSms" | "inbox.channelPush"> = {
+const CHANNEL_LABEL: Record<
+  Channel,
+  "inbox.channelEmail" | "inbox.channelSms" | "inbox.channelPush" | "inbox.channelTelegram"
+> = {
   email: "inbox.channelEmail",
   sms: "inbox.channelSms",
   push: "inbox.channelPush",
+  telegram: "inbox.channelTelegram",
 };
 
 export function NotificationPreferences() {
@@ -54,6 +65,17 @@ export function NotificationPreferences() {
   const [error, setError] = useState<string | null>(null);
   /** کلیدِ در حال ذخیره: `${group}|${channel}` یا `null` برای خواندن. */
   const [saving, setSaving] = useState<string | null>(null);
+  /** WF-M15 — تنظیماتِ کانالِ کاربر (chat_id تلگرام + خلاصهٔ روزانه). */
+  const [settings, setSettings] = useState<NotificationChannelSettings | null>(null);
+  const [chatId, setChatId] = useState("");
+  const [digest, setDigest] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const applySettings = useCallback((s: NotificationChannelSettings) => {
+    setSettings(s);
+    setChatId(s.telegram_chat_id ?? "");
+    setDigest(Boolean(s.daily_digest));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -64,15 +86,35 @@ export function NotificationPreferences() {
       // `CHANNELS` محلی جایگزین می‌شود تا ماتریس هرگز خالی رندر نشود.
       const cs = Array.isArray(json?.channels) ? json.channels.filter(isChannel) : [];
       setChannels(cs.length > 0 ? cs : [...CHANNELS]);
+      if (json?.settings) applySettings(json.settings);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("inbox.loadError"));
     }
-  }, [t]);
+  }, [applySettings, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const saveSettings = useCallback(
+    async (next: { telegram_chat_id: string | null; daily_digest: boolean }) => {
+      setSavingSettings(true);
+      try {
+        const json = await authed<{ settings: NotificationChannelSettings }>(
+          "/v1/admin/notification-preferences/settings",
+          { method: "PUT", body: next },
+        );
+        if (json?.settings) applySettings(json.settings);
+        toast(t("inbox.channelsSaved"), "ok");
+      } catch (e) {
+        toast(e instanceof Error ? e.message : t("inbox.channelsFailed"), "err");
+      } finally {
+        setSavingSettings(false);
+      }
+    },
+    [applySettings, toast, t],
+  );
 
   const write = useCallback(
     async (group: string, channel: Channel, enabled: boolean) => {
@@ -131,6 +173,70 @@ export function NotificationPreferences() {
           );
         }}
       />
+
+      {settings ? (
+        <div className="card card-pad" style={{ marginBlockStart: 12 }}>
+          <b>{t("inbox.channelsTitle")}</b>
+          <div className="muted" style={{ fontSize: 12, marginBlockStart: 4 }}>
+            {t("inbox.channelsHint")}
+          </div>
+
+          {!settings.telegram_configured ? (
+            <div style={{ marginBlockStart: 10 }}>
+              <Alert tone="amber">{t("inbox.telegramNotConfigured")}</Alert>
+            </div>
+          ) : null}
+
+          <div style={{ display: "grid", gap: 6, marginBlockStart: 12 }}>
+            <label className="ver-title" style={{ fontSize: 13 }} htmlFor="tg-chat-id">
+              {t("inbox.telegramChatId")}
+            </label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                id="tg-chat-id"
+                className="input"
+                dir="ltr"
+                value={chatId}
+                placeholder="@my_channel"
+                onChange={(e) => setChatId(e.target.value)}
+                style={{ flex: 1, minInlineSize: 160 }}
+              />
+              <button
+                type="button"
+                className="btn"
+                disabled={savingSettings}
+                onClick={() =>
+                  void saveSettings({ telegram_chat_id: chatId.trim() || null, daily_digest: digest })
+                }
+              >
+                {t("inbox.saveChannels")}
+              </button>
+            </div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("inbox.telegramChatIdHint")}</div>
+          </div>
+
+          <div style={{ display: "grid", gap: 6, marginBlockStart: 12 }}>
+            <label className="ver-row" style={{ cursor: "pointer" }}>
+              <span className="ver-title" style={{ fontSize: 13 }}>{t("inbox.dailyDigest")}</span>
+              <span className={`dot ${digest ? "on" : "mute"}`} aria-hidden style={{ marginInlineEnd: 6 }} />
+              <button
+                type="button"
+                role="switch"
+                aria-checked={digest}
+                className="switch"
+                aria-label={t("inbox.dailyDigest")}
+                disabled={savingSettings}
+                onClick={() => {
+                  const next = !digest;
+                  setDigest(next);
+                  void saveSettings({ telegram_chat_id: chatId.trim() || null, daily_digest: next });
+                }}
+              />
+            </label>
+            <div className="muted" style={{ fontSize: 12 }}>{t("inbox.dailyDigestHint")}</div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid c2" style={{ marginBlockStart: 12 }}>
         {rows.map((r) => (

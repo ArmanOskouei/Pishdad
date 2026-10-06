@@ -63,7 +63,11 @@ export function PushSettingsCard() {
     setMessage(null);
 
     // پیام آزمایشی: مدیر باید ببیند واقعاً اعلان می‌رسد.
-    const ok = await subscribeToPush({ onMessage: 'اعلان‌های پیشداد فعال شد ✓' });
+    // `authenticated: true` ⇒ مسیر `push/subscribe/auth` تا `user_id` پر شود.
+    const ok = await subscribeToPush({
+      authenticated: true,
+      onMessage: 'اعلان‌های پیشداد فعال شد ✓',
+    });
 
     setBusy(false);
     setMessage(ok ? 'اعلان‌سازی روشن شد.' : 'فعال‌سازی ممکن نشد.');
@@ -74,7 +78,7 @@ export function PushSettingsCard() {
     setBusy(true);
     setMessage(null);
 
-    await unsubscribeFromPush();
+    await unsubscribeFromPush({ authenticated: true });
 
     setBusy(false);
     setMessage('اعلان‌سازی خاموش شد.');

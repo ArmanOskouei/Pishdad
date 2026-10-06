@@ -48,6 +48,8 @@ export type PageItem = {
   meta?: Record<string, unknown> | null;
   published_revision_id?: number | null;
   published_at?: string | null;
+  /** WF-C3: موعدِ انتشار زمان‌بندی‌شده (ISO) — فقط برای صفحهٔ پیش‌نویس معنا دارد. */
+  scheduled_at?: string | null;
   left_preset_id?: number | null;
   right_preset_id?: number | null;
   left_enabled?: boolean;
@@ -98,6 +100,40 @@ export type BlockDef = {
   schema: BlockSchema;
 };
 
+/* ── فرم‌ساز (WF-H10) ── */
+
+export type FormFieldItem = {
+  key: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  placeholder?: string;
+  options?: string[];
+  max_length?: number;
+};
+
+export type FormItem = {
+  id: number;
+  name: string;
+  slug: string;
+  fields: FormFieldItem[];
+  destination: "email" | "ticket";
+  recipients?: string[] | null;
+  success_message?: string | null;
+  active: boolean;
+  submissions_count?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type FormSubmissionItem = {
+  id: number;
+  form_id: number;
+  payload: Record<string, unknown>;
+  ip?: string | null;
+  created_at?: string;
+};
+
 /* ── مدیا (۱.۶) ── */
 
 export type MediaItem = {
@@ -106,13 +142,48 @@ export type MediaItem = {
   mime: string;
   size: number;
   path: string;
+  /** دیسکِ ذخیره (`s3` | `public` | `local`) — سرور می‌دهد. */
+  disk?: string;
+  /** نشانیِ عمومیِ محاسبه‌شده دقیق (دیسک-aware) — اگر باشد، بر پایهٔ S3 مقدم است. */
+  url?: string | null;
   alt?: string | null;
+  /** WF-H6 — پوشهٔ حاوی فایل (nullable؛ «بدون پوشه» = null). */
+  folder_id?: number | null;
+  folder?: MediaFolder | null;
+  /** WF-H6 — برچسب‌های فایل. */
+  tags?: MediaTag[];
+  /** WF-L1 — نقطهٔ کانونی نرمال‌شده (0..1) برای برشِ واکنش‌گرا. */
+  focal_x?: number | null;
+  focal_y?: number | null;
   created_at?: string;
   deleted_at?: string | null;
 };
 
-/** نشانی نمایشی/کپی فایل: از path + پیشوند S3 عمومی ساخته می‌شود. */
-export function mediaUrl(m: Pick<MediaItem, "path">): string {
+/** WF-H6 — پوشهٔ درختی رسانه. */
+export type MediaFolder = {
+  id: number;
+  name: string;
+  parent_id?: number | null;
+  media_count?: number;
+};
+
+/** WF-H6 — برچسب رسانه. */
+export type MediaTag = {
+  id: number;
+  name: string;
+  color?: string | null;
+  media_count?: number;
+};
+
+/**
+ * نشانی نمایشی/کپی فایل.
+ *
+ * اولویت با `m.url` است — بک‌اند آن را بر پایهٔ **دیسکِ خودِ فایل** می‌سازد
+ * (`s3` ⇒ MinIO، `public` ⇒ `/storage`). بدون آن، همه با پایهٔ S3 آدرس
+ * می‌گرفتند و فایل‌های دیسکِ public (تصاویرِ SVG محتوا) ۴۰۴/ORB می‌شدند.
+ */
+export function mediaUrl(m: Pick<MediaItem, "path"> & { url?: string | null }): string {
+  if (typeof m.url === "string" && m.url) return m.url;
   const base = (process.env.NEXT_PUBLIC_MEDIA_URL ?? "").trim().replace(/\/+$/, "");
   return `${base}/${m.path.replace(/^\/+/, "")}`;
 }
@@ -250,6 +321,8 @@ export type RoleItem = {
   system: boolean;
   permissions: string[];
   managers_count: number;
+  /** WF-M8 — آیا ورود کاربران این نقش مستلزم تأیید دومرحله‌ای است؟ */
+  requires_2fa: boolean;
 };
 
 export type PermModule = { name: string; title_fa: string; source: string };
@@ -306,6 +379,52 @@ export const ROLE_FA: Record<string, string> = {
   viewer: "بیننده",
 };
 
+/* ── گزارش فعالیت محتوا (WF-H9) ── */
+
+export type ActivityItem = {
+  id: number;
+  user_id?: number | null;
+  user?: { id: number; name: string } | null;
+  subject_type?: string | null;
+  subject_id?: number | null;
+  action: string;
+  summary: string;
+  diff?: Record<string, unknown> | null;
+  /** شناسهٔ نسخهٔ قابل بازگردانی (فقط رویدادهای صفحه که نسخهٔ قبلی دارند). */
+  restorable_revision_id?: number | null;
+  created_at?: string | null;
+};
+
+export const ACTIONS_PAGE = ["page.create", "page.update", "page.publish", "page.unpublish", "page.delete", "page.restore", "page.force_delete"] as const;
+
+export const ACTIVITY_ACTION_FA: Record<string, string> = {
+  "page.create": "ساخت صفحه",
+  "page.update": "ویرایش صفحه",
+  "page.publish": "انتشار صفحه",
+  "page.unpublish": "لغو انتشار صفحه",
+  "page.delete": "حذف صفحه",
+  "page.restore": "بازگردانی صفحه",
+  "page.force_delete": "حذف دائم صفحه",
+  "media.upload": "آپلود فایل",
+  "media.replace": "جایگزینی فایل",
+  "media.delete": "حذف فایل",
+};
+
+/** فیلدهای diff با برچسب فارسی برای نمایش در جدول. */
+export const ACTIVITY_FIELD_FA: Record<string, string> = {
+  title: "عنوان",
+  slug: "نشانی",
+  locale: "زبان",
+  status: "وضعیت",
+  is_single: "تک‌صفحه‌ای",
+  blocks: "بلوک‌ها",
+  meta: "متا",
+  left_preset_id: "پریست چپ",
+  right_preset_id: "پریست راست",
+  left_enabled: "ستون چپ",
+  right_enabled: "ستون راست",
+};
+
 /* ── پروفایل (۱.۴) ── */
 
 export type ProfileData = {
@@ -325,12 +444,9 @@ export type ProfileData = {
    * K6.1 — پرمیشن‌های مؤثر *خودِ* مدیر جاری به شکل `module.action`.
    *
    * خالی یعنی «هیچ» و دروازهٔ `mergePluginMenu` روی ورودی خالی fail-closed
-   * است. سوپرادمین همهٔ ماژول‌ها × اکشن‌ها را می‌گیرد، چون سرور برای او
-   * `EnsurePermission` را رد می‌کند — اگر فهرستش خالی بود، رابط کاربری او
-   * هم بی‌دلیل محدود می‌شد.
+   * است. نقشِ `owner`/`admin` همهٔ ماژول‌ها × اکشن‌ها را دارد، پس فهرستش کامل است.
    */
   permissions?: string[];
-  is_super_admin?: boolean;
 };
 
 export type TwoFactorMethods = {
@@ -365,7 +481,8 @@ export type Ticket = {
   id: number;
   subject: string;
   status: "open" | "pending" | "closed";
-  priority: "low" | "normal" | "high";
+  priority: "low" | "normal" | "high" | "urgent";
+  labels?: string[] | null;
   source?: string;
   messages_count?: number;
   messages?: TicketMessage[];
@@ -375,7 +492,7 @@ export type Ticket = {
 };
 
 export const TICKET_STATUS_FA: Record<string, string> = { open: "باز", pending: "در انتظار", closed: "بسته" };
-export const TICKET_PRIORITY_FA: Record<string, string> = { low: "کم", normal: "عادی", high: "زیاد" };
+export const TICKET_PRIORITY_FA: Record<string, string> = { low: "کم", normal: "عادی", high: "زیاد", urgent: "فوری" };
 
 /* ── تنظیمات سایت + شبکه‌ها (۱.۸ / ۱.۹) ── */
 
@@ -398,8 +515,16 @@ export type SiteSettings = {
   ai_summary?: string | null;
   /** اجازه ایندکس کل سایت (false = noindex سراسری). */
   robots_index?: boolean;
+  /** WF-H1 — متن سفارشی robots.txt (خالی = پیش‌فرض ساخته‌شده). */
+  robots_txt?: string | null;
+  /** WF-H1 — کد تأیید مالکیت Google Search Console. */
+  google_site_verification?: string | null;
   /** نشانی فیزیکی — JSON-LD سازمان. */
   address?: string | null;
+  /** WF-M20 — متن سیاست حریم خصوصی (صفحهٔ /privacy). بدون HTML. */
+  privacy_policy?: string | null;
+  /** WF-M17 — متن بیانیهٔ دسترس‌پذیری (صفحهٔ /accessibility). بدون HTML. */
+  accessibility_statement?: string | null;
   /** دسته UIUX (افزودنی): زبان پیش‌فرض سایت. */
   locale?: string | null;
   /** ECO2 — حالت زبان: `single` (فقط زبان اصلی) یا `dual` (اصلی + دوم، مدل a). */
@@ -414,6 +539,8 @@ export type SiteSettings = {
   timezone?: string | null;
   /** کار دوم (افزودنی): صفحه خانه تنظیم‌شده. */
   homepage_page_id?: number | null;
+  /** «کش سایت»: خاموش ⇒ تنظیمات بی‌درنگ روی سایت؛ روشن ⇒ سرعت/مصرف بهینه. پیش‌فرض روشن. */
+  cache_enabled?: boolean;
 };
 
 export type SocialItem = {
@@ -467,6 +594,15 @@ export type PluginItem = {
   checksum?: string;
   manifest?: Record<string, unknown> | null;
   created_at?: string;
+  /**
+   * WF-H17 — آخرین نسخهٔ بازارِ افزونه (یا آخرین نسخهٔ اعلام‌شده در مانیفست).
+   * `null` یعنی «اطلاعات انتشار موجود نیست»، نه «نسخهٔ ۰».
+   */
+  latest_version?: string | null;
+  /** WF-H17 — آیا نسخهٔ نصب‌شده از نسخهٔ بازار عقب‌تر است؟ */
+  update_available?: boolean;
+  /** WF-H17 — متن تغییرات نسخهٔ جدید، برای نمایش پیش از ارتقا. */
+  changelog?: string | null;
 };
 
 export const REVIEW_FA: Record<ReviewStatus, string> = {
@@ -635,6 +771,19 @@ export type ReviewQueueItem = {
   owner?: { id: number; name: string; email: string } | null;
 };
 
+/** WF-H18 — یک نظرِ بازار در صف بازبینی مرکزی. */
+export type MarketReviewQueueItem = {
+  id: number;
+  plugin_id: number;
+  user_id: number;
+  rating: number;
+  comment: string | null;
+  status: "pending" | "approved" | "rejected";
+  created_at?: string | null;
+  plugin?: { id: number; name: string; slug: string; version: string } | null;
+  user?: { id: number; name: string; email: string } | null;
+};
+
 /* ── مرکزی: داشبورد (۲.۱) ── */
 
 
@@ -726,6 +875,20 @@ export type UserSession = {
   last_used_at?: string | null;
   created_at?: string;
   expires_at?: string | null;
+};
+
+/** WF-H8 — یک تلاشِ ورود (موفق/ناموفق) برای کارت «تاریخچهٔ ورود». */
+export type LoginEvent = {
+  id: number;
+  successful: boolean;
+  ip?: string | null;
+  os?: string | null;
+  os_version?: string | null;
+  browser?: string | null;
+  browser_version?: string | null;
+  device?: string | null;
+  device_type?: string | null;
+  created_at?: string | null;
 };
 
 /* ── مرکزی: اپراتور (۲.۷) ── */

@@ -162,7 +162,13 @@ final class Ecdh
         return self::rawToBase64Url(self::encodePoint($point));
     }
 
-    /** `0x04 ‖ x ‖ y` ⇒ نقطه، با اعتبارسنجی کامل. */
+    /**
+     * `0x04 ‖ x ‖ y` ⇒ نقطه، با اعتبارسنجی کامل.
+     *
+     * ‎⚠️ اعتبارسنجی در `Curve::isOnCurve()` است و هر سه گامِ RFC 8291 §۷
+     * را انجام می‌دهد: بی‌نهایت نبودن، مختصات در بازهٔ `1 … p−1` بودن
+     * (گامی که پیش‌تر جا افتاده بود)، و درستیِ معادلهٔ منحنی.
+     */
     public static function decodePoint(string $raw): Point
     {
         if (strlen($raw) !== self::POINT_LENGTH || $raw[0] !== "\x04") {

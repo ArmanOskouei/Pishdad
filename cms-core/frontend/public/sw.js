@@ -5,7 +5,6 @@
  *
  * • نمایش اعلان‌های push دریافتی
  * • باز کردن صفحهٔ مقصد وقتی کاربر روی اعلان کلیک می‌کند
- * • مدیریت opt-out از سمت کاربر
  *
  * ## چرا این فایل باید ریشه باشد
  *
@@ -23,20 +22,24 @@ const TAG = 'pishdad-sw-v1';
 /* -------------------------------------------------------------- lifecycle */
 
 self.addEventListener('install', (event) => {
-  // بدون skipWaiting: اعلان فعال نباید ناگهانی وسط کارِ کاربر بیاید.
-  self.skipWaiting();
+  // عمداً `skipWaiting`: این سرویس‌ورکر هیچ کش و هیچ handler برای `fetch`
+  // ندارد، پس «کاریزاده‌کردن» صفحه را در میانهٔ کار کاربر انجام نمی‌دهد و
+  // نسخهٔ تازه بلافاصله push می‌گیرد.
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== TAG).map((key) => caches.delete(key))),
-    ),
-  );
+    (async () => {
+      const keys = await caches.keys();
 
-  // ⚠️ اگر کاربر قبلاً گفته «نمی‌خواهم»، آن تصمیم نباید با ثبت دوبارهٔ
-  // سرویس‌ورکر پاک شود.
-  self.clients.claim();
+      await Promise.all(keys.filter((key) => key !== TAG).map((key) => caches.delete(key)));
+
+      // ⚠️ `claim` باید داخل `waitUntil` باشد وگرنه مرورگر آن را نمی‌بیند و
+      // کنترل پیش از پایان، رها می‌شود.
+      await self.clients.claim();
+    })(),
+  );
 });
 
 /* ------------------------------------------------------------------ push */
@@ -68,12 +71,15 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const target = event.notification.data?.url || '/';
+  const target = safeTarget(event.notification.data?.url);
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
-        if (client.url.includes(target) && 'focus' in client) {
+        // ⚠️ تطبیق با `pathname` تجزیه‌شده، نه `url.includes(target)`. الگوی
+        // قبلی substring بود: مسیرِ `/blog/post-1` تبِ `/blog/post-12` را هم
+        // «همان صفحه» حساب می‌کرد.
+        if (samePath(client.url, target) && 'focus' in client) {
           return client.focus();
         }
       }
@@ -83,19 +89,47 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-/**
- * opt-out از داخل اعلان.
- *
- * کاربر می‌تواند بدون رفتن به تنظیمات، اعلان‌ها را از کل سایت خاموش کند.
- * این تصمیم در localStorage ذخیره می‌شود و بنر opt-in هم آن را می‌خواند.
- */
-self.addEventListener('notificationclose', (event) => {
-  if (event.notification.data?.disable === true) {
-    event.waitUntil(storeOptOut());
-  }
-});
-
 /* ---------------------------------------------------------------- helpers */
+
+/**
+ * ⚠️ سخت‌گیریِ امنیتیِ مقصد کلیک.
+ *
+ * `data.url` از سرور می‌آید و به داده‌ای که مدیرِ سایت کنترلش می‌کند وابسته
+ * است. اگر همان متنِ خام به `openWindow` برسد، slugِ `//evil.example/x`
+ * به یک URLِ protocol-relative تبدیل می‌شود و کاربر به دامنهٔ بیرونی
+ * پرتاب می‌شود. پس هر چیزی که originِ هم‌دامنه نداشته باشد، به خانه
+ * برمی‌گردد.
+ */
+function safeTarget(raw) {
+  if (typeof raw !== 'string' || raw === '') {
+    return '/';
+  }
+
+  let url;
+
+  try {
+    url = new URL(raw, self.location.origin);
+  } catch {
+    return '/';
+  }
+
+  if (url.origin !== self.location.origin) {
+    return '/';
+  }
+
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+/** آیا URLِ تب در همین دامنه و با همین مسیر است؟ */
+function samePath(clientUrl, target) {
+  try {
+    const url = new URL(clientUrl, self.location.origin);
+
+    return url.origin === self.location.origin && url.pathname === new URL(target, self.location.origin).pathname;
+  } catch {
+    return false;
+  }
+}
 
 async function showNotification(payload) {
   const title = payload.title || 'پیشداد';
@@ -109,18 +143,13 @@ async function showNotification(payload) {
     // ‎tag باعث می‌شود اعلان‌های هم‌موضوع جایگزین هم شوند نه اینکه پشت
     // سر هم جمع شوند.
     tag: payload.tag || undefined,
-    data: { url: payload.url || '/' },
+    // ⚠️ همین‌جا هم مهلک: مقصد پیش از ذخیره در `data` اعتبارسنجی می‌شود، نه
+    // فقط هنگام کلیک. وگرنه هر `data.url` ناامن تا وقتی کاربر کلیک نکرده
+    // باقی می‌ماند.
+    data: { url: safeTarget(payload.url) },
     dir: 'rtl',
     lang: 'fa',
   };
 
   await self.registration.showNotification(title, options);
-}
-
-async function storeOptOut() {
-  const clients = await self.clients.matchAll({ type: 'window' });
-
-  for (const client of clients) {
-    client.postMessage({ type: 'pishdad:opt-out' });
-  }
 }

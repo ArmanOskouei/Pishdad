@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\MailTemplates;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Notifications\ContactTicketNotification;
@@ -90,7 +91,7 @@ class ContactTicketController extends Controller
         ];
 
         try {
-            $admins = User::query()->where('is_super_admin', true)->get();
+            $admins = User::query()->whereIn('role', ['owner', 'admin'])->get();
 
             if ($admins->isNotEmpty()) {
                 $notification = new ContactTicketNotification(
@@ -151,31 +152,25 @@ class ContactTicketController extends Controller
 
         $recipients = array_values(array_unique($recipients));
 
+        $template = MailTemplates::render('contact', [
+            'app_name' => (string) config('app.name'),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'subject' => $validated['subject'],
+            'body' => $validated['body'],
+            'ticket_id' => (int) $ticket->id,
+        ]);
+
         foreach ($recipients as $recipient) {
             Outbox::email(
                 $recipient,
                 "contact-ticket:{$ticket->id}:{$recipient}",
-                'پیام جدید از فرم تماس: '.$validated['subject'],
-                $this->adminEmailBody($ticket, $validated),
+                $template['subject'],
+                $template['body'],
+                html: true,
             );
         }
 
         return count($recipients);
-    }
-
-    /**
-     * @param  array{name: string, email: string, subject: string, body: string}  $validated
-     */
-    private function adminEmailBody(Ticket $ticket, array $validated): string
-    {
-        return implode("\n", [
-            'پیام تازه از فرم تماس سایت',
-            'شناسهٔ تیکت: '.$ticket->id,
-            'نام: '.$validated['name'],
-            'ایمیل: '.$validated['email'],
-            'موضوع: '.$validated['subject'],
-            '',
-            $validated['body'],
-        ]);
     }
 }

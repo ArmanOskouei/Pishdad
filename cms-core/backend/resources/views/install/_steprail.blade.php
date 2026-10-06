@@ -5,7 +5,7 @@
     'database'   => '۲. پایگاه داده',
     'app_key'    => '۳. کلید برنامه',
     'migrate'    => '۴. مهاجرت‌ها',
-    'superadmin' => '۵. سوپرادمین',
+    'superadmin' => '۵. مدیر اصلی',
     'finalize'   => '۶. اتمام',
   ];
   $order = array_keys($steps);

@@ -8,6 +8,7 @@ import {
   parsePluginContract,
   type PluginPackageContract,
 } from "@/lib/plugin-contract";
+import { ThemeDeveloperGuide } from "@/components/ThemeDeveloperGuide";
 
 /**
  * راهنمای توسعه‌دهنده پلاگین/قالب (مورد ۶) — بخش جمع‌شونده در صفحات
@@ -131,6 +132,9 @@ export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
   }, [isPlugin, load]);
 
   const CONTRACT = contract.status === "ready" ? contract.value : null;
+
+  // قالب: راهنمای کاملِ دوزبانه با خروجی PDF (بخش‌های دستیِ زیر مخصوص پلاگین‌اند).
+  if (!isPlugin) return <ThemeDeveloperGuide />;
 
   const manifestSample = isPlugin
     ? `{

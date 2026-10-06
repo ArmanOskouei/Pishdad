@@ -1,18 +1,26 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
-import { fetchHomepage, fetchSiteChrome, type SiteChrome } from "@/lib/site";
+import { notFound, redirect } from "next/navigation";
+import { fetchHomepageFallback, fetchSiteChrome, siteBaseUrl, type SiteChrome } from "@/lib/site";
 import { PushOptInBanner } from "@/components/site/PushOptInBanner";
 import {
   PreparingSite,
   ThemedHome,
+  effectiveLocale,
   pageMetadata,
   preparingMetadata,
   suspendedNotice,
 } from "@/components/site/PublicPage";
 import type { SitePage } from "@/lib/domain";
 import { isPublicLocale, publicOgLocale, type PublicLocale } from "@/lib/i18n/public";
-import { parseLocalesHeader, SITE_LOCALES_HEADER } from "@/lib/public-routing";
+import {
+  buildAlternatesLanguages,
+  localeFallbackChain,
+  localePublicPath,
+  parseLocalesHeader,
+  pickBrowserLocale,
+  SITE_LOCALES_HEADER,
+} from "@/lib/public-routing";
 
 /**
  * ECO2 — صفحهٔ خانهٔ زبانِ دوم (`/en`).
@@ -36,18 +44,41 @@ async function localeAvailable(locale: PublicLocale): Promise<boolean> {
   return list.length === 0 || list.includes(locale);
 }
 
+/**
+ * WF-H15 — متادیتای صفحهٔ خانه با `hreflang` کامل + `x-default`.
+ *
+ * `alternates` را از روی زبانِ واقعیِ خانه (که با fallback پیدا شده) می‌سازد تا
+ * در صورت نبودِ نسخهٔ زبانِ درخواستی، canonical به نسخهٔ موجود اشاره کند و
+ * محتوای تکراری ساخته نشود.
+ */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale: raw } = await params;
   const locale: PublicLocale = isPublicLocale(raw) ? raw : "fa";
-  const [page, chrome] = await Promise.all([
-    fetchHomepage(locale).catch(() => null),
-    fetchSiteChrome().catch(() => null),
-  ]);
-  if (!page) return { ...preparingMetadata(locale) };
-  const md = pageMetadata(chrome as SiteChrome | null, page as SitePage, locale);
-  return { ...md, openGraph: { ...(md.openGraph ?? {}), locale: publicOgLocale(locale) } };
+  const chrome = await fetchSiteChrome().catch(() => null);
+  const { locales, primary } = effectiveLocale(chrome, locale);
+  const h = await headers();
+  const browserPreferred = pickBrowserLocale(h.get("accept-language"), locales, primary);
+  const chain = localeFallbackChain(locale, locales, primary, browserPreferred);
+  const found = await fetchHomepageFallback(chain);
+  if (!found) return { ...preparingMetadata(locale) };
+  const resolved: PublicLocale = isPublicLocale(found.locale) ? found.locale : locale;
+  const base = siteBaseUrl(chrome);
+  const canonical = base ? `${base}${localePublicPath(resolved, "", primary)}` : undefined;
+  const languages = base ? buildAlternatesLanguages({ base, slug: "", locales, primary }) : undefined;
+  const md = pageMetadata(chrome as SiteChrome | null, found.page as SitePage, resolved, {
+    ...(canonical ? { alternates: { canonical, ...(languages ? { languages } : null) } } : null),
+  });
+  return { ...md, openGraph: { ...(md.openGraph ?? {}), locale: publicOgLocale(resolved) } };
 }
 
+/**
+ * WF-H15 — fallback زبان برای صفحهٔ خانه.
+ *
+ * اگر خانه در زبانِ درخواستی منتشر نشده باشد، زبانِ مرورگر و سپس زبانِ پایه
+ * امتحان می‌شود و در صورت یافتن، ۳۰۸ به مسیرِ همان زبان می‌رود (برای زبانِ پایه
+ * مسیرِ `/`). فقط زبان‌های پیکربندی‌شده کاندید‌اند، پس حلقهٔ ریدایرکت ممکن
+ * نیست؛ اگر هیچ نسخه‌ای نباشد، همان صفحهٔ «در حال آماده‌سازی» قبلی می‌آید.
+ */
 export default async function LocaleHome({ params }: Props) {
   const { locale: raw } = await params;
   const locale: PublicLocale = isPublicLocale(raw) ? raw : "fa";
@@ -56,14 +87,19 @@ export default async function LocaleHome({ params }: Props) {
   const suspended = await suspendedNotice(locale);
   if (suspended) return suspended;
 
-  const [page, chrome] = await Promise.all([
-    fetchHomepage(locale).catch(() => null),
-    fetchSiteChrome().catch(() => null),
-  ]);
+  const chrome = await fetchSiteChrome().catch(() => null);
+  const { locales, primary } = effectiveLocale(chrome, locale);
+  const h = await headers();
+  const browserPreferred = pickBrowserLocale(h.get("accept-language"), locales, primary);
+  const chain = localeFallbackChain(locale, locales, primary, browserPreferred);
+  const found = await fetchHomepageFallback(chain);
 
-  if (!page) {
+  if (!found) {
     return <PreparingSite chrome={chrome} locale={locale} />;
   }
 
-  return <ThemedHome page={page as SitePage} chrome={chrome} locale={locale} banner={<PushOptInBanner />} />;
+  const resolved: PublicLocale = isPublicLocale(found.locale) ? found.locale : locale;
+  if (resolved !== locale) redirect(localePublicPath(resolved, "", primary));
+
+  return <ThemedHome page={found.page as SitePage} chrome={chrome} locale={resolved} banner={<PushOptInBanner />} />;
 }

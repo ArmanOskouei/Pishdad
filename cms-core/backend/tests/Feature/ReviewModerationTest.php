@@ -6,10 +6,9 @@ use App\Models\Plugin;
 use App\Models\User;
 use App\Services\Plugins\PluginSignatureVerifier;
 use Database\Seeders\RolesPermissionsSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
-use Tests\TestCase;
+use Tests\PluginDdlTestCase;
 use ZipArchive;
 
 /**
@@ -17,10 +16,8 @@ use ZipArchive;
  * آپلود→pending، فعال‌سازی pending=422، approve→فعال‌سازی OK،
  * reject+note→نمایش note، حذف، استثنای اپراتور.
  */
-class ReviewModerationTest extends TestCase
+class ReviewModerationTest extends PluginDdlTestCase
 {
-    use RefreshDatabase;
-
     private string $publicKey;
 
     private string $secretKey;
@@ -48,10 +45,15 @@ class ReviewModerationTest extends TestCase
 
     private function operator(): User
     {
-        return User::query()->create([
+        $user = User::query()->create([
             'name' => 'اپراتور', 'email' => uniqid().'@example.com',
             'password' => Hash::make('Operator!1234'), 'role' => 'operator',
         ]);
+        // پیش‌تر «سوپرادمین» از پرمیشن معاف بود؛ اکنون اپراتور باید صریحاً
+        // پرمیشن آپلود داشته باشد (بازبینی‌اش مستثناست ولی دسترسی لازم است).
+        $user->givePermissionTo('plugins.edit');
+
+        return $user->fresh();
     }
 
     private function pluginZip(array $manifest): UploadedFile
@@ -182,12 +184,13 @@ class ReviewModerationTest extends TestCase
 
     public function test_operator_upload_is_auto_approved(): void
     {
-        // سوپرادمین از قفل بازبینی مستثناست (سیدر/داخلی‌ها approved) و از گیت پرمیشن هم عبور می‌کند.
+        // اپراتور از قفل بازبینی مستثناست؛ ولی دسترسیِ آپلود باید صریح باشد
+        // (پیش‌تر «سوپرادمین» از گیت پرمیشن هم عبور می‌کرد).
         $super = User::query()->create([
-            'name' => 'سوپر', 'email' => uniqid().'@example.com',
+            'name' => 'اپراتور', 'email' => uniqid().'@example.com',
             'password' => Hash::make('Super!1234'), 'role' => 'operator',
-            'is_super_admin' => true, 'is_hidden' => true,
         ]);
+        $super->givePermissionTo('plugins.edit');
 
         $op = $this->actingAs($super->fresh(), 'sanctum');
 

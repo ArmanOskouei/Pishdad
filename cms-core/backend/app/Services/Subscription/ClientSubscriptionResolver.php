@@ -293,11 +293,6 @@ public static function isAvailable(): bool
      */
     public static function forUser(User $user): ?array
     {
-        // Q1 (نصب یعنی سایت) — سوپرادمینِ مخفی صورتحساب ندارد.
-        if ((bool) ($user->is_super_admin ?? false)) {
-            return null;
-        }
-
         // J5 — دیگر `firstOrCreate` روی جدول‌های افزونه نمی‌کنیم.
         //
         // نسخهٔ قبل در همین‌جا دو کار می‌کرد: هم می‌خواند، هم *می‌ساخت*. ساختن یعنی

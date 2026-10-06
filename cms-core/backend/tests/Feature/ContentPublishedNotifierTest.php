@@ -5,12 +5,15 @@ namespace Tests\Feature;
 use App\Models\Page;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Services\Outbox\Outbox;
 use App\Services\Push\ContentPublishedNotifier;
 use App\Services\Push\Ecdh;
 use App\Services\Push\PushSender;
 use App\Services\Push\VapidKeys;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -29,6 +32,18 @@ use Tests\TestCase;
  * ۳. `contact()` ردیفِ ناموجودِ `key='email'` را می‌خواند ⇒ همیشه
  *    `mailto:admin@localhost` می‌افتاد و VAPID با مخاطبِ نادرست
  *    امضا می‌شد.
+ *
+ * ## ⭐ تغییرِ F5.3: اعلان از مسیرِ درخواستِ خارج شد
+ *
+ * `announce()` قبلاً `broadcastAll()` را **درونِ همان درخواستِ انتشار** صدا
+ * می‌زد؛ یعنی با N مشترک، تا N درخواستِ HTTPِ سریال با timeout ده‌ثانیه‌ای
+ * در مسیری که کاربر منتظرش بود. حالا فقط صف می‌سازد و `outbox:drain` تحویل
+ * می‌دهد.
+ *
+ * چند تستِ این فایل **عمداً** عوض شدند و باید بدانی چرا: آن‌ها بعد از
+ * `announce()` مستقیم `Http::assertSent*()` می‌زدند، یعنی رفتارِ همزمان را
+ * تثبیت می‌کردند — و تثبیتِ رفتاری که باید حذف شود، خودش نوعی باگ است. نیتِ
+ * هر تست حفظ شده و فقط راهِ اثبات عوض شده: `drain()` صدا زده می‌شود.
  *
  * @internal
  */
@@ -67,8 +82,12 @@ class ContentPublishedNotifierTest extends TestCase
         ];
     }
 
-    private function subscribe(?User $user = null, string $endpoint = self::ENDPOINT): PushSubscription
-    {
+    private function subscribe(
+        ?User $user = null,
+        string $endpoint = self::ENDPOINT,
+        ?string $locale = null,
+        ?string $topic = null,
+    ): PushSubscription {
         $keys = $this->validBrowserKeys();
 
         return PushSubscription::query()->create([
@@ -76,6 +95,8 @@ class ContentPublishedNotifierTest extends TestCase
             'p256dh' => $keys['p256dh'],
             'auth' => $keys['auth'],
             'user_id' => $user?->id,
+            'locale' => $locale,
+            'topic' => $topic,
         ]);
     }
 
@@ -93,10 +114,38 @@ class ContentPublishedNotifierTest extends TestCase
         return $page;
     }
 
+    /**
+     * تخلیهٔ صف — همان کاری که `outbox:drain` بیرون از اپ انجام می‌دهد.
+     *
+     * ‎⚠️ از نسخهٔ F5.3 این **لازم** است: `announce()` دیگر خودش HTTP
+     * نمی‌زند، پس تست باید صریحاً بگوید «الان صف را تخلیه کن» وگرنه
+     * دربارهٔ رفتاری تست می‌کرد که دیگر وجود ندارد.
+     */
+    private function drain(): void
+    {
+        $this->artisan('outbox:drain')->assertSuccessful();
+    }
+
+    /** @return list<object> سطرهای صفِ push که از فیلترِ کانال رد شده‌اند. */
+    private function queuedPushRows(): array
+    {
+        return DB::table('notification_deliveries')
+            ->where('channel', Outbox::CHANNEL_PUSH)
+            ->orderBy('id')
+            ->get()
+            ->all();
+    }
+
     // ── broadcastAll: زائر *و* مدیر ────────────────────────────────
 
     /**
      * 🔴 رگرسیون: اعلان باید به زائر بی‌نام **و** به مدیر برسد.
+     *
+     * ⚠️ تغییرِ عمدی (F5.3): این تست قبلاً بعد از `announce()` مستقیم
+     * `Http::assertSentCount(2)` می‌زد، یعنی **همان رفتارِ همزمان** را تثبیت
+     * می‌کرد — دقیقاً همان چیزی که باید حذف شود. نیتِ تست (هر دو گروه اعلان
+     * می‌گیرند) حفظ شده، ولی از راهِ درست: صف ساخته می‌شود، بعد `drain`
+     * تحویل می‌دهد.
      */
     public function test_announcement_reaches_both_visitors_and_admins(): void
     {
@@ -108,6 +157,10 @@ class ContentPublishedNotifierTest extends TestCase
         Http::fake(['*' => Http::response('', 201)]);
 
         $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
+
+        $this->assertCount(2, $this->queuedPushRows());
+
+        $this->drain();
 
         Http::assertSentCount(2);
 
@@ -132,7 +185,85 @@ class ContentPublishedNotifierTest extends TestCase
 
         $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
 
+        $this->drain();
+
         Http::assertSentCount(1);
+    }
+
+    /**
+     * ⭐⭐ F5.3 — انتشار **فقط صف می‌سازد**، خودش هیچ HTTP بیرونی نمی‌زند.
+     *
+     * با N مشترک، نسخهٔ قبل تا N درخواستِ سریال با timeout ده‌ثانیه‌ای در
+     * مسیرِ همان درخواستِ انتشار می‌زد. اگر این ادعا برقرار نبود، «صف دارد ولی
+     * باز هم مسدود می‌کند» ممکن است — و آن دقیقاً همان باگی است که این تسک
+     * برایش باز شد.
+     */
+    public function test_publishing_queues_rows_without_touching_the_push_service(): void
+    {
+        $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/a');
+        $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/b');
+        $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/c');
+
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
+
+        Http::assertNothingSent();
+
+        $rows = $this->queuedPushRows();
+
+        $this->assertCount(3, $rows, 'هر مشترک باید سطرِ خودش را داشته باشد.');
+
+        foreach ($rows as $row) {
+            $this->assertSame(Outbox::STATUS_PENDING, $row->status);
+            $this->assertSame(0, (int) $row->attempts);
+        }
+    }
+
+    /**
+     * ⭐⭐ کلیدِ dedupe باید شناسهٔ اشتراک را داشته باشد.
+     *
+     * قیدِ یکتا روی `dedupe_key` است؛ اگر شناسه نباشد، سه مشترک در **یک** سطر
+     * جمع می‌شوند و enqueue اول `null` می‌گیرد — یعنی فقط یک نفر اعلان می‌گیرد و
+     * بقیه بی‌سروصدا حذف می‌شوند.
+     */
+    public function test_each_subscription_gets_its_own_dedupe_key(): void
+    {
+        $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/a');
+        $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/b');
+
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
+
+        $keys = array_map(fn (object $row): string => (string) $row->dedupe_key, $this->queuedPushRows());
+
+        $this->assertCount(2, $keys);
+        $this->assertCount(2, array_unique($keys), 'کلیدهای dedupe باید یکتا بمانند.');
+
+        $this->drain();
+
+        Http::assertSentCount(2);
+    }
+
+    /**
+     * ⭐⭐ `recipient` نباید endpoint باشد.
+     *
+     * ستون `varchar(200)` است و endpointهای FCM/WNS معمولاً بلندترند. ضمناً
+     * endpoint عملاً کلیدِ ارسال push است و `notification_deliveries` جدولی است
+     * که backup و dump می‌خوانند.
+     */
+    public function test_the_queue_recipient_is_the_subscription_id_not_the_endpoint(): void
+    {
+        $subscription = $this->subscribe(null, 'https://wns2-by3p.notify.windows.com/w/?token=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP');
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
+
+        $row = $this->queuedPushRows()[0];
+
+        $this->assertSame((string) $subscription->id, (string) $row->recipient);
+        $this->assertStringNotContainsString('notify.windows.com', (string) $row->recipient);
+        $this->assertLessThanOrEqual(200, mb_strlen((string) $row->recipient));
     }
 
     public function test_nothing_is_sent_when_there_are_no_subscribers(): void
@@ -140,6 +271,10 @@ class ContentPublishedNotifierTest extends TestCase
         Http::fake();
 
         $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
+
+        $this->assertSame([], $this->queuedPushRows());
+
+        $this->drain();
 
         Http::assertNothingSent();
     }
@@ -163,6 +298,10 @@ class ContentPublishedNotifierTest extends TestCase
 
         $this->app->make(ContentPublishedNotifier::class)->announce($draft);
 
+        $this->assertSame([], $this->queuedPushRows());
+
+        $this->drain();
+
         Http::assertNothingSent();
     }
 
@@ -170,16 +309,41 @@ class ContentPublishedNotifierTest extends TestCase
 
     /**
      * ⚠️ خرابی سرویس push نباید باعث ۵۰۰ شدن صفحهٔ انتشار شود.
+     *
+     * ‎F5.3 — از آنجا که `announce()` دیگر HTTP نمی‌زند، این تست دیگر مسیرِ
+     * شبکه را نمی‌سنجد؛ سنجهٔ درست این است که **ساختنِ صف** هم شکست را
+     * بلعیده. پس سرویس را طوری خراب می‌کنیم که enqueue استثنا بدهد.
      */
-    public function test_a_transport_failure_does_not_throw(): void
+    public function test_an_enqueue_failure_does_not_throw(): void
     {
         $this->subscribe();
 
-        Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('boom'));
+        DB::statement('DROP TABLE notification_deliveries');
 
         $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
 
-        $this->assertTrue(true, 'انتشار نباید exception بدهد');
+        $this->assertTrue(true, 'انتشار نباید exception بدهد.');
+    }
+
+    /**
+     * ⚠️ خرابی در لحظهٔ **تحویل** هم نباید سطر را `sent` کند.
+     */
+    public function test_a_transport_failure_leaves_the_row_retryable(): void
+    {
+        $this->subscribe();
+
+        Http::fake(fn () => throw new ConnectionException('boom'));
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
+
+        $this->drain();
+
+        $row = $this->queuedPushRows()[0];
+
+        $this->assertNotSame(Outbox::STATUS_SENT, $row->status, 'سطر نباید «ارسال شد» بخورد.');
+        $this->assertSame(Outbox::STATUS_PENDING, $row->status, 'تلاش اول باید قابل retry بماند.');
+        $this->assertSame(1, (int) $row->attempts);
+        $this->assertNotNull($row->last_error);
     }
 
     // ── قرارداد درخواست HTTP ───────────────────────────────────────
@@ -192,11 +356,27 @@ class ContentPublishedNotifierTest extends TestCase
 
         $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
 
+        $this->drain();
+
         /** @var Request $request */
         $request = Http::recorded()->first()[0];
 
         $this->assertSame('aes128gcm', $request->header('Content-Encoding')[0] ?? null);
-        $this->assertNotEmpty($request->header('Encryption')[0] ?? null);
+
+        // ⚠️ برای `aes128gcm` نباید هدر `Encryption` فرستاده شود: salt خودش
+        // ۱۶ بایت اولِ body است و آن هدر متعلق به قالبِ کهنِ `aes128` (پیش از
+        // RFC 8188) بود که salt را بیرون از body می‌فرستاد.
+        $this->assertEmpty(
+            $request->header('Encryption'),
+            'هدر Encryption برای aes128gcm نباید فرستاده شود؛ salt داخل body است.',
+        );
+
+        // ‎salt = ۱۶ بایت اولِ body.
+        $this->assertSame(
+            16,
+            strlen(substr($request->body(), 0, 16)),
+            'salt باید ۱۶ بایت اول body باشد.',
+        );
 
         // هدر احراز هویت VAPID باید حاضر باشد.
         $authorization = $request->header('Authorization')[0] ?? '';
@@ -219,6 +399,8 @@ class ContentPublishedNotifierTest extends TestCase
 
         $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
 
+        $this->drain();
+
         /** @var Request $request */
         $request = Http::recorded()->first()[0];
 
@@ -237,7 +419,7 @@ class ContentPublishedNotifierTest extends TestCase
      */
     public function test_vapid_contact_uses_the_configured_site_email(): void
     {
-        \Illuminate\Support\Facades\DB::table('settings')->updateOrInsert(
+        DB::table('settings')->updateOrInsert(
             ['group' => 'site', 'key' => 'global'],
             [
                 'value' => json_encode(['email' => 'hello@example.org'], JSON_UNESCAPED_SLASHES),
@@ -250,6 +432,8 @@ class ContentPublishedNotifierTest extends TestCase
         Http::fake(['*' => Http::response('', 201)]);
 
         $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
+
+        $this->drain();
 
         /** @var Request $request */
         $request = Http::recorded()->first()[0];
@@ -385,5 +569,109 @@ class ContentPublishedNotifierTest extends TestCase
 
         $this->assertSame(['sent' => 1, 'failed' => 1], $result);
         $this->assertDatabaseHas('push_subscriptions', ['id' => $healthy->id]);
+    }
+
+    // ── ⭐⭐ فیلترِ locale/topic (F5.3) ──────────────────────────────
+
+    /**
+     * 🔴 spam: قبلاً هر صفحهٔ منتشرشده‌ای به **همهٔ** مشترک‌ها می‌رفت.
+     *
+     * مشترکی که صریحاً `topic = 'blog'` دارد نباید اعلانِ یک صفحهٔ `single` را
+     * بگیرد.
+     */
+    public function test_a_specific_topic_excludes_subscribers_of_other_topics(): void
+    {
+        $blogger = $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/blogger', null, 'blog');
+        $everyone = $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/everyone');
+
+        $page = $this->publishedPage();
+        $page->forceFill(['meta' => ['page_type' => 'single']])->save();
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($page);
+
+        $recipients = array_map(fn (object $row): string => (string) $row->recipient, $this->queuedPushRows());
+
+        $this->assertNotContains((string) $blogger->id, $recipients, 'مشترکِ blog نباید صفحهٔ single را بگیرد.');
+        $this->assertContains((string) $everyone->id, $recipients, 'مشترکِ بدون topic همه را می‌گیرد.');
+    }
+
+    /**
+     * همین فیلتر در جهتِ مثبت هم باید کار کند، وگرنه `topic` فقط یک حذف‌کنندهٔ
+     * بی‌معنی است.
+     */
+    public function test_a_matching_topic_receives_the_page(): void
+    {
+        $blogger = $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/blogger', null, 'blog');
+
+        $page = $this->publishedPage();
+        $page->forceFill(['meta' => ['page_type' => 'blog']])->save();
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($page);
+
+        $recipients = array_map(fn (object $row): string => (string) $row->recipient, $this->queuedPushRows());
+
+        $this->assertContains((string) $blogger->id, $recipients);
+    }
+
+    /**
+     * ⭐⭐ صفحهٔ **بدون** `page_type` یعنی «نوعی اعلام نشده»، نه «از هر نوع».
+     *
+     * اگر حالتِ `null` را «همه» می‌گرفتیم، کسی که `topic = 'blog'` را انتخاب کرده
+     * بود اعلانِ صفحهٔ بی‌نوع را هم می‌گرفت و فیلتر عملاً توخالی می‌شد. پس فقط
+     * مشترکِ بدونِ محدودیت می‌گیرد.
+     */
+    public function test_a_page_without_a_type_only_reaches_topic_less_subscribers(): void
+    {
+        $blogger = $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/blogger', null, 'blog');
+        $everyone = $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/everyone');
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($this->publishedPage());
+
+        $recipients = array_map(fn (object $row): string => (string) $row->recipient, $this->queuedPushRows());
+
+        $this->assertNotContains((string) $blogger->id, $recipients);
+        $this->assertContains((string) $everyone->id, $recipients);
+    }
+
+    /**
+     * 🔴 `locale` تنها چیزی است که فرانت واقعاً می‌فرستد، پس باید واقعاً فیلتر
+     * کند: مشترکِ `en` نباید اعلانِ صفحهٔ `fa` را بگیرد.
+     */
+    public function test_locale_excludes_subscribers_of_another_locale(): void
+    {
+        $english = $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/en', 'en');
+        $persian = $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/fa', 'fa');
+
+        $page = $this->publishedPage();
+        $page->forceFill(['locale' => 'fa'])->save();
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($page);
+
+        $recipients = array_map(fn (object $row): string => (string) $row->recipient, $this->queuedPushRows());
+
+        $this->assertContains((string) $persian->id, $recipients);
+        $this->assertNotContains((string) $english->id, $recipients);
+    }
+
+    /**
+     * ⭐⭐ ردیفِ **قدیمی** با `locale IS NULL` باید اعلان بگیرد.
+     *
+     * این مهم‌ترین ادعای فیلتر است: هیچ backfillی در این پروژه انجام نشده و
+     * front-end فقط از نسخه‌های جدید `locale` می‌فرستد. اگر `NULL` را «هیچ‌کدام»
+     * می‌گرفتیم، هر مشترکِ قدیمی برای همیشه بی‌صدا حذف می‌شد و هیچ نشانه‌ای هم
+     * نبود که بفهمیم چرا.
+     */
+    public function test_a_subscription_without_a_locale_still_receives_announcements(): void
+    {
+        $legacy = $this->subscribe(null, 'https://fcm.googleapis.com/fcm/send/legacy');
+
+        $page = $this->publishedPage();
+        $page->forceFill(['locale' => 'fa'])->save();
+
+        $this->app->make(ContentPublishedNotifier::class)->announce($page);
+
+        $recipients = array_map(fn (object $row): string => (string) $row->recipient, $this->queuedPushRows());
+
+        $this->assertContains((string) $legacy->id, $recipients);
     }
 }

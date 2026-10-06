@@ -2,6 +2,7 @@
 
 namespace App\Services\Settings;
 
+use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -20,8 +21,28 @@ final class CachedSettings
         return "settings:{$group}:{$key}";
     }
 
+    /** آیا کشِ سمتِ بک‌اند فعال است؟ کلید سراسری `site.cache_enabled` (پیش‌فرض: فعال). */
+    public static function enabled(): bool
+    {
+        static $enabled = null;
+        if ($enabled === null) {
+            try {
+                $site = Setting::get('site', 'global', []);
+                $enabled = ! is_array($site) || (($site['cache_enabled'] ?? true) !== false);
+            } catch (\Throwable) {
+                $enabled = true;
+            }
+        }
+
+        return $enabled;
+    }
+
     public static function remember(string $group, string $key, int $ttl, callable $fallback): mixed
     {
+        if (! self::enabled()) {
+            return $fallback();
+        }
+
         $cacheKey = self::key($group, $key);
 
         try {

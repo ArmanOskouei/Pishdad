@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -18,13 +17,13 @@ class User extends Authenticatable
         'email',
         'password',
         'phone',
+        'telegram_chat_id',
+        'notification_daily_digest',
         'avatar_media_id',
         'first_name',
         'last_name',
         'bio',
         'role',
-        'is_super_admin',
-        'is_hidden',
         'google2fa_secret',
         'google2fa_enabled',
         'recovery_codes',
@@ -43,31 +42,15 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'google2fa_enabled' => 'boolean',
-            'is_super_admin' => 'boolean',
-            'is_hidden' => 'boolean',
+            'notification_daily_digest' => 'boolean',
             'recovery_codes' => 'array',
             'avatar_media_id' => 'integer',
         ];
     }
 
-    protected static function booted(): void
+    /** WF-M8 — آیا دست‌کم یکی از نقش‌های این کاربر «۲FA اجباری» را مطالبه می‌کند؟ */
+    public function rolesRequireTwoFactor(): bool
     {
-        // Superadmin can never be deleted (PLAN.md: hidden, non-deletable).
-        static::deleting(function (User $user) {
-            if ($user->is_super_admin) {
-                return false;
-            }
-        });
-    }
-
-    /** Regular listings must never include the hidden superadmin. */
-    public function scopeVisible(Builder $query): Builder
-    {
-        return $query->where('is_hidden', false);
-    }
-
-    public function isSuperAdmin(): bool
-    {
-        return (bool) $this->is_super_admin;
+        return $this->roles()->where('requires_2fa', true)->exists();
     }
 }

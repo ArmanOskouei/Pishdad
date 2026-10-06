@@ -10,17 +10,42 @@
  * نگهبانش: src/lib/dashboard-widget-card.test.ts
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { authed } from "@/lib/auth";
+import { authed, useAuth } from "@/lib/auth";
 import type { DashboardStats, DashboardAlert } from "@/lib/api";
 import { deriveSubscriptionView } from "@/lib/dashboard-subscription";
+import {
+  CHECKLIST_STEPS,
+  checklistProgress,
+  isChecklistComplete,
+  readChecklistDismissed,
+  shouldShowChecklist,
+  writeChecklistDismissed,
+} from "@/lib/onboarding";
 import { faNum, jalali, jalaliDate, relativeFa } from "@/lib/fa";
 import { Alert, StatCard, Skeleton, Badge } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
+import { TopPagesCard, type TopPagesPayload } from "./TopPagesCard";
 import type { Invoice, PageItem, Ticket } from "@/lib/domain";
 
+/**
+ * WF-M12 — `top_pages_7d` هنوز در تایپِ مشترکِ `DashboardStats` نیست (آن فایل
+ * قراردادِ همهٔ تسک‌هاست)، پس اینجا افزوده می‌شود تا تایپ یک‌جا بماند.
+ * `undefined`/`null` یعنی «پرمیشن تحلیل ندارد» ⇒ کارت پنهان.
+ */
+type DashboardStatsWithTopPages = DashboardStats & { top_pages_7d?: TopPagesPayload | null };
+
 type Activity = { kind: string; title: string; at?: string | null };
+
+/** localStorage با محافظِ عدم‌دسترسی (حالت خصوصی/SSR) — مثلِ خودِ Onboarding. */
+function browserStorage(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 /** تایم‌لاین «آخرین فعالیت‌ها» از APIهای موجود (صفحات/فاکتورها/تیکت‌ها) — endpoint جدید نیست. */
 async function loadActivity(): Promise<Activity[]> {
@@ -53,16 +78,29 @@ async function loadActivity(): Promise<Activity[]> {
 
 export default function DashboardPage() {
   const toast = useToast();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const { user, loading: authLoading } = useAuth();
+  const [stats, setStats] = useState<DashboardStatsWithTopPages | null>(null);
   const [alerts, setAlerts] = useState<DashboardAlert[] | null>(null);
   const [activity, setActivity] = useState<Activity[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checklistDismissed, setChecklistDismissed] = useState(false);
+
+  // WF-H21 — علامتِ پنهان‌کردنِ چک‌لیست per-user است؛ خواندنش در useEffect
+  // (نه در render) تا قاعدهٔ ضد React #301 رعایت شود.
+  useEffect(() => {
+    setChecklistDismissed(readChecklistDismissed(browserStorage(), user?.id ?? null));
+  }, [user?.id]);
+
+  const dismissChecklist = useCallback(() => {
+    writeChecklistDismissed(browserStorage(), user?.id ?? null);
+    setChecklistDismissed(true);
+  }, [user?.id]);
 
   useEffect(() => {
     (async () => {
       try {
         const [s, a] = await Promise.all([
-          authed<DashboardStats>("/v1/admin/dashboard/stats"),
+          authed<DashboardStatsWithTopPages>("/v1/admin/dashboard/stats"),
           authed<DashboardAlert[]>("/v1/admin/dashboard/alerts"),
         ]);
         setStats(s); setAlerts(a);
@@ -102,6 +140,26 @@ export default function DashboardPage() {
   const recent = stats.recent ?? { pages_new_7d: 0, media_new_7d: 0, tickets_new_7d: 0 };
   const deltaOf = (n: number) => (n > 0 ? `+${faNum(n)} در ۷ روز` : "—");
   const periodPct = subView.periodPct;
+
+  // WF-H21 — چک‌لیست راه‌اندازی: وضعیت از سرور (`stats.checklist`)، نمایش/پنهان
+  // در کلاینت. با کامل‌شدنِ هر ۵ گام خودکار پنهان می‌شود؛ پنهان‌کردنِ دستی هم
+  // per-user در localStorage می‌ماند.
+  const checklist = stats.checklist;
+  const progress = checklist ? checklistProgress(checklist) : null;
+  const showChecklist =
+    checklist !== undefined &&
+    shouldShowChecklist({
+      loading: authLoading,
+      userId: user?.id ?? null,
+      complete: isChecklistComplete(checklist),
+      dismissed: checklistDismissed,
+    });
+
+  // WF-M12 — کارتِ هستهٔ «صفحات پربازدید ۷ روز». `null` یعنی «پرمیشنِ تحلیل
+  // ندارد» و کارت پنهان می‌شود (همان قراردادِ `subscription: null`)؛
+  // `items: []` یعنی «مجاز ولی بی‌بازدید» و خودِ کارت حالتِ خالی نشان می‌دهد.
+  const topPages = stats.top_pages_7d ?? null;
+
   return (
     <div>
       <div className="page-head">
@@ -117,12 +175,62 @@ export default function DashboardPage() {
         </Alert>
       ))}
 
+      {showChecklist && progress ? (
+        <div className="card card-pad" style={{ marginBlockEnd: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="card-title" style={{ margin: 0 }}>راه‌اندازی سایت</div>
+            <div style={{ flex: 1 }} />
+            <button type="button" className="btn btn-ghost btn-sm" onClick={dismissChecklist}>پنهان کن</button>
+          </div>
+          <p className="card-sub">
+            {faNum(progress.completed)} از {faNum(progress.total)} گام انجام شده — با تکمیل همه، این راهنما خودکار پنهان می‌شود.
+          </p>
+          <div
+            className="progress"
+            role="progressbar"
+            aria-valuenow={progress.percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext={`${faNum(progress.percent)}٪ راه‌اندازی کامل شده`}
+            aria-label="پیشرفت راه‌اندازی سایت"
+          >
+            <i style={{ inlineSize: `${progress.percent}%` }} />
+          </div>
+          <ul style={{ listStyle: "none", margin: "12px 0 0", padding: 0 }}>
+            {CHECKLIST_STEPS.map((s, i) => {
+              const done = checklist[s.key];
+              return (
+                <li
+                  key={s.key}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                    paddingBlock: 8,
+                    borderBlockEnd: i < CHECKLIST_STEPS.length - 1 ? "1px dashed var(--border)" : "none",
+                  }}
+                >
+                  <span aria-hidden style={{ color: done ? "var(--primary)" : "var(--text-muted)", fontWeight: 700 }}>{done ? "✓" : "○"}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: done ? 700 : 400, textDecoration: done ? "line-through" : "none", color: done ? "var(--text-muted)" : "var(--text)" }}>{s.label}</div>
+                    {!done ? <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.hint}</div> : null}
+                  </div>
+                  {!done ? <Link className="btn btn-ghost btn-sm" href={s.href}>انجام بده</Link> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="grid c4" style={{ marginBlockEnd: 16 }}>
         <StatCard icon="▤" value={faNum(stats.pages_count)} label="صفحات" delta={deltaOf(recent.pages_new_7d)} up={recent.pages_new_7d > 0} />
         <StatCard icon="🗎" value={faNum(stats.media_count)} label="فایل‌ها" delta={deltaOf(recent.media_new_7d)} up={recent.media_new_7d > 0} />
         <StatCard icon="✉" value={faNum(stats.open_tickets)} label="تیکت‌های باز" delta={recent.tickets_new_7d > 0 ? `${faNum(recent.tickets_new_7d)} جدید در ۷ روز` : "—"} up={false} />
         {sub ? <StatCard icon="◈" value={sub.tier} label="پلن اشتراک" delta={sub.due_at ? relativeFa(sub.due_at) : "—"} up={!suspended} /> : null}
       </div>
+
+      {topPages ? <TopPagesCard widget={topPages} /> : null}
 
       <div className="grid c2" style={{ alignItems: "start" }}>
         {/* وقتی کارتِ اشتراک پنهان است، میانبرها تمام عرض را می‌گیرد تا

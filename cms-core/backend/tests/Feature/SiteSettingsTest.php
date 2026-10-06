@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\V1\Admin\SiteSettingsController;
 use App\Models\Media;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -265,16 +266,14 @@ class SiteSettingsTest extends TestCase
      * سناریوی واقعی مسئله ۱: تنظیم ذخیره‌شده توسط admin@example.com برای
      * سوپرادمین هم قابل خواندن است (سوپرادمین همه داده مدیریتی را می‌بیند).
      */
-    public function test_setting_saved_by_admin_is_readable_by_superadmin(): void
+    public function test_setting_saved_by_admin_is_readable_by_other_admin(): void
     {
         $admin = $this->user(['email' => 'admin@example.com']);
         $super = User::query()->create([
-            'name' => 'سوپرادمین',
+            'name' => 'مدیر دوم',
             'email' => 'super'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-            'is_super_admin' => true,
-            'is_hidden' => true,
         ]);
 
         $this->actingAs($admin, 'sanctum')->putJson('/api/v1/admin/settings/site', [
@@ -499,5 +498,47 @@ class SiteSettingsTest extends TestCase
 
         // بدون هیچ صبری: هم کش بک‌اند باطل شده هم مقدار تازه است.
         $this->getJson('/api/v1/site/chrome')->assertJsonPath('data.title', 'عنوان تازه');
+    }
+
+    /** WF-M20 — متن سیاست حریم خصوصی ذخیره، خوانده و در کروم عمومی افشا می‌شود. */
+    public function test_site_privacy_policy_roundtrip_and_chrome_exposes_it(): void
+    {
+        $user = $this->user();
+        $auth = $this->actingAs($user, 'sanctum');
+
+        $auth->putJson('/api/v1/admin/settings/site', [
+            'title' => 'سایت حریم خصوصی',
+            'privacy_policy' => "بند اول.\n\nبند دوم.",
+        ])->assertOk()->assertJsonPath('message', 'تنظیمات سایت ذخیره شد.');
+
+        $auth->getJson('/api/v1/admin/settings/site')
+            ->assertOk()
+            ->assertJsonPath('data.privacy_policy', "بند اول.\n\nبند دوم.");
+
+        $this->getJson('/api/v1/site/chrome')
+            ->assertOk()
+            ->assertJsonPath('data.privacy_policy', "بند اول.\n\nبند دوم.");
+    }
+
+    /** WF-M20 — متن سیاست نباید HTML بپذیرد (صفحهٔ عمومی امن بماند). */
+    public function test_site_rejects_privacy_policy_with_markup(): void
+    {
+        $user = $this->user();
+
+        $res = $this->actingAs($user, 'sanctum')->putJson('/api/v1/admin/settings/site', [
+            'title' => 'تست',
+            'privacy_policy' => '<script>alert(1)</script>',
+        ]);
+
+        $res->assertStatus(422);
+        $res->assertJsonValidationErrors(['privacy_policy']);
+    }
+
+    /** WF-M20 — نبودِ مقدار ⇒ پیش‌فرضِ غیرخالی افشا می‌شود. */
+    public function test_site_privacy_policy_has_default(): void
+    {
+        $this->getJson('/api/v1/site/chrome')
+            ->assertOk()
+            ->assertJsonPath('data.privacy_policy', SiteSettingsController::DEFAULT_PRIVACY_POLICY);
     }
 }

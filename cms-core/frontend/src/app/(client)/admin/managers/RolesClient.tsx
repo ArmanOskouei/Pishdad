@@ -41,7 +41,7 @@ export function RolesClient({ initial, matrix }: { initial: RoleItem[]; matrix: 
       ) : (
         <div className="table-wrap">
           <table className="tbl tbl-cards">
-            <thead><tr><th>نقش</th><th>دسترسی‌ها</th><th>مدیران</th><th>اکشن</th></tr></thead>
+            <thead><tr><th>نقش</th><th>دسترسی‌ها</th><th>مدیران</th><th>۲FA اجباری</th><th>اکشن</th></tr></thead>
             <tbody>
               {initial.map((r) => (
                 <tr key={r.id}>
@@ -51,6 +51,7 @@ export function RolesClient({ initial, matrix }: { initial: RoleItem[]; matrix: 
                   </td>
                   <td data-label="دسترسی‌ها">{faNum(r.permissions.length)} دسترسی</td>
                   <td data-label="مدیران">{faNum(r.managers_count)}</td>
+                  <td data-label="۲FA اجباری"><RoleTwoFactorToggle role={r} /></td>
                   <td data-label="اکشن">
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => setEditing(r)}>دسترسی‌ها</button>
@@ -76,6 +77,43 @@ export function RolesClient({ initial, matrix }: { initial: RoleItem[]; matrix: 
         />
       ) : null}
     </div>
+  );
+}
+
+/** WF-M8 — سوییچ «۲FA اجباری» هر نقش؛ PUT با تنها همین فیلد تا دسترسی‌ها دست‌نخورده بمانند. */
+function RoleTwoFactorToggle({ role }: { role: RoleItem }) {
+  const toast = useToast();
+  const router = useRouter();
+  const [on, setOn] = useState(role.requires_2fa ?? false);
+  const [busy, setBusy] = useState(false);
+
+  const flip = async () => {
+    const next = !on;
+    setOn(next);
+    setBusy(true);
+    try {
+      await authed(`/v1/admin/roles/${role.id}`, { method: "PUT", body: { requires_2fa: next } });
+      toast(next ? "۲FA اجباری برای این نقش فعال شد." : "۲FA اجباری برای این نقش غیرفعال شد.", "ok");
+      router.refresh();
+    } catch (e) {
+      setOn(!next);
+      toast(e instanceof Error ? e.message : "ذخیره ناموفق بود.", "err");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <label style={{ display: "inline-flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
+      <input
+        type="checkbox"
+        checked={on}
+        disabled={busy}
+        onChange={() => void flip()}
+        aria-label={`۲FA اجباری برای نقش ${role.name}`}
+      />
+      <span style={{ color: on ? "var(--primary)" : "var(--text-muted)" }}>{on ? "فعال" : "خاموش"}</span>
+    </label>
   );
 }
 

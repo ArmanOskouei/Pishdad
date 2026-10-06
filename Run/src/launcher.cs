@@ -111,9 +111,30 @@ class StartCms
         psi.CreateNoWindow = true;
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
+        // REVALIDATE_SECRET is a real shared secret and must never live in source:
+        // anyone with this repo could POST /api/revalidate and purge the cache of
+        // every install that reuses it. The backend's git-ignored .env is the
+        // single source of truth; an env var wins so production / CI can override.
+        string ResolveRevalidateSecret()
+        {
+            var fromEnv = Environment.GetEnvironmentVariable("REVALIDATE_SECRET");
+            if (!string.IsNullOrWhiteSpace(fromEnv)) return fromEnv.Trim();
+
+            var envFile = Path.Combine(BackendDir, ".env");
+            if (File.Exists(envFile))
+            {
+                foreach (var line in File.ReadLines(envFile))
+                {
+                    var m = Regex.Match(line, @"^\s*REVALIDATE_SECRET\s*=\s*(\S+)");
+                    if (m.Success) return m.Groups[1].Value;
+                }
+            }
+            throw new Exception("REVALIDATE_SECRET not found. Set it in the environment or in cms-core/backend/.env.");
+        }
+
         psi.EnvironmentVariables["NEXT_PUBLIC_API_URL"] = "http://localhost:8080/api";
         psi.EnvironmentVariables["INTERNAL_API_URL"] = "http://localhost:8080/api";
-        psi.EnvironmentVariables["REVALIDATE_SECRET"] = "e39f4ba00cc6eb04534f15e757ad5964013aecd91177b623";
+        psi.EnvironmentVariables["REVALIDATE_SECRET"] = ResolveRevalidateSecret();
         psi.EnvironmentVariables["PORT"] = "3100";
         psi.EnvironmentVariables["HOSTNAME"] = "0.0.0.0";
         frontProc = new Process();

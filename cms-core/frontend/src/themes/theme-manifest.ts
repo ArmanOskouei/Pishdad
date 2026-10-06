@@ -10,7 +10,7 @@
  */
 
 /** شکاف‌هایی که یک قالب می‌تواند رندر کند. */
-export type ThemeSlot = "header" | "footer" | "main" | "left" | "right" | "banner";
+export type ThemeSlot = "header" | "footer" | "main" | "left" | "right" | "banner" | "blog";
 
 export type ThemeMode = "light" | "dark" | "system";
 

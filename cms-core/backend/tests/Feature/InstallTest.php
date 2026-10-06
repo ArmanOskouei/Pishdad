@@ -267,7 +267,7 @@ class InstallTest extends TestCase
 
     // ─── superadmin + 2FA ────────────────────────────────────────
 
-    public function test_superadmin_created_inline_with_2fa_pending(): void
+    public function test_first_admin_created_inline_without_2fa(): void
     {
         $this->markPriorSteps('preflight', 'database', 'app_key', 'migrate');
 
@@ -281,19 +281,18 @@ class InstallTest extends TestCase
         $response->assertRedirect(route('install.finalize'));
 
         $user = \App\Models\User::query()->where('email', 'boss@example.com')->firstOrFail();
-        $this->assertTrue((bool) $user->is_super_admin);
-        $this->assertTrue((bool) $user->is_hidden);
+        // نخستین مدیر یک مدیرِ عادی است (نقش owner) — نه حسابِ مخفی/مستثنا.
+        $this->assertTrue($user->hasRole('owner'));
         $this->assertFalse((bool) $user->google2fa_enabled);
         $this->assertNull($user->google2fa_secret);
 
-        // ورود اول پرچم راه‌اندازی 2FA می‌دهد، نه خطای stdout سکرت.
         $this->postJson('/api/v1/auth/login', ['email' => 'boss@example.com', 'password' => 'Strong!1234'])
             ->assertOk()
-            ->assertJsonPath('two_factor_setup_required', true)
+            ->assertJsonPath('two_factor_setup_required', false)
             ->assertJsonPath('two_factor_required', false);
     }
 
-    public function test_superadmin_validation_never_flashes_passwords(): void
+    public function test_first_admin_validation_never_flashes_passwords(): void
     {
         $this->markPriorSteps('preflight', 'database', 'app_key', 'migrate');
 
@@ -308,28 +307,6 @@ class InstallTest extends TestCase
 
         // رندر دوباره فرم هم رمزی نشان نمی‌دهد.
         $this->get('/install/superadmin')->assertOk()->assertDontSee('short');
-    }
-
-    public function test_two_factor_setup_middleware_blocks_superadmin_until_enabled(): void
-    {
-        config(['installer.enforce_2fa_setup' => true]);
-
-        $pending = InstallController::createSuperAdmin('Boss', 'pending2fa@example.com', 'Strong!1234');
-        $middleware = new EnsureTwoFactorSetup;
-        $next = fn () => response('ok');
-
-        $blocked = $middleware->handle($this->authedRequest($pending, '/api/v1/admin/pages'), $next);
-        $this->assertSame(403, $blocked->getStatusCode());
-        $this->assertTrue((bool) $blocked->getData(true)['two_factor_setup_required']);
-
-        // مسیرهای راه‌اندازی آزادند.
-        $allowed = $middleware->handle($this->authedRequest($pending, '/api/v1/admin/profile/2fa/enable', 'POST'), $next);
-        $this->assertSame(200, $allowed->getStatusCode());
-
-        // بعد از فعال‌سازی، همه‌چیز آزاد است.
-        $pending->forceFill(['google2fa_enabled' => true, 'google2fa_secret' => 'X'.str_repeat('A', 31)])->save();
-        $open = $middleware->handle($this->authedRequest($pending->fresh(), '/api/v1/admin/pages'), $next);
-        $this->assertSame(200, $open->getStatusCode());
     }
 
     // ─── CLI ─────────────────────────────────────────────────────
@@ -429,7 +406,7 @@ class InstallTest extends TestCase
         // سوپرادمین نصب‌شده در ورود اول، راه‌اندازی 2FA را اجبار می‌کند.
         $this->postJson('/api/v1/auth/login', ['email' => 'web-boss@example.com', 'password' => 'Strong!1234'])
             ->assertOk()
-            ->assertJsonPath('two_factor_setup_required', true)
+            ->assertJsonPath('two_factor_setup_required', false)
             ->assertJsonPath('two_factor_required', false);
     }
 

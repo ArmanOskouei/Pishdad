@@ -195,6 +195,10 @@ final class PluginPackageContract
     public const RESERVED_TYPE_NAMES = [
         // config/blocks.php
         'hero', 'text', 'image', 'cta', 'gallery', 'quote', 'video', 'contact-form', 'faq',
+        // WF-H10 — بلوکِ «فرم» که بلوکِ `contact-form` را به فرم‌ساز وصل می‌کند.
+        // رزرو لازم است وگرنه افزونه‌ای می‌تواند `form` را اعلام کند، بی‌صدا رد می‌شود
+        // و رجیستری آن را «نصب‌شده ولی هرگز دیده‌نشده» رها می‌کند.
+        'form',
         // config/widgets.php → header
         'logo', 'nav', 'search', 'socials',
         // config/widgets.php → footer

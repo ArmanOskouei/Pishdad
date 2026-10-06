@@ -4,9 +4,17 @@ import { authed } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
 import { useLang } from "@/lib/i18n";
 import { MediaPicker } from "@/components/ui/MediaPicker";
+import { Modal } from "@/components/ui/Overlays";
 import { LanguageSwitcher } from "@/components/admin/LanguageSwitcher";
 import { PluginSettingsSection } from "@/components/admin/PluginSettingsSection";
+import { MailSettingsSection } from "./MailSettingsSection";
+import { RedirectsSection } from "./RedirectsSection";
+import { ExportImportSection } from "./ExportImportSection";
+import { BackupSection } from "./BackupSection";
+import { SecuritySettingsSection } from "./SecuritySettingsSection";
+import { PerformanceSettingsSection } from "./PerformanceSettingsSection";
 import { asPaginator, type PageItem, type SiteSettings } from "@/lib/domain";
+import { localRevalidate } from "@/lib/local-revalidate";
 
 /** فرم کارتی تنظیمات سایت + MediaPicker برای لوگو/فاوآیکون. */
 export function SettingsClient({ initial }: { initial: SiteSettings }) {
@@ -19,7 +27,11 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
   const [siteUrl, setSiteUrl] = useState(initial.site_url ?? "");
   const [aiSummary, setAiSummary] = useState(initial.ai_summary ?? "");
   const [robotsIndex, setRobotsIndex] = useState(initial.robots_index ?? true);
+  const [robotsTxt, setRobotsTxt] = useState(initial.robots_txt ?? "");
+  const [gscCode, setGscCode] = useState(initial.google_site_verification ?? "");
   const [address, setAddress] = useState(initial.address ?? "");
+  const [privacyPolicy, setPrivacyPolicy] = useState(initial.privacy_policy ?? "");
+  const [accessibilityStatement, setAccessibilityStatement] = useState(initial.accessibility_statement ?? "");
   const [logo, setLogo] = useState<number | null>(initial.logo_media_id ?? null);
   const [favicon, setFavicon] = useState<number | null>(initial.favicon_media_id ?? null);
   const [ogImage, setOgImage] = useState<number | null>(initial.og_image_media_id ?? null);
@@ -38,6 +50,10 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
   }, []);
   const [picker, setPicker] = useState<null | "logo" | "favicon" | "og">(null);
   const [busy, setBusy] = useState(false);
+  // «کش سایت»: پیش‌فرض روشن.
+  const [cacheEnabled, setCacheEnabled] = useState(initial.cache_enabled !== false);
+  const [cacheInfo, setCacheInfo] = useState(false);
+  const [cachePurgeBusy, setCachePurgeBusy] = useState(false);
 
   const save = async () => {
     if (title.trim().length < 2) { toast(t("settings.errTitleShort"), "err"); return; }
@@ -54,7 +70,11 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
           site_url: siteUrl.trim() || null,
           ai_summary: aiSummary.trim() || null,
           robots_index: robotsIndex,
+          robots_txt: robotsTxt.trim() || null,
+          google_site_verification: gscCode.trim() || null,
           address: address.trim() || null,
+          privacy_policy: privacyPolicy.trim() || null,
+          accessibility_statement: accessibilityStatement.trim() || null,
           logo_media_id: logo,
           favicon_media_id: favicon,
           og_image_media_id: ogImage,
@@ -63,13 +83,29 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
           secondary_locale: languageMode === "dual" ? secondaryLocale : null,
           timezone,
           homepage_page_id: homepageId,
+          cache_enabled: cacheEnabled,
         },
       });
+      await localRevalidate(["site-chrome", "pages"]);
       toast(t("settings.saved"), "ok");
     } catch (e) {
       toast(e instanceof Error ? e.message : t("settings.errSave"), "err");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const purgeCache = async () => {
+    setCachePurgeBusy(true);
+    try {
+      const res = await authed<{ tags?: string[] }>("/v1/admin/cache/purge", { method: "POST" });
+      const tags = Array.isArray(res?.tags) && res.tags.length > 0 ? res.tags : ["pages", "site-chrome"];
+      await localRevalidate(tags);
+      toast(t("settings.cachePurged"), "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t("settings.cachePurgeErr"), "err");
+    } finally {
+      setCachePurgeBusy(false);
     }
   };
 
@@ -95,6 +131,38 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
           <input type="checkbox" checked={robotsIndex} onChange={(e) => setRobotsIndex(e.target.checked)} />
           {t("settings.allowIndex")}</label>
           <small style={{ color: "var(--text-muted)" }}>{t("settings.allowIndexHint")}</small></div>
+      </div>
+
+      <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
+        <div className="card-title">{t("settings.technicalSeoTitle")}</div>
+        <div className="field">
+          <label>{t("settings.robotsTxtLabel")}</label>
+          <textarea className="input" rows={7} dir="ltr" style={{ textAlign: "left", fontFamily: "monospace", fontSize: 12.5 }} value={robotsTxt} onChange={(e) => setRobotsTxt(e.target.value)} maxLength={5000} placeholder={t("settings.robotsTxtPlaceholder")} />
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.robotsTxtHint")}</small>
+        </div>
+        <div className="field">
+          <label>{t("settings.gscLabel")}</label>
+          <input className="input" dir="ltr" style={{ textAlign: "left" }} value={gscCode} onChange={(e) => setGscCode(e.target.value)} maxLength={200} placeholder={t("settings.gscPlaceholder")} />
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.gscHint")}</small>
+        </div>
+      </div>
+
+      <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
+        <div className="card-title">{t("settings.privacyTitle")}</div>
+        <div className="field">
+          <label>{t("settings.privacyLabel")}</label>
+          <textarea className="input" rows={8} value={privacyPolicy} onChange={(e) => setPrivacyPolicy(e.target.value)} maxLength={20000} placeholder={t("settings.privacyPlaceholder")} />
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.privacyHint")}</small>
+        </div>
+      </div>
+
+      <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
+        <div className="card-title">{t("settings.accessibilityTitle")}</div>
+        <div className="field">
+          <label>{t("settings.accessibilityLabel")}</label>
+          <textarea className="input" rows={8} value={accessibilityStatement} onChange={(e) => setAccessibilityStatement(e.target.value)} maxLength={20000} placeholder={t("settings.accessibilityPlaceholder")} />
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.accessibilityHint")}</small>
+        </div>
       </div>
 
       <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
@@ -202,7 +270,48 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
         </div>
       </div>
 
+      <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
+        <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {t("settings.cacheTitle")}
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={t("settings.cacheInfoAria")}
+            title={t("settings.cacheInfoAria")}
+            onClick={() => setCacheInfo(true)}
+            style={{ minInlineSize: 30, minBlockSize: 30 }}
+          >
+            ℹ
+          </button>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, cursor: "pointer" }}>
+          <input type="checkbox" checked={cacheEnabled} onChange={(e) => setCacheEnabled(e.target.checked)} />
+          {t("settings.cacheEnableLabel")}
+        </label>
+        <p className="card-sub" style={{ margin: "8px 0 0" }}>
+          {cacheEnabled ? t("settings.cacheOnHint") : t("settings.cacheOffHint")}
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBlockStart: 12, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => void purgeCache()}
+            disabled={cachePurgeBusy}
+          >
+            {cachePurgeBusy ? t("settings.cachePurging") : t("settings.cachePurge")}
+          </button>
+          <small style={{ color: "var(--text-muted)" }}>{t("settings.cachePurgeHint")}</small>
+        </div>
+      </div>
+
       <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>{busy ? t("settings.saving") : t("settings.save")}</button>
+
+      {cacheInfo ? (
+        <Modal title={t("settings.cacheTitle")} onClose={() => setCacheInfo(false)}>
+          <p style={{ fontSize: 13.5, lineHeight: 2, marginBlockStart: 0 }}>{t("settings.cacheInfoBody")}</p>
+          <button className="btn btn-primary" onClick={() => setCacheInfo(false)}>{t("settings.cacheInfoOk")}</button>
+        </Modal>
+      ) : null}
 
       <MediaPicker
         open={picker !== null}
@@ -222,6 +331,12 @@ export function SettingsClient({ initial }: { initial: SiteSettings }) {
           * هر تغییر افزونه فرم سایت را dirty می‌کرد و یک دکمه، دو منبع ذخیره
           * را کنترل می‌کرد. */}
       <div style={{ marginBlockStart: 28 }}>
+        <SecuritySettingsSection />
+        <MailSettingsSection />
+        <RedirectsSection />
+        <ExportImportSection />
+        <BackupSection />
+        <PerformanceSettingsSection />
         <PluginSettingsSection />
       </div>
     </div>

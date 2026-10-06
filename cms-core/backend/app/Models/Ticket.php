@@ -14,14 +14,16 @@ class Ticket extends Model
 
     public const CLOSED = 'closed';
 
+    public const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+
     protected $fillable = [
-        'user_id', 'subject', 'status', 'priority',
+        'user_id', 'subject', 'status', 'priority', 'labels',
         'contact_name', 'contact_email', 'source', 'closed_at',
     ];
 
     protected function casts(): array
     {
-        return ['closed_at' => 'datetime'];
+        return ['closed_at' => 'datetime', 'labels' => 'array'];
     }
 
     public function user(): BelongsTo

@@ -34,18 +34,24 @@ class RoleController extends Controller
             'name' => ['required', 'string', 'max:60', 'regex:/^[a-z0-9-]+$/', Rule::unique('roles', 'name')],
             'permissions' => 'sometimes|array',
             'permissions.*' => 'string|exists:permissions,name',
+            'requires_2fa' => 'sometimes|boolean',
         ], [
             'name.required' => 'نام نقش الزامی است.',
             'name.regex' => 'نام نقش فقط حروف کوچک انگلیسی، عدد و خط تیره.',
             'name.unique' => 'این نقش قبلاً وجود دارد.',
             'permissions.*.exists' => 'یکی از دسترسی‌ها معتبر نیست.',
+            'requires_2fa.boolean' => 'مقدار «۲FA اجباری» باید بله یا خیر باشد.',
         ]);
 
         if ($validated['name'] === 'super-admin') {
             return response()->json(['message' => 'این نقش سیستمی است و قابل ساخت نیست.'], 422);
         }
 
-        $role = Role::query()->create(['name' => $validated['name'], 'guard_name' => 'web']);
+        $role = Role::query()->create([
+            'name' => $validated['name'],
+            'guard_name' => 'web',
+            'requires_2fa' => (bool) ($validated['requires_2fa'] ?? false),
+        ]);
         $role->syncPermissions($validated['permissions'] ?? []);
 
         return response()->json([
@@ -72,9 +78,15 @@ class RoleController extends Controller
         $validated = $request->validate([
             'permissions' => 'sometimes|array',
             'permissions.*' => 'string|exists:permissions,name',
+            'requires_2fa' => 'sometimes|boolean',
         ], [
             'permissions.*.exists' => 'یکی از دسترسی‌ها معتبر نیست.',
+            'requires_2fa.boolean' => 'مقدار «۲FA اجباری» باید بله یا خیر باشد.',
         ]);
+
+        if (array_key_exists('requires_2fa', $validated)) {
+            $role->forceFill(['requires_2fa' => (bool) $validated['requires_2fa']])->save();
+        }
 
         if (array_key_exists('permissions', $validated)) {
             $role->syncPermissions($validated['permissions']);
@@ -108,6 +120,7 @@ class RoleController extends Controller
             'system' => in_array($role->name, self::SYSTEM_ROLES, true),
             'permissions' => $role->permissions->pluck('name')->all(),
             'managers_count' => $role->users()->count(),
+            'requires_2fa' => (bool) $role->requires_2fa,
         ];
     }
 }

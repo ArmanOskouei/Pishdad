@@ -35,14 +35,28 @@ export type InboxResponse = { items?: InboxItem[]; unread?: number };
 
 /** ⚠️ گروه ⇒ کانال ⇒ فعال؟. خروجی بک‌اند همیشه **کامل** است. */
 export type PrefMatrix = Record<string, Record<string, boolean>>;
+
+/**
+ * WF-M15 — تنظیماتِ کانالِ کاربر (خارج از ماتریسِ گروه×کانال).
+ *
+ * `telegram_configured` وضعیتِ **نصب** را می‌گوید نه کاربر: اگر توکن ربات نباشد
+ * UI باید صادقانه بگوید «پیامی نمی‌رود»، حتی اگر کاربر chat_id داده باشد.
+ */
+export type NotificationChannelSettings = {
+  telegram_chat_id: string | null;
+  daily_digest: boolean;
+  telegram_configured: boolean;
+};
+
 export type PrefResponse = {
   groups: Record<string, string>;
   channels: string[];
   matrix: PrefMatrix;
+  settings?: NotificationChannelSettings;
 };
 
 /** کانال‌های `Catalog::CHANNELS`. */
-export const CHANNELS = ["email", "sms", "push"] as const;
+export const CHANNELS = ["email", "sms", "push", "telegram"] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const isChannel = (v: string): v is Channel => (CHANNELS as readonly string[]).includes(v);

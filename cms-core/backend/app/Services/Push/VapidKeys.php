@@ -2,8 +2,10 @@
 
 namespace App\Services\Push;
 
+use Illuminate\Container\Container;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * کلیدهای VAPID و امضای JWT — RFC 8292.
@@ -35,6 +37,39 @@ class VapidKeys
     /** طول اسکالر P-256. */
     private const SCALAR_SIZE = 32;
 
+    private const KEY_PUBLIC = 'vapid.public_key';
+
+    private const KEY_PRIVATE = 'vapid.private_key';
+
+    /**
+     * کلیدِ عددیِ `pg_advisory_xact_lock` برای ساختِ جفتِ کلید.
+     *
+     * ⚠️ چرا این قفل لازم است: `lockForUpdate` روی ردیفِ **غایب** در
+     * PostgreSQL هیچ چیزی قفل نمی‌کند. رقابتِ واقعی هم دقیقاً روی ردیفِ
+     * غایب است — «اولین درخواستِ» `GET push/public-key`. پس سطری به‌تنهایی
+     * رقابت را نمی‌بندد و قفلِ سراسریِ تراکنشی تنها چیزی است که می‌بندد.
+     *
+     * ⚠️ خودِ عدد مهم نیست، **ثابت بودنش** مهم است: عوض شدنش یعنی دو فراخوان،
+     * دو قفلِ متفاوت، و رقابتی که دوباره برمی‌گردد. با نسخهٔ کلیدِ VAPID هم
+     * ربطی ندارد و باید مستقل بماند.
+     */
+    private const ADVISORY_LOCK_KEY = 2_026_100_601;
+
+    /**
+     * جای نگه‌داریِ کلیدِ حل‌شده در کانتینر، نه در `static`.
+     *
+     * ## چرا کانتینر و نه `private static array $memo`
+     *
+     * حافظهٔ ثابت در یک پروسه‌ی **بلندمدت** (Octane، worker صف، تست) هیچ‌وقت
+     * پاک نمی‌شود و آن‌وقت `get()` کلیدِ نسلِ قبلی را برمی‌گرداند در حالی که
+     * دیتابیس به‌تازگی پاک شده — یعنی تستی که «کلید در اولین استفاده ساخته
+     * می‌شود» سبز می‌ماند در حالی که اصلاً چیزی در دیتابیس نوشته نشده.
+     *
+     * کانتینر در `tearDown`_flush می‌شود و در هر درخواست/تست تازه ساخته می‌شود
+     * ⇒ عمرِ حافظه دقیقاً «عمرِ درخواست» می‌شود، بدون نشت بین تست‌ها.
+     */
+    private const MEMO_BINDING = 'pishdad.push.vapid.keypair';
+
     /**
      * کلیدها را می‌خواند یا می‌سازد.
      *
@@ -42,31 +77,154 @@ class VapidKeys
      * جابه‌جا می‌شود، و این **ضروری** است: با عوض شدن کلید، همهٔ
      * اشتراک‌های ذخیره‌شده بی‌اعتبار می‌شوند و هیچ اعلانی دیگر نمی‌رسد.
      *
+     * ## سه تصمیمِ این نسخه
+     *
+     * ۱. **حافظهٔ کوتاه‌عمر.** `broadcast()` به‌ازای هر پیام `send()` می‌زند و
+     *    هر `send()` به `get()` می‌رسد. بدون حافظه، یک `broadcast(…, 500)`
+     *    یعنی ۱۰۰۰ کوئریِ تنظیمات + ۵۰۰ ضربِ اسکالرِ P-256 (که ارزان نیست:
+     *    `openssl` + یک ضربِ منحنیِ خودمان). جفتِ حل‌شده یک‌بار در کانتینرِ
+     *    همان درخواست می‌نشیند.
+     *
+     * ۲. **ساختِ جفت اتمی است.** `GET push/public-key` **عمومی** است، پس دو
+     *    درخواستِ اولِ هم‌زمان هر دو می‌توانستند جفت بسازند؛ هر تماس‌گیرنده یک
+     *    کلید عمومیِ متفاوت می‌گرفت و «آخرین نویسنده» برنده می‌شد — یعنی
+     *    بعضی مرورگرها تا ابد کلیدِ اشتباه نگه می‌داشتند و ۴۰۱ می‌خوردند،
+     *    بی‌سروصدا. حالا ساخت داخل `DB::transaction()` با قفل انجام می‌شود و
+     *    اگر تا لحظهٔ نوشتن جفتی وجود داشته باشد، **همان** برگردانده می‌شود.
+     *
+     * ۳. **کلیدِ خراب، خراب می‌ماند.** رمزگشاییِ ناموفق (مثلاً بعد از چرخشِ
+     *    `APP_KEY`) دیگر به «بی‌صدا جفتِ تازه ساختن» تبدیل نمی‌شود، چون آن
+     *    کار **همهٔ** اشتراک‌های موجود را بی‌اعتبار می‌کند. به‌جایش لاگ و
+     *    استثنا.
+     *
      * @return array{publicKey: string, privateKey: string}
+     *
+     * @throws \RuntimeException اگر کلیدِ خصوصیِ ذخیره‌شده قابل رمزگشایی نباشد
      */
     public static function get(): array
     {
-        $publicKey = (string) self::setting('vapid.public_key', '');
-        $stored = (string) self::setting('vapid.private_key', '');
+        $memo = self::memo();
 
-        if ($publicKey !== '' && $stored !== '') {
-            $privateKey = self::normalizeStoredPrivateKey($stored);
-
-            // اگر کلیدِ خوانده‌شده با عمومیِ ذخیره‌شده جور نبود، ذخیرهٔ
-            // قبلی ناسازگار است — یک جفتِ تازه می‌سازیم تا امضا اصلاً
-            // شکست نخورد. (اشتراک‌های قبلی در این حالت بی‌اعتبار می‌شوند
-            // که با تکلیفِ خود `get()` هم یکسان است.)
-            if ($privateKey !== '' && self::publicKeyFor($privateKey) === $publicKey) {
-                return ['publicKey' => $publicKey, 'privateKey' => $privateKey];
-            }
+        if ($memo !== null) {
+            return $memo;
         }
 
-        $fresh = self::generate();
+        $stored = self::resolveStoredPair();
 
-        self::putSetting('vapid.public_key', $fresh['publicKey']);
-        self::putSetting('vapid.private_key', Crypt::encryptString($fresh['privateKey']));
+        if ($stored !== null) {
+            return self::remember($stored);
+        }
 
-        return $fresh;
+        return self::remember(self::generateAtomically());
+    }
+
+    /**
+     * جفتِ کلیدِ معتبرِ موجود در دیتابیس را برمی‌گرداند، یا `null`.
+     *
+     * `null` یعنی «باید ساخته شود» — نه «خراب است». خرابی با استثنا گزارش
+     * می‌شود تا با نبودِ کلید اشتباه نشود.
+     *
+     * @return array{publicKey: string, privateKey: string}|null
+     */
+    private static function resolveStoredPair(): ?array
+    {
+        $publicKey = (string) self::setting(self::KEY_PUBLIC, '');
+        $stored = (string) self::setting(self::KEY_PRIVATE, '');
+
+        if ($publicKey === '' || $stored === '') {
+            return null;
+        }
+
+        // ⚠️ این می‌تواند استثنا بدهد (رمزگشایی ناموفق) و **عمداً** همین کار را
+        // می‌کند؛ `get()` نباید بعد از آن جفتِ تازه بسازد.
+        $resolved = self::resolveStoredPrivateKey($stored);
+
+        // کلیدِ خصوصیِ نصبِ قدیمی **رمزنشده** روی دیسک بود. حالا که خوانده
+        // شد، همان را رمز می‌کنیم و **برمی‌گردانیم**.
+        //
+        // نسخهٔ قبل اینجا فقط `return $stored` می‌کرد، یعنی plaintext را
+        // تحویل می‌داد و ذخیره‌اش دست‌نخورده می‌ماند ⇒ invariantِ «کلیدِ خصوصی
+        // هیچ‌وقت رمزنشده نمی‌ماند» برای ردیف‌های قدیمی هیچ‌وقت برقرار نشد و
+        // یک کپی از دیتابیس/بکاپ، کلیدِ امضای push را لو می‌داد.
+        if ($resolved['plaintextAtRest']) {
+            self::putSetting(self::KEY_PRIVATE, Crypt::encryptString($resolved['plaintext']));
+        }
+
+        $derived = self::publicKeyFor($resolved['plaintext']);
+
+        // اگر کلیدِ خوانده‌شده با عمومیِ ذخیره‌شده جور نبود، ذخیرهٔ قبلی
+        // ناسازگار است — یک جفتِ تازه می‌سازیم تا امضا اصلاً شکست نخورد.
+        // (اشتراک‌های قبلی در این حالت بی‌اعتبار می‌شوند که با تکلیفِ خود
+        // `get()` هم یکسان است.) این مسیر **لاگ** می‌شود چون تنها جایی است که
+        // هنوز عمداً کلید را دور می‌ریزیم.
+        if ($derived !== $publicKey) {
+            Log::error('push vapid: کلید عمومی با کلید خصوصی جور نیست — جفتِ تازه ساخته می‌شود', [
+                'stored_public_key' => substr($publicKey, 0, 12).'…',
+                'derived_public_key' => substr($derived, 0, 12).'…',
+                'hint' => 'همهٔ اشتراک‌های ذخیره‌شده با این جفت بی‌اعتبار می‌شوند.',
+            ]);
+
+            return null;
+        }
+
+        return ['publicKey' => $publicKey, 'privateKey' => $resolved['plaintext']];
+    }
+
+    /**
+     * ساختِ جفتِ تازه، اتمی.
+     *
+     * ترتیب قفل‌ها عمدی است و **نباید** عوض شود:
+     *
+     *  ۱. `pg_advisory_xact_lock` — قفلِ سراسریِ تراکنشی. تنها قفلی که وقتی
+     *     ردیف هنوز وجود ندارد هم کار می‌کند، پس رقابتِ «دو درخواستِ اولِ
+     *     هم‌زمان» را می‌بندد.
+     *  ۲. `lockForUpdate` روی خودِ ردیف‌ها — با ترتیبِ ثابت (`orderBy key`)
+     *     تا دو فراخوان قفل‌ها را به یک ترتیب بگیرند و deadlock ندهند.
+     *
+     * قفلِ سراسری **اول** می‌آید چون اگر بعد از قفلِ سطری بیاید، فراخوانِ
+     * دوم هم سطر را نگه می‌دارد و هم منتظر قفلِ سراسریِ اول می‌ماند ⇒ بن‌بست.
+     *
+     * بعد از گرفتن قفل، دوباره خوانده می‌شود: اگر فراخوانِ دیگری در این فاصله
+     * جفت را ساخته باشد، **همان** برگردانده می‌شود و هیچ کلیدِ دومی ساخته
+     * نمی‌شود.
+     *
+     * @return array{publicKey: string, privateKey: string}
+     */
+    private static function generateAtomically(): array
+    {
+        // آرگومانِ دوم: تلاشِ دوباره روی deadlock. رقابت روی همین دو ردیف
+        // طبیعی است و باید بن‌بستِ گذرا تلقی شود، نه خطای سراسری.
+        return DB::transaction(function (): array {
+            self::acquireExclusiveLock();
+
+            $existing = self::resolveStoredPair();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            $fresh = self::generate();
+
+            self::putSetting(self::KEY_PUBLIC, $fresh['publicKey']);
+            self::putSetting(self::KEY_PRIVATE, Crypt::encryptString($fresh['privateKey']));
+
+            return $fresh;
+        }, 3);
+    }
+
+    /** قفلِ سراسری + قفلِ سطری. باید **داخل** تراکنش صدا زده شود. */
+    private static function acquireExclusiveLock(): void
+    {
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::selectOne('select pg_advisory_xact_lock(?) as vapid_lock', [self::ADVISORY_LOCK_KEY]);
+        }
+
+        DB::table('settings')
+            ->where('group', 'push')
+            ->whereIn('key', [self::KEY_PUBLIC, self::KEY_PRIVATE])
+            ->orderBy('key')
+            ->lockForUpdate()
+            ->get();
     }
 
     /**
@@ -80,34 +238,131 @@ class VapidKeys
      *
      * اینجا سه حالتِ ممکنِ ذخیره‌سازی را می‌پذیریم:
      *
-     *  ۱. plaintext (نصبِ قدیمی که اصلاً رمز نمی‌کرد)
+     *  ۱. plaintext (نصبِ قدیمی که اصلاً رمز نمی‌کرد) — رمز می‌شود و
+     *     **برگردانده می‌شود**
      *  ۲. ciphertext یک‌بار رمزشده (حالت فعلیِ درست)
      *  ۳. ciphertext دوباره رمزشده (اگر خواندنِ ناقص و ذخیرهٔ مجدد
      *     اتفاق افتاده باشد) — با یک decrypt دیگر به plaintext می‌رسیم
+     *
+     * ## چرا رمزگشاییِ ناموفق استثنا می‌دهد
+     *
+     * نسخهٔ قبل `catch (\Throwable) { return ''; }` داشت و `get()` آن رشتهٔ
+     * خالی را «جفتِ ناسازگار» می‌خواند و یک جفتِ **تازه** می‌ساخت.
+     *
+     * یعنی یک `APP_KEY` عوض‌شده — یا حتی یک ردیفِ ناقص — کلیدِ امضا را عوض
+     * می‌کرد و **تمامِ** اشتراک‌های ذخیره‌شده را بی‌اعتبار می‌کرد، بدونِ یک
+     * خط در لاگ. این بدترین نوع خرابی است: نه اعلانی می‌رسد، نه کسی می‌فهمد
+     * چرا. حالا `failLoudly()` لاگ می‌کند و استثنا می‌دهد؛ تصمیمِ «کلید را
+     * دور بریزیم» باید آگاهانه و توسط اپراتور گرفته شود.
+     *
+     * @return array{plaintext: string, plaintextAtRest: bool}
      */
-    private static function normalizeStoredPrivateKey(string $stored): string
+    private static function resolveStoredPrivateKey(string $stored): array
     {
         if (self::looksLikeBase64PrivateKey($stored)) {
-            return $stored;
+            return ['plaintext' => $stored, 'plaintextAtRest' => true];
         }
 
-        try {
-            $once = Crypt::decryptString($stored);
-        } catch (\Throwable) {
-            return '';
-        }
+        $once = self::decryptOrFail($stored, 'first');
 
         if (self::looksLikeBase64PrivateKey($once)) {
-            return $once;
+            return ['plaintext' => $once, 'plaintextAtRest' => false];
         }
 
+        // رمزگشاییِ اول **موفق** بوده ولی آنچه بیرون آمده کلید نبوده ⇒ این
+        // ردیف خراب است، نه مشکلِ `APP_KEY`. (حالتِ «دوباره رمز شده».)
+        $twice = self::decryptOrFail($once, 'nested');
+
+        if (self::looksLikeBase64PrivateKey($twice)) {
+            return ['plaintext' => $twice, 'plaintextAtRest' => false];
+        }
+
+        self::failLoudly('رمزگشایی موفق بود ولی محتوا یک کلید خصوصی VAPID نبود (ردیف خراب)');
+    }
+
+    /**
+     * رمزگشایی، یا شکستِ بلند.
+     *
+     * `$stage` علتِ محتمل را جدا می‌کند تا اپراتور بداند دنبال چه بگردد:
+     * `first` ⇒ تقریباً همیشه `APP_KEY` عوض شده؛ `nested` ⇒ ردیف خراب.
+     */
+    private static function decryptOrFail(string $payload, string $stage): string
+    {
         try {
-            $twice = Crypt::decryptString($once);
-        } catch (\Throwable) {
-            return '';
+            return Crypt::decryptString($payload);
+        } catch (\Throwable $e) {
+            self::failLoudly(
+                $stage === 'first'
+                    ? 'رمزگشاییِ کلیدِ خصوصیِ ذخیره‌شده ناموفق بود (به احتمال زیاد APP_KEY عوض شده)'
+                    : 'رمزگشاییِ دوم ناموفق بود (ردیفِ تنظیمات خراب است)',
+                $e,
+            );
+        }
+    }
+
+    /**
+     * گزارشِ خرابیِ کلیدِ خصوصی و توقفِ سرویس push.
+     *
+     * ⚠️ **هیچ مادهٔ محرمانه‌ای در لاگ نمی‌رود**: نه ciphertext، نه کلیدِ
+     * خصوصی. فقط نامِ تنظیم، مرحله و *کلاسِ* استثنا — و پیامِ استثنا هم عمداً
+     * حذف شده، چون قراردادش «متنِ ثابت» است و تکیه بر آن برای نشت‌نکردن
+     * ریسکِ بی‌فایده‌ای می‌افزاید.
+     *
+     * @throws \RuntimeException همیشه
+     */
+    private static function failLoudly(string $reason, ?\Throwable $e = null): never
+    {
+        Log::error('push vapid: کلید خصوصیِ ذخیره‌شده قابل بازیابی نیست — عمداً جفتِ تازه ساخته نشد', [
+            'setting' => 'push/'.self::KEY_PRIVATE,
+            'reason' => $reason,
+            'exception' => $e === null ? null : $e::class,
+            'hint' => 'بازتولیدِ خودکار، همهٔ اشتراک‌های موجود را بی‌اعتبار می‌کرد؛ APP_KEY را برگردانید یا اشتراک‌ها را دوباره ثبت کنید.',
+        ]);
+
+        throw new \RuntimeException(
+            'کلید خصوصی VAPID ذخیره‌شده قابل رمزگشایی نیست؛ عمداً جفتِ تازه ساخته نشد.'
+        );
+    }
+
+    /**
+     * جفتِ حل‌شده برای عمرِ همین درخواست/پروسه.
+     *
+     * @return array{publicKey: string, privateKey: string}|null
+     */
+    private static function memo(): ?array
+    {
+        $container = Container::getInstance();
+
+        if (! $container->bound(self::MEMO_BINDING)) {
+            return null;
         }
 
-        return self::looksLikeBase64PrivateKey($twice) ? $twice : '';
+        $memo = $container->make(self::MEMO_BINDING);
+
+        return is_array($memo) ? $memo : null;
+    }
+
+    /**
+     * @param  array{publicKey: string, privateKey: string}  $keys
+     * @return array{publicKey: string, privateKey: string}
+     */
+    private static function remember(array $keys): array
+    {
+        Container::getInstance()->instance(self::MEMO_BINDING, $keys);
+
+        return $keys;
+    }
+
+    /**
+     * حافظهٔ کلید را پاک می‌کند.
+     *
+     * ⚠️ فقط برای پروسه‌های بلندمدت لازم است (Octane، worker صف) که در آن‌ها
+     * یک نصب **در میانهٔ کار** کلیدش عوض می‌شود. در چرخهٔ عادیِ درخواست لازم
+     * نیست، چون کانتینر هر بار تازه ساخته می‌شود.
+     */
+    public static function flush(): void
+    {
+        Container::getInstance()->forgetInstance(self::MEMO_BINDING);
     }
 
     /**
@@ -125,7 +380,7 @@ class VapidKeys
 
     public static function exists(): bool
     {
-        return (string) self::setting('vapid.public_key', '') !== '';
+        return (string) self::setting(self::KEY_PUBLIC, '') !== '';
     }
 
     /**

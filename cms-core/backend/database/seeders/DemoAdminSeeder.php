@@ -22,8 +22,6 @@ class DemoAdminSeeder extends Seeder
                 'name' => 'مدیر نمونه',
                 'password' => Hash::make('Admin!123'),
                 'role' => 'admin',
-                'is_super_admin' => false,
-                'is_hidden' => false,
                 'google2fa_enabled' => false,
             ]
         );

@@ -41,6 +41,7 @@ export const BUILTIN_BLOCK_TYPES: readonly string[] = Object.freeze([
   "quote",
   "video",
   "faq",
+  "form",
   "contact-form",
   "contact",
 ]);

@@ -558,6 +558,15 @@
       },
       {
         "method": "get",
+        "path": "operator/activity/export",
+        "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorController@activityExport",
+        "middleware": [
+          "auth:sanctum",
+          "role:operator"
+        ]
+      },
+      {
+        "method": "get",
         "path": "operator/activity",
         "handler": "Pishdad\\Plugins\\Central\\Http\\OperatorController@activity",
         "middleware": [

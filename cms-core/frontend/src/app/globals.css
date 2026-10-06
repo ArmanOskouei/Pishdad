@@ -109,6 +109,19 @@
   --fs-small: var(--theme-fs-small, var(--site-fs-small));
   --fs-h: var(--theme-fs-h, var(--site-fs-h));
   --density: var(--theme-density, var(--site-density));
+
+  /*
+   * ⭐ رنگ و پس‌زمینهٔ خودِ `.site` باید از توکن‌های **همین scope** بیاید.
+   *
+   * `body { color: var(--text) }` مقدارش را از `:root` (تمِ تیره: #e6eaf2)
+   * می‌گیرد، چون توکن‌های قالب روی `.site` (فرزندِ body) می‌نشینند و هنگامِ
+   * محاسبهٔ `body` هنوز تعریف نشده‌اند. بدونِ این دو خط، متنِ همهٔ قالب‌ها از
+   * body ارث می‌برد و قالبِ **روشن** متنِ روشن روی پس‌زمینهٔ روشن می‌شود
+   * (همان پیش‌نمایشِ ناخوانا). با این دو خط، `--bg`/`--text`ِ دیسکِ همان قالب
+   * جای ارث‌بری را می‌گیرد.
+   */
+  color: var(--text);
+  background: var(--bg);
 }
 
 /**
@@ -944,6 +957,17 @@ mark.search-hl { background: var(--primary-soft, var(--surface-2)); color: var(-
 .site-socials { display: flex; gap: 10px; flex-wrap: wrap; }
 .site-socials a { color: var(--text-muted); font-size: 13.5px; text-decoration: none; }
 .site-socials a:hover { color: var(--primary); }
+/* ── WF-L3 — مسیر راهنمای دیداری (RTL با logical) ── */
+.site-crumbs { margin-block-end: 14px; font-size: 12.5px; color: var(--text-muted); }
+.site-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.site-crumbs li { display: inline-flex; align-items: center; gap: 6px; }
+.site-crumbs li + li::before { content: "›"; color: var(--text-muted); opacity: 0.65; }
+.site-crumbs a { color: var(--text-muted); text-decoration: none; }
+.site-crumbs a:hover { color: var(--primary); text-decoration: underline; }
+.site-crumbs [aria-current="page"] { color: var(--text); font-weight: 600; }
+/* ── WF-L3 — سوییچ روشن/تیرهٔ سایت ── */
+.site-mode-toggle { display: inline-flex; align-items: center; justify-content: center; min-inline-size: 36px; min-block-size: 36px; padding: 6px; line-height: 0; color: var(--text); }
+.site-mode-toggle svg { inline-size: 18px; block-size: 18px; }
 .site-body { max-inline-size: 1200px; margin-inline: auto; padding: 24px 16px 64px; display: grid; gap: 24px; align-items: start; grid-template-columns: minmax(0, 1fr); }
 
 /* F4.1.F — نوارِ پیش‌نمایشِ `/preview`.
@@ -1237,5 +1261,64 @@ mark.search-hl { background: var(--primary-soft, var(--surface-2)); color: var(-
   .site.theme-commerce .card, .site.theme-commerce .card-pad { transition: none; }
   .site.theme-commerce .card:hover, .site.theme-commerce .card-pad:hover { transform: none; }
 }
+
+/* ── WF-C7 — بایگانی بلاگ (اسلاتِ قالب) ── */
+.site-blog { display: flex; flex-direction: column; gap: 22px; }
+.site-blog-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.site-blog-head h1 { font-size: 28px; margin: 0; }
+.site-blog-feed { font-size: 13px; color: var(--text-muted); text-decoration: none; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px 12px; }
+.site-blog-feed:hover { color: var(--primary); border-color: var(--primary); }
+.site-blog-empty { color: var(--text-muted); font-size: 14px; }
+.site-blog-list { display: grid; gap: 22px; }
+.site-blog-card { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.site-blog-thumb { display: block; }
+.site-blog-thumb img { display: block; inline-size: 100%; block-size: 100%; max-block-size: 260px; object-fit: cover; }
+.site-blog-card-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.site-blog-card-title { font-size: 19px; margin: 0; }
+.site-blog-card-title a { color: var(--text); text-decoration: none; }
+.site-blog-card-title a:hover { color: var(--primary); }
+.site-blog-meta { font-size: 12.5px; color: var(--text-muted); margin: 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.site-blog-meta a { color: var(--text-muted); text-decoration: none; }
+.site-blog-meta a:hover { color: var(--primary); }
+.site-blog-excerpt { font-size: 14px; line-height: 1.9; color: var(--text-muted); margin: 0; }
+.site-blog-more { font-size: 13px; color: var(--primary); text-decoration: none; }
+.site-blog-more::after { content: " ←"; }
+[dir="ltr"] .site-blog-more::after { content: " →"; }
+.site-blog-pager { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.site-blog-page { min-inline-size: 38px; text-align: center; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text); text-decoration: none; font-size: 13px; }
+.site-blog-page:hover { border-color: var(--primary); color: var(--primary); }
+.site-blog-page.is-current { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
+.site-blog-post { display: flex; flex-direction: column; gap: 18px; }
+.site-blog-post-head h1 { font-size: 32px; margin-block: 0 8px; }
+.site-blog-cover { inline-size: 100%; border-radius: var(--radius-lg); }
+.site-blog-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.site-blog-tag { font-size: 12.5px; color: var(--text-muted); text-decoration: none; border: 1px dashed var(--border); border-radius: 999px; padding: 4px 10px; }
+.site-blog-tag:hover { color: var(--primary); border-color: var(--primary); }
+.site-blog-back { margin-block-start: 8px; }
+.site-blog-back a { color: var(--primary); text-decoration: none; font-size: 13.5px; }
+@media (min-width: 640px) {
+  .site-blog-card { grid-template-columns: 240px minmax(0, 1fr); }
+}
+@media (max-width: 639px) {
+  .site-blog-card { border: 0; background: transparent; }
+  .site-blog-card-body { padding: 0; }
+}
+
+/* ── راهنمای توسعهٔ قالب (رندر Markdown) ── */
+.theme-guide-doc { font-size: 13px; line-height: 1.95; color: var(--text); }
+.theme-guide-doc h1 { font-size: 20px; margin-block: 4px 10px; }
+.theme-guide-doc h2 { font-size: 16px; margin-block: 22px 8px; border-block-end: 1px solid var(--border); padding-block-end: 4px; }
+.theme-guide-doc h3 { font-size: 14px; margin-block: 16px 6px; }
+.theme-guide-doc p { margin-block: 8px; }
+.theme-guide-doc ul, .theme-guide-doc ol { padding-inline-start: 20px; display: grid; gap: 4px; margin-block: 8px; }
+.theme-guide-doc code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+.theme-guide-doc pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; margin-block: 10px; }
+.theme-guide-doc pre code { background: none; border: 0; padding: 0; }
+.theme-guide-doc table { border-collapse: collapse; inline-size: 100%; margin-block: 10px; font-size: 12.5px; display: block; overflow-x: auto; }
+.theme-guide-doc th, .theme-guide-doc td { border: 1px solid var(--border); padding: 6px 9px; text-align: start; vertical-align: top; }
+.theme-guide-doc th { background: var(--surface-2); font-weight: 700; }
+.theme-guide-doc blockquote { border-inline-start: 3px solid var(--primary); padding-inline-start: 12px; color: var(--text-muted); margin-block: 10px; }
+.theme-guide-doc hr { border: 0; border-block-start: 1px solid var(--border); margin-block: 16px; }
+.theme-guide-doc a { color: var(--primary); }
 
 

@@ -92,12 +92,30 @@ final class PluginDbContract
      * نگهبانِ دیتابیس عملاً بی‌اثر می‌شود — پس باید مسدود باشد.
      */
     public const CORE_TABLES = [
+        // F3 — لاگِ فعالیتِ هسته. پلاگین نباید بتواند ردِ ممیزیِ کاربران را
+        // بخواند یا خودش رکورد جعلی در آن بنویسد.
+        'activity_log',
         'cache',
         'cache_locks',
+        // H5 — نگاشتِ import/export محتوا؛ کلیدِ ادامه‌دادنِ یک import است و
+        // متعلق به هسته است.
+        'content_import_maps',
         'failed_jobs',
+        // WF-H10 — فرم‌ساز. تعریف فرم و پاسخ‌های کاربران دادهٔ شخصی است، پس
+        // صریحاً در ممنوعِ افزونه‌هاست.
+        'form_submissions',
+        'forms',
         'job_batches',
         'jobs',
+        // B5 — رویدادهای ورود؛ مبنای تشخیصِ ورود مشکوک.
+        'login_events',
+        // WF-L1/H11 — کتابخانهٔ رسانه. `media_media_tag` جدولِ چسبِ many-to-many
+        // است و `media_tags`/`media_folders` دسته‌بندیِ مالک است؛ هر سه هسته‌اند و
+        // پلاگین نباید بتواند فایل یا برچسبِ رسانه را از مسیرِ خودش بازنویسی کند.
         'media',
+        'media_folders',
+        'media_media_tag',
+        'media_tags',
         // بازار (سشنِ قبلی — migration `2026_10_14` این‌ها را ساخت ولی فهرستِ
         // ممنوع به‌روز نشد، و نگهبانِ `test_the_deny_list_matches_the_real_schema`
         // قرمز ماند). این‌ها هم جدولِ هسته‌اند: پلاگین نباید بتواند سفارش یا
@@ -107,6 +125,7 @@ final class PluginDbContract
         'market_notices',
         'market_orders',
         'market_payouts',
+        'market_reviews',
         'migrations',
         'model_has_permissions',
         'model_has_roles',
@@ -119,7 +138,15 @@ final class PluginDbContract
         // قالب داشت.
         'notification_deliveries',
         'notification_preferences',
+        // WF-H10 — قفلِ ویرایش؛ مانعِ تداخلِ دو ویرایشگر روی یک صفحه.
+        'page_edit_locks',
         'page_revisions',
+        // H9 — لینکِ اشتراکِ امضاشده؛ دسترسیِ عمومی است و نباید دستِ افزونه باشد.
+        'page_share_links',
+        // WF-H12 — بازدیدِ صفحه. دادهٔ تحلیلیِ هسته است؛ افزونه نباید بتواند آن را
+        // جعل کند یا از آن طلاکوب بسازد.
+        'page_views',
+        'page_vitals',
         'pages',
         'password_reset_tokens',
         'permissions',
@@ -127,17 +154,23 @@ final class PluginDbContract
         'plugin_table_prefixes',
         'plugins',
         'publisher_keys',
-        // P1 — اشتراک‌های Web Push. هسته، نه مالک: نسانی
+        // P1 — اشتراک‌های Web Push. هسته، نه مالک: نَسَانی
         // اشتراک است همان مقصدً است — باریانکی‌که دراوند، محتودی مورد برای خودنان،
         // موستانی. اذر داده نم‌ي‌وند بودند‌انی، اما نشانی
         // آن‌ها رافتهاد و نم‌گذریودن می‌شودی، و هر افزونه‌ای دورشافت رائته شدند‌انست،
         // پس از افزونه نم‌تواند بلیستانی بلکه بدهد بمودیان از خودتنان بنريبری‌دهیدشانی اصالي دارید.
         'push_subscriptions',
+        // H3 — ریدایرکت؛ مسیر عمومیِ سایت است و دستِ افزونه نیست.
+        'redirects',
         'revalidate_logs',
         'role_has_permissions',
         'roles',
         'sessions',
         'settings',
+        // WF-M11 — تاریخچه‌ی عبارت‌های جستجو. هسته است، نه مالک: گزارشِ
+        // «پرجستجوترین‌ها» از آن می‌خواند و هیچ افزونه‌ای نباید بتواند
+        // آن را بخواند یا بنویسد.
+        'search_queries',
         'side_presets',
         'site_theme_presets',
         'site_theme_settings',

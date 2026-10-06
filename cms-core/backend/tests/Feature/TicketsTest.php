@@ -159,4 +159,84 @@ class TicketsTest extends TestCase
 
         $this->assertEquals($before + 1, Ticket::query()->count());
     }
+
+    /** WF-M10 — اولویت جدید + برچسب‌ها: ذخیره، نرمال‌سازی و فیلتر. */
+    public function test_priority_and_labels_persist_and_filter(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $id = $auth->postJson('/api/v1/admin/tickets', [
+            'subject' => 'کندی سایت', 'body' => 'صفحات دیر باز می‌شوند.',
+            'priority' => 'urgent', 'labels' => ['پرداخت', 'پرداخت', '  ', 'فوری'],
+        ])->assertCreated()->json('data.id');
+
+        $this->assertDatabaseHas('tickets', ['id' => $id, 'priority' => 'urgent']);
+
+        $auth->getJson("/api/v1/admin/tickets/{$id}")->assertOk()
+            ->assertJsonPath('data.priority', 'urgent')
+            ->assertJsonPath('data.labels', ['پرداخت', 'فوری']);
+
+        $auth->getJson('/api/v1/admin/tickets?priority=urgent')->assertOk()->assertJsonPath('data.total', 1);
+        $auth->getJson('/api/v1/admin/tickets?priority=low')->assertOk()->assertJsonPath('data.total', 0);
+
+        $auth->getJson('/api/v1/admin/tickets?label='.urlencode('فوری'))->assertOk()->assertJsonPath('data.total', 1);
+        $auth->getJson('/api/v1/admin/tickets?label='.urlencode('ناموجود'))->assertOk()->assertJsonPath('data.total', 0);
+
+        $auth->putJson("/api/v1/admin/tickets/{$id}", ['priority' => 'low', 'labels' => ['بازگشت‌پول']])
+            ->assertOk()
+            ->assertJsonPath('data.priority', 'low')
+            ->assertJsonPath('data.labels', ['بازگشت‌پول']);
+
+        $auth->putJson("/api/v1/admin/tickets/{$id}", ['priority' => 'super'])->assertStatus(422);
+    }
+
+    /** WF-M10 — خروجی CSV فقط ردیف‌های فیلترشده را برمی‌گرداند. */
+    public function test_tickets_csv_export_respects_filters(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+
+        $auth->postJson('/api/v1/admin/tickets', [
+            'subject' => 'درخواست بازگشت', 'body' => 'می‌خواهم لغو کنم.',
+            'priority' => 'high', 'labels' => ['بازگشت'],
+        ])->assertCreated();
+        $auth->postJson('/api/v1/admin/tickets', [
+            'subject' => 'سؤال عمومی', 'body' => 'چطور؟', 'priority' => 'low',
+        ])->assertCreated();
+
+        $res = $auth->get('/api/v1/admin/tickets/export?priority=high');
+        $res->assertOk();
+        $this->assertStringContainsString('text/csv', (string) $res->headers->get('content-type'));
+
+        $csv = $res->streamedContent();
+        $this->assertStringContainsString('subject', $csv);
+        $this->assertStringContainsString('درخواست بازگشت', $csv);
+        $this->assertStringContainsString('بازگشت', $csv);
+        $this->assertStringNotContainsString('سؤال عمومی', $csv);
+    }
+
+    /** WF-M10 — خواندن/خروجی نیازمند tickets.view و نوشتن نیازمند tickets.edit. */
+    public function test_ticket_writes_and_export_require_permission(): void
+    {
+        $this->seed(RolesPermissionsSeeder::class);
+
+        $nobody = User::query()->create([
+            'name' => 'بدون نقش', 'email' => uniqid().'@example.com',
+            'password' => Hash::make('None!1234'), 'role' => 'admin',
+        ]);
+        $none = $this->actingAs($nobody, 'sanctum');
+        $none->getJson('/api/v1/admin/tickets')->assertForbidden();
+        $none->get('/api/v1/admin/tickets/export')->assertForbidden();
+        $none->postJson('/api/v1/admin/tickets', ['subject' => 'x', 'body' => 'y'])->assertForbidden();
+
+        $viewer = User::query()->create([
+            'name' => 'بیننده', 'email' => uniqid().'@example.com',
+            'password' => Hash::make('View!1234'), 'role' => 'admin',
+        ]);
+        $viewer->assignRole('viewer');
+
+        $vauth = $this->actingAs($viewer->fresh(), 'sanctum');
+        $vauth->getJson('/api/v1/admin/tickets')->assertOk();
+        $vauth->get('/api/v1/admin/tickets/export')->assertOk();
+        $vauth->postJson('/api/v1/admin/tickets', ['subject' => 'x', 'body' => 'y'])->assertForbidden();
+    }
 }

@@ -129,12 +129,10 @@ final class SubscriptionSource implements CoreSubscriptionSource
             return null;
         }
 
-        // Q1 (نصب یعنی سایت) — سوپرادمینِ مخفی صورتحساب ندارد. این قاعده در
-        // هسته هم هست، ولی تکرارش اینجا ارزش دارد: این کد از راهِ عمومی هم
-        // صدا زده می‌شود و نباید به حافظهٔ هیچ لایه‌ای تکیه کند.
+        // Q1 (نصب یعنی سایت) — کاربرِ ناموجود صورتحساب ندارد.
         $user = User::query()->find($ownerUserId);
 
-        if ($user === null || (bool) ($user->is_super_admin ?? false)) {
+        if ($user === null) {
             return null;
         }
 

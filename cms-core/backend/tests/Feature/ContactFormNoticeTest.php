@@ -26,11 +26,11 @@ class ContactFormNoticeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_a_new_contact_ticket_notifies_every_super_admin(): void
+    public function test_a_new_contact_ticket_notifies_every_admin(): void
     {
-        $admin = $this->user(['is_super_admin' => true, 'name' => 'سوپرادمین']);
-        $admin2 = $this->user(['is_super_admin' => true, 'name' => 'سوپرادمین دوم']);
-        $plain = $this->user(['is_super_admin' => false, 'name' => 'مدیر عادی']);
+        $admin = $this->user(['role' => 'admin', 'name' => 'مدیر']);
+        $admin2 = $this->user(['role' => 'admin', 'name' => 'مدیر دوم']);
+        $plain = $this->user(['role' => 'editor', 'name' => 'مدیر عادی']);
 
         $res = $this->postJson('/api/v1/contact/tickets', [
             'name' => 'زهرا',
@@ -116,8 +116,8 @@ class ContactFormNoticeTest extends TestCase
     {
         Mail::fake();
 
-        $this->user(['is_super_admin' => true, 'email' => 'admin1@example.com']);
-        $this->user(['is_super_admin' => true, 'email' => 'admin2@example.com']);
+        $this->user(['role' => 'admin', 'email' => 'admin1@example.com']);
+        $this->user(['role' => 'admin', 'email' => 'admin2@example.com']);
 
         $this->postJson('/api/v1/contact/tickets', [
             'name' => 'زهرا',
@@ -155,7 +155,7 @@ class ContactFormNoticeTest extends TestCase
         Mail::fake();
         config(['mail.admin_address' => 'ops@example.com']);
 
-        $this->user(['is_super_admin' => true, 'email' => 'admin@example.com']);
+        $this->user(['role' => 'admin', 'email' => 'admin@example.com']);
 
         $this->postJson('/api/v1/contact/tickets', [
             'name' => 'رضا',
@@ -173,7 +173,7 @@ class ContactFormNoticeTest extends TestCase
         Mail::fake();
         config(['mail.admin_address' => 'not-an-email']);
 
-        $this->user(['is_super_admin' => true, 'email' => 'admin@example.com']);
+        $this->user(['role' => 'admin', 'email' => 'admin@example.com']);
 
         $this->postJson('/api/v1/contact/tickets', [
             'name' => 'مینا',
@@ -205,7 +205,6 @@ class ContactFormNoticeTest extends TestCase
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-            'is_super_admin' => false,
         ], $overrides));
     }
 }

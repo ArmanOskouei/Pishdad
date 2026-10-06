@@ -3,6 +3,7 @@
 namespace App\Services\External;
 
 use App\Services\Chabokan\ChabokanDriverFactory;
+use App\Services\Notifications\TelegramSender;
 use App\Services\Outbox\Outbox;
 use App\Services\Sms\SmsDriverFactory;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,7 @@ final class DependencyChecker
         return [
             $this->mail(),
             $this->sms(),
+            $this->telegram(),
             $this->chabokan(),
             $this->storage(),
             $this->redis(),
@@ -249,6 +251,27 @@ final class DependencyChecker
                     'مقادیر معتبر: null، log، panel.',
                 ),
         };
+    }
+
+    // ------------------------------------------------------------- تلگرام (WF-M15)
+
+    /**
+     * WF-M15 — کانالِ تلگرام.
+     *
+     * خاموشیِ این کانال **مسدودکننده نیست** (fail-soft): نبودِ توکن یعنی هیچ
+     * اعلانی از تلگرام نمی‌رود، ولی سایت سالم است. پس `warn` نه `missing`.
+     */
+    public function telegram(): DependencyStatus
+    {
+        if (TelegramSender::configured()) {
+            return DependencyStatus::ok('telegram', 'تلگرام (WF-M15)', 'TELEGRAM_BOT_TOKEN تنظیم شده؛ ارسال از طریق Bot API فعال است.');
+        }
+
+        return DependencyStatus::warn(
+            'telegram', 'تلگرام (WF-M15)',
+            'TELEGRAM_BOT_TOKEN تنظیم نشده؛ هیچ اعلانی از طریق تلگرام فرستاده نمی‌شود. (کانالِ اختیاری — سایت سالم است.)',
+            'برای فعال‌سازی، یک ربات بسازید و TELEGRAM_BOT_TOKEN را در .env مقدار دهید.',
+        );
     }
 
     // ------------------------------------------------------------- چابکان (E4)

@@ -5,7 +5,6 @@ import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, EmptyState } from "@/components/ui/primitives";
 import { ConfirmStepper } from "@/components/ui/ConfirmStepper";
 import { CopyToClipboard } from "@/components/ui/CopyToClipboard";
-import { Pagination } from "@/components/ui/Pagination";
 import { faNum, jalali } from "@/lib/fa";
 import type { OperatorActivityItem, Paginator } from "@/lib/domain";
 
@@ -148,7 +147,6 @@ export function OperatorClient({ initialActivity }: { initialActivity: Paginator
                 </div>
               ))
             )}
-            <Pagination page={initialActivity.current_page} lastPage={initialActivity.last_page} total={initialActivity.total} base="/central/operator" params={{ page: String(initialActivity.current_page) }} />
           </div>
         </div>
       </div>
@@ -166,5 +164,56 @@ export function OperatorClient({ initialActivity }: { initialActivity: Paginator
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * WF-L4 — «خروجی CSV» لاگ فعالیت اپراتور، با وضعیتِ در حال بارگذاری.
+ *
+ * چرا `fetch` + Blob و نه یک `<a href>` ساده: لینکِ خام هیچ بازخوردی نمی‌دهد و
+ * خطای ۴۰۳/۵۰۰ بک‌اند برای کاربر شبیه «دانلودِ خالیِ بی‌صدا» است. اینجا خطا به
+ * Toast می‌رود و دکمه هم قفل می‌ماند تا کاربر دوبار نزند.
+ *
+ * این کامپوننت از همین فایل export می‌شود و در `page.tsx` (Server Component)
+ * داخل نوارِ فیلتر رندر می‌شود: فیلتر یک فرمِ GET بدون JS است، ولی دکمهٔ
+ * دانلود به state نیاز دارد — همین فایل تنها مرزِ `"use client"` این صفحه است.
+ */
+export function ActivityCsvButton({ query }: { query: string }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const download = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/operator/activity/export${query ? `?${query}` : ""}`, {
+        headers: { Accept: "text/csv, */*;q=0.8" },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json?.message ?? "خروجی CSV ناموفق بود.");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `operator-activity-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "")}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "خروجی CSV ناموفق بود.", "err");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button type="button" className="btn btn-ghost" onClick={() => void download()} disabled={busy} aria-busy={busy}>
+      {busy ? "در حال آماده‌سازی…" : "خروجی CSV"}
+    </button>
   );
 }

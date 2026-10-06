@@ -41,8 +41,7 @@ class RequireUserRole
     {
         $user = $request->user();
 
-        $allowed = $user
-            && ($user->is_super_admin || ($user->role ?? null) === $role);
+        $allowed = $user && ($user->role ?? null) === $role;
 
         if (! $allowed) {
             // پیام عمداً نامِ نقش یا افزونه را افشا نمی‌کند — فقط می‌گوید این

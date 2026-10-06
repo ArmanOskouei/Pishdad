@@ -300,7 +300,7 @@ class InstallController extends Controller
         }
         $validated = $validator->validated();
 
-        $user = self::createSuperAdmin($validated['name'], $validated['email'], $validated['password']);
+        $user = self::createFirstAdmin($validated['name'], $validated['email'], $validated['password']);
         InstallJournal::put('superadmin', ['email' => $user->email, 'id' => $user->id]);
         InstallJournal::markStepDone('superadmin');
 
@@ -357,32 +357,33 @@ class InstallController extends Controller
         return view('install.done', ['email' => $email, 'step' => 'finalize']);
     }
 
-    // ─── ساخت سوپرادمین (مشترک وب + CLI) ────────────────────────────
+    // ─── ساختِ نخستین مدیر (مشترک وب + CLI) ─────────────────────────
     //
-    // عمداً SuperAdminSeeder صدا زده نمی‌شود: آن سیدر سکرت TOTP را به stdout
-    // چاپ می‌کند و google2fa را از ابتدا فعال می‌کند. اینجا کاربر بدون 2FA
-    // ساخته می‌شود و اولین ورود، راه‌اندازی 2FA را اجبار می‌کند
-    // (EnsureTwoFactorSetup + پرچم two_factor_setup_required در لاگین).
+    // نقش `owner` (که همهٔ پرمیشن‌ها را دارد) به او داده می‌شود. هیچ نقشِ
+    // مخفی/مستثنا و هیچ 2FA اجباری‌ای وجود ندارد؛ 2FA را خودش از پروفایل فعال
+    // می‌کند. (پیش‌تر یک «سوپرادمین مخفی» با پرچم‌های bypass ساخته می‌شد.)
 
-    public static function createSuperAdmin(string $name, string $email, string $password): User
+    public static function createFirstAdmin(string $name, string $email, string $password): User
     {
-        Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
-        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        // نقش‌ها/پرمیشن‌ها باید موجود باشند تا `owner` (که همهٔ پرمیشن‌ها را دارد)
+        // به نخستین مدیر داده شود؛ روی نصبِ تازه که هنوز seed نشده، همین‌جا
+        // ساخته می‌شوند.
+        if (! Role::query()->where('name', 'owner')->exists()) {
+            app(\Database\Seeders\RolesPermissionsSeeder::class)->run();
+        }
 
         $user = User::query()->updateOrCreate(
             ['email' => $email],
             [
                 'name' => $name,
                 'password' => Hash::make($password),
-                'role' => 'super-admin',
-                'is_super_admin' => true,
-                'is_hidden' => true,
+                'role' => 'admin',
                 'google2fa_secret' => null,
                 'google2fa_enabled' => false,
                 'recovery_codes' => [],
             ]
         );
-        $user->assignRole('super-admin');
+        $user->assignRole('owner');
 
         return $user;
     }

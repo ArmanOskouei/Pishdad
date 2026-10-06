@@ -15,7 +15,9 @@ use App\Services\Plugins\ManifestRegistry;
 use App\Services\Plugins\PluginAutoloader;
 use App\Services\Plugins\PluginInstaller;
 use App\Services\Plugins\PluginReleaseManager;
+use App\Services\Plugins\PluginSettingsStore;
 use App\Services\Plugins\PluginSignatureVerifier;
+use App\Services\Settings\CachedSettings;
 use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -977,6 +979,49 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
         $this->assertFileExists($oldAbsolute, 'فایل قبلی نباید پیش از نوشتن موفق حذف می‌شد.');
 
         @unlink($blocker);
+    }
+
+    /**
+     * WF-H17 — ارتقا باید تنظیمات افزونه را حفظ کند.
+     *
+     * تنظیمات در `settings` با `group = plugin:{slug}` ذخیره می‌شوند
+     * (`PluginSettingsStore`)، پس با slug گره خورده‌اند نه با نسخه. `upgrade()`
+     * هم جدول `settings` را پاک نمی‌کند. این تست همان قرارداد را روی مسیر
+     * واقعیِ ارتقا قفل می‌کند تا اگر روزی کسی در `upgrade()` چیزی پاک کرد،
+     * قرمز شود.
+     */
+    public function test_upgrade_preserves_plugin_settings(): void
+    {
+        $auth = $this->actingAs($this->owner(), 'sanctum');
+        $slug = 'settings-keeper';
+        $settings = [
+            'shop' => [
+                'title_fa' => 'فروشگاه',
+                'group' => 'عمومی',
+                'schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'currency' => ['type' => 'enum', 'enum' => ['IRR', 'USD'], 'default' => 'IRR'],
+                    ],
+                ],
+            ],
+        ];
+
+        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
+            'file' => $this->pluginZip($this->manifest(['slug' => $slug, 'settings' => $settings])),
+        ])->assertCreated()->json('data.id');
+
+        PluginSettingsStore::write($slug, ['currency' => 'USD']);
+
+        $auth->postJson("/api/v1/admin/plugins/{$id}/upgrade", [
+            'file' => $this->pluginZip($this->manifest([
+                'slug' => $slug, 'version' => '2.0.0', 'settings' => $settings,
+            ])),
+        ])->assertOk()->assertJsonPath('data.version', '2.0.0');
+
+        // کش را دور می‌زنیم تا واقعاً از دیتابیس بخوانیم، نه از مقدارِ قبلی.
+        CachedSettings::forget('plugin', $slug);
+        $this->assertSame('USD', PluginSettingsStore::read($slug)['currency'] ?? null);
     }
 
     /** مسیر سالم: فایل جدید هست، فایل قبلی پاک شده. */

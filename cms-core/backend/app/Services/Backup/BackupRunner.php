@@ -52,7 +52,7 @@ class BackupRunner
             return $this->fail($missing);
         }
 
-        $dir = $directory ?: (string) (config('backup.path') ?: storage_path('app/backups'));
+        $dir = $this->directory($directory);
         if (! $this->ensureDirectory($dir)) {
             return $this->fail('پوشهٔ پشتیبان قابل ساخت نیست: «'.$dir.'». دسترسی نوشتن روی دیسک را بررسی کنید.');
         }
@@ -132,6 +132,71 @@ class BackupRunner
             'removed' => $removed,
             'error' => null,
         ];
+    }
+
+    /** پوشهٔ مؤثر پشتیبان‌ها (override تست/پنل مقدم بر کانفیگ). */
+    public function directory(?string $directory = null): string
+    {
+        return $directory ?: (string) (config('backup.path') ?: storage_path('app/backups'));
+    }
+
+    /**
+     * فهرست نسخه‌های موجود برای پنل مشتری.
+     *
+     * دیسک منبع حقیقت است (مانیفست ممکن است کهنه باشد)، ولی فرادادهٔ سنگین
+     * (`sha256`) از مانیفست خوانده می‌شود تا هر بار بازشدن صفحه، گیگابایت‌ها
+     * دوباره هش نشوند. هر ورودی مسیر مطلق را هم دارد تا کنترلر دوباره منطق
+     * مسیر را نسازد.
+     *
+     * @return list<array{id: string, file: string, path: string, bytes: int, sha256: ?string, database: ?string, created_at: ?string}>
+     */
+    public function listBackups(?string $directory = null): array
+    {
+        $dir = $this->directory($directory);
+        $known = $this->manifestEntries($dir);
+
+        $entries = [];
+        foreach ($this->dumps($dir) as $path) {
+            $name = basename($path);
+            $meta = $known[$name] ?? [];
+
+            $entries[] = [
+                'id' => $name,
+                'file' => $name,
+                'path' => $path,
+                'bytes' => (int) ($meta['bytes'] ?? filesize($path)),
+                'sha256' => is_string($meta['sha256'] ?? null) ? $meta['sha256'] : null,
+                'database' => is_string($meta['database'] ?? null) ? $meta['database'] : $this->databaseOf($name),
+                'created_at' => is_string($meta['created_at'] ?? null) ? $meta['created_at'] : $this->createdAtOf($name),
+            ];
+        }
+
+        // نام فایل زمان‌دار است، پس مرتب‌سازی نزولیِ رشته = تازه‌به‌کهنه.
+        usort($entries, static fn (array $a, array $b) => strcmp((string) $b['file'], (string) $a['file']));
+
+        return $entries;
+    }
+
+    /**
+     * یک نسخه را با شناسه (نام فایل) پیدا می‌کند — فقط اگر واقعاً روی دیسک باشد.
+     *
+     * @return array{id: string, file: string, path: string, bytes: int, sha256: ?string, database: ?string, created_at: ?string}|null
+     */
+    public function findBackup(string $id): ?array
+    {
+        // «id» فقط نام فایل است. هر مسیری (`..`، جداکننده، درایو) رد می‌شود و
+        // حتی اگر بگذرد، در فهرستِ دیسکِ همان پوشه هیچ تطابقی پیدا نمی‌کند.
+        if ($id === '' || $id !== basename($id)) {
+            return null;
+        }
+
+        foreach ($this->listBackups() as $entry) {
+            if ($entry['id'] === $id) {
+                return $entry;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -273,6 +338,31 @@ class BackupRunner
         }
 
         return $removed;
+    }
+
+    /** @return array<string, array<string, mixed>> نگاشت «نام فایل ⇒ ورودی مانیفست» */
+    private function manifestEntries(string $dir): array
+    {
+        $name = (string) config('backup.manifest', 'manifest.json');
+        $path = rtrim($dir, '/\\').DIRECTORY_SEPARATOR.$name;
+
+        if (! is_file($path)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) @file_get_contents($path), true);
+        if (! is_array($decoded) || ! isset($decoded['backups']) || ! is_array($decoded['backups'])) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($decoded['backups'] as $entry) {
+            if (is_array($entry) && is_string($entry['file'] ?? null)) {
+                $map[$entry['file']] = $entry;
+            }
+        }
+
+        return $map;
     }
 
     /** @return list<string> */

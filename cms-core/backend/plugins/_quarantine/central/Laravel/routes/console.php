@@ -32,3 +32,9 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::command('billing:remind')->dailyAt('08:00');
 Schedule::command('billing:suspend')->dailyAt('08:15');
 Schedule::command('billing:purge')->dailyAt('08:30');
+
+// WF-L4 — نگهداشت لاگ فعالیت اپراتور (۹۰ روز). بعد از `billing:purge` است تا
+// حذفِ ردیف‌ها بعد از سه فرمانِ اشتراک انجام شود؛ همه در پنجرهٔ ۰۸ و بی‌رقابت.
+// پنجره با `--days` یا `OPERATOR_ACTIVITY_RETENTION_DAYS` بازنویسی می‌شود —
+// پیش‌فرضِ ۹۰ روز داخل خودِ فرمان است، نه اینجا.
+Schedule::command('operator:prune')->dailyAt('08:40');

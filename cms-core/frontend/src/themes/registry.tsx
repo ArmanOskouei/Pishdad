@@ -1,8 +1,9 @@
 import { resolveThemeManifest } from "./manifests";
+import { DefaultBlogTheme } from "./blog";
 import { CommerceTheme } from "./commerce";
 import { EditorialTheme } from "./editorial";
 import { MinimalTheme } from "./minimal";
-import type { ThemeDefinition } from "./types";
+import type { ThemeBlogComponent, ThemeDefinition } from "./types";
 
 /**
  * ECO1 — رجیستریِ رندرِ قالب‌های کد‌محور.
@@ -28,4 +29,15 @@ export { DEFAULT_THEME_SLUG, themeSlugs } from "./manifests";
 export function resolveTheme(slug?: string | null): ThemeDefinition {
   const manifest = resolveThemeManifest(slug);
   return BY_SLUG[manifest.slug];
+}
+
+/**
+ * WF-C7 — رندرکنندهٔ اسلاتِ بلاگ. اگر قالب `Blog` خودش را داده باشد همان،
+ * وگرنه پیاده‌سازیِ پیش‌فرض با `variant` همان قالب (رنگ/شعاع/عرض حفظ می‌شود).
+ */
+export function resolveBlogTheme(slug?: string | null): ThemeBlogComponent {
+  const definition = resolveTheme(slug);
+  if (definition.Blog) return definition.Blog;
+  const variant = definition.manifest.slug;
+  return (props) => <DefaultBlogTheme {...props} variant={variant} />;
 }

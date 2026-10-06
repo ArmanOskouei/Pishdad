@@ -2,13 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildAlternatesLanguages,
   isPublicSitePath,
+  localeFallbackChain,
+  localePublicPath,
+  pickBrowserLocale,
   splitLocalePrefix,
   resolveLocaleRoute,
   parseLocalesHeader,
   localesForHeader,
 } from "./public-routing.ts";
-import { localizeHref, publicDir, publicHreflang } from "./i18n/public/index.ts";
+import { localizeHref, publicDir, publicHreflang, type PublicLocale } from "./i18n/public/index.ts";
 
 /**
  * ECO2 — مسیریابیِ زبانِ سایت (مدل a).
@@ -114,4 +118,71 @@ test("جهت و hreflang از زبان و ثابت‌اند", () => {
   assert.equal(publicDir("en"), "ltr");
   assert.equal(publicHreflang("fa"), "fa");
   assert.equal(publicHreflang("en"), "en");
+});
+
+/* ── WF-H15 — hreflang و fallback زبان ───────────────────────────────── */
+
+test("localePublicPath: زبان پایه بدون پیشوند، زبان دوم با پیشوند", () => {
+  assert.equal(localePublicPath("fa", "about", "fa"), "/about");
+  assert.equal(localePublicPath("en", "about", "fa"), "/en/about");
+  assert.equal(localePublicPath("fa", "", "fa"), "/");
+  assert.equal(localePublicPath("en", "", "fa"), "/en");
+  // زبان پایه en: ریشه en، پیشوند fa.
+  assert.equal(localePublicPath("en", "about", "en"), "/about");
+  assert.equal(localePublicPath("fa", "about", "en"), "/fa/about");
+});
+
+test("hreflang: هر زبان لوکال + x-default به نسخهٔ زبان پایه", () => {
+  assert.deepEqual(
+    buildAlternatesLanguages({ base: "https://ex.com/", slug: "about", locales: ["fa", "en"], primary: "fa" }),
+    {
+      fa: "https://ex.com/about",
+      en: "https://ex.com/en/about",
+      "x-default": "https://ex.com/about",
+    },
+  );
+  // صفحهٔ خانه: مسیر زبان پایه با اسلش پایانی.
+  assert.deepEqual(
+    buildAlternatesLanguages({ base: "https://ex.com", slug: "", locales: ["fa", "en"], primary: "fa" }),
+    {
+      fa: "https://ex.com/",
+      en: "https://ex.com/en",
+      "x-default": "https://ex.com/",
+    },
+  );
+  // زبان پایه en.
+  assert.deepEqual(
+    buildAlternatesLanguages({ base: "https://ex.com", slug: "about", locales: ["en", "fa"], primary: "en" }),
+    {
+      en: "https://ex.com/about",
+      fa: "https://ex.com/fa/about",
+      "x-default": "https://ex.com/about",
+    },
+  );
+  // تک‌زبانه: یک زبان + x-default همان.
+  assert.deepEqual(
+    buildAlternatesLanguages({ base: "https://ex.com", slug: "x", locales: ["fa"], primary: "fa" }),
+    { fa: "https://ex.com/x", "x-default": "https://ex.com/x" },
+  );
+});
+
+test("pickBrowserLocale: تطبیق Accept-Language با q و نگاشت منطقه", () => {
+  assert.equal(pickBrowserLocale("en-US,en;q=0.9,fa;q=0.8", ["fa", "en"], "fa"), "en");
+  assert.equal(pickBrowserLocale("fa-IR,fa;q=0.9", ["fa", "en"], "en"), "fa");
+  // q تعیین‌کننده است، نه ترتیب ظاهری.
+  assert.equal(pickBrowserLocale("en;q=0.3,fa;q=0.9", ["fa", "en"], "en"), "fa");
+  // زبان ناشناخته ⇒ زبان پایه.
+  assert.equal(pickBrowserLocale("de,fr;q=0.9", ["fa", "en"], "fa"), "fa");
+  assert.equal(pickBrowserLocale(null, ["fa", "en"], "fa"), "fa");
+  assert.equal(pickBrowserLocale("", ["fa", "en"], "en"), "en");
+});
+
+test("localeFallbackChain: ترتیب مرورگر→پایه و فقط زبان‌های پیکربندی‌شده", () => {
+  assert.deepEqual(localeFallbackChain("en", ["fa", "en"], "fa", "en"), ["en", "fa"]);
+  assert.deepEqual(localeFallbackChain("en", ["fa", "en"], "fa", "fa"), ["en", "fa"]);
+  assert.deepEqual(localeFallbackChain("fa", ["fa", "en"], "fa", "en"), ["fa", "en"]);
+  // زبان ناشناخته هرگز کاندید نمی‌شود (ضد حلقهٔ ریدایرکت).
+  assert.deepEqual(localeFallbackChain("de" as PublicLocale, ["fa", "en"], "fa", "en"), ["en", "fa"]);
+  // زبان حذف‌شده از پیکربندی هم کاندید نمی‌شود.
+  assert.deepEqual(localeFallbackChain("en", ["fa"], "fa", "en"), ["fa"]);
 });

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Install\EnsureTwoFactorSetup;
 use App\Http\Controllers\Install\InstallGuard;
+use App\Http\Middleware\EnsureAdminIpAllowed;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\GateDevModeUpload;
 use App\Http\Middleware\RequireUserRole;
@@ -35,6 +36,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RequireUserRole::class,
             'perm' => EnsurePermission::class,
             'devmode.gate' => GateDevModeUpload::class,
+            // WF-M7 — فهرست IPهای مجاز پنل (خالی = همه). روی گروه admin اعمال می‌شود.
+            'admin.ip' => EnsureAdminIpAllowed::class,
         ]);
 
         // U90. Laravel's default is `redirectGuestsTo(fn () => route('login'))`

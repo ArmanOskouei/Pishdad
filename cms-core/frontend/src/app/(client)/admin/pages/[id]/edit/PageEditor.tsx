@@ -1,22 +1,88 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authed } from "@/lib/auth";
+import { authed, ApiError } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
-import { Badge, Skeleton } from "@/components/ui/primitives";
+import { Alert, Badge, Skeleton } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/Overlays";
 import { ConfirmStepper } from "@/components/ui/ConfirmStepper";
+import { CopyToClipboard } from "@/components/ui/CopyToClipboard";
 import { SchemaForm } from "@/components/ui/SchemaForm";
 import { DragDropList } from "@/components/ui/DragDropList";
 import { MediaPicker } from "@/components/ui/MediaPicker";
+import { JalaliDatePicker } from "@/components/ui/JalaliDatePicker";
 import { faNum, jalali } from "@/lib/fa";
 import { BlockRenderer } from "@/components/site/BlockRenderer";
 import { withResolvedMedia } from "@/lib/block-preview";
+import {
+  autosaveGate,
+  createDebouncer,
+  formatSavedClock,
+  LOCK_HEARTBEAT_MS,
+  AUTOSAVE_MS,
+  type EditLockHolder,
+  type TimerApi,
+} from "@/lib/page-edit-lock";
 import { mediaUrl, asList, type BlockDef, type BlockValue, type PageItem, type Revision, type SideName, type SidePreset } from "@/lib/domain";
+import {
+  serpCharState,
+  serpLength,
+  serpUrlParts,
+  truncateForSerp,
+  SERP_DESC_MAX,
+  SERP_DESC_MIN,
+  SERP_TITLE_MAX,
+  SERP_TITLE_MIN,
+  type SerpCharState,
+} from "@/lib/seo-preview";
 
 type Row = BlockValue & { _key: string };
 let seq = 1;
 const key = () => `b${Date.now()}_${seq++}`;
+
+/* WF-H14 — همزادِ ترجمهٔ زبان مقابل + وضعیت مقایسهٔ revision. */
+type TranslationSibling = {
+  id: number; title: string; slug: string; locale: string; status: string;
+  is_single: boolean; source_revision_id: number | null; updated_at: string | null;
+};
+type TranslationInfo = {
+  source: { id: number; locale: string | null; slug: string; latest_revision_id: number | null };
+  target_locale: string;
+  status: "none" | "translated" | "needs_update";
+  sibling: TranslationSibling | null;
+};
+
+function translationStatusBadge(status: TranslationInfo["status"]) {
+  if (status === "translated") return { tone: "green" as const, label: "ترجمه‌شده" };
+  if (status === "needs_update") return { tone: "amber" as const, label: "نیازمند به‌روزرسانی" };
+  return { tone: "gray" as const, label: "بدون ترجمه" };
+}
+
+const SERP_TONE: Record<SerpCharState, string> = {
+  short: "var(--warning)",
+  good: "var(--success)",
+  long: "var(--danger)",
+};
+
+const realTimers: TimerApi = {
+  set: (fn, ms) => window.setTimeout(fn, ms),
+  clear: (h) => window.clearTimeout(h as number),
+};
+
+/* WF-C3 — کمک‌تابع‌های تبدیل تاریخ/ساعت محلی برای زمان‌بندی انتشار. */
+const pad2 = (x: number) => String(x).padStart(2, "0");
+const todayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+const isoToLocalDate = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? todayLocal() : `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+const isoToLocalTime = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "09:00" : `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
 
 /** مقدار پیش‌فرض بلوک از schema (defaultها + رشته خالی برای requiredها). */
 function defaultsFor(def: BlockDef): Record<string, unknown> {
@@ -52,17 +118,62 @@ export function PageEditor({
   const [selected, setSelected] = useState<string | null>(null);
   const [revisions, setRevisions] = useState<Revision[]>(initialRevisions);
   const [dirty, setDirty] = useState(false);
+  const [editSeq, setEditSeq] = useState(0);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [autosaving, setAutosaving] = useState(false);
+  const [lockHolder, setLockHolder] = useState<EditLockHolder | null>(null);
+  const [conflict, setConflict] = useState(false);
   const [preview, setPreview] = useState(false);
   const [armPublish, setArmPublish] = useState(false);
+  /* WF-H5 — لغو انتشار (برگشت به پیش‌نویس با حفظ نسخه/تاریخ انتشار). */
+  const [unpublishing, setUnpublishing] = useState(false);
+  const [armUnpublish, setArmUnpublish] = useState(false);
+  /* WF-C3 — زمان‌بندی انتشار. */
+  const [scheduledAt, setScheduledAt] = useState<string | null>(page.scheduled_at ?? null);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [schedDate, setSchedDate] = useState<string | null>(null);
+  const [schedTime, setSchedTime] = useState("09:00");
+  const [scheduling, setScheduling] = useState(false);
+  const [armCancelSchedule, setArmCancelSchedule] = useState(false);
+  /* WF-H2 — لینک اشتراک پیش‌نویس. */
+  const [shareLink, setShareLink] = useState<{ url: string; token: string; expires_at: string } | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [revokingShare, setRevokingShare] = useState(false);
+  const [armRevokeShare, setArmRevokeShare] = useState(false);
   const [ogPicker, setOgPicker] = useState(false);
+  const [redirectSuggestion, setRedirectSuggestion] = useState<{ from_path: string; to_path: string } | null>(null);
   const [armBack, setArmBack] = useState(false);
   const [armRestore, setArmRestore] = useState<number | null>(null);
+  /* WF-H14 — ترجمهٔ محتوای چندزبانه. */
+  const [translation, setTranslation] = useState<TranslationInfo | null>(null);
+  const [translating, setTranslating] = useState(false);
   const [mediaCache, setMediaCache] = useState<Record<number, string>>({});
   const mediaSeen = useRef<Set<number>>(new Set());
   const publishInFlight = useRef(false);
-  const markDirty = useCallback(() => setDirty(true), []);
+  /* WF-H3 — ردیابیِ نسخهٔ سرور برای کنترل همروندی + زمان‌بندیِ خودکار. */
+  const lastUpdatedRef = useRef<string | undefined>(page.updated_at);
+  const editSeqRef = useRef(0);
+  const autosavingRef = useRef(false);
+  const doAutosaveRef = useRef<() => Promise<void>>(async () => {});
+  const markDirty = useCallback(() => { editSeqRef.current += 1; setEditSeq(editSeqRef.current); setDirty(true); }, []);
+
+  /* WF-C1 — مقادیر مشتقِ سئو: شناسهٔ تصویر OG و وضعیت noindex. */
+  const ogImageId = (() => {
+    const a = meta.og_image_media_id;
+    if (typeof a === "number" && a > 0) return a;
+    const b = meta.og_image;
+    return typeof b === "number" && b > 0 ? b : 0;
+  })();
+  const noindex = meta.noindex === true || String(meta.robots ?? "").toLowerCase().includes("noindex");
+
+  /* WF-M1 — مقادیر زندهٔ سئو برای پیش‌نمایش SERP (خالص، بدون state). */
+  const seoTitle = String(meta.title ?? meta.seo_title ?? "");
+  const seoDescription = String(meta.description ?? meta.seo_description ?? "");
+  const seoTitleState = serpCharState(serpLength(seoTitle), SERP_TITLE_MIN, SERP_TITLE_MAX);
+  const seoDescState = serpCharState(serpLength(seoDescription), SERP_DESC_MIN, SERP_DESC_MAX);
+  const serpUrl = serpUrlParts(String(meta.canonical ?? ""), slug);
 
   /* ── ستون‌های کناری (پریست مشترک با ارجاع زنده) ── */
   const [presets, setPresets] = useState<SidePreset[]>([]);
@@ -144,6 +255,8 @@ export function PageEditor({
     right_preset_id: rightPresetId,
     left_enabled: leftEnabled,
     right_enabled: rightEnabled,
+    /* WF-H3 — آخرین `updated_at` شناخته‌شده؛ اگر سرور جلوتر رفته باشد ۴۰۹ می‌دهد. */
+    updated_at: lastUpdatedRef.current,
   });
 
   const refreshRevisions = useCallback(async () => {
@@ -153,25 +266,191 @@ export function PageEditor({
     } catch { /* نسخه‌ها اختیاری */ }
   }, [page.id]);
 
+  /* WF-H14 — بارگذاری وضعیت ترجمه + ساخت/همگام‌سازی همزادِ زبانِ مقابل. */
+  const sourceLocale = (page as PageItem & { locale?: string | null }).locale ?? "fa";
+
+  const loadTranslation = useCallback(async () => {
+    try {
+      const r = await authed<TranslationInfo>(`/v1/admin/pages/${page.id}/translation`);
+      setTranslation(r);
+    } catch { /* ترجمه اختیاری است */ }
+  }, [page.id]);
+
+  useEffect(() => { void loadTranslation(); }, [loadTranslation]);
+
+  const syncTranslation = async (navigate: boolean) => {
+    setTranslating(true);
+    try {
+      const r = await authed<TranslationInfo>(`/v1/admin/pages/${page.id}/translation`, { method: "POST" });
+      setTranslation(r);
+      toast("ترجمه ساخته/همگام شد.", "ok");
+      if (navigate && r.sibling) {
+        window.location.assign(`/admin/pages/${r.sibling.id}/edit`);
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "عملیات ترجمه ناموفق بود.", "err");
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const goToLocale = (target: string) => {
+    if (target === sourceLocale) return;
+    if (dirty) { toast("ابتدا تغییرات را ذخیره کنید؛ سپس زبان را عوض کنید.", "err"); return; }
+    if (translation?.sibling) { window.location.assign(`/admin/pages/${translation.sibling.id}/edit`); return; }
+    void syncTranslation(true);
+  };
+
+  const tBadge = translation ? translationStatusBadge(translation.status) : null;
+
   const persistDraft = async () => {
-    const res = await authed<{ status?: string }>(`/v1/admin/pages/${page.id}`, { method: "PUT", body: payload() });
+    const res = await authed<{ status?: string; updated_at?: string }>(`/v1/admin/pages/${page.id}`, { method: "PUT", body: payload() });
     if (res?.status) setStatus(res.status as PageItem["status"]);
+    if (res?.updated_at) lastUpdatedRef.current = res.updated_at;
     return res;
   };
 
   const saveDraft = async () => {
+    if (autosavingRef.current) return;
     if (!title.trim()) { toast("عنوان صفحه الزامی است.", "err"); return; }
     setSaving(true);
     try {
-      await persistDraft();
+      const res = await persistDraft() as {
+        status?: string;
+        redirect_suggestion?: { from_path: string; to_path: string } | null;
+      };
       setDirty(false);
+      setConflict(false);
+      setSavedAt(new Date());
       toast("پیش‌نویس ذخیره شد (نسخه جدید ساخته شد).", "ok");
+      if (res?.redirect_suggestion) setRedirectSuggestion(res.redirect_suggestion);
       await refreshRevisions();
       router.refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ذخیره ناموفق بود.", "err");
+      if (e instanceof ApiError && e.status === 409) {
+        setConflict(true);
+        toast("این صفحه توسط مدیر دیگری تغییر کرده است — برای جلوگیری از بازنویسی، محتوای تازه را بارگذاری کنید.", "err");
+      } else {
+        toast(e instanceof Error ? e.message : "ذخیره ناموفق بود.", "err");
+      }
     } finally {
       setSaving(false);
+    }
+  };
+
+  /* WF-H3 — بارگذاری محتوای تازه از سرور (رفع تعارض نسخه/قفلِ کهنه). */
+  const reloadFromServer = async () => {
+    try {
+      const full = await authed<PageItem>(`/v1/admin/pages/${page.id}`);
+      setTitle(full.title);
+      setSlug(full.slug);
+      setBlocks((full.blocks ?? []).map((b) => ({ ...b, data: b.data ?? {}, _key: key() })));
+      setMeta((full.meta as Record<string, unknown>) ?? {});
+      setStatus(full.status);
+      setIsSingle(full.is_single ?? false);
+      setLeftEnabled(full.left_enabled ?? true);
+      setRightEnabled(full.right_enabled ?? true);
+      setLeftPresetId(full.left_preset_id ?? null);
+      setRightPresetId(full.right_preset_id ?? null);
+      lastUpdatedRef.current = full.updated_at;
+      setSelected(null);
+      setConflict(false);
+      setDirty(false);
+      toast("محتوای تازه از سرور بارگذاری شد.", "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "بارگذاری محتوای تازه ناموفق بود.", "err");
+    }
+  };
+
+  /* WF-H3 — تصاحبِ عمدیِ قفل در دستِ مدیر دیگر. */
+  const takeOverLock = async () => {
+    try {
+      await authed(`/v1/admin/pages/${page.id}/lock`, { method: "POST", body: { force: true } });
+      setLockHolder(null);
+      toast("قفل ویرایش به شما منتقل شد؛ مراقب ویرایش هم‌زمان باشید.", "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "تصاحب قفل ناموفق بود.", "err");
+    }
+  };
+
+  /* WF-H3 — heartbeat قفل + بنر «در حال ویرایش توسط …» + آزادسازی هنگام خروج. */
+  useEffect(() => {
+    let stopped = false;
+    const beat = async () => {
+      try {
+        await authed<{ owned: boolean; lock: EditLockHolder }>(`/v1/admin/pages/${page.id}/lock`, { method: "POST", body: {} });
+        if (!stopped) setLockHolder(null);
+      } catch (e) {
+        if (stopped) return;
+        if (e instanceof ApiError && e.status === 409) {
+          const body = e.payload as { data?: { lock?: EditLockHolder } } | undefined;
+          setLockHolder(body?.data?.lock ?? null);
+        }
+      }
+    };
+    void beat();
+    const timer = window.setInterval(() => { void beat(); }, LOCK_HEARTBEAT_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      void authed(`/v1/admin/pages/${page.id}/lock`, { method: "DELETE" }).catch(() => undefined);
+    };
+  }, [page.id]);
+
+  /* WF-H3 — نگه‌داشتنِ تازه‌ترین تابع ذخیرهٔ خودکار (پرهیز از closure کهنه). */
+  useEffect(() => {
+    doAutosaveRef.current = async () => {
+      if (!autosaveGate({ dirty, saving, publishing, hasConflict: conflict, hasLockHolder: lockHolder !== null })) return;
+      if (autosavingRef.current) return;
+      autosavingRef.current = true;
+      setAutosaving(true);
+      const seqAtStart = editSeqRef.current;
+      try {
+        const res = await authed<{ status?: string; updated_at?: string }>(
+          `/v1/admin/pages/${page.id}`,
+          { method: "PUT", body: payload() },
+        );
+        if (res?.status) setStatus(res.status as PageItem["status"]);
+        if (res?.updated_at) lastUpdatedRef.current = res.updated_at;
+        if (editSeqRef.current === seqAtStart) setDirty(false);
+        setSavedAt(new Date());
+        void refreshRevisions();
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) {
+          setConflict(true);
+          toast("این صفحه توسط مدیر دیگری تغییر کرده است — ذخیرهٔ خودکار متوقف شد.", "err");
+        } else {
+          toast("ذخیرهٔ خودکار ناموفق بود.", "err");
+        }
+      } finally {
+        autosavingRef.current = false;
+        setAutosaving(false);
+      }
+    };
+  });
+
+  /* WF-H3 — زمان‌بندیِ ذخیرهٔ خودکار ~۳۰ ثانیه پس از آخرین تغییر (debounce). */
+  useEffect(() => {
+    if (!autosaveGate({ dirty, saving, publishing, hasConflict: conflict, hasLockHolder: lockHolder !== null })) return;
+    const d = createDebouncer(() => { void doAutosaveRef.current(); }, AUTOSAVE_MS, realTimers);
+    d.schedule();
+    return () => d.cancel();
+  }, [dirty, saving, publishing, conflict, lockHolder, editSeq]);
+
+  const createSuggestedRedirect = async () => {
+    if (!redirectSuggestion) return "انصراف";
+    try {
+      await authed("/v1/admin/redirects", {
+        method: "POST",
+        body: { from_path: redirectSuggestion.from_path, to_path: redirectSuggestion.to_path, status_code: 301 },
+      });
+      setRedirectSuggestion(null);
+      toast("ریدایرکت ۳۰۱ از اسلاگ قدیم به جدید ثبت شد.", "ok");
+      return "ریدایرکت ثبت شد.";
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "ثبت ریدایرکت ناموفق بود.";
+      toast(message, "err");
+      throw new Error(message);
     }
   };
 
@@ -193,14 +472,16 @@ export function PageEditor({
         if (!title.trim()) throw new Error("عنوان صفحه الزامی است.");
         try {
           await persistDraft();
-        } catch {
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 409) setConflict(true);
           throw new Error("ذخیره پیش‌نویس ناموفق بود؛ انتشار انجام نشد.");
         }
         setDirty(false);
         draftSaved = true;
       }
       try {
-        await authed(`/v1/admin/pages/${page.id}/publish`, { method: "POST" });
+        const pub = await authed<{ updated_at?: string }>(`/v1/admin/pages/${page.id}/publish`, { method: "POST" });
+        if (pub?.updated_at) lastUpdatedRef.current = pub.updated_at;
       } catch {
         throw new Error(draftSaved
           ? "انتشار ناموفق بود؛ پیش‌نویس ذخیره شد، اما صفحه منتشر نشد."
@@ -208,6 +489,7 @@ export function PageEditor({
       }
       setStatus("published");
       setDirty(false);
+      setSavedAt(new Date());
       toast("صفحه با موفقیت منتشر شد.", "ok");
       await refreshRevisions();
       router.refresh();
@@ -223,6 +505,129 @@ export function PageEditor({
     }
   };
 
+  /* WF-H5 — لغو انتشار: status به draft برمی‌گردد اما نسخه/تاریخ انتشار حفظ می‌شود. */
+  const doUnpublish = async () => {
+    if (unpublishing) return "عملیات در حال انجام است.";
+    setUnpublishing(true);
+    setSaving(true);
+    try {
+      if (dirty) {
+        if (!title.trim()) throw new Error("عنوان صفحه الزامی است.");
+        try {
+          await persistDraft();
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 409) setConflict(true);
+          throw new Error("ذخیره پیش‌نویس ناموفق بود؛ لغو انتشار انجام نشد.");
+        }
+        setDirty(false);
+      }
+      try {
+        const res = await authed<{ updated_at?: string }>(`/v1/admin/pages/${page.id}/unpublish`, { method: "POST" });
+        if (res?.updated_at) lastUpdatedRef.current = res.updated_at;
+      } catch {
+        throw new Error("لغو انتشار صفحه ناموفق بود؛ دوباره تلاش کنید.");
+      }
+      setStatus("draft");
+      setSavedAt(new Date());
+      toast("انتشار صفحه لغو شد (به پیش‌نویس برگشت).", "ok");
+      await refreshRevisions();
+      router.refresh();
+      return "انتشار صفحه لغو شد.";
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "لغو انتشار صفحه ناموفق بود؛ دوباره تلاش کنید.";
+      toast(message, "err");
+      throw new Error(message);
+    } finally {
+      setSaving(false);
+      setUnpublishing(false);
+    }
+  };
+
+  /* WF-C3 — باز/بستهٔ پنل زمان‌بندی با پیش‌پرکردن از موعد فعلی. */
+  const openSchedule = () => {
+    if (scheduledAt) {
+      setSchedDate(isoToLocalDate(scheduledAt));
+      setSchedTime(isoToLocalTime(scheduledAt));
+    } else {
+      setSchedDate(todayLocal());
+      setSchedTime("09:00");
+    }
+    setShowSchedule(true);
+  };
+
+  const doSchedule = async () => {
+    if (!schedDate) { toast("تاریخ انتشار را انتخاب کنید.", "err"); return; }
+    const local = new Date(`${schedDate}T${schedTime || "00:00"}:00`);
+    if (Number.isNaN(local.getTime())) { toast("تاریخ یا ساعت نامعتبر است.", "err"); return; }
+    if (local.getTime() <= Date.now()) { toast("زمان انتخاب‌شده باید در آینده باشد.", "err"); return; }
+    setScheduling(true);
+    try {
+      await authed(`/v1/admin/pages/${page.id}/schedule`, {
+        method: "POST",
+        body: { scheduled_at: local.toISOString() },
+      });
+      setScheduledAt(local.toISOString());
+      setShowSchedule(false);
+      toast("انتشار زمان‌بندی شد.", "ok");
+      router.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "زمان‌بندی انتشار ناموفق بود.", "err");
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const doCancelSchedule = async () => {
+    try {
+      await authed(`/v1/admin/pages/${page.id}/schedule`, { method: "DELETE" });
+      setScheduledAt(null);
+      setShowSchedule(false);
+      toast("زمان‌بندی انتشار لغو شد.", "ok");
+      router.refresh();
+      return "زمان‌بندی لغو شد.";
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "لغو زمان‌بندی ناموفق بود.";
+      toast(message, "err");
+      throw new Error(message);
+    } finally {
+      setArmCancelSchedule(false);
+    }
+  };
+
+  /* WF-H2 — ساخت/لغو لینک اشتراک پیش‌نویس (آخرین نسخهٔ ذخیره‌شده). */
+  const createShareLink = async () => {
+    setSharing(true);
+    try {
+      const res = await authed<{ url: string; token: string; expires_at: string }>(
+        `/v1/admin/pages/${page.id}/share`,
+        { method: "POST" },
+      );
+      setShareLink(res);
+      toast("لینک اشتراک پیش‌نویس ساخته شد.", "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "ساخت لینک اشتراک ناموفق بود.", "err");
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const revokeShareLink = async () => {
+    setRevokingShare(true);
+    try {
+      await authed(`/v1/admin/pages/${page.id}/share`, { method: "DELETE" });
+      setShareLink(null);
+      setArmRevokeShare(false);
+      toast("لینک اشتراک پیش‌نویس لغو شد.", "ok");
+      return "لینک اشتراک لغو شد.";
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "لغو لینک اشتراک ناموفق بود.";
+      toast(message, "err");
+      throw new Error(message);
+    } finally {
+      setRevokingShare(false);
+    }
+  };
+
   const restore = async (rev: Revision) => {
     setSaving(true);
     try {
@@ -231,6 +636,8 @@ export function PageEditor({
       setBlocks((full.blocks ?? []).map((b) => ({ ...b, data: b.data ?? {}, _key: key() })));
       setMeta((full.meta as Record<string, unknown>) ?? {});
       setSelected(null);
+      lastUpdatedRef.current = full.updated_at;
+      setConflict(false);
       setDirty(false);
       setArmRestore(null);
       toast(`به نسخه ${faNum(rev.version)} برگشت داده شد.`, "ok");
@@ -266,10 +673,31 @@ export function PageEditor({
           <input className="input" value={title} onChange={(e) => { setTitle(e.target.value); markDirty(); }} aria-label="عنوان صفحه" style={{ fontWeight: 700 }} />
           <Badge tone={status === "published" ? "green" : "gray"}>{status === "published" ? "منتشرشده" : "پیش‌نویس"}</Badge>
           {dirty ? <Badge tone="amber">ذخیره‌نشده</Badge> : null}
+          {autosaving ? <span style={{ fontSize: 12, color: "var(--text-muted)" }}>در حال ذخیرهٔ خودکار…</span> : null}
+          {savedAt && !dirty && !autosaving ? <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{`ذخیره شد در ${formatSavedClock(savedAt)}`}</span> : null}
         </div>
-        <button className="btn btn-primary" onClick={() => void saveDraft()} disabled={saving || !dirty} style={{ fontWeight: 800 }}>{saving ? "…" : "✓ ذخیره پیش‌نویس"}</button>
+        <button className="btn btn-primary" onClick={() => void saveDraft()} disabled={saving || autosaving || !dirty || lockHolder !== null} style={{ fontWeight: 800 }}>{saving ? "…" : "✓ ذخیره پیش‌نویس"}</button>
         <button className="btn btn-ghost" onClick={() => setPreview(true)}>پیش‌نمایش</button>
       </div>
+
+      {/* WF-H3 — قفل نرم: بنر دارندهٔ قفل + هشدار تعارض نسخه */}
+      {lockHolder ? (
+        <Alert tone="amber">
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span>در حال ویرایش توسط «{lockHolder.user_name}» — تا آزادشدنِ قفل، ذخیرهٔ خودکار متوقف است تا از بازنویسی جلوگیری شود.</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => void takeOverLock()}>تصاحب ویرایش</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => void reloadFromServer()}>بارگذاری محتوای تازه</button>
+          </div>
+        </Alert>
+      ) : null}
+      {conflict ? (
+        <Alert tone="red">
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span>این صفحه از زمانِ بارگذاریِ شما تغییر کرده است؛ برای جلوگیری از بازنویسی، محتوای تازه را بارگذاری کنید.</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => void reloadFromServer()}>بارگذاری محتوای تازه</button>
+          </div>
+        </Alert>
+      ) : null}
 
       <div className="editor">
         {/* ستون اصلی */}
@@ -335,17 +763,91 @@ export function PageEditor({
           <div className="card card-pad" style={{ marginBlockStart: 12 }}>
             <div className="card-title" style={{ marginBlockEnd: 10 }}>سئو</div>
             <div className="form-grid">
-              <div className="field"><label>عنوان سئو</label><input className="input" value={String(meta.seo_title ?? "")} onChange={(e) => { setMeta({ ...meta, seo_title: e.target.value }); markDirty(); }} /></div>
+              <div className="field">
+                <label style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span>عنوان سئو</span>
+                  <span
+                    style={{ color: SERP_TONE[seoTitleState], fontVariantNumeric: "tabular-nums" }}
+                    title={`بازهٔ پیشنهادی ${faNum(SERP_TITLE_MIN)} تا ${faNum(SERP_TITLE_MAX)} کاراکتر`}
+                  >
+                    {faNum(serpLength(seoTitle))} / {faNum(SERP_TITLE_MAX)}
+                  </span>
+                </label>
+                <input className="input" value={seoTitle} onChange={(e) => { setMeta({ ...meta, title: e.target.value }); markDirty(); }} />
+              </div>
               <div className="field"><label>نامک (slug)</label><input className="input" dir="ltr" style={{ textAlign: "left" }} value={slug} onChange={(e) => { setSlug(e.target.value); markDirty(); }} /></div>
-              <div className="field full"><label>توضیحات متا</label><textarea className="input" rows={2} value={String(meta.seo_description ?? "")} onChange={(e) => { setMeta({ ...meta, seo_description: e.target.value }); markDirty(); }} /></div>
+              <div className="field full">
+                <label style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span>توضیحات متا</span>
+                  <span
+                    style={{ color: SERP_TONE[seoDescState], fontVariantNumeric: "tabular-nums" }}
+                    title={`بازهٔ پیشنهادی ${faNum(SERP_DESC_MIN)} تا ${faNum(SERP_DESC_MAX)} کاراکتر`}
+                  >
+                    {faNum(serpLength(seoDescription))} / {faNum(SERP_DESC_MAX)}
+                  </span>
+                </label>
+                <textarea className="input" rows={2} value={seoDescription} onChange={(e) => { setMeta({ ...meta, description: e.target.value }); markDirty(); }} />
+              </div>
               <div className="field"><label>کنونیکال</label><input className="input" dir="ltr" style={{ textAlign: "left" }} value={String(meta.canonical ?? "")} onChange={(e) => { setMeta({ ...meta, canonical: e.target.value }); markDirty(); }} /></div>
               <div className="field">
                 <label>تصویر og</label>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span className="chip">{typeof meta.og_image === "number" && meta.og_image > 0 ? `فایل #${meta.og_image}` : "انتخاب نشده"}</span>
+                  <span className="chip">{ogImageId > 0 ? `فایل #${ogImageId}` : "انتخاب نشده"}</span>
                   <button className="btn btn-ghost btn-sm" onClick={() => setOgPicker(true)}>انتخاب…</button>
                 </div>
               </div>
+              <div className="field">
+                <label>عدم ایندکس در موتورهای جستجو</label>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={noindex}
+                    className="switch"
+                    aria-label="این صفحه ایندکس نشود"
+                    title={noindex ? "فعال — برای غیرفعال کلیک کن" : "غیرفعال — برای فعال کلیک کن"}
+                    onClick={() => {
+                      const next = !noindex;
+                      setMeta({ ...meta, noindex: next, robots: next ? "noindex, nofollow" : "" });
+                      markDirty();
+                    }}
+                  />
+                  <span>{noindex ? "ایندکس نمی‌شود (noindex)" : "ایندکس می‌شود"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* WF-M1 — پیش‌نمایش گوگل‌مانند با مقادیر زندهٔ فیلدهای بالا. */}
+            <div style={{ marginBlockStart: 14, borderBlockStart: "1px dashed var(--border)", paddingBlockStart: 12 }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBlockEnd: 8 }}>پیش‌نمایش تقریبی نتیجهٔ گوگل</div>
+              <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px", maxInlineSize: 620 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBlockEnd: 8 }}>
+                  <span
+                    aria-hidden
+                    style={{ inlineSize: 28, blockSize: 28, borderRadius: "50%", background: "var(--primary-soft)", color: "var(--primary)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}
+                  >
+                    {serpUrl.host.replace(/^www\./, "").charAt(0).toUpperCase() || "؟"}
+                  </span>
+                  <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minInlineSize: 0 }}>
+                    <span style={{ fontSize: 13.5, color: "var(--text)" }}>{serpUrl.host}</span>
+                    <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>وب‌سایت شما</span>
+                  </span>
+                </div>
+                <div style={{ color: "var(--info)", fontSize: 17, lineHeight: 1.5, marginBlockEnd: 2, overflowWrap: "anywhere" }}>
+                  {truncateForSerp(seoTitle.length > 0 ? seoTitle : "عنوان صفحه", SERP_TITLE_MAX)}
+                </div>
+                <div dir="ltr" style={{ fontSize: 12.5, color: "var(--text-muted)", textAlign: "left", overflowWrap: "anywhere", marginBlockEnd: 4 }}>
+                  {serpUrl.host}{serpUrl.path}
+                </div>
+                <div style={{ fontSize: 13.5, color: "var(--text)", lineHeight: 1.65, overflowWrap: "anywhere" }}>
+                  {truncateForSerp(seoDescription.length > 0 ? seoDescription : "توضیحات متا برای این صفحه ثبت نشده است.", SERP_DESC_MAX)}
+                </div>
+              </div>
+              {noindex ? (
+                <p style={{ fontSize: 12, color: "var(--warning)", marginBlock: "8px 0" }}>
+                  این صفحه با noindex علامت خورده و در نتایج گوگل نمایش داده نمی‌شود.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -370,10 +872,144 @@ export function PageEditor({
             <div className="kv"><span>نسخه فعلی</span><span>{revisions.length > 0 ? faNum(Math.max(...revisions.map((r) => r.version))) : "—"}</span></div>
 
             <div className="kv"><span>آخرین انتشار</span><span>{page.published_at ? jalali(page.published_at) : "—"}</span></div>
-            <button className="btn btn-success btn-block" style={{ marginBlockStart: 12 }} onClick={() => void publish()} disabled={saving || publishing}>
+            <button className="btn btn-success btn-block" style={{ marginBlockStart: 12 }} onClick={() => void publish()} disabled={saving || publishing || conflict || lockHolder !== null}>
               {publishing ? "در حال انتشار…" : saving ? "در حال ذخیره…" : "انتشار"}
             </button>
+
+            {/* WF-H5 — لغو انتشار مستقل؛ فقط روی صفحهٔ منتشرشده. */}
+            {status === "published" ? (
+              <button
+                className="btn btn-ghost btn-block"
+                style={{ marginBlockStart: 8 }}
+                onClick={() => setArmUnpublish(true)}
+                disabled={saving || publishing || unpublishing || conflict || lockHolder !== null}
+              >
+                {unpublishing ? "در حال لغو انتشار…" : "لغو انتشار (برگشت به پیش‌نویس)"}
+              </button>
+            ) : null}
+
+            {/* WF-C3 — انتشار زمان‌بندی‌شده */}
+            {scheduledAt ? (
+              <>
+                <div className="kv" style={{ marginBlockStart: 10 }}>
+                  <span>زمان انتشار</span>
+                  <span><Badge tone="amber">زمان‌بندی‌شده</Badge></span>
+                </div>
+                <div className="kv"><span>{jalali(scheduledAt)}</span></div>
+                <button className="btn btn-ghost btn-block" style={{ marginBlockStart: 8 }} onClick={() => setArmCancelSchedule(true)} disabled={scheduling}>
+                  لغو زمان‌بندی
+                </button>
+              </>
+            ) : showSchedule ? (
+              <div style={{ marginBlockStart: 12, borderBlockStart: "1px dashed var(--border)", paddingBlockStart: 10 }}>
+                <JalaliDatePicker label="تاریخ انتشار" value={schedDate} onChange={setSchedDate} />
+                <div className="field">
+                  <label>ساعت انتشار</label>
+                  <input type="time" className="input" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} aria-label="ساعت انتشار" />
+                </div>
+                <div style={{ display: "flex", gap: 8, marginBlockStart: 10 }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => void doSchedule()} disabled={scheduling}>
+                    {scheduling ? "…" : "ثبت زمان‌بندی"}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowSchedule(false)}>انصراف</button>
+                </div>
+              </div>
+            ) : (
+              <button className="btn btn-ghost btn-block" style={{ marginBlockStart: 8 }} onClick={openSchedule}>
+                زمان‌بندی انتشار
+              </button>
+            )}
+
             <button className="btn btn-ghost btn-block" style={{ marginBlockStart: 8 }} onClick={() => setPreview(true)}>پیش‌نمایش</button>
+          </div>
+
+          {/* WF-H14 — ترجمهٔ محتوای چندزبانه: سوییچ زبان + همزاد + نشان وضعیت */}
+          <div className="card card-pad">
+            <div className="card-title" style={{ marginBlockEnd: 6 }}>ترجمه</div>
+            <div className="tabs" role="tablist" aria-label="زبان ویرایش" style={{ marginBlockEnd: 10 }}>
+              {(["fa", "en"] as const).map((loc) => (
+                <a
+                  key={loc}
+                  className={sourceLocale === loc ? "on" : ""}
+                  role="tab"
+                  aria-selected={sourceLocale === loc}
+                  onClick={() => goToLocale(loc)}
+                  style={{ cursor: sourceLocale === loc ? "default" : "pointer" }}
+                >
+                  {loc === "fa" ? "فارسی" : "English"}
+                </a>
+              ))}
+            </div>
+            {translation === null || tBadge === null ? (
+              <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>در حال بررسی وضعیت ترجمه…</p>
+            ) : (
+              <>
+                <div className="kv">
+                  <span>زبان مقابل</span>
+                  <span>{translation.target_locale === "fa" ? "فارسی" : "English"}</span>
+                </div>
+                <div className="kv">
+                  <span>وضعیت</span>
+                  <span><Badge tone={tBadge.tone}>{tBadge.label}</Badge></span>
+                </div>
+                {translation.sibling ? (
+                  <>
+                    <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBlock: "8px 0" }}>
+                      همزاد: {translation.sibling.title} (<span dir="ltr">{translation.sibling.slug}</span>)
+                    </p>
+                    <div style={{ display: "flex", gap: 8, marginBlockStart: 10, flexWrap: "wrap" }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => goToLocale(translation.target_locale)}>
+                        ویرایش ترجمه
+                      </button>
+                      {translation.status === "needs_update" ? (
+                        <button className="btn btn-primary btn-sm" onClick={() => void syncTranslation(false)} disabled={translating}>
+                          {translating ? "…" : "ثبت همگام‌سازی"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <button className="btn btn-primary btn-block" style={{ marginBlockStart: 10 }} onClick={() => void syncTranslation(true)} disabled={translating}>
+                    {translating ? "…" : "ساخت ترجمه"}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* WF-H2 — لینک اشتراک پیش‌نویس (کوتاه‌عمر، بدون ورود، noindex) */}
+          <div className="card card-pad">
+            <div className="card-title" style={{ marginBlockEnd: 6 }}>لینک اشتراک پیش‌نویس</div>
+            <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBlock: "0 10px" }}>
+              لینک کوتاه‌عمر از آخرین نسخهٔ ذخیره‌شده می‌سازد؛ بدون ورود قابل مشاهده است و در موتورهای جستجو ایندکس نمی‌شود.
+            </p>
+            {shareLink ? (
+              <>
+                <div className="kv">
+                  <span>انقضا</span>
+                  <span>{jalali(shareLink.expires_at)}</span>
+                </div>
+                <input
+                  className="input"
+                  dir="ltr"
+                  readOnly
+                  value={shareLink.url}
+                  aria-label="نشانی لینک اشتراک"
+                  style={{ marginBlockStart: 8, textAlign: "left" }}
+                />
+                <div style={{ display: "flex", gap: 8, marginBlockStart: 8, flexWrap: "wrap" }}>
+                  <CopyToClipboard text={shareLink.url} label="کپی لینک" />
+                  <a className="btn btn-ghost btn-sm" href={shareLink.url} target="_blank" rel="noreferrer">بازکردن</a>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setArmRevokeShare(true)} disabled={revokingShare}>
+                    {revokingShare ? "…" : "لغو لینک"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button className="btn btn-ghost btn-block" onClick={() => void createShareLink()} disabled={sharing}>
+                {sharing ? "…" : "ساخت لینک اشتراک"}
+              </button>
+            )}
           </div>
 
           <div className="card card-pad">
@@ -441,8 +1077,8 @@ export function PageEditor({
 
       {ogPicker ? (
         <MediaPicker
-          open selected={typeof meta.og_image === "number" && meta.og_image > 0 ? [meta.og_image] : []}
-          onChange={(ids) => { setMeta({ ...meta, og_image: ids[0] ?? 0 }); markDirty(); }}
+          open selected={ogImageId > 0 ? [ogImageId] : []}
+          onChange={(ids) => { setMeta({ ...meta, og_image_media_id: ids[0] ?? 0 }); markDirty(); }}
           onClose={() => setOgPicker(false)}
         />
       ) : null}
@@ -467,6 +1103,41 @@ export function PageEditor({
         confirmLabel="انتشار"
         onConfirm={() => doPublish()}
         onClose={() => setArmPublish(false)}
+      />
+      <ConfirmStepper
+        open={armUnpublish}
+        title="لغو انتشار صفحه؟"
+        description="صفحه از دسترس عموم خارج می‌شود اما حذف نمی‌شود؛ نسخه و تاریخ انتشار برای بازگردانی حفظ می‌مانند و بعداً می‌توان دوباره منتشر کرد."
+        confirmLabel="لغو انتشار"
+        busyLabel="در حال لغو انتشار…"
+        onConfirm={() => doUnpublish()}
+        onClose={() => setArmUnpublish(false)}
+      />
+      <ConfirmStepper
+        open={armCancelSchedule}
+        title="لغو زمان‌بندی انتشار؟"
+        description={scheduledAt ? `انتشار زمان‌بندی‌شده برای «${jalali(scheduledAt)}» لغو شود؟` : ""}
+        confirmLabel="لغو زمان‌بندی"
+        onConfirm={() => doCancelSchedule()}
+        onClose={() => setArmCancelSchedule(false)}
+      />
+      <ConfirmStepper
+        open={armRevokeShare}
+        title="لغو لینک اشتراک پیش‌نویس؟"
+        description="پس از لغو، این لینک (و هر لینک فعالِ این صفحه) دیگر باز نمی‌شود."
+        confirmLabel="لغو لینک"
+        onConfirm={() => revokeShareLink()}
+        onClose={() => setArmRevokeShare(false)}
+      />
+      <ConfirmStepper
+        open={redirectSuggestion !== null}
+        title="ثبت ریدایرکت ۳۰۱؟"
+        description={redirectSuggestion
+          ? `اسلاگ این صفحه عوض شد. مسیر «${redirectSuggestion.from_path}» به «${redirectSuggestion.to_path}» ریدایرکت دائمی شود تا لینک‌های قدیمی نشکنند؟`
+          : ""}
+        confirmLabel="ثبت ریدایرکت"
+        onConfirm={() => createSuggestedRedirect()}
+        onClose={() => setRedirectSuggestion(null)}
       />
       <ConfirmStepper
         open={delPreset !== null}

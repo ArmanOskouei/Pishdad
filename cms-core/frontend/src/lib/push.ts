@@ -10,11 +10,15 @@
  * ## نکته‌های مرورگر
  *
  * • `Notification.requestPermission()` فقط با **حرکت کاربر** جواب می‌دهد.
- *   صدا زدنش در `useEffect` همیشه `denied` می‌دهد.
+ *   صدا زدنش در `useEffect` همیشه `denied` می‌دهد. حتی در event handler هم
+ *   باید **اولین کاری که می‌کنیم** باشد: هر `await` قبل از آن، «user
+ *   activation» را مصرف می‌کند و روی iOS نتیجه‌اش قطعاً `denied` است.
  * • روی iOS، push فقط از نسخهٔ ۱۶.۴ و **فقط** وقتی PWA به صفحهٔ اصلی
  *   نصب شده باشد کار می‌کند. پس باید این را تشخیص دهیم و پیام درست بدهیم
  *   به‌جای اینکه بنر بی‌فایده نشان دهیم.
  */
+
+import { API_BASE } from './api';
 
 const OPT_OUT_KEY = 'pishdad:push-opted-out';
 
@@ -105,14 +109,38 @@ export function pushSupport(): PushSupport {
   return { supported: true, permission, reason: 'ok' };
 }
 
-async function apiBase(): Promise<string> {
-  const configured = process.env.NEXT_PUBLIC_API_BASE;
+/**
+ * ریشهٔ پروکسیِ هم‌مبدأ.
+ *
+ * ‎⚠️ **این تنها راهی است که توکنِ نشستِ پنل به بک‌اند می‌رسد.** نشست کوکی‌محور
+ * نیست: توکن عمداً در localStorage نیست و فقط در کوکیِ httpOnlyِ `auth_token`
+ * زندگی می‌کند، که از JS خوانده نمی‌شود ⇒ مرورگر نمی‌تواند خودش
+ * `Authorization: Bearer` بسازد. Route Handlerِ `app/api/proxy/[...path]` آن
+ * کوکی را می‌خواند و Bearer را اضافه می‌کند (`src/lib/proxy-allowlist.ts`
+ * ریشهٔ `v1` را باز می‌داند؛ تنها `v1/internal` منع شده).
+ */
+const PROXY_BASE = '/api/proxy';
 
-  if (configured) {
-    return configured.replace(/\/+$/, '');
-  }
-
-  return '/api/v1';
+/**
+ * URL یک endpoint اعلان را می‌سازد.
+ *
+ * ‎⚠️ این تابع **قبلاً** `process.env.NEXT_PUBLIC_API_BASE` را می‌خواند که در
+ * هیچ فایلی از ریپو تعریف نشده بود، پس همیشه به fallbackِ نسبیِ `/api/v1`
+ * می‌افتاد. ولی `next.config.ts` هیچ `rewrite` ندارد، یعنی آن درخواست روی
+ * origin خودِ Next می‌رفت و 404 می‌شد ⇒ `GET /push/public-key` هرگز کلید
+ * نمی‌داد ⇒ opt-in **همیشه** شکست می‌خورد (بی‌صدا، چون caller فقط `false` می‌گیرد).
+ *
+ * ‎`API_BASE` تنها منبعِ حقیقتِ base است:
+ * `process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"` — دقیقاً همان
+ * چیزی که `src/lib/site-search.ts` هم از آن استفاده می‌کند.
+ *
+ * ‎فقط برای مسیرهای **عمومی** (`public-key`, `subscribe`, `unsubscribe`) — مسیر
+ * احراز هویت‌شده از {@link PROXY_BASE} می‌رود، نه از این.
+ *
+ * @param endpoint _segment_ بعد از `push/` — مثلاً `public-key` یا `subscribe`.
+ */
+function pushUrl(endpoint: string): string {
+  return `${API_BASE}/v1/push/${endpoint}`;
 }
 
 function publicKeyFromEnv(): string | null {
@@ -163,48 +191,63 @@ function base64UrlToBuffer(value: string): ArrayBuffer {
 }
 
 /**
- * مسیر ثبت را انتخاب می‌کند.
+ * URL ثبت اشتراک را انتخاب می‌کند — و اینجا **دو مسیرِ واقعاً متفاوت** است.
  *
- * ‎⚠️ مسیر `push/subscribe` **عمومی** است (زائر حساب ندارد). برای همین
- * Sanctum روی آن middleware ندارد و اگر مدیر از همین مسیر subscribe کند،
- * `$request->user()` همیشه `null` می‌شود ⇒ `user_id` خالی ذخیره می‌شود ⇒
- * اعلان برایش هرگز ارسال نمی‌شود.
+ * ‎⚠️ مسیر عمومی `push/subscribe` برای زائر است: نه Sanctum دارد، نه `user_id`
+ * پر می‌کند. برای همین مدیر نباید از آن استفاده کند، وگرنه `$request->user()`
+ * همیشه `null` می‌شود ⇒ اشتراک بی‌صدا به هیچ‌کس وصل نمی‌شود ⇒ اعلان برایش هرگز
+ * نمی‌رسد (و در `ContentPublishedNotifier` فیلتر `user_id IS NOT NULL` آن را حذف
+ * می‌کند).
  *
- * پس اگر نشست فعال باشد، از مسیر احراز هویت‌شده استفاده می‌کنیم تا
- * اشتراک به کاربرِ واقعی وصل شود.
+ * ‎⚠️ **تصمیم از flag صریح می‌آید، نه از بوییدنِ کوکی.** نسخهٔ قبل این را با
+ * `document.cookie` حدس می‌زد، ولی کوکیِ واقعیِ نشست (`auth_token`) **httpOnly**
+ * است و از JS دیده نمی‌شود؛ آن دو نامی که تست می‌شدند (`XSRF-TOKEN`/`cms_session`)
+ * هرگز ست نمی‌شدند ⇒ همه‌چیز همیشه به مسیر عمومی می‌افتاد.
+ *
+ * ‎⚠️ چرا مدیر **مستقیم** به بک‌اند نمی‌رود (ولی زائر می‌رود):
+ *
+ * • `POST ${API_BASE}/v1/push/subscribe/auth` با `credentials: 'include'` جواب
+ *   نمی‌دهد، و به دو دلیلِ جدا: Sanctum کوکیِ `auth_token` را اصلاً نمی‌شناسد
+ *   (احراز هویتش Bearer است)، و CORS پیش‌فرض لاراول چون `config/cors.php` ندارد
+ *   `supports_credentials: false` است، پس مرورگر اصلاً preflight را عبور نمی‌دهد.
+ * • راه درست، پروکسیِ هم‌مبدأ است: Request به `/api/proxy/...` می‌رود، همان
+ *   origin است (پس CORS در کار نیست)، و Route Handler کوکیِ `auth_token` را
+ *   می‌خواند و `Authorization: Bearer` را برای ما اضافه می‌کند.
+ *
+ * ‎پس `authenticated` تعیین می‌کند «مبدأِ درخواست کجا باشد»، نه اینکه چه هدری
+ * بفرستیم. مسیر `v1/push/subscribe/auth` هم در allowlist باز است.
  */
-function subscribeEndpoint(): string {
-  return typeof document !== 'undefined' && isAdminSession()
-    ? '/push/subscribe/auth'
-    : '/push/subscribe';
+function subscribeUrl(authenticated: boolean): string {
+  return authenticated ? `${PROXY_BASE}/v1/push/subscribe/auth` : pushUrl('subscribe');
 }
 
-/**
- * آیا نشستِ پنل فعال است؟
- *
- * عمداً از cookie استفاده می‌شود نه از state ری‌اکت، چون این تابع باید در
- * event handler (خارج از رندر) هم درست کار کند. کوکی Sanctum فقط
- * **وجودش** را می‌بینیم؛ اعتبارسنجی واقعی سمت سرور انجام می‌شود و اگر
- * منقضی باشد مسیر عمومی fallback می‌شود.
- */
-function isAdminSession(): boolean {
-  if (typeof document === 'undefined') return false;
-
-  const cookie = document.cookie;
-
-  return /(?:^|;\s*)XSRF-TOKEN=/.test(cookie) || /cms_session/.test(cookie);
-}
+/** گزینه‌های opt-in اعلان. */
+export type SubscribeOptions = {
+  /**
+   * آیا این فراخوانی از یک نشستِ احراز هویت‌شده (پنل مدیر) می‌آید؟
+   *
+   * ‎`true` ⇒ از راه پروکسیِ هم‌مبدأ `/api/proxy/v1/push/subscribe/auth` تا
+   * Route Handler توکنِ کوکیِ `auth_token` را به Bearer تبدیل کند و `user_id` به
+   * کاربرِ واقعی وصل شود.
+   * ‎`false`/حذف‌شده ⇒ مستقیم به مسیر عمومی `push/subscribe` (بنرِ زائر).
+   *
+   * جزئیاتِ چرایش در {@link subscribeUrl} آمده — آن را نخوان، این را بخوان.
+   */
+  authenticated?: boolean;
+  /** پیام اختیاری برای تستِ دستی از پنل مدیر. */
+  onMessage?: string;
+};
 
 /**
  * کاربر را opt-in می‌کند: permission می‌گیرد، سرویس‌ورکر ثبت می‌کند و
  * اشتراک برای سرور ارسال می‌شود.
  *
- * ‎⚠️ **باید مستقیم از رویداد کلیک صدا زده شود.** مرورگر permission را
- * بدون حرکت کاربر نمی‌دهد.
- *
- * @param  onMessage  پیام اختیاری برای تستِ دستی از پنل مدیر
+ * ‎⚠️ **باید مستقیم از رویداد کلیک صدا زده شود** و `requestPermission()`
+ * باید اولین کاری باشد که می‌کنیم: هر `await` قبل از آن «user activation»
+ * را مصرف می‌کند و روی iOS نتیجه‌اش قطعاً `denied` است.
  */
-export async function subscribeToPush(options?: { onMessage?: string }): Promise<boolean> {
+export async function subscribeToPush(options?: SubscribeOptions): Promise<boolean> {
+  const authenticated = options?.authenticated === true;
   const support = pushSupport();
 
   if (!support.supported) {
@@ -216,6 +259,14 @@ export async function subscribeToPush(options?: { onMessage?: string }): Promise
     return false;
   }
 
+  // ⚠️ اولین کارِ ممکن، بدون هیچ `await` قبل از آن. (ترتیب، ویژگی است نه تصادف.)
+  const permission = await Notification.requestPermission();
+
+  if (permission !== 'granted') {
+    return false;
+  }
+
+  // تازه حالا می‌توان کارهای کند را کرد — فعال‌سازی مصرف شده و دیگر لازم نیست.
   const registration = await registerServiceWorker();
 
   if (!registration) {
@@ -224,17 +275,11 @@ export async function subscribeToPush(options?: { onMessage?: string }): Promise
 
   await navigator.serviceWorker.ready;
 
-  const permission = await Notification.requestPermission();
-
-  if (permission !== 'granted') {
-    return false;
-  }
-
   let key = publicKeyFromEnv();
 
   // اگر کلید در بیلد تعریف نشده، از سرور بگیر.
   if (!key) {
-    const response = await fetch(`${await apiBase()}/push/public-key`);
+    const response = await fetch(pushUrl('public-key'));
 
     if (response.ok) {
       const body = (await response.json()) as { vapid_public_key?: string | null };
@@ -262,10 +307,13 @@ export async function subscribeToPush(options?: { onMessage?: string }): Promise
     return false;
   }
 
-  const response = await fetch(`${await apiBase()}/${subscribeEndpoint()}`, {
+  const response = await fetch(subscribeUrl(authenticated), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    // ‎⚠️ **عمداً بدون `credentials`.** برای مسیر عمومی لازم نیست (و CORS
+    // پیش‌فرض لاراول با `supports_credentials: false` آن را نمی‌پذیرد)، و
+    // برای مسیرِ پروکسی هم بی‌معناست: درخواست هم‌مبدأ است و کوکی خودکار می‌رود.
+    // توکن را Route Handler اضافه می‌کند، نه مرورگر.
     body: JSON.stringify({
       endpoint: json.endpoint,
       keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
@@ -273,18 +321,20 @@ export async function subscribeToPush(options?: { onMessage?: string }): Promise
     }),
   });
 
+  // ۴۰۱ یعنی نشست منقضی شده. عمداً نه redirect می‌کنیم (برخلاف `authed()`) و نه
+  // throw: این فقط یک دکمهٔ اختیاری در کارت تنظیمات است، و callerها
+  // try/catch ندارند — پرتاب کردن دکمه را برای همیشه در حالت «در حال فعال‌سازی…»
+  // گیر می‌انداخت. fail بسته بهتر از ثبتِ بی‌صاحب است: اشتراکی که `user_id`
+  // ندارد هرگز اعلان نمی‌گیرد، پس بی‌صدا شکست خوردنش صادقانه‌تر است.
   if (!response.ok) {
     return false;
   }
 
   // پیام تست اختیاری — برای اینکه کاربر مطمئن شود کار می‌کند.
+  // permission از قبل `granted` است، پس دیگر نیازی به پرسش دوباره نیست.
   if (options?.onMessage) {
     try {
-      const permission = await Notification.requestPermission();
-
-      if (permission === 'granted') {
-        new Notification(options.onMessage);
-      }
+      new Notification(options.onMessage);
     } catch {
       /* بی‌اهمیت */
     }
@@ -295,8 +345,19 @@ export async function subscribeToPush(options?: { onMessage?: string }): Promise
   return true;
 }
 
+/** گزینه‌های لغو اشتراک. */
+export type UnsubscribeOptions = {
+  /**
+   * برای تقارن با {@link SubscribeOptions}.
+   *
+   * ‎⚠️ **عمداً URL را عوض نمی‌کند**: routeِ `push/unsubscribe` در بک‌اند عمومی
+   * است و خودش را روی `endpoint` کار می‌کند، پس برای مدیر و زائر یکی است.
+   */
+  authenticated?: boolean;
+};
+
 /** لغو اشتراک و پاک کردن آن از سرور. */
-export async function unsubscribeFromPush(): Promise<boolean> {
+export async function unsubscribeFromPush(_options?: UnsubscribeOptions): Promise<boolean> {
   rememberOptOut();
 
   if (!serviceWorkerSupported()) {
@@ -315,7 +376,7 @@ export async function unsubscribeFromPush(): Promise<boolean> {
     }
 
     if (endpoint) {
-      await fetch(`${await apiBase()}/push/unsubscribe`, {
+      await fetch(pushUrl('unsubscribe'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint }),

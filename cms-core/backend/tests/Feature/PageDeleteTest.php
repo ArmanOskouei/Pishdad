@@ -55,10 +55,11 @@ class PageDeleteTest extends TestCase
         $this->actingAs($user, 'sanctum')
             ->deleteJson("/api/v1/admin/pages/{$page->id}")
             ->assertOk()
-            ->assertJsonPath('message', 'صفحه حذف شد.');
+            ->assertJsonPath('message', 'صفحه به سطل زباله منتقل شد.');
 
-        $this->assertDatabaseMissing('pages', ['id' => $page->id]);
-        $this->assertDatabaseMissing('page_revisions', ['page_id' => $page->id]);
+        $this->assertSoftDeleted('pages', ['id' => $page->id]);
+        // سافت‌دیلیت نسخه‌ها را پاک نمی‌کند؛ فقط حذف دائمی آن‌ها را cascade می‌کند.
+        $this->assertDatabaseHas('page_revisions', ['page_id' => $page->id]);
     }
 
     public function test_user_without_pages_delete_permission_cannot_delete_page(): void

@@ -40,7 +40,11 @@ export const publicFa = {
   "search.noResult": "نتیجه‌ای برای «{q}» پیدا نشد.",
   "search.noResultHint": "املا را بررسی کنید یا از واژه‌های ساده‌تر استفاده کنید.",
   "search.count": "{n} نتیجه برای «{q}»",
-  "notFound.title": "یافت نشد",
+  "notFound.title": "صفحه یافت نشد",
+  "notFound.description": "صفحه‌ای که دنبالش بودید پیدا نشد. می‌توانید جستجو کنید یا از پیوندهای پیشنهادی زیر استفاده کنید.",
+  "notFound.searchPlaceholder": "عبارت موردنظر را جستجو کنید…",
+  "notFound.searchCta": "جستجو",
+  "notFound.suggested": "صفحات پیشنهادی",
 
   // ── کروم عمومی (هدر/فوتر) ──
   "chrome.navAria": "ناوبری اصلی",
@@ -57,6 +61,12 @@ export const publicFa = {
   "chrome.defaultTitle": "وب‌سایت من",
   "chrome.socialsAria": "شبکه‌های اجتماعی",
 
+  // ── WF-L3 — مسیر راهنما + حالت روشن/تیرهٔ سایت ──
+  "crumbs.aria": "مسیر راهنما",
+  "mode.toggle": "تغییر حالت روشن/تیره",
+  "mode.light": "روشن",
+  "mode.dark": "تیره",
+
   // ── بلوک‌های صفحه ──
   "block.empty": "محتوایی برای این صفحه ثبت نشده است.",
   "block.unknownNotice": "بلوک «{name}» رندر نشد — این نوع بلوک در هسته پیاده‌سازی نشده است.",
@@ -68,10 +78,46 @@ export const publicFa = {
   "block.watchVideo": "مشاهده ویدیو",
   "block.contactForm": "فرم تماس",
   "block.ctaDefault": "ادامه",
+  "block.formLoading": "در حال بارگذاری فرم…",
+  "block.formUnavailable": "این فرم در دسترس نیست.",
+  "block.formSubmit": "ارسال",
+  "block.formSending": "در حال ارسال…",
+  "block.formSuccess": "پاسخ شما ثبت شد. سپاسگزاریم.",
+  "block.formError": "ارسال ناموفق بود. دوباره تلاش کنید.",
+  "block.formRequired": "تکمیل فیلدهای ستاره‌دار الزامی است.",
 
   // ── ویجت ناشناس ──
   "widget.unknownNotice": "ویجت «{name}» رندر نشد — این نوع ویجت در رندرر هسته پیاده‌سازی نشده است.",
   "widget.emptyName": "(خالی)",
+
+  // ── بایگانی بلاگ (WF-C7) ──
+  "blog.archiveTitle": "بلاگ",
+  "blog.categoryTitle": "دسته: {name}",
+  "blog.tagTitle": "برچسب: {name}",
+  "blog.empty": "هنوز نوشته‌ای منتشر نشده است.",
+  "blog.readMore": "ادامه مطلب",
+  "blog.backToBlog": "بازگشت به بلاگ",
+  "blog.feed": "خوراک RSS",
+  "blog.pagination": "صفحه‌بندی نوشته‌ها",
+  "blog.prev": "قبلی",
+  "blog.next": "بعدی",
+  "blog.notFound": "نوشته یافت نشد",
+
+  // ── WF-M20 — بنر رضایت کوکی + سیاست حریم خصوصی ──
+  "cookie.aria": "رضایت کوکی",
+  "cookie.message": "این سایت فقط از کوکی‌های ضروری استفاده می‌کند و هیچ کوکی تحلیلی یا تبلیغاتی نمی‌گذارد.",
+  "cookie.accept": "پذیرش",
+  "cookie.privacyLink": "سیاست حریم خصوصی",
+  "privacy.title": "سیاست حریم خصوصی",
+  "privacy.empty": "متن سیاست حریم خصوصی هنوز تنظیم نشده است.",
+
+  // ── WF-M17 — بیانیهٔ دسترس‌پذیری ──
+  "accessibility.link": "بیانیهٔ دسترس‌پذیری",
+  "accessibility.title": "بیانیهٔ دسترس‌پذیری",
+  "accessibility.contact": "راه تماس برای گزارش مانعِ دسترس‌پذیری",
+  "accessibility.phoneLabel": "تلفن",
+  "accessibility.emailLabel": "ایمیل",
+  "accessibility.noContact": "هنوز شماره تماس یا ایمیلی برای گزارش مانعِ دسترس‌پذیری ثبت نشده است.",
 } as const;
 
 export type PublicMessageKey = keyof typeof publicFa;

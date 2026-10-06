@@ -3,6 +3,11 @@
 namespace App\Services\Outbox;
 
 use App\Mail\OutboundEmail;
+use App\Models\PushSubscription;
+use App\Services\Notifications\TelegramSender;
+use App\Services\Push\PushSender;
+use App\Services\Webhooks\WebhookSender;
+use App\Services\Webhooks\WebhookSettings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -10,7 +15,7 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * F1.3 — **یک** outbox برای email + SMS + (آینده) push.
+ * F1.3 — **یک** outbox برای email + SMS + push + تلگرام + وب‌هوک.
  *
  * ## چرا outbox و نه `Mail::to()->queue()`
  *
@@ -52,7 +57,16 @@ final class Outbox
 
     public const CHANNEL_SMS = 'sms';
 
+    /**
+     * F5.3 — اعلان مرورگر. `recipient` اینجا **شناسهٔ سطرِ `push_subscriptions`**
+     * است، نه خودِ endpoint (دلیلش در `push()` آمده).
+     */
     public const CHANNEL_PUSH = 'push';
+
+    public const CHANNEL_TELEGRAM = 'telegram';
+
+    /** WF-L2 — وب‌هوک خروجی (اتوماسیون بیرونی). `recipient` اینجا URL است. */
+    public const CHANNEL_WEBHOOK = 'webhook';
 
     // ------------------------------------------------------------------
     // enqueue
@@ -63,8 +77,8 @@ final class Outbox
      * که نه retry می‌خورد، نه دیده می‌شود، و نه با تراکنشِ فراخواننده یکی است.
      *
      * @param  string  $dedupeKey  باید **پایدار** باشد: `welcome:{userId}`.
-     *                              اگر `uniqid()` باشد قید یکتا هیچ چیزی را
-     *                              dedupe نمی‌کند و کل ادعای idempotency توخالی است.
+     *                             اگر `uniqid()` باشد قید یکتا هیچ چیزی را
+     *                             dedupe نمی‌کند و کل ادعای idempotency توخالی است.
      * @return int|null شناسهٔ سطر، یا null اگر قبلاً enqueue شده بود.
      */
     public static function email(
@@ -73,10 +87,12 @@ final class Outbox
         string $subject,
         string $body,
         ?string $notificationId = null,
+        bool $html = false,
     ): ?int {
         return self::enqueue(self::CHANNEL_EMAIL, $recipient, $dedupeKey, [
             'subject' => $subject,
             'body' => $body,
+            'html' => $html,
         ], $notificationId);
     }
 
@@ -85,6 +101,59 @@ final class Outbox
         return self::enqueue(self::CHANNEL_SMS, $recipient, $dedupeKey, [
             'text' => $text,
         ], $notificationId);
+    }
+
+    /**
+     * WF-M15 — افزودنِ پیام تلگرام به صف. `$recipient` همان chat_id است.
+     *
+     * گیتِ «توکن/شناسه هست؟» جای دیگری است (`NotificationDispatcher::destination`)
+     * تا این متد مثل بقیه صرفاً enqueue کند.
+     */
+    public static function telegram(string $chatId, string $dedupeKey, string $text, ?string $notificationId = null): ?int
+    {
+        return self::enqueue(self::CHANNEL_TELEGRAM, $chatId, $dedupeKey, [
+            'text' => $text,
+        ], $notificationId);
+    }
+
+    /**
+     * ⭐⭐ F5.3 — افزودنِ اعلان مرورگر به صف.
+     *
+     * ## چرا `recipient` شناسه است و نه endpoint
+     *
+     * endpoint سرویس‌های push (FCM/WNS/Autotrigger) به‌راحتی از ۲۰۰ نویسه رد
+     * می‌شود و ستونِ `recipient` دقیقاً `varchar(200)` است. وب‌هوک (WF-L2) برای
+     * همین یک `strlen` گیت گذاشت؛ برای push گیت کافی نیست چون endpoint ذاتاً
+     * بلند است و کوتاه‌کردنش یعنی شکستننش.
+     *
+     * پس فقط **شناسهٔ سطر** می‌رود و مدل در لحظهٔ تحویل خوانده می‌شود — دقیقاً
+     * همان تصمیمی که برای رازِ وب‌هوک گرفته شد (راز و کلیدهای رمزنگاری در سطر
+     * صف نمی‌آیند؛ `notification_deliveries` جدولی است که backup و dump و
+     * گزارشِ خطا می‌خوانند و endpoint عملاً کلیدِ ارسالِ push است).
+     *
+     * @param  int  $subscriptionId  شناسهٔ `push_subscriptions` — گیتِ مثبت
+     *                               بودنش پایین است.
+     * @param  array<string, mixed>  $notification  همان payload‌ای که
+     *                                              `PushSender::send()` می‌گیرد.
+     */
+    public static function push(int $subscriptionId, string $dedupeKey, array $notification, ?string $notificationId = null): ?int
+    {
+        /**
+         * ⭐ گیتِ قبل از enqueue، نه بعد از آن. صفر یا منفی یعنی فراخواننده
+         * اشتراکی را رد کرده که وجود ندارد؛ ساختن سطر برای آن یعنی سطری که در
+         * هر tick دوباره ادعا و دوباره شکست می‌خورد.
+         */
+        if ($subscriptionId < 1) {
+            return null;
+        }
+
+        return self::enqueue(
+            self::CHANNEL_PUSH,
+            (string) $subscriptionId,
+            $dedupeKey,
+            ['notification' => $notification],
+            $notificationId,
+        );
     }
 
     /**
@@ -289,6 +358,7 @@ final class Outbox
                     new OutboundEmail(
                         (string) ($payload['subject'] ?? ''),
                         (string) ($payload['body'] ?? ''),
+                        (bool) ($payload['html'] ?? false),
                     )
                 );
 
@@ -299,10 +369,105 @@ final class Outbox
                 // پس عمداً خطا می‌دهیم تا سطر `failed` شود و **دیده** شود،
                 // نه اینکه `sent` بخورد و پیام هرگز نرسد.
                 throw new \RuntimeException('کانال SMS هنوز provider ندارد (F4.2).');
+            case self::CHANNEL_TELEGRAM:
+                // گیتِ نبودِ توکن/مقصد در `NotificationDispatcher` است، پس اگر
+                // سطری اینجا باشد یعنی مقصد در زمان enqueue موجود بوده. اگر
+                // حالا توکن پاک شده باشد، `send()` استثنا می‌دهد و سطر
+                // `failed` می‌شود (دیده می‌شود، بی‌صدا گم نمی‌شود).
+                TelegramSender::send((string) $row->recipient, (string) ($payload['text'] ?? ''));
+
+                return;
+
+            case self::CHANNEL_PUSH:
+                /**
+                 * F5.3 — `recipient` شناسهٔ سطر است، پس اول باید مدل خوانده شود.
+                 *
+                 * گیتِ «هنوز هست؟» لازم است: `PushSender` خودش ۴۱۰ را گرفته و
+                 * سطر را پاک می‌کند (اشتراک مرده)، یعنی بین enqueue و tick ممکن
+                 * است سطر ناپدید شود. آن حالت **خطا** است نه موفقیت — وگرنه سطر
+                 * `sent` می‌خورد برای اعلانی که هرگز تحویل نشد و کسی هم
+                 * متوجه نمی‌شود.
+                 */
+                $subscription = PushSubscription::query()->find((int) $row->recipient);
+
+                if ($subscription === null) {
+                    throw new \RuntimeException("اشتراکِ push شمارهٔ {$row->recipient} وجود ندارد.");
+                }
+
+                /**
+                 * ⭐⭐ `false` یعنی «نرسید» و اینجا یعنی **retry**.
+                 *
+                 * `PushSender` به‌جای throw کردن، `bool` می‌دهد (تا یک اشتراکِ
+                 * خراب کل batch را متوقف نکند). ولی در صف، چیزی به اسم «تلاش
+                 * بی‌اثر» نداریم: یا تحویل شده، یا باید دوباره تلاش شود. پس
+                 * `false` اینجا استثنا می‌شود و backoffِ خودِ outbox کارش را
+                 * می‌کند.
+                 *
+                 * توجه: پاسخ‌های ۴۱۰/۴۰۴ (اشتراک مرده) هم `false` می‌دهند، پس
+                 * آن‌ها هم سه بار retry می‌شوند و بعد `failed` — که در پنل دیده
+                 * می‌شود. سه سطرِ اضافه برای یک اشتراک مرده، ارزان‌تر از
+                 * «پیام گم‌شدهٔ بی‌صدا» است.
+                 */
+                $sent = app(PushSender::class)->send($subscription, self::pushPayload($payload));
+
+                if (! $sent) {
+                    throw new \RuntimeException(
+                        'ارسالِ push ناموفق بود (اشتراک: '.$subscription->getKey().').'
+                    );
+                }
+
+                return;
+
+            case self::CHANNEL_WEBHOOK:
+                /**
+                 * WF-L2 — راز در لحظهٔ ارسال خوانده می‌شود، نه از `payload`.
+                 * گیتِ «پیکربندی شده؟» در `WebhookDispatcher` (هنگام enqueue)
+                 * است؛ اینجا فقط حالتِ «راز در این فاصله پاک شد» را می‌بینیم،
+                 * که باید **خطا** بدهد تا سطر `failed` شود و دیده شود.
+                 */
+                $webhookSecret = WebhookSettings::secret();
+
+                if ($webhookSecret === null) {
+                    throw new \RuntimeException('راز وب‌هوک تنظیم نشده است.');
+                }
+
+                WebhookSender::send(
+                    (string) $row->recipient,
+                    $webhookSecret,
+                    (string) ($payload['event'] ?? ''),
+                    [
+                        'event' => (string) ($payload['event'] ?? ''),
+                        'occurred_at' => (string) ($payload['occurred_at'] ?? ''),
+                        'data' => is_array($payload['data'] ?? null) ? $payload['data'] : [],
+                    ],
+                );
+
+                return;
 
             default:
                 throw new \InvalidArgumentException("کانالِ ناشناخته: {$row->channel}");
         }
+    }
+
+    /**
+     * بدنهٔ اعلان از سطرِ صف بازیابی می‌شود.
+     *
+     * کلیدِ `notification` را می‌خوانیم (همان چیزی که `push()` می‌نویسد) و به
+     * کل payload هم برمی‌گردیم تا اگر سطری با شکلِ دیگری نوشته شده باشد، بدنه
+     * خالی رد نشود.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private static function pushPayload(array $payload): array
+    {
+        $notification = $payload['notification'] ?? null;
+
+        if (is_array($notification) && $notification !== []) {
+            return $notification;
+        }
+
+        return $payload;
     }
 
     private static function markSent(object $row): void

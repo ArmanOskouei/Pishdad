@@ -19,11 +19,11 @@ export function PageDeleteButton({ pageId, title }: { pageId: number; title: str
     setDeleting(true);
     try {
       await authed(`/v1/admin/pages/${pageId}`, { method: "DELETE" });
-      toast("صفحه حذف شد.", "ok");
+      toast("صفحه به سطل زباله منتقل شد.", "ok");
       setConfirming(false);
       router.refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "حذف صفحه ناموفق بود.", "err");
+      toast(e instanceof Error ? e.message : "انتقال صفحه به سطل زباله ناموفق بود.", "err");
     } finally {
       deleteInFlight.current = false;
       setDeleting(false);
@@ -41,8 +41,8 @@ export function PageDeleteButton({ pageId, title }: { pageId: number; title: str
           setConfirming(true);
         }}
         disabled={deleting}
-        aria-label={`حذف صفحه ${title}`}
-        title="حذف صفحه"
+        aria-label={`انتقال صفحه ${title} به سطل زباله`}
+        title="انتقال به سطل زباله"
       >
         <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M4 7h16" />
@@ -51,13 +51,13 @@ export function PageDeleteButton({ pageId, title }: { pageId: number; title: str
           <path d="m6 7 1 13h10l1-13" />
           <path d="M9 7V4h6v3" />
         </svg>
-        <span>حذف</span>
+        <span>انتقال به سطل زباله</span>
       </button>
       {confirming ? (
         <ConfirmDialog
-          title="حذف صفحه"
-          text="آیا از حذف این صفحه مطمئن هستید؟ این عمل قابل بازگشت نیست"
-          confirmLabel="حذف"
+          title="انتقال به سطل زباله"
+          text="آیا از انتقال این صفحه به سطل زباله مطمئن هستید؟ می‌توانید بعداً آن را بازگردانید."
+          confirmLabel="انتقال به سطل زباله"
           onConfirm={() => void remove()}
           onCancel={() => { if (!deleting) setConfirming(false); }}
         />

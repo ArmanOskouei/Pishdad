@@ -11,6 +11,7 @@ use App\Models\Theme;
 use App\Services\Layouts\LinkItems;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Settings\CachedSettings;
+use App\Services\Settings\PerformanceSettings;
 use App\Services\Themes\SiteThemeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -161,7 +162,14 @@ class SiteChromeController extends Controller
                 'og_image_url' => $this->mediaUrl($site['og_image_media_id'] ?? null),
                 'ai_summary' => $site['ai_summary'] ?? '',
                 'robots_index' => (bool) ($site['robots_index'] ?? true),
+                // WF-H1 — متن سفارشی robots.txt + کد تأیید مالکیت GSC (عمومی).
+                'robots_txt' => $site['robots_txt'] ?? null,
+                'google_site_verification' => $site['google_site_verification'] ?? null,
                 'address' => $site['address'] ?? null,
+                // WF-M20 — متن صفحهٔ /privacy (بدون HTML؛ عمومی و بی‌خطر).
+                'privacy_policy' => $site['privacy_policy'] ?? SiteSettingsController::DEFAULT_PRIVACY_POLICY,
+                // WF-M17 — متن صفحهٔ /accessibility (بدون HTML؛ عمومی و بی‌خطر).
+                'accessibility_statement' => $site['accessibility_statement'] ?? SiteSettingsController::DEFAULT_ACCESSIBILITY_STATEMENT,
                 'locale' => $site['locale'] ?? 'fa',
                 // ECO2 — زبان‌های موجود + زبان اصلی برای مسیریابیِ سایتِ عمومی.
                 // `locales` همیشه زبان اصلی را اول دارد (مدل a: پایه در ریشه).
@@ -209,6 +217,12 @@ class SiteChromeController extends Controller
         // ندارد؛ بدون این کلید، `DeclaredBlock` هرگز schema افزونه را نمی‌دید.
         $data['blocks'] = ManifestRegistry::blockSchemas();
 
+        // WF-M13 — تنظیمات کارایی (خارج از کشِ کروم ⇒ بی‌درنگ تازه).
+        // توکن پاک‌سازی CDN عمداً این‌جا نیست: عمومی است و نباید نشت کند.
+        $data['asset_domain'] = PerformanceSettings::assetDomain();
+        $data['lazy_load_enabled'] = PerformanceSettings::lazyLoadEnabled();
+        $data['font_preload_enabled'] = PerformanceSettings::fontPreloadEnabled();
+
         return response()->json(['data' => $data])
             ->header('Cache-Control', 'public, max-age=60');
     }
@@ -226,7 +240,11 @@ class SiteChromeController extends Controller
             'og_image_url' => null,
             'ai_summary' => '',
             'robots_index' => true,
+            'robots_txt' => null,
+            'google_site_verification' => null,
             'address' => null,
+            'privacy_policy' => SiteSettingsController::DEFAULT_PRIVACY_POLICY,
+            'accessibility_statement' => SiteSettingsController::DEFAULT_ACCESSIBILITY_STATEMENT,
             'locale' => 'fa',
             'locales' => ['fa'],
             'primary_locale' => 'fa',
@@ -246,14 +264,14 @@ class SiteChromeController extends Controller
         if (! is_numeric($mediaId) || (int) $mediaId <= 0) {
             return null;
         }
-        $path = Media::query()
+        $row = Media::query()
             ->where('id', (int) $mediaId)
-            ->value('path');
-        if (! $path) {
+            ->first(['disk', 'path']);
+        if (! $row) {
             return null;
         }
-        $base = rtrim((string) config('filesystems.disks.s3.url', ''), '/');
 
-        return $base === '' ? null : $base.'/'.ltrim($path, '/');
+        // نشانی بر پایهٔ دیسکِ خودِ فایل (public ⇒ /storage، s3 ⇒ MinIO).
+        return \App\Support\MediaUrl::for((string) $row->disk, (string) $row->path);
     }
 }

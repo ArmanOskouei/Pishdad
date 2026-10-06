@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Notifications\Catalog;
+use App\Services\Notifications\TelegramSender;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -75,7 +76,53 @@ class NotificationInboxController extends Controller
                 'groups' => Catalog::groupLabels(),
                 'channels' => Catalog::CHANNELS,
                 'matrix' => $this->matrix($user),
+                'settings' => $this->settings($user),
             ],
+        ]);
+    }
+
+    /**
+     * `PUT /v1/admin/notification-preferences/settings` — تنظیماتِ کانالِ کاربر.
+     *
+     * اینجا برخلاف `updatePreferences`، واحدِ تنظیم **کاربر** است نه (گروه، کانال):
+     *  - `telegram_chat_id` نشانیِ شخصی برای کانالِ تلگرام.
+     *  - `daily_digest` تصمیمِ سراسریِ «یک پیامِ خلاصه در روز».
+     *
+     * هر دو اختیاری‌اند؛ فرانت هر بار هر دو را می‌فرستد ولی نبودنِ یکی نباید
+     * دیگری را پاک کند.
+     */
+    public function updateSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            // تلگرام: عدد (منفی برای گروه) یا `@username`. فاصله و نویسهٔ
+            // کنترلی رد می‌شود چون این رشته مستقیم به Bot API می‌رود.
+            'telegram_chat_id' => ['sometimes', 'nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9_@.-]+$/'],
+            'daily_digest' => ['sometimes', 'boolean'],
+        ], [
+            'telegram_chat_id.regex' => 'شناسهٔ گفتگوی تلگرام نامعتبر است.',
+            'telegram_chat_id.max' => 'شناسهٔ گفتگوی تلگرام بلندتر از حد مجاز است.',
+            'daily_digest.boolean' => 'وضعیت خلاصهٔ روزانه نامعتبر است.',
+        ]);
+
+        $user = $request->user();
+        $update = [];
+
+        if (array_key_exists('telegram_chat_id', $validated)) {
+            $chat = $validated['telegram_chat_id'];
+            $update['telegram_chat_id'] = is_string($chat) && trim($chat) !== '' ? trim($chat) : null;
+        }
+
+        if (array_key_exists('daily_digest', $validated)) {
+            $update['notification_daily_digest'] = (bool) $validated['daily_digest'];
+        }
+
+        if ($update !== []) {
+            $user->forceFill($update)->save();
+        }
+
+        return response()->json([
+            'message' => 'تنظیمات کانال‌ها ذخیره شد.',
+            'data' => ['settings' => $this->settings($user->fresh())],
         ]);
     }
 
@@ -199,6 +246,24 @@ class NotificationInboxController extends Controller
         }
 
         return $out;
+    }
+
+    /**
+     * تنظیماتِ کانالِ کاربر. `telegram_configured` وضعیتِ **نصب** را می‌گوید نه
+     * کاربر را: اگر توکنِ ربات نباشد، UI باید صادقانه بگوید «پیامی نمی‌رود»،
+     * حتی اگر کاربر chat_id داده باشد.
+     *
+     * @return array{telegram_chat_id: string|null, daily_digest: bool, telegram_configured: bool}
+     */
+    private function settings(User $user): array
+    {
+        $chat = $user->telegram_chat_id;
+
+        return [
+            'telegram_chat_id' => is_string($chat) && trim($chat) !== '' ? trim($chat) : null,
+            'daily_digest' => (bool) $user->notification_daily_digest,
+            'telegram_configured' => TelegramSender::configured(),
+        ];
     }
 
     /**

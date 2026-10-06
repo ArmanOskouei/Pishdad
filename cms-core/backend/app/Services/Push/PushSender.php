@@ -12,17 +12,30 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * ارسال پیام به سرویس‌های push.
  *
- * ## تفاوت سرویس‌ها
+ * ## ارائه‌دهنده‌های پشتیبانی‌شده
  *
- * هر سه سرویس بزرگ از یک شکل URL استفاده می‌کنند ولی **قالب header** یکی
- * نیست:
+ * فقط **Mozilla/Autotrigger** و **FCM (Chrome/Edge)** پشتیبانی می‌شوند و هر دو
+ * از یک قراردادِ کاملاً یکسان پیروی می‌کنند: رمزنگاریِ RFC 8291
+ * (`aes128gcm`) به‌همراهِ امضای VAPID در هدر `Authorization: vapid t=…,k=…`.
+ * پس در این بیلد تفکیکِ هدرِ احراز هویت میان ارائه‌دهنده‌ها لازم نیست.
  *
- * • **Mozilla** و **FCM** ⇒ همان RFC 8291 (`aes128gcm` + VAPID).
-/// • **Edge/WNS** ⇒ همان رمزنگاری، ولی هدر `Authorization` فرق می‌کند.
-///   WNS کلید را در هدر `X-WNS-Key` می‌خواهد نه `k=` در هدر `vapid`.
-///
-/// ⚠️ اگر قالب WNS را با قالب VAPID یکی بگیریم، WNS خطای ۴۰۱ می‌دهد و
-/// همهٔ اعلان‌های Edge بی‌صدا از دست می‌روند.
+ * ⛔ **Windows/WNS (`notify.windows.com`) پشتیبانی نمی‌شود و fail-closed است.**
+ *
+ * ⚠️ اشتباهی که این‌جا رفع شد: نسخهٔ قبل یک شاخهٔ «Edge/WNS» داشت که ادعا
+ * می‌کرد WNS کلید را در هدرِ جداگانهٔ `X-WNS-Key` می‌خواهد، ولی در عمل همان
+ * رشتهٔ `vapid t=…,k=…` را برمی‌گرداند و آن هدر را اصلاً نمی‌فرستاد.
+ *
+ * حقیقت این است که WNS اصلاً VAPID را نمی‌پذیرد: احراز هویتش یک توکنِ
+ * OAuth است (`Authorization: Bearer …` از Azure AD) و آدرسِ درخواست هم
+ * **نسبی** است (`/notify/?token=…`). هیچ‌کدام از این‌ها در این بیلد پیاده نشده
+ * بود، پس هر اشتراکِ Edge بی‌صدا ۴۰۱ می‌گرفت و هیچ اعلانی نمی‌رسید — بدترین
+ * حالت: سرویسی که کار نمی‌کند ولی خودش را سالم نشان می‌دهد.
+ *
+ * پس به‌جای نگه‌داشتنِ شاخه‌ای که همیشه شکست می‌خورد، **fail-closed** انتخاب
+ * شد: دامنهٔ WNS از `ProviderAllowlist` بیرون است، پس هم در مسیرِ ثبت رد
+ * می‌شود (۴۲۲ با پیامِ روشن) و هم در `post()` پیش از هر HTTP، با یک سطر
+ * `warning`. برگرداندنِ پشتیبانی نیاز به پیاده‌سازیِ واقعیِ OAuth و مسیرِ
+ * نسبی دارد — نه صرفِ برگرداندنِ یک خط به یک آرایه.
  */
 class PushSender
 {
@@ -31,6 +44,9 @@ class PushSender
 
     /** timeout هر درخواست — سرویس push ممکن است کند باشد. */
     private const TIMEOUT = 10;
+
+    /** حداکثر طولِ بدنهٔ پاسخ که در لاگ می‌رود. */
+    private const BODY_LOG_LIMIT = 200;
 
     /**
      * یک پیام را به یک اشتراک می‌فرستد.
@@ -46,7 +62,29 @@ class PushSender
                 $subscription->auth,
             );
         } catch (\Throwable $e) {
-            // رمزنگاری شکست خورد ⇒ این اشتراک برای ما قابل استفاده نیست.
+            /**
+             * ⭐⭐ تفاوتِ «همیشه خراب» با «الان خراب».
+             *
+             * کلیدهای `p256dh`/`auth` دادهٔ ورودی‌اند که **هرگز عوض نمی‌شوند**.
+             * اگر ساختارشان غلط باشد، رمزنگاری در هر تلاش و برای هر اعلانِ
+             * بعدی هم fail می‌شود ⇒ retry بی‌نهایت + لاگِ تکراری.
+             *
+             * ⚠️ معیار، خودِ داده است نه پیامِ استثنا: پیام‌ها متنِ ناپایدار دارند
+             * و به آن‌ها تکیه کردن یعنی یک تستِ شکننده.
+             */
+            if (! $this->keysAreStructurallyValid($subscription)) {
+                Log::warning('push subscription pruned: invalid keys', [
+                    'subscription' => $subscription->targetHint(),
+                    'reason' => $e->getMessage(),
+                ]);
+
+                $this->forget($subscription);
+
+                return false;
+            }
+
+            // خطای موقت (کلیدِ اشتراک سالم است ولی رمزنگاری همین‌جا شکست خورد)
+            // ⇒ retry بماند، دقیقاً مثل رفتارِ قبلی.
             Log::warning('push encryption failed', [
                 'subscription' => $subscription->targetHint(),
                 'reason' => $e->getMessage(),
@@ -93,7 +131,12 @@ class PushSender
         Log::warning('push failed', [
             'subscription' => $subscription->targetHint(),
             'status' => $status,
-            'body' => Str::limit((string) $response->body(), 200),
+            /**
+             * ⚠️ بدنه از **طرفِ مقابل** است. `Str::limit` به‌تنهایی کافی نیست:
+             * newline و کنترل‌کاراکترها را نگه می‌دارد و یک سرویسِ push
+             * می‌تواند یک سطرِ جعلی در لاگِ ما بسازد (log forging).
+             */
+            'body' => $this->logSafeSnippet((string) $response->body()),
         ]);
 
         return false;
@@ -165,9 +208,24 @@ class PushSender
      */
     private function post(string $endpoint, string $body, array $headers): ?\Illuminate\Http\Client\Response
     {
+        // ⚠️ F5.3-c — محافظ SSRF در خودِ sink ارسال، نه فقط در مسیر ثبت.
+        // endpoint ممکن است از راه‌های دیگر (seed/import/دادهٔ قدیمی) وارد
+        // پایگاه‌داده شده باشد؛ پس هر POST باید مستقلاً allowlist را رد کند.
+        // فقط `host` لاگ می‌شود، نه endpoint کامل (که توکن/کلید در آن است).
+        if (! ProviderAllowlist::allows($endpoint)) {
+            Log::warning('push endpoint rejected', [
+                'host' => ProviderAllowlist::host($endpoint) ?: 'unknown',
+            ]);
+
+            return null;
+        }
+
         try {
             $request = Http::withHeaders($headers)
                 ->timeout(self::TIMEOUT)
+                // ریدایرکت دنبال نمی‌شود: وگرنه یک دامنهٔ مجاز می‌تواند ما را
+                // به یک میزبان داخلی هدایت کند و allowlist را دور بزند.
+                ->withOptions(['allow_redirects' => false])
                 ->withBody($body, 'application/octet-stream');
 
             // شمارهٔ `audience` در VAPID همان ریشهٔ endpoint است.
@@ -186,7 +244,25 @@ class PushSender
         }
     }
 
-    /** هدر احراز هویت، متناسب با ارائه‌دهنده. */
+    /**
+     * هدر احراز هویت — یکسان برای هر دو ارائه‌دهندهٔ پشتیبانی‌شده.
+     *
+     * ⛔ **هیچ شاخهٔ Windows/WNS این‌جا وجود ندارد، و عمداً هم نخواهد داشت.**
+     *
+     * نسخهٔ قبل یک شاخهٔ Edge داشت که ادعا می‌کرد «WNS کلید را در هدر جداگانه
+     * می‌خواهد» — ولی در عمل دقیقاً همان رشتهٔ `vapid t=…,k=…` را برمی‌گرداند
+     * و آن هدر را اصلاً نمی‌فرستاد.
+     *
+     * حقیقت: WNS هیچ VAPIDای نمی‌پذیرد. احراز هویتش یک توکنِ OAuth است
+     * (`Authorization: Bearer …` از Azure AD) و آدرسِ تحویل هم **نسبی** است
+     * (`/notify/?token=…`). چون هیچ‌کدام در این بیلد پیاده نشده بود، هر
+     * اشتراکِ Edge بی‌صدا ۴۰۱ می‌گرفت و هرگز اعلانی نمی‌رسید.
+     *
+     * پس به‌جای شاخه‌ای که همیشه شکست می‌خورد، مسیر **fail-closed** انتخاب
+     * شد: `notify.windows.com` از `ProviderAllowlist` بیرون است، پس endpoint
+     * پیش از رسیدن به این‌جا در `post()` رد می‌شود. برگرداندنِ WNS نیاز به
+     * پیاده‌سازیِ واقعیِ OAuth و مسیرِ نسبی دارد — نه یک شرطِ ساده اینجا.
+     */
     private function authorizationFor(string $endpoint): string
     {
         $audience = rtrim(
@@ -194,31 +270,7 @@ class PushSender
             '/',
         );
 
-        $subject = $this->contact();
-
-        // WNS کلید را در هدر جداگانه می‌خواهد.
-        if (str_contains($endpoint, 'wns2-') || str_contains($endpoint, 'notify.windows.com')) {
-            return 'vapid t='.$this->vapidToken($audience, $subject).',k='.VapidKeys::get()['publicKey'];
-        }
-
-        return VapidKeys::authorizationHeader($audience, $subject);
-    }
-
-    /** فقط بخش JWT، بدون `k=` — برای WNS که کلید را جدا می‌خواهد. */
-    private function vapidToken(string $audience, string $subject): string
-    {
-        $header = Ecdh::b64u((string) json_encode(['typ' => 'JWT', 'alg' => 'ES256']));
-        $payload = Ecdh::b64u((string) json_encode([
-            'aud' => $audience,
-            'exp' => time() + 12 * 3600,
-            'sub' => $subject,
-        ]));
-
-        $signingInput = $header.'.'.$payload;
-
-        $keys = VapidKeys::get();
-
-        return $signingInput.'.'.VapidKeys::signEs256($signingInput, $keys['privateKey']);
+        return VapidKeys::authorizationHeader($audience, $this->contact());
     }
 
     /** آدرس ایمیلی که به‌عنوان مخاطب VAPID اعلام می‌شود. */
@@ -239,6 +291,60 @@ class PushSender
         return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)
             ? 'mailto:'.$email
             : 'mailto:admin@localhost';
+    }
+
+    /**
+     * ⭐ آیا کلیدهای اشتراک **ساختاراً** قابل استفاده‌اند؟
+     *
+     * `PushEncryptor` سه جا می‌تواند به‌خاطرِ دادهٔ اشتراک بشکند:
+     *  - `p256dh` نه base64url معتبر است (`Ecdh::base64UrlToRaw`)،
+     *  - نقطه طول/فرمت درست ندارد یا **روی منحنی نیست** (`Ecdh::decodePoint`)،
+     *  - `auth` دقیقاً ۱۶ بایت نیست.
+     *
+     * هر سه **تغییرناپذیرند**: retry دوباره همان استثنا را می‌دهد. پس چنین
+     * ردیفی باید حذف شود، وگرنه هر انتشارِ بعدی دوباره رمز می‌کند، دوباره
+     * لاگ می‌اندازد و سطرش تا ابد `failed` می‌ماند.
+     *
+     * ⚠️ «نداشتنِ کلید» خرابی نیست: مرورگرهای قدیمی کلید نمی‌دهند و
+     * RFC 8291 §5.2 صریحاً مسیرِ رمزنشده را مجاز می‌داند.
+     */
+    private function keysAreStructurallyValid(PushSubscription $subscription): bool
+    {
+        if (! $subscription->canEncrypt()) {
+            return true;
+        }
+
+        try {
+            Ecdh::decodePointFromBase64Url((string) $subscription->p256dh);
+
+            return strlen(Ecdh::b64d((string) $subscription->auth)) === 16;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * ⭐⭐ بدنهٔ پاسخِ سرویس را برای لاگ **تک‌خطی و بی‌خطر** می‌کند.
+     *
+     * داده از یک سرویسِ بیرونی است و در اختیارِ اوست. اگر خام وارد لاگ شود:
+     *  - یک `CRLF` می‌تواند یک **سطرِ کامل جعلی** بسازد و هر ابزارِ
+     *    پایش/جست‌وجوی لاگ را گمراه کند،
+     *  - یک بدنهٔ حجیم می‌تواند کلِ لاگ را پر کند.
+     *
+     * پس: اول کنترل‌کاراکترها (`\x00-\x1F` و `\x7F`) حذف، بعد فاصله‌ها جمع،
+     * و آخر **بایت**-محور بریده می‌شود تا `mb_*` روی ورودیِ نامعتبرِ UTF-8
+     * گیر نکند.
+     */
+    private function logSafeSnippet(string $body): string
+    {
+        // بدون `u` عمداً است: `preg_replace` روی ورودیِ باینری/بدِ UTF-8 با
+        // مودِ `u` مقدارِ `null` برمی‌گرداند و کل لاگ را از کار می‌اندازد.
+        $collapsed = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $body);
+        $collapsed = is_string($collapsed) ? $collapsed : '';
+
+        $collapsed = preg_replace('/\s+/', ' ', $collapsed) ?? '';
+
+        return Str::limit(trim($collapsed), self::BODY_LOG_LIMIT);
     }
 
     private function forget(PushSubscription $subscription): void

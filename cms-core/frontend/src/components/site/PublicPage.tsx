@@ -83,20 +83,29 @@ export function pageMetadata(
   const meta = (page.meta ?? {}) as Record<string, unknown>;
   const base = siteBaseUrl(chrome);
   const title = (typeof meta.title === "string" && meta.title) || page.title;
+  const description = (typeof meta.description === "string" && meta.description) || chrome?.description || undefined;
+  const ogImage = (typeof meta.og_image_url === "string" && meta.og_image_url) || chrome?.og_image_url || chrome?.logo_url || undefined;
+  const pageNoIndex =
+    meta.noindex === true || String(meta.robots ?? "").toLowerCase().includes("noindex");
+  const index = (chrome?.robots_index ?? true) && !pageNoIndex;
   return {
     ...(base ? { metadataBase: new URL(base) } : null),
     title,
-    description: (typeof meta.description === "string" && meta.description) || chrome?.description || undefined,
+    description,
     ...(chrome?.favicon_url ? { icons: { icon: chrome.favicon_url } } : null),
+    robots: index ? { index: true, follow: true } : { index: false, follow: false },
     // ECO2 — hreflang: خزنده باید نسخهٔ هر زبانِ همین صفحه را ببیند.
     ...homeAlternates(chrome),
     openGraph: {
       title,
+      description,
       siteName: chrome?.title ?? undefined,
       locale: publicOgLocale(locale),
       type: "website",
       ...(base ? { url: base } : null),
+      ...(ogImage ? { images: [{ url: ogImage }] } : null),
     },
+    ...(ogImage ? { twitter: { card: "summary_large_image", title, images: [ogImage] } } : null),
     ...extra,
   };
 }
@@ -149,7 +158,7 @@ export function ThemedHome({
   const { locales, primary } = effectiveLocale(chrome, locale);
   const switcher = locales.length > 1 ? { locales, primary } : undefined;
   return (
-    <theme.Component page={page} chrome={chrome} schemas={chrome?.blocks} banner={banner} jsonLd={jsonLd} locale={locale} switcher={switcher} />
+    <theme.Component page={page} chrome={chrome} schemas={chrome?.blocks} banner={banner} jsonLd={jsonLd} locale={locale} switcher={switcher} isHome />
   );
 }
 

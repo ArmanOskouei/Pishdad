@@ -28,7 +28,7 @@ export default function LoginPage() {
   // بعد از ورود، اگر مستقیم `/login` باز می‌شد، فرم دوباره نشان داده می‌شد
   // حتی وقتی توکن معتبر بود. `useAuth` در `mount` کاربر را از سرور می‌خواند،
   // پس «تازه وارد شده» و «قبلاً وارد بوده» در این رابطه یکی‌اند.
-  const { login, verify2fa, user, loading } = useAuth();
+  const { login, verify2fa, user, loading, setupRequired } = useAuth();
   const toast = useToast();
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -84,22 +84,30 @@ export default function LoginPage() {
   // ترتیبش با `login-gate.ts` یکی.
   const gate = loginGate({ loading, user });
 
+  // WF-M8: نقشِ «۲FA اجباری» نباید به داشبورد بپرد — باید به صفحهٔ
+  // راه‌اندازی پروفایل برود. پس دروازهٔ پیش‌فرض را برای این حالت رد می‌کنیم.
   useEffect(() => {
-    if (gate !== "redirect") return;
+    if (gate !== "redirect" || setupRequired) return;
     void afterAuth();
-  }, [gate, afterAuth]);
+  }, [gate, afterAuth, setupRequired]);
+
+  useEffect(() => {
+    if (gate !== "redirect" || !setupRequired) return;
+    toast("نقش شما ورود با تأیید دومرحله‌ای را الزامی می‌کند؛ لطفاً آن را فعال کنید.");
+    router.replace("/admin/profile?setup=2fa");
+  }, [gate, router, setupRequired, toast]);
 
   async function submitLogin(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      const { need2fa } = await login(email, password);
+      const { need2fa, need2faSetup } = await login(email, password);
       if (need2fa) {
         setCode([...EMPTY_OTP]);
         setStep(2);
         toast("کد تأیید دومرحله‌ای را وارد کنید.");
       }
-      else { toast("خوش آمدید.", "ok"); await afterAuth(); }
+      else if (!need2faSetup) { toast("خوش آمدید.", "ok"); await afterAuth(); }
     } catch (err) {
       setError(err instanceof Error ? err.message : "اعتبار ورود نامعتبر است.");
     } finally { setBusy(false); }

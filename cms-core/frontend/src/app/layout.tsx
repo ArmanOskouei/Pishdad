@@ -9,6 +9,7 @@ import { AuthProvider } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/Toast";
 import { isPublicLocale, publicDir, publicHtmlLang } from "@/lib/i18n/public";
 import { SITE_LOCALE_HEADER } from "@/lib/public-routing";
+import { fetchSiteChrome, siteFontPreloadEnabled } from "@/lib/site";
 
 /**
  * فونت وزیرمتن: اول next/font/google؛ اگر آفلاین بود بیلد فونت فیل می‌شود.
@@ -57,6 +58,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const raw = h.get(SITE_LOCALE_HEADER);
   const siteLocale = isPublicLocale(raw) ? raw : null;
 
+  // WF-M13 — preload فونت فقط برای سایتِ عمومی و فقط اگر در تنظیمات کارایی
+  // روشن باشد. فونت همیشه محلی است (هرگز CDN خارجی) و `font-display: swap`
+  // تضمین می‌کند خاموش‌کردن preload تجربه را نمی‌شکند.
+  const siteChrome = siteLocale ? await fetchSiteChrome().catch(() => null) : null;
+  const preloadFont = siteFontPreloadEnabled(siteChrome);
+
   return (
     <html
       lang={siteLocale ? publicHtmlLang(siteLocale) : "fa"}
@@ -66,13 +73,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: ANTI_FOUC }} />
-        <link
-          rel="preload"
-          href="/fonts/Vazirmatn-Regular.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
+        {preloadFont ? (
+          <link
+            rel="preload"
+            href="/fonts/Vazirmatn-Regular.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+        ) : null}
         {/* F5.2 — لینکِ صریحِ iOS. `metadata.icons.apple` هم همین را می‌سازد،
             ولی این‌جا دستی هم هست تا اگر بعداً metadata عوض شد، نصب روی iOS
             ناگهان بی‌آیکون نشود. */}

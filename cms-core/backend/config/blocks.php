@@ -101,9 +101,22 @@ return [
             ],
         ],
     ],
+    'form' => [
+        'title' => 'فرم',
+        'description' => 'یک فرم ساخته‌شده در فرم‌ساز (WF-H10) را با اسلاگ نمایش می‌دهد و پاسخ‌ها را ثبت می‌کند.',
+        'active' => true,
+        'schema' => [
+            'type' => 'object',
+            'required' => ['slug'],
+            'properties' => [
+                'slug' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 120],
+                'title' => ['type' => 'string', 'maxLength' => 120],
+            ],
+        ],
+    ],
     'contact-form' => [
         'title' => 'فرم تماس',
-        'description' => 'فرم عمومی نام/تلفن/متن که به اندپوینت ساخت تیکت ارسال می‌شود.',
+        'description' => 'فرم عمومی؛ پیش‌فرض از فرم تماس (اسلاگ contact) استفاده می‌کند و با form_slug قابل تغییر است.',
         'active' => true,
         'schema' => [
             'type' => 'object',
@@ -112,6 +125,8 @@ return [
                 'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 120],
                 'email' => ['type' => 'string', 'format' => 'email', 'maxLength' => 200],
                 'show_phone' => ['type' => 'boolean', 'default' => true],
+                // WF-H10 — ارجاع اختیاری به فرم‌ساز؛ خالی = فرم تماس پیش‌فرض (contact).
+                'form_slug' => ['type' => 'string', 'maxLength' => 120],
             ],
         ],
     ],

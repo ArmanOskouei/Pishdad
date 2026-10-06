@@ -1,4 +1,6 @@
 import { mediaUrl, type BlockValue } from "@/lib/domain";
+// WF-L1 — تبدیل نقطهٔ کانونی (0..1) به `object-position`.
+import { focalPosition } from "@/lib/focal-point";
 // F0.2: sanitizerها به `lib/sanitize.ts` منتقل شدند چون ویجت‌های کروم و
 // پیش‌نمایش ادیتور هم به آن‌ها نیاز دارند — نگه‌داشتنشان اینجا یعنی وابستگی
 // معکوس (پنل → کامپوننتِ سایتِ عمومی).
@@ -18,8 +20,9 @@ import { publicT, type PublicLocale, type PublicMessageKey } from "@/lib/i18n/pu
 // React/JS نمی‌فرستد؛ هسته با ~۱۱ الگو رندر می‌کند. نگاشتِ خالص در
 // `lib/block-pattern.ts` است تا آزمون‌پذیر باشد و اینجا فقط `switch` بماند.
 import { selectBlockPattern } from "@/lib/block-pattern";
-import { ContactForm } from "./ContactForm";
 import { DeclaredBlock } from "./DeclaredBlock";
+import { FormBlock } from "./FormBlock";
+import { ResponsiveImage, normalizeSources, normalizeSrcset, type PictureSource } from "./ResponsiveImage";
 
 /**
  * F3 — رندر بلوک‌های صفحه عمومی به کامپوننت.
@@ -51,6 +54,28 @@ function mediaSrc(d: Record<string, unknown>): string | null {
 }
 
 /**
+ * WF-C4 — فرادادهٔ نسخه‌های واکنش‌گرا را از `data` بیرون می‌کشد.
+ * پیشوندِ خالی = تصویر اصلی (`srcset`/`sources`)؛ `_0`/`_1` = آیتم گالری.
+ */
+function mediaVariants(
+  d: Record<string, unknown>,
+  suffix = "",
+): { srcset?: string; sources?: PictureSource[] } {
+  return {
+    srcset: normalizeSrcset(d[`srcset${suffix}`]),
+    sources: normalizeSources(d[`sources${suffix}`]),
+  };
+}
+
+/**
+ * WF-L1 — مقدار `object-position` از مختصات نرمال‌شدهٔ بک‌اند.
+ * پیشوندِ خالی = تصویر اصلی؛ `_0`/`_1` = آیتم گالری.
+ */
+function mediaFocal(d: Record<string, unknown>, suffix = ""): string | undefined {
+  return focalPosition(d[`focal_x${suffix}`], d[`focal_y${suffix}`]);
+}
+
+/**
  * `diagnostics` یعنی «این رندر در دیباگ است» — پیش‌فرض از محیط می‌آید
  * (`lib/block-type.ts:blockDiagnosticsEnabled`).
  *
@@ -73,6 +98,7 @@ export function BlockRenderer({
   diagnostics,
   schemas,
   locale = "fa",
+  imageLoading = "lazy",
 }: {
   blocks: BlockValue[];
   diagnostics?: boolean;
@@ -84,6 +110,11 @@ export function BlockRenderer({
   schemas?: BlockSchemaRegistry;
   /** ECO2 — زبانِ سایت. پیش‌فرض `fa` یعنی پنل/پیش‌نمایش بدون تغییر. */
   locale?: PublicLocale;
+  /**
+   * WF-M13 — رفتار بارگذاری تصاویر. پیش‌فرض `lazy` (بهینه). سایتِ عمومی وقتی
+   * تنظیم کارایی خاموش باشد `eager` می‌فرستد. پنل/پیش‌نمایش دست‌نخورده‌اند.
+   */
+  imageLoading?: "lazy" | "eager";
 }) {
   const visible = blocks.filter((b) => (b.data as Record<string, unknown>)?._enabled !== false);
   if (visible.length === 0) {
@@ -93,7 +124,7 @@ export function BlockRenderer({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       {visible.map((b, i) => (
-        <Block key={i} type={b.type} data={(b.data ?? {}) as Record<string, unknown>} schemas={schemas} diagnostics={showUnknown} locale={locale} />
+        <Block key={i} type={b.type} data={(b.data ?? {}) as Record<string, unknown>} schemas={schemas} diagnostics={showUnknown} locale={locale} imageLoading={imageLoading} />
       ))}
     </div>
   );
@@ -105,12 +136,14 @@ function Block({
   schemas,
   diagnostics,
   locale,
+  imageLoading,
 }: {
   type: string;
   data: Record<string, unknown>;
   schemas?: BlockSchemaRegistry;
   diagnostics: boolean;
   locale: PublicLocale;
+  imageLoading: "lazy" | "eager";
 }) {
   const t = (k: PublicMessageKey, values?: Record<string, string | number>) => publicT(locale, k, values);
   // K6.12 — بلوکِ **اعلانیِ افزونه** (نه هسته) با الگوی عمومی رندر می‌شود.
@@ -131,13 +164,15 @@ function Block({
     case "hero": {
       const align = data.align === "center" ? "center" : data.align === "left" ? "left" : "right";
       const bg = mediaSrc(data);
+      // WF-L1 — نقطهٔ کانونی هیرو روی `background-position` می‌نشیند.
+      const heroPosition = mediaFocal(data) ?? "center";
       return (
         <section
           style={{
             textAlign: align as "left" | "center" | "right",
             padding: "56px 24px",
             borderRadius: 16,
-            background: bg ? `url(${bg}) center/cover` : "var(--primary-soft)",
+            background: bg ? `url(${bg}) ${heroPosition}/cover` : "var(--primary-soft)",
             border: "1px solid var(--border)",
           }}
         >
@@ -161,10 +196,19 @@ function Block({
           </figure>
         );
       }
+      const variants = mediaVariants(data);
       return (
         <figure style={{ margin: 0 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt={str(data.alt) || t("block.imageAlt")} loading="lazy" style={{ maxInlineSize: "100%", borderRadius: 12 }} />
+          <ResponsiveImage
+            src={src}
+            srcset={variants.srcset}
+            sources={variants.sources}
+            alt={str(data.alt) || t("block.imageAlt")}
+            loading={imageLoading}
+            sizes="(max-width: 768px) 100vw, 800px"
+            objectPosition={mediaFocal(data)}
+            style={{ maxInlineSize: "100%", borderRadius: 12 }}
+          />
           {str(data.caption) ? <figcaption style={{ fontSize: 12.5, color: "var(--text-muted)", marginBlockStart: 6 }}>{str(data.caption)}</figcaption> : null}
         </figure>
       );
@@ -180,18 +224,31 @@ function Block({
     case "gallery": {
       const ids = Array.isArray(data.media_ids) ? data.media_ids : [];
       const cols = Math.min(6, Math.max(1, Number(data.columns) || 3));
-      const urls = ids
-        .map((_, idx) => (data[`url_${idx}`] ?? null) as string | null)
-        .map((u) => safeSrc(u))
-        .filter((u): u is string => Boolean(u));
-      if (urls.length === 0) {
+      const items = ids
+        .map((_, idx) => {
+          const url = safeSrc(data[`url_${idx}`]);
+          if (!url) return null;
+          return { url, objectPosition: mediaFocal(data, `_${idx}`), ...mediaVariants(data, `_${idx}`) };
+        })
+        .filter((x): x is { url: string; objectPosition: string | undefined; srcset?: string; sources?: PictureSource[] } => x !== null);
+      if (items.length === 0) {
         return <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("block.galleryPending", { n: ids.length })}</p>;
       }
+      const sizes = `(max-width: 768px) 50vw, ${Math.max(1, Math.round(100 / cols))}vw`;
       return (
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 10 }}>
-          {urls.map((u) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={u} src={u} alt={t("block.galleryAlt")} loading="lazy" style={{ inlineSize: "100%", borderRadius: 10 }} />
+          {items.map((item, idx) => (
+            <ResponsiveImage
+              key={idx}
+              src={item.url}
+              srcset={item.srcset}
+              sources={item.sources}
+              alt={t("block.galleryAlt")}
+              loading={imageLoading}
+              sizes={sizes}
+              objectPosition={item.objectPosition}
+              style={{ inlineSize: "100%", borderRadius: 10 }}
+            />
           ))}
         </div>
       );
@@ -257,13 +314,22 @@ function Block({
         </div>
       );
     }
+    case "form": {
+      const slug = str(data.slug);
+      if (!slug) return null;
+      return <FormBlock slug={slug} title={str(data.title) || undefined} locale={locale} />;
+    }
     case "contact-form":
     case "contact": {
+      // WF-H10 — فرم تماس حالا از فرم‌ساز می‌خواند (اسلاگ پیش‌فرض contact)؛
+      // اگر فرم seed نشده باشد، به فرم تماس قدیمی برمی‌گردد.
       return (
-        <ContactForm
+        <FormBlock
+          slug={str(data.form_slug) || "contact"}
           title={str(data.title) || t("block.contactForm")}
+          locale={locale}
+          contactFallback
           showPhone={data.show_phone !== false}
-          destinationEmail={str(data.email) || undefined}
         />
       );
     }

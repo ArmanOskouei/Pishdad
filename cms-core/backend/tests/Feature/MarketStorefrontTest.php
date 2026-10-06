@@ -92,22 +92,22 @@ class MarketStorefrontTest extends TestCase
      *
      * @return array{0: Plugin, 1: \App\Models\User} [plugin, operator]
      */
-    private function approvedPlugin(int $price = 50000): array
+    private function approvedPlugin(int $price = 50000, array $extraManifest = []): array
     {
         $keys = $this->keypair();
         $publisher = $this->owner();
         $operator = $this->operator();
 
         $this->actingAs($publisher, 'sanctum')->postJson('/api/v1/market/publishers', [
-            'name' => 'Pub', 'slug' => 'pub', 'public_key' => $keys['public'],
+            'name' => 'Pub', 'slug' => 'pub-'.uniqid(), 'public_key' => $keys['public'],
         ])->assertCreated();
 
         $slug = 'store-'.uniqid();
-        $manifest = [
+        $manifest = array_merge([
             'slug' => $slug, 'name' => 'Store Widget', 'version' => '1.2.3',
             'price' => $price, 'currency' => 'IRT',
             'publisher' => ['key_id' => $keys['fingerprint']],
-        ];
+        ], $extraManifest);
 
         $zipPath = $this->zipFor($manifest, $keys['secret']);
         $this->actingAs($publisher, 'sanctum')->post('/api/v1/market/submissions', [
@@ -264,5 +264,105 @@ class MarketStorefrontTest extends TestCase
         } catch (MarketException $e) {
             $this->assertSame(404, $e->status);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // WF-H16 — جستجو/دسته/فیلتر + صفحهٔ جزئیات
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public function test_catalog_search_matches_name_slug_and_description(): void
+    {
+        [$plugin] = $this->approvedPlugin(1000, [
+            'name' => 'Alpha Analytics Widget',
+            'description' => 'ابزار تحلیل داده‌های فروش',
+        ]);
+        $buyer = $this->buyer();
+
+        foreach (['Alpha', $plugin->slug, 'تحلیل'] as $term) {
+            $list = $this->actingAs($buyer, 'sanctum')
+                ->getJson('/api/v1/market/catalog?q='.rawurlencode($term))->assertOk()->json('data.data');
+            $this->assertNotEmpty(
+                array_filter($list, fn ($p) => $p['slug'] === $plugin->slug),
+                "جستجو برای «{$term}» باید همین افزونه را برگرداند."
+            );
+        }
+
+        $miss = $this->actingAs($buyer, 'sanctum')
+            ->getJson('/api/v1/market/catalog?q=zzz-no-such-thing')->assertOk()->json('data.data');
+        $this->assertEmpty(array_filter($miss, fn ($p) => $p['slug'] === $plugin->slug));
+    }
+
+    public function test_catalog_filters_by_free_and_paid(): void
+    {
+        [$free] = $this->approvedPlugin(0, ['name' => 'Free Widget']);
+        [$paid] = $this->approvedPlugin(25000, ['name' => 'Paid Widget']);
+        $buyer = $this->buyer();
+
+        $freeList = $this->actingAs($buyer, 'sanctum')
+            ->getJson('/api/v1/market/catalog?price=free')->assertOk()->json('data.data');
+        $this->assertNotEmpty(array_filter($freeList, fn ($p) => $p['slug'] === $free->slug));
+        $this->assertEmpty(array_filter($freeList, fn ($p) => $p['slug'] === $paid->slug));
+
+        $paidList = $this->actingAs($buyer, 'sanctum')
+            ->getJson('/api/v1/market/catalog?price=paid')->assertOk()->json('data.data');
+        $this->assertNotEmpty(array_filter($paidList, fn ($p) => $p['slug'] === $paid->slug));
+        $this->assertEmpty(array_filter($paidList, fn ($p) => $p['slug'] === $free->slug));
+    }
+
+    public function test_catalog_filters_by_category_from_manifest(): void
+    {
+        [$analytics] = $this->approvedPlugin(0, ['name' => 'Analytics Widget', 'category' => 'analytics']);
+        [$seo] = $this->approvedPlugin(0, ['name' => 'SEO Widget', 'categories' => ['seo', 'tools']]);
+        $buyer = $this->buyer();
+
+        $res = $this->actingAs($buyer, 'sanctum')
+            ->getJson('/api/v1/market/catalog?category=analytics')->assertOk();
+        $list = $res->json('data.data');
+        $this->assertNotEmpty(array_filter($list, fn ($p) => $p['slug'] === $analytics->slug));
+        $this->assertEmpty(array_filter($list, fn ($p) => $p['slug'] === $seo->slug));
+
+        $meta = $res->json('meta.categories');
+        $this->assertContains('analytics', $meta);
+        $this->assertContains('seo', $meta);
+        $this->assertContains('tools', $meta);
+    }
+
+    public function test_catalog_detail_exposes_description_screenshots_changelog_and_versions(): void
+    {
+        [$plugin] = $this->approvedPlugin(0, [
+            'name' => 'Deluxe Widget',
+            'long_description' => 'توضیح بلند و کامل افزونه.',
+            'screenshots' => ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'],
+            'changelog' => "1.2.3 — افزودن حالت تاریک\n1.2.2 — رفع باگ",
+            'category' => 'deluxe',
+        ]);
+        $buyer = $this->buyer();
+
+        $data = $this->actingAs($buyer, 'sanctum')
+            ->getJson("/api/v1/market/catalog/{$plugin->id}")->assertOk()->json('data');
+
+        $this->assertSame('توضیح بلند و کامل افزونه.', $data['long_description']);
+        $this->assertSame(['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'], $data['screenshots']);
+        $this->assertStringContainsString('حالت تاریک', $data['changelog']);
+        $this->assertSame('deluxe', $data['category']);
+        $this->assertArrayHasKey('delivery', $data);
+        $this->assertIsArray($data['versions']);
+        $this->assertNotEmpty($data['versions']);
+        $this->assertSame('1.2.3', $data['versions'][0]['version']);
+        $this->assertStringContainsString('حالت تاریک', $data['versions'][0]['changelog']);
+    }
+
+    public function test_catalog_detail_hides_non_market_or_yanked_plugins(): void
+    {
+        [$plugin, $operator] = $this->approvedPlugin();
+        $buyer = $this->buyer();
+
+        $this->actingAs($operator, 'sanctum')
+            ->postJson("/api/v1/market/plugins/{$plugin->id}/yank", ['reason' => 'WF-H16 test'])
+            ->assertOk();
+
+        $this->actingAs($buyer, 'sanctum')
+            ->getJson("/api/v1/market/catalog/{$plugin->id}")
+            ->assertStatus(404);
     }
 }

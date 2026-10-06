@@ -185,9 +185,17 @@ export function ThemesClient({ initial }: { initial: ThemeItem[] }) {
       ) : null}
       {preview ? (
         <Modal title={`پیش‌نمایش: ${preview.theme.name}`} onClose={() => setPreview(null)}>
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>آدرس پیش‌نمایش سمت بک‌اند:</p>
-          <p dir="ltr" style={{ fontFamily: "monospace", wordBreak: "break-all" }}>{preview.url}</p>
-          <a className="btn btn-primary" href={preview.url} target="_blank" rel="noreferrer">باز کردن پیش‌نمایش ←</a>
+          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            همین قالب روی سایتِ اصلی، با ساختار و رنگِ خودش و محتوای واقعیِ صفحهٔ خانه:
+          </p>
+          <iframe
+            src={preview.url}
+            title={`پیش‌نمایش ${preview.theme.name}`}
+            style={{ inlineSize: "100%", blockSize: "62vh", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}
+          />
+          <div style={{ marginBlockStart: 10 }}>
+            <a className="btn btn-primary" href={preview.url} target="_blank" rel="noreferrer">باز کردن در تبِ جدید ←</a>
+          </div>
         </Modal>
       ) : null}
 

@@ -11,10 +11,18 @@ const redisIsc = process.env.REDIS_URL
   ? { cacheHandler: "./cache-handler.mjs", cacheMaxMemorySize: 0 }
   : {};
 
+// ── WF-M13: assetPrefix برای فایل‌های ایستای `/_next/static/*` ──
+// همراستا با `docs/CDN-ASSESSMENT.md`: اگر روزی CDN لازم شد، فقط روی همین
+// مسیر کم‌ریسک است (هش در نام ⇒ پاک‌سازی لازم ندارد)، نه HTML. تنظیم از env
+// است چون `assetPrefix` ذاتاً زمان ساخت خوانده می‌شود؛ مقدار پنلِ «دامنهٔ
+// دارایی» برای دارایی‌های محلیِ سایت در `lib/site.ts` اعمال می‌شود.
+const assetPrefix = (process.env.NEXT_PUBLIC_ASSET_PREFIX ?? "").trim().replace(/\/+$/, "");
+
 const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   ...redisIsc,
+  ...(assetPrefix ? { assetPrefix } : {}),
   // PLAN.md: گوگل‌فونت در ایران مسدود است — فونت اول از next/font، fallback CDN + سیستم.
 };
 

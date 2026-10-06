@@ -161,19 +161,4 @@ class CentralClientsTest extends TestCase
             ->assertOk()->assertJsonPath('message', 'ریستور آغاز شد (Stub).');
         $this->assertSame('restoring', Backup::query()->find($backupId)->status);
     }
-
-    public function test_superadmin_is_never_listed_but_can_operate_central(): void
-    {
-        $super = User::query()->create([
-            'name' => 'سوپرادمین', 'email' => 'super@example.com',
-            'password' => Hash::make('Secret!123'), 'role' => 'super-admin',
-            'is_super_admin' => true, 'is_hidden' => true,
-        ]);
-
-        // لیست معمولی کاربران سوپرادمین مخفی را ندارد.
-        $this->assertSame(0, User::query()->visible()->where('is_super_admin', true)->count());
-
-        // اما گیت مرکزی را پاس می‌کند.
-        $this->actingAs($super, 'sanctum')->getJson('/api/v1/p/central/plans')->assertOk();
-    }
 }

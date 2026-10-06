@@ -184,15 +184,15 @@ class ThemeController extends Controller
 
     public function preview(Request $request, Theme $theme): JsonResponse
     {
-        // مشترک: وجود رکورد (404 بایندینگ) + احراز هویت کافی است.
-
-        $base = rtrim((string) config('app.url', 'http://localhost:8080'), '/');
-
+        // مشترک: وجود رکورد (404 بایندیگ) + احراز هویت کافی است.
+        // مسیرِ **نسبی** برمی‌گردد تا روی همان مبدأِ پنل/سایت باز شود؛ پیش از این
+        // با `config('app.url')` (مبدأ بک‌اند :8080) ساخته می‌شد و پیش‌نمایشِ
+        // قالب آن‌جا اصلاً وجود نداشت.
         return response()->json([
             'message' => 'پیش‌نمایش آماده است.',
             'data' => [
                 'theme' => $theme->only(['id', 'name', 'slug', 'version']),
-                'preview_url' => "{$base}/preview?theme={$theme->slug}",
+                'preview_url' => "/preview/{$theme->slug}",
             ],
         ]);
     }
@@ -240,7 +240,7 @@ class ThemeController extends Controller
     {
         $user = $request->user();
 
-        return (bool) ($user->is_super_admin ?? false) || (($user->role ?? null) === 'operator');
+        return ($user->role ?? null) === 'operator';
     }
 
     /** خواندن manifest.json از ریشه ZIP؛ null یعنی نامعتبر/غایب. */

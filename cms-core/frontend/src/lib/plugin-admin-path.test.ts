@@ -179,9 +179,9 @@ test("قفل: پروکسی هر مسیری را می‌گیرد و ریشهٔ ا
   //
   // ⚠️ فقط **بدنهٔ تابع** بررسی می‌شود، نه کل فایل: `inspectSessionToken` در
   // خطِ import بالای فایل می‌آید، پس جست‌وجوی سراسری همیشه جواب غلط می‌داد.
-  const bodyStart = proxySource.indexOf("export function proxy");
+  const bodyStart = proxySource.search(/export (?:async )?function proxy/);
   const body = proxySource.slice(bodyStart);
-  const guardAt = body.indexOf("panelRoots().has");
+  const guardAt = body.search(/panelRoots\(\)\.has|panelRoots\(\)/);
   const cookieAt = body.indexOf("inspectSessionToken");
   assert.ok(guardAt !== -1, "شرطِ ریشه باید در بدنهٔ proxy باشد");
   assert.ok(cookieAt !== -1, "بررسیِ کوکی باید در بدنهٔ proxy باشد");

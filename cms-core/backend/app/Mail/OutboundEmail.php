@@ -5,6 +5,7 @@ namespace App\Mail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Support\HtmlString;
 
 /**
  * F1.3 — تنها Mailableِ قابلِ تحویل از outbox.
@@ -42,6 +43,7 @@ class OutboundEmail extends Mailable
     public function __construct(
         public readonly string $mailSubject,
         public readonly string $mailBody,
+        public readonly bool $isHtml = false,
     ) {}
 
     public function envelope(): Envelope
@@ -61,12 +63,15 @@ class OutboundEmail extends Mailable
      *    `View [متن] not found` و هر ایمیل `failed`.
      *  - `withSymfonyMessage()` تنها callback می‌افزاید؛ `buildView()` باز هم
      *    فراخوانی می‌شود و `Invalid view.` می‌دهد.
-     *  - `Content(html: …)` نقیضِ قیدِ «بدنه هرگز HTML» است.
+     *  - `Content(html: …)` مسیرِ Mailable است؛ اینجا عمداً از کلیدِ `html`
+     *    فقط وقتی `isHtml` روشن باشد استفاده می‌شود (WF-H11 — قالب‌های HTML).
      *
      * @return array<string, string>
      */
     protected function buildView(): array
     {
-        return ['raw' => $this->mailBody];
+        return $this->isHtml
+            ? ['html' => new HtmlString($this->mailBody)]
+            : ['raw' => $this->mailBody];
     }
 }

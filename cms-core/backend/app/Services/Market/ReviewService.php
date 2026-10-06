@@ -87,6 +87,79 @@ class ReviewService
         ]);
     }
 
+    /**
+     * WF-H19 — ناشر نسخهٔ جدیدی از پلاگینِ خودش را می‌فرستد. همان دروازه‌های
+     * `submit` (اعتبارسنجی + امضای Ed25519) دوباره اجرا می‌شوند، ولی ردیف
+     * موجود به‌روزرسانی و به وضعیت «در انتظار بازبینی» برگردانده می‌شود.
+     *
+     * @throws MarketException 403 (مالکیت/کلید) | 422 (اعتبارسنجی/اسلاگ).
+     */
+    public function submitVersion(Plugin $plugin, UploadedFile $file, User $user): Plugin
+    {
+        if ((int) $plugin->user_id !== (int) $user->id) {
+            throw new MarketException('You can only publish new versions of your own plugins.', 403);
+        }
+
+        if ($plugin->source !== Plugin::SOURCE_MARKET) {
+            throw new MarketException('Only market plugins can receive a new version here.', 422);
+        }
+
+        $report = $this->validator->analyze($file->getRealPath());
+
+        if (count($report['errors'] ?? []) > 0) {
+            throw new MarketException(
+                'Package rejected: validation errors must be fixed first.',
+                422,
+                ['errors' => $report['errors'], 'warnings' => $report['warnings'] ?? []]
+            );
+        }
+
+        $manifest = $report['manifest'] ?? null;
+        if (! is_array($manifest) || empty($manifest['slug']) || empty($manifest['name'])) {
+            throw new MarketException('Package manifest is missing slug/name.', 422);
+        }
+
+        if ((string) $manifest['slug'] !== (string) $plugin->slug) {
+            throw new MarketException('The uploaded package slug does not match this plugin.', 422);
+        }
+
+        $check = $this->trustStore->verifyPublisherSignature($manifest);
+        if (! $check['valid']) {
+            throw new MarketException('Package signature invalid: '.$check['reason'], 422);
+        }
+
+        $keyId = $check['key_id'];
+        $publisher = $keyId !== null
+            ? PublisherKey::query()->where('key_fingerprint', $keyId)->first()
+            : null;
+        if ($publisher === null || ! $publisher->isActive()) {
+            throw new MarketException('Publisher key is unknown or revoked; register it first.', 422);
+        }
+
+        if ((string) $plugin->publisher_key_id !== (string) $keyId) {
+            throw new MarketException('The signing key does not match the original publisher key.', 403);
+        }
+
+        $plugin->forceFill([
+            'previous_version' => $plugin->version,
+            'version' => is_string($manifest['version'] ?? null) ? $manifest['version'] : $plugin->version,
+            'manifest' => $manifest,
+            'checksum' => hash_file('sha256', $file->getRealPath()) ?: null,
+            'publisher_verified' => true,
+            'signature_valid' => true,
+            'review_status' => Plugin::REVIEW_PENDING,
+            'review_note' => null,
+            'reviewed_at' => null,
+            'submitted_at' => now(),
+        ])->save();
+
+        Log::info('market.version_submitted', [
+            'plugin_id' => $plugin->id, 'user_id' => $user->id, 'version' => $plugin->version,
+        ]);
+
+        return $plugin->fresh();
+    }
+
     public function approve(Plugin $plugin, ?string $note = null): Plugin
     {
         if ($plugin->review_status !== Plugin::REVIEW_PENDING) {

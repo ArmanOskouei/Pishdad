@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Overlays";
 import { SchemaForm } from "@/components/ui/SchemaForm";
 import { LinkListEditor } from "@/components/admin/LinkListEditor";
 import { ChromeWidget, SiteFooter, SiteHeader, themeVars } from "@/components/site/Chrome";
+import { localRevalidate } from "@/lib/local-revalidate";
 import type { SiteChrome } from "@/lib/site";
 import { faNum } from "@/lib/fa";
 import type { ChromeLinkItem, LayoutData, WidgetSchema, WidgetValue } from "@/lib/domain";
@@ -79,6 +80,7 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
     try {
       const clean = items[area].map(({ type, settings }) => ({ type, settings }));
       await authed(`/v1/admin/layouts/${area}`, { method: "PUT", body: { widgets: clean, layout: layouts[area] } });
+      await localRevalidate(["site-chrome", "pages"]);
       toast(area === "header" ? "چیدمان هدر ذخیره شد." : "چیدمان فوتر ذخیره شد.", "ok");
       router.refresh();
     } catch (e) {

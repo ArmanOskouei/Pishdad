@@ -40,6 +40,20 @@ class SiteSettingsController extends Controller
 
     public const SOCIAL_KEY_PATTERN = '/^[a-z0-9_-]{2,30}$/';
 
+    /**
+     * WF-M20 — متنِ پیش‌فرضِ سیاست حریم خصوصی (صفحهٔ /privacy).
+     * خالی‌بودن یعنی صفحهٔ عمومی پیامِ «تنظیم نشده» نشان می‌دهد.
+     */
+    public const DEFAULT_PRIVACY_POLICY = "این سایت فقط از کوکی‌های ضروری استفاده می‌کند؛ هیچ کوکی تحلیلی یا تبلیغاتی گذاشته نمی‌شود. تحلیل بازدید نیز بدون کوکی و بدون شناسهٔ شخصی انجام می‌شود.\n\nاطلاعاتی که خودتان در فرم‌های تماس یا عضویت وارد می‌کنید (نام، ایمیل، شماره تماس و متن پیام) فقط برای پاسخگویی و ارائهٔ خدمات استفاده می‌شود و در اختیار اشخاص ثالث قرار نمی‌گیرد.\n\nبرای هر پرسشی دربارهٔ حریم خصوصی از صفحهٔ «تماس» با ما در ارتباط باشید.";
+
+    /**
+     * WF-M17 — متنِ پیش‌فرضِ بیانیهٔ دسترس‌پذیری (صفحهٔ /accessibility).
+     * عمداً «هدفِ انطباق» + «راهِ تماس» را نام می‌برد، چون بیانیهٔ دسترس‌پذیریِ
+     * بی‌راه تماس بی‌فایده است (الزامِ خودِ WCAG هم همین است: محتوای غیرقابل
+     * دسترس باید مسیرِ بازخوردِ قابل استفاده داشته باشد).
+     */
+    public const DEFAULT_ACCESSIBILITY_STATEMENT = "هدف این وب‌سایت انطباق با «راهنمای دسترس‌پذیری محتوای وب» (WCAG 2.2) در سطح AA است. متن راست‌به‌چپ و قابل بزرگ‌نمایی، کنتراست رنگ کافی، پیمایش کامل با صفحه‌کلید، برچسب‌های خوانا برای صفحه‌خوان و رعایت نسبت کنتراست در همهٔ صفحه‌ها در طراحی رعایت شده‌اند.\n\nاگر مانعی در دسترسی به محتوای این سایت برای شما پیش آمد، از راه‌های تماسِ درج‌شده در پایین همین صفحه با ما در میان بگذارید تا در کوتاه‌ترین زمان برطرفش کنیم.\n\nاگر پاسخِ ما رضایت‌بخش نبود، می‌توانید موضوع را به مرجعِ ملی دسترس‌پذیری ارجاع دهید.";
+
     public const SITE_DEFAULTS = [
         'title' => 'وب‌سایت من',
         'description' => '',
@@ -52,7 +66,13 @@ class SiteSettingsController extends Controller
         'og_image_media_id' => null,
         'ai_summary' => '',
         'robots_index' => true,
+        'robots_txt' => null,
+        'google_site_verification' => null,
         'address' => null,
+        // WF-M20 — متن صفحهٔ سیاست حریم خصوصی (بدون HTML؛ صفحهٔ /privacy).
+        'privacy_policy' => self::DEFAULT_PRIVACY_POLICY,
+        // WF-M17 — متن صفحهٔ بیانیهٔ دسترس‌پذیری (بدون HTML؛ صفحهٔ /accessibility).
+        'accessibility_statement' => self::DEFAULT_ACCESSIBILITY_STATEMENT,
         // دسته UIUX (افزودنی): زبان پیش‌فرض + منطقه زمانی + صفحه خانه.
         'locale' => 'fa',
         'timezone' => 'Asia/Tehran',
@@ -62,6 +82,9 @@ class SiteSettingsController extends Controller
         // غیرِ اصلی است و فقط وقتی `dual` باشد معنا دارد.
         'language_mode' => 'single',
         'secondary_locale' => null,
+        // کلیدِ سراسریِ «کش سایت»: وقتی خاموش ⇒ تنظیمات بی‌درنگ روی سایت؛ وقتی
+        // روشن ⇒ سرعت/مصرف بهینه (پیش‌فرض روشن).
+        'cache_enabled' => true,
     ];
 
     /**
@@ -117,7 +140,11 @@ class SiteSettingsController extends Controller
             'og_image_media_id' => 'nullable|integer|min:1',
             'ai_summary' => 'nullable|string|max:1000|no_markup',
             'robots_index' => 'sometimes|boolean',
+            'robots_txt' => 'nullable|string|max:5000|no_markup',
+            'google_site_verification' => 'nullable|string|max:200|no_markup',
             'address' => 'nullable|string|max:500|no_markup',
+            'privacy_policy' => 'nullable|string|max:20000|no_markup',
+            'accessibility_statement' => 'nullable|string|max:20000|no_markup',
             'locale' => 'nullable|string|in:fa,en',
             'timezone' => 'nullable|string|in:Asia/Tehran,Asia/Dubai,Europe/London,UTC',
             'homepage_page_id' => 'nullable|integer|min:1',
@@ -125,6 +152,7 @@ class SiteSettingsController extends Controller
             // ECO2 — زبانِ دوم باید زبانِ معتبر باشد؛ `different:locale` جلوی
             // حالتِ بی‌معنیِ «اصلی = دوم» را می‌گیرد.
             'secondary_locale' => 'nullable|string|in:fa,en|different:locale',
+            'cache_enabled' => 'sometimes|boolean',
         ], [
             'title.required' => 'عنوان سایت الزامی است.',
             'title.min' => 'عنوان سایت خیلی کوتاه است.',
@@ -139,7 +167,11 @@ class SiteSettingsController extends Controller
             'og_image_media_id.exists' => 'تصویر اشتراک‌گذاری انتخاب‌شده یافت نشد.',
             'ai_summary.max' => 'خلاصه هوش مصنوعی بیش از حد طولانی است (۱۰۰۰ نویسه).',
             'robots_index.boolean' => 'مقدار ایندکس ربات‌ها معتبر نیست.',
+            'robots_txt.max' => 'محتوای robots.txt بیش از حد طولانی است (۵۰۰۰ نویسه).',
+            'google_site_verification.max' => 'کد تأیید مالکیت گوگل بیش از حد طولانی است (۲۰۰ نویسه).',
             'address.max' => 'نشانی بیش از حد طولانی است (۵۰۰ نویسه).',
+            'privacy_policy.max' => 'متن سیاست حریم خصوصی بیش از حد طولانی است (۲۰۰۰۰ نویسه).',
+            'accessibility_statement.max' => 'متن بیانیهٔ دسترس‌پذیری بیش از حد طولانی است (۲۰۰۰۰ نویسه).',
             'locale.in' => 'زبان پیش‌فرض معتبر نیست (fa یا en).',
             'timezone.in' => 'منطقه زمانی معتبر نیست.',
             'homepage_page_id.exists' => 'صفحه خانه انتخاب‌شده یافت نشد.',
@@ -329,17 +361,15 @@ class SiteSettingsController extends Controller
             return $out;
         }
 
-        $paths = Media::query()
+        $rows = Media::query()
             ->whereIn('id', array_values($wanted))
-            ->pluck('path', 'id');
+            ->get(['id', 'disk', 'path'])
+            ->keyBy('id');
 
-        $base = rtrim((string) config('filesystems.disks.s3.url', ''), '/');
-        if ($base === '') {
-            return $out;
-        }
         foreach ($wanted as $k => $id) {
-            if (isset($paths[$id])) {
-                $out[$k] = $base.'/'.ltrim($paths[$id], '/');
+            $row = $rows[$id] ?? null;
+            if ($row) {
+                $out[$k] = \App\Support\MediaUrl::for((string) $row->disk, (string) $row->path);
             }
         }
 

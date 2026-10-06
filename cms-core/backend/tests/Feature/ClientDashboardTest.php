@@ -4,8 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Media;
 use App\Models\Page;
+use App\Models\PageRevision;
+use App\Models\Setting;
 use App\Models\User;
+use Carbon\Carbon;
+use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Pishdad\Plugins\Central\Models\Client;
 use Pishdad\Plugins\Central\Models\Invoice;
@@ -105,5 +110,192 @@ class ClientDashboardTest extends TestCase
             ->assertJsonPath('data.registry_version', '1.0')
             ->assertJsonPath('data.widgets', []);
         $this->assertNotEmpty($res->json('data.slots'));
+    }
+
+    /**
+     * WF-H21 — چک‌لیست راه‌اندازی باید از دادهٔ **واقعی** مشتق شود، نه از حدس.
+     * نصبِ خالی همه‌چیز ناتمام است؛ با افزودن لوگو/صفحه/سئو/فرم و انتشار،
+     * پرچم‌ها یکی‌یکی روشن می‌شوند.
+     */
+    public function test_checklist_reflects_real_settings_and_pages(): void
+    {
+        $user = $this->user();
+
+        // نصبِ تازه: هیچ گامی کامل نیست.
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('data.checklist.logo', false)
+            ->assertJsonPath('data.checklist.page', false)
+            ->assertJsonPath('data.checklist.seo', false)
+            ->assertJsonPath('data.checklist.contact', false)
+            ->assertJsonPath('data.checklist.published', false);
+
+        // لوگو فقط وقتی «واقعی» است که رسانه‌ای در تنظیمات انتخاب شده باشد.
+        $media = Media::query()->create([
+            'user_id' => $user->id, 'disk' => 'local', 'path' => 'logo.png',
+            'original_name' => 'logo.png', 'mime' => 'image/png', 'size' => 10,
+        ]);
+        Setting::set('site', 'global', ['logo_media_id' => $media->id]);
+
+        // صفحهٔ دارای فرم تماس + متای سئو، هنوز پیش‌نویس.
+        $page = Page::query()->create([
+            'user_id' => $user->id, 'title' => 'تماس', 'slug' => 'contact',
+            'status' => Page::STATUS_DRAFT,
+            'blocks' => [['type' => 'contact-form', 'data' => ['title' => 'فرم تماس']]],
+            'meta' => ['description' => 'راه‌های تماس با ما'],
+        ]);
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('data.checklist.logo', true)
+            ->assertJsonPath('data.checklist.page', true)
+            ->assertJsonPath('data.checklist.seo', true)
+            ->assertJsonPath('data.checklist.contact', true)
+            // پیش‌نویس است ⇒ انتشار هنوز کامل نیست.
+            ->assertJsonPath('data.checklist.published', false);
+
+        $page->forceFill(['status' => Page::STATUS_PUBLISHED])->save();
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('data.checklist.published', true);
+    }
+
+    /** WF-H21 — سئو باید از توضیحِ سایت هم (نه فقط متای صفحه) مشتق شود. */
+    public function test_checklist_seo_can_come_from_site_description(): void
+    {
+        $user = $this->user();
+        Setting::set('site', 'global', ['description' => 'توضیح متای سایت']);
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('data.checklist.seo', true)
+            // توضیح سایت به‌تنهایی نه صفحه می‌سازد نه فرم تماس.
+            ->assertJsonPath('data.checklist.page', false)
+            ->assertJsonPath('data.checklist.contact', false);
+    }
+
+    /**
+     * پرمیشنِ تحلیل — همان برداری که `EnsurePermission` روی `/admin/analytics`
+     * می‌سنجد. بدون سید، `can()` به‌جای throw کردن `false` می‌دهد.
+     */
+    private function grantAnalytics(User $user): User
+    {
+        $this->seed(RolesPermissionsSeeder::class);
+        $user->givePermissionTo('analytics.view');
+
+        return $user->fresh();
+    }
+
+    /**
+     * صفحهٔ منتشرشده. `$live = false` یعنی `status = published` ولی **بدونِ
+     * نسخهٔ زنده** — همان حالتی که مسیرِ عمومی و سازندهٔ منو آن را «منتشرشده»
+     * نمی‌دانند، پس نباید در کارتِ پربازدید بیاید.
+     */
+    private function publishedPage(User $user, string $title, string $slug, bool $live = true): Page
+    {
+        $page = Page::query()->create([
+            'user_id' => $user->id,
+            'title' => $title,
+            'slug' => $slug,
+            'locale' => Page::LOCALE_DEFAULT,
+            'status' => Page::STATUS_PUBLISHED,
+            'blocks' => [],
+        ]);
+
+        if ($live) {
+            $revision = PageRevision::query()->create([
+                'page_id' => $page->id,
+                'version' => 1,
+                'blocks' => [],
+                'created_by' => $user->id,
+            ]);
+            $page->forceFill(['published_revision_id' => $revision->id])->save();
+        }
+
+        return $page->fresh();
+    }
+
+    /** @param list<string> $paths */
+    private function views(array $paths, ?Carbon $at = null): void
+    {
+        $rows = [];
+        foreach ($paths as $path) {
+            $rows[] = [
+                'path' => $path,
+                'slug' => trim($path, '/') === '' ? null : trim($path, '/'),
+                'device' => 'desktop',
+                'created_at' => $at ?? now(),
+            ];
+        }
+
+        DB::table('page_views')->insert($rows);
+    }
+
+    /**
+     * WF-M12 — کارت باید **همان** بازدیدِ ثبت‌شده را نشان دهد: مرتب نزولی،
+     * فقط صفحه‌های منتشرشده، عنوان از خودِ صفحه، و بیرون از پنجرهٔ هفت‌روزه
+     * حساب نمی‌شود.
+     */
+    public function test_top_pages_widget_lists_published_pages_by_views(): void
+    {
+        $user = $this->user();
+        $about = $this->publishedPage($user, 'درباره ما', 'about');
+        $this->publishedPage($user, 'تماس با ما', 'contact');
+        // منتشرشده ولی بدونِ نسخهٔ زنده ⇒ مردم نمی‌بینندش ⇒ نباید بیاید.
+        $this->publishedPage($user, 'بی‌نسخه', 'no-live-revision', live: false);
+
+        $this->views(['/about', '/about', '/contact', '/no-live-revision']);
+        // بیرون از پنجرهٔ هفت‌روزه — نباید شمرده شود.
+        $this->views(['/about'], now()->subDays(9));
+
+        $res = $this->actingAs($this->grantAnalytics($user), 'sanctum')
+            ->getJson('/api/v1/admin/dashboard/stats');
+
+        $items = $res->assertOk()
+            ->assertJsonPath('data.top_pages_7d.days', 7)
+            ->json('data.top_pages_7d.items');
+
+        $this->assertCount(2, $items);
+        $this->assertSame('/about', $items[0]['path']);
+        $this->assertSame('درباره ما', $items[0]['title']);
+        $this->assertSame($about->id, $items[0]['page_id']);
+        $this->assertSame(2, $items[0]['views'], 'دو بازدیدِ امروز + بازدیدِ ۹ روز پیش نباید جمع شود.');
+        $this->assertSame('/contact', $items[1]['path']);
+        $this->assertSame(1, $items[1]['views']);
+    }
+
+    /** WF-M12 — بدونِ داده، آرایهٔ خالی؛ نه صفرِ ساختگی و نه `null`. */
+    public function test_top_pages_widget_is_an_empty_list_without_data(): void
+    {
+        $user = $this->user();
+        // فقط بازدیدِ قدیمی: بیرون از پنجره ⇒ کارت باید خالی باشد، نه پر.
+        $this->views(['/about', '/about'], now()->subDays(40));
+
+        $this->actingAs($this->grantAnalytics($user), 'sanctum')
+            ->getJson('/api/v1/admin/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('data.top_pages_7d.days', 7)
+            ->assertJsonPath('data.top_pages_7d.items', []);
+    }
+
+    /**
+     * WF-M12 — `dashboard/stats` میاندریِ پرمیشن ندارد، پس گیت داخلی لازم است:
+     * بدونِ `analytics.view` کلید `null` می‌شود (کارت پنهان) حتی وقتی داده هست.
+     */
+    public function test_top_pages_widget_is_hidden_without_analytics_permission(): void
+    {
+        $user = $this->user();
+        $this->publishedPage($user, 'درباره ما', 'about');
+        $this->views(['/about', '/about', '/about']);
+
+        $data = $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/admin/dashboard/stats')
+            ->assertOk()
+            ->json('data');
+
+        // کلید باید حاضر باشد و `null` — نه اینکه غایب باشد (غیبت یعنی شکست قرارداد).
+        $this->assertArrayHasKey('top_pages_7d', $data);
+        $this->assertNull($data['top_pages_7d']);
     }
 }

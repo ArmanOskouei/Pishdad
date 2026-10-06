@@ -4,7 +4,7 @@
   "description": "ستون خواندنیِ باریک‌تر با تایپوگرافی درشت‌تر؛ ستون‌های کناری کنار محتوا. مناسب مجله و روایت بلند.",
   "version": "1.0.0",
   "modes": ["light", "dark", "system"],
-  "slots": ["header", "footer", "main", "left", "right", "banner"],
+  "slots": ["header", "footer", "main", "left", "right", "banner", "blog"],
   "tokens": {
     "radius-sm": "0px",
     "radius-md": "0px",

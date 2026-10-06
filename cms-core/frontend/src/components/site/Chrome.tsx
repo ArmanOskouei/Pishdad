@@ -17,8 +17,11 @@ import {
 import type { SiteChrome } from "@/lib/site";
 import { publicT, type PublicLocale, type PublicMessageKey } from "@/lib/i18n/public";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { ResponsiveImage, normalizeSources, normalizeSrcset } from "./ResponsiveImage";
+import { SiteModeToggle } from "./SiteModeToggle";
 import { SiteNav } from "./SiteNav";
 import { SiteSearchBox } from "./SiteSearchBox";
+import type { SiteMode } from "@/lib/site-mode";
 
 /**
  * رندر واقعی مشترک هدر/فوتر سایت عمومی.
@@ -68,11 +71,22 @@ export function ChromeWidget({
       const src = typeof s.media_url === "string" && s.media_url ? (s.media_url as string) : (chrome?.logo_url ?? null);
       const showTitle = s.show_title !== false;
       const h = s.size === "sm" ? 28 : s.size === "lg" ? 52 : 40;
+      // WF-C4 — اگر بک‌اند نسخه‌های واکنش‌گرا را هم داده باشد، `<picture>`؛
+      // وگرنه دقیقاً همان `<img src>` قبلی.
+      const srcset = normalizeSrcset(s.media_srcset);
+      const sources = normalizeSources(s.media_sources);
       return (
         <a href="/" className="site-brand" aria-label={t("chrome.brandHome")}>
           {src ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={src} alt={chrome?.title ?? t("chrome.logoAlt")} style={{ blockSize: h, inlineSize: "auto" }} />
+            <ResponsiveImage
+              src={src}
+              srcset={srcset}
+              sources={sources}
+              alt={chrome?.title ?? t("chrome.logoAlt")}
+              loading="eager"
+              sizes={`${h}px`}
+              style={{ blockSize: h, inlineSize: "auto" }}
+            />
           ) : null}
           {showTitle ? <b>{chrome?.title ?? t("chrome.defaultTitle")}</b> : null}
         </a>
@@ -216,6 +230,7 @@ export function SiteHeader({
   diagnostics,
   locale = "fa",
   switcher,
+  defaultMode = "dark",
 }: {
   chrome: SiteChrome | null;
   diagnostics?: boolean;
@@ -225,6 +240,8 @@ export function SiteHeader({
    * هیچ دکمه‌ای رندر نمی‌شود (سایتِ تک‌زبانه دقیقاً مثل قبل).
    */
   switcher?: { locales: PublicLocale[]; primary: PublicLocale };
+  /** WF-L3 — حالتِ پیش‌فرضِ سایت/قالب برای سوییچِ روشن/تیره. */
+  defaultMode?: SiteMode;
 }) {
   return (
     <header className="site-header">
@@ -232,6 +249,7 @@ export function SiteHeader({
         {(chrome?.header.widgets ?? []).map((w, i) => (
           <ChromeWidget key={i} w={w} chrome={chrome} diagnostics={diagnostics} locale={locale} />
         ))}
+        <SiteModeToggle locale={locale} defaultMode={defaultMode} />
         {switcher && switcher.locales.length > 1 ? (
           <LanguageSwitcher locales={switcher.locales} primary={switcher.primary} current={locale} />
         ) : null}

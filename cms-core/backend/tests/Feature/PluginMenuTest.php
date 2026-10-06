@@ -50,7 +50,7 @@ class PluginMenuTest extends TestCase
         ]);
 
         if ($super) {
-            $user->forceFill(['is_super_admin' => true, 'is_hidden' => true])->save();
+            // دیگر «سوپرادمین» وجود ندارد؛ همان پرمیشن‌های صریح کافی است.
         }
 
         if ($permissions !== []) {
@@ -312,10 +312,10 @@ class PluginMenuTest extends TestCase
         $this->assertSame([], $perms, 'بدون نقش باید خالی باشد — نه کاتالوگ کل سیستم.');
     }
 
-    public function test_profile_reports_super_admin_flag(): void
+    public function test_profile_no_longer_reports_super_admin_flag(): void
     {
         $auth = $this->actingAs($this->manager([], true), 'sanctum');
-        $auth->getJson('/api/v1/admin/profile')->assertJsonPath('data.is_super_admin', true);
+        $auth->getJson('/api/v1/admin/profile')->assertJsonMissingPath('data.is_super_admin');
     }
 
     public function test_menu_me_endpoint_reports_gate_state(): void

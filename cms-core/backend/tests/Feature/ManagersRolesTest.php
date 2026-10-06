@@ -11,7 +11,7 @@ use Spatie\Permission\Models\Role;
 use Tests\PluginDdlTestCase;
 use ZipArchive;
 
-/** تسک ۵.۱ — DoD: ساخت مدیر + تخصیص نقش + مخفی بودن سوپرادمین + ماتریس نقش‌ها. */
+/** تسک ۵.۱ — DoD: ساخت مدیر + تخصیص نقش + ماتریس نقش‌ها. */
 class ManagersRolesTest extends PluginDdlTestCase
 {
     private function owner(): User
@@ -24,15 +24,6 @@ class ManagersRolesTest extends PluginDdlTestCase
         $user->assignRole('owner');
 
         return $user->fresh();
-    }
-
-    private function superadmin(): User
-    {
-        return User::query()->create([
-            'name' => 'سوپرادمین', 'email' => uniqid().'@example.com',
-            'password' => Hash::make('Super!1234'), 'role' => 'super-admin',
-            'is_super_admin' => true, 'is_hidden' => true,
-        ]);
     }
 
     public function test_create_manager_assigns_role(): void
@@ -57,19 +48,6 @@ class ManagersRolesTest extends PluginDdlTestCase
         $auth->postJson('/api/v1/admin/managers', [
             'name' => 'ضعیف', 'email' => 'weak@example.com', 'password' => 'simplepassword',
         ])->assertStatus(422);
-    }
-
-    public function test_superadmin_is_always_hidden(): void
-    {
-        $auth = $this->actingAs($this->owner(), 'sanctum');
-        $super = $this->superadmin();
-
-        $ids = collect($auth->getJson('/api/v1/admin/managers')->json('data.data'))->pluck('id');
-        $this->assertNotContains($super->id, $ids->all());
-
-        $auth->getJson("/api/v1/admin/managers/{$super->id}")->assertForbidden();
-        $auth->putJson("/api/v1/admin/managers/{$super->id}", ['name' => 'x'])->assertForbidden();
-        $auth->deleteJson("/api/v1/admin/managers/{$super->id}")->assertForbidden();
     }
 
     public function test_self_delete_is_blocked(): void

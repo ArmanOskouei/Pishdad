@@ -13,11 +13,17 @@ import { TICKET_STATUS_FA, TICKET_PRIORITY_FA, type Ticket, type TicketMessage, 
 const statusTone = (s: string) => (s === "open" ? "green" : s === "pending" ? "amber" : "gray") as "green" | "amber" | "gray";
 
 /** Master-Detail تیکت: لیست (راست) + گفتگو (چپ) + پاسخ + بستن/بازگشایی. */
-export function TicketsClient({ initial, status, search, page, selectedId }: { initial: Paginator<Ticket>; status: string; search: string; page: number; selectedId?: number | null }) {
+export function TicketsClient({ initial, status, search, priority, label, page, selectedId }: { initial: Paginator<Ticket>; status: string; search: string; priority: string; label: string; page: number; selectedId?: number | null }) {
   const toast = useToast();
   const router = useRouter();
   const [selected, setSelected] = useState<number | null>(selectedId ?? initial.data[0]?.id ?? null);
   const [creating, setCreating] = useState(false);
+
+  const exportQs = new URLSearchParams();
+  if (status) exportQs.set("status", status);
+  if (search) exportQs.set("search", search);
+  if (priority) exportQs.set("priority", priority);
+  if (label) exportQs.set("label", label);
 
   return (
     <div>
@@ -35,7 +41,22 @@ export function TicketsClient({ initial, status, search, page, selectedId }: { i
             <option value="closed">بسته</option>
           </select>
         </div>
+        <div className="field">
+          <label htmlFor="tp">اولویت</label>
+          <select id="tp" name="priority" className="select" defaultValue={priority}>
+            <option value="">همه</option>
+            <option value="low">کم</option>
+            <option value="normal">عادی</option>
+            <option value="high">زیاد</option>
+            <option value="urgent">فوری</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="tl">برچسب</label>
+          <input id="tl" name="label" className="input" placeholder="مثلاً پرداخت" defaultValue={label} />
+        </div>
         <button className="btn btn-ghost" type="submit">اعمال</button>
+        <a className="btn btn-ghost" href={`/api/tickets/export?${exportQs.toString()}`}>خروجی CSV</a>
         <div style={{ flex: 1 }} />
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>＋ تیکت جدید</button>
       </form>
@@ -61,8 +82,10 @@ export function TicketsClient({ initial, status, search, page, selectedId }: { i
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <b style={{ fontSize: 13.5 }}>#{faNum(t.id)} {t.subject}</b>
                 </div>
-                <div style={{ display: "flex", gap: 6, marginBlockStart: 4, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 6, marginBlockStart: 4, alignItems: "center", flexWrap: "wrap" }}>
                   <Badge tone={statusTone(t.status)}>{TICKET_STATUS_FA[t.status]}</Badge>
+                  <Badge tone="violet">{TICKET_PRIORITY_FA[t.priority] ?? t.priority}</Badge>
+                  {(t.labels ?? []).map((lbl) => <Badge key={lbl} tone="gray">{lbl}</Badge>)}
                   <small style={{ color: "var(--text-muted)" }}>{jalali(t.updated_at)}</small>
                 </div>
               </button>
@@ -79,7 +102,7 @@ export function TicketsClient({ initial, status, search, page, selectedId }: { i
         </div>
       )}
 
-      <Pagination page={initial.current_page} lastPage={initial.last_page} total={initial.total} base="/admin/tickets" params={{ status, search, page: String(page) }} />
+      <Pagination page={initial.current_page} lastPage={initial.last_page} total={initial.total} base="/admin/tickets" params={{ status, search, priority, label, page: String(page) }} />
       {creating ? <TicketCreate onClose={() => { setCreating(false); router.refresh(); }} /> : null}
     </div>
   );
@@ -91,6 +114,7 @@ function TicketDetail({ id, onChanged, onBack }: { id: number; onChanged: () => 
   const [error, setError] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [labelInput, setLabelInput] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -135,6 +159,37 @@ function TicketDetail({ id, onChanged, onBack }: { id: number; onChanged: () => 
     }
   };
 
+  const setPriority = async (priority: string) => {
+    try {
+      await authed(`/v1/admin/tickets/${id}`, { method: "PUT", body: { priority } });
+      await load();
+      onChanged();
+      toast("اولویت به‌روزرسانی شد.", "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "تغییر اولویت ناموفق بود.", "err");
+    }
+  };
+
+  const saveLabels = async (labels: string[]) => {
+    try {
+      await authed(`/v1/admin/tickets/${id}`, { method: "PUT", body: { labels } });
+      await load();
+      onChanged();
+      toast("برچسب‌ها به‌روزرسانی شد.", "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "ذخیره برچسب‌ها ناموفق بود.", "err");
+    }
+  };
+
+  const addLabel = () => {
+    const value = labelInput.trim();
+    if (!value) return;
+    const current = ticket?.labels ?? [];
+    if (current.includes(value)) { setLabelInput(""); return; }
+    void saveLabels([...current, value]);
+    setLabelInput("");
+  };
+
   if (error) return <Alert tone="red">{error} <button className="btn btn-ghost btn-sm" onClick={() => { setTicket(null); setError(null); }}>تلاش مجدد</button></Alert>;
   if (!ticket) return <div className="card card-pad"><p style={{ color: "var(--text-muted)" }}>در حال بارگذاری گفتگو…</p></div>;
 
@@ -145,13 +200,46 @@ function TicketDetail({ id, onChanged, onBack }: { id: number; onChanged: () => 
         <button className="btn btn-ghost btn-sm" onClick={onBack} aria-label="بازگشت به لیست تیکت‌ها">→ لیست</button>
         <b>#{faNum(ticket.id)} {ticket.subject}</b>
         <Badge tone={statusTone(ticket.status)}>{TICKET_STATUS_FA[ticket.status]}</Badge>
-        <Badge tone="violet">{TICKET_PRIORITY_FA[ticket.priority] ?? ticket.priority}</Badge>
         <div style={{ flex: 1 }} />
         {ticket.status === "closed" ? (
           <button className="btn btn-ghost btn-sm" onClick={() => void setStatus("open")}>بازگشایی</button>
         ) : (
           <button className="btn btn-ghost btn-sm" onClick={() => void setStatus("closed")}>بستن تیکت</button>
         )}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBlockStart: 10 }}>
+        <div className="field" style={{ margin: 0 }}>
+          <label htmlFor="tdp" style={{ fontSize: 12 }}>اولویت</label>
+          <select id="tdp" className="select" value={ticket.priority} onChange={(e) => void setPriority(e.target.value)}>
+            <option value="low">کم</option>
+            <option value="normal">عادی</option>
+            <option value="high">زیاد</option>
+            <option value="urgent">فوری</option>
+          </select>
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          {(ticket.labels ?? []).map((lbl) => (
+            <span key={lbl} className="badge b-gray" style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+              {lbl}
+              <button
+                type="button"
+                aria-label={`حذف برچسب ${lbl}`}
+                onClick={() => void saveLabels((ticket.labels ?? []).filter((x) => x !== lbl))}
+                style={{ border: "none", background: "transparent", cursor: "pointer", color: "inherit", padding: 0 }}
+              >×</button>
+            </span>
+          ))}
+          {(ticket.labels ?? []).length === 0 ? <small style={{ color: "var(--text-muted)" }}>بدون برچسب</small> : null}
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
+          <input
+            className="input" style={{ inlineSize: 150 }} placeholder="برچسب جدید…" aria-label="برچسب جدید"
+            value={labelInput} onChange={(e) => setLabelInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLabel(); } }}
+          />
+          <button type="button" className="btn btn-ghost btn-sm" onClick={addLabel}>افزودن</button>
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBlock: 14, maxBlockSize: 420, overflowY: "auto" }}>
@@ -216,7 +304,7 @@ function TicketCreate({ onClose }: { onClose: () => void }) {
       <div className="field"><label>موضوع *</label><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} autoFocus /></div>
       <div className="field"><label>اولویت</label>
         <select className="select" value={priority} onChange={(e) => setPriority(e.target.value)}>
-          <option value="low">کم</option><option value="normal">عادی</option><option value="high">زیاد</option>
+          <option value="low">کم</option><option value="normal">عادی</option><option value="high">زیاد</option><option value="urgent">فوری</option>
         </select>
       </div>
       <div className="field"><label>متن پیام *</label><textarea className="input" rows={4} value={body} onChange={(e) => setBody(e.target.value)} /></div>

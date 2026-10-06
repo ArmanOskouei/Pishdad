@@ -65,6 +65,8 @@ export type TokenResponse = {
   token: string;
   token_type: "Bearer";
   two_factor_required: false;
+  /** WF-M8 — نقش کاربر «۲FA اجباری» است ولی هنوز فعال نشده؛ به پروفایل هدایت شود. */
+  requires_2fa_setup?: boolean;
   user: User;
 };
 
@@ -98,6 +100,11 @@ export type DashboardStats = {
   open_tickets: number;
   /** دسته ۱: دلتای واقعی «جدید در ۷ روز اخیر» (افزودنی). */
   recent?: { pages_new_7d: number; media_new_7d: number; tickets_new_7d: number };
+  /**
+   * WF-H21 — وضعیتِ پنج گامِ راه‌اندازی اولین ورود. سرور آن را از تنظیمات و
+   * صفحاتِ واقعی مشتق می‌کند؛ کلاینت فقط نمایش می‌دهد (بدون حدس).
+   */
+  checklist?: import("./onboarding").OnboardingChecklist;
   /**
    * `null` یعنی «افزونهٔ اشتراک نصب نیست» — نه «اشتراک خراب».
    *

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\LoginEvent;
 use App\Models\Media;
 use App\Models\User;
 use App\Services\Plugins\ManifestRegistry;
@@ -23,6 +24,9 @@ use PragmaRX\Google2FA\Google2FA;
  */
 class ProfileController extends Controller
 {
+    /** WF-M9 — تعداد کدهای بازیابیِ صادرشده در هر مجموعه. */
+    private const RECOVERY_CODE_COUNT = 8;
+
     public function show(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -51,7 +55,6 @@ class ProfileController extends Controller
             // این خودِ کاربر است، نه کاتالوگ کل سیستم: فقط پرمیشن‌هایی که واقعاً
             // *دارد* برمی‌گردد. کاتالوگ برای صفحهٔ نقش‌ها از مسیر دیگری می‌آید.
             'permissions' => $this->effectivePermissions($user),
-            'is_super_admin' => (bool) $user->is_super_admin,
         ]]);
     }
 
@@ -265,7 +268,7 @@ class ProfileController extends Controller
                 return response()->json(['message' => 'کد تأیید صحیح نیست.'], 422);
             }
 
-            $plainCodes = collect(range(1, 8))
+            $plainCodes = collect(range(1, self::RECOVERY_CODE_COUNT))
                 ->map(fn () => Str::upper(Str::random(10)))->all();
 
             $user->forceFill([
@@ -360,7 +363,7 @@ class ProfileController extends Controller
             return response()->json(['message' => 'برای بازتولید کدهای بازیابی، کد TOTP یا رمز عبور لازم است.'], 422);
         }
 
-        $plainCodes = collect(range(1, 8))
+        $plainCodes = collect(range(1, self::RECOVERY_CODE_COUNT))
             ->map(fn () => Str::upper(Str::random(10)))->all();
 
         $user->forceFill([
@@ -375,6 +378,27 @@ class ProfileController extends Controller
     }
 
     /**
+     * WF-M9 — شمارش کدهای بازیابیِ مصرف‌نشده؛ هرگز خودِ کدها را برنمی‌گرداند.
+     *
+     * منبعِ حقیقت همان آرایهٔ هش‌شده روی کاربر است: کدِ مصرف‌شده از آرایه حذف
+     * می‌شود (AuthController::verifyTwoFactor)، پس `count` دقیقاً «باقی‌مانده» است.
+     * `low` آستانهٔ هشدار (≤ ۲) را سمت سرور تعیین می‌کند تا همهٔ کلاینت‌ها یک
+     * قاعده داشته باشند.
+     */
+    public function recoveryCodeCount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $remaining = count($user->recovery_codes ?? []);
+
+        return response()->json(['data' => [
+            'enabled' => (bool) $user->google2fa_enabled,
+            'remaining' => $remaining,
+            'total' => self::RECOVERY_CODE_COUNT,
+            'low' => (bool) $user->google2fa_enabled && $remaining <= 2,
+        ]]);
+    }
+
+    /**
      * اسلات بخش‌های پروفایل برای اکستنشن پلاگین‌ها — فعلاً خالی با ساختار آماده.
      * پلاگین با همین شکل ثبت می‌کند: {key, title, component, order}.
      */
@@ -386,6 +410,45 @@ class ProfileController extends Controller
                 'sections' => [],
             ],
         ]);
+    }
+
+    /**
+     * WF-H8 — تاریخچهٔ ورود: آخرین ~۱۰ تلاشِ ورودِ همین کاربر (جدیدترین اول).
+     *
+     * مکملِ `sessions()` است نه جایگزین: `sessions()` فقط نشست‌های فعال را
+     * می‌دهد، اینجا هم شکست‌ها و هم نشست‌های بسته‌شده دیده می‌شوند. دستگاه/
+     * مرورگر در زمان خواندن parse می‌شود (UA خام ذخیره شده است).
+     */
+    public function loginHistory(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $items = LoginEvent::query()
+            ->where('user_id', $user->id)
+            ->latest('id')
+            ->limit(10)
+            ->get()
+            ->map(function (LoginEvent $event) {
+                $parsed = SessionDeviceParser::parse($event->user_agent);
+
+                return [
+                    'id' => $event->id,
+                    'successful' => (bool) $event->successful,
+                    'ip' => $event->ip,
+                    'os' => $parsed['os'],
+                    'os_version' => $parsed['os_version'],
+                    'browser' => $parsed['browser'],
+                    'browser_version' => $parsed['browser_version'],
+                    'device' => $parsed['device'],
+                    'device_type' => $parsed['device_type'],
+                    'created_at' => $event->created_at?->toIso8601String(),
+                ];
+            })->values();
+
+        return response()->json(['data' => [
+            'events' => $items,
+            'count' => $items->count(),
+        ]]);
     }
 
     /**

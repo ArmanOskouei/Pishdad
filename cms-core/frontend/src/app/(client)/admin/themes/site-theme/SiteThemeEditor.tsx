@@ -5,6 +5,7 @@ import Link from "next/link";
 import { authed, authedEnvelope } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Skeleton } from "@/components/ui/primitives";
+import { contrastCheck, formatRatio, parseColor, type WcagLevel } from "@/lib/contrast";
 
 /**
  * F4.1.F — ویرایشگرِ قالبِ سایتِ عمومی.
@@ -68,6 +69,40 @@ const LAYOUT_ROLES = [
 ] as const;
 
 const MODE_FA: Record<string, string> = { light: "روشن", dark: "تیره", system: "سیستم" };
+
+/**
+ * WF-M16 — جفت‌های پُرمصرفِ پیش‌زمینه/پس‌زمینهٔ سایت.
+ *
+ * هر جفت یک سنجه است، نه یک قانون: صفحه فقط هشدار می‌دهد و **ذخیره را مسدود
+ * نمی‌کند**. آستانه‌ها طبق WCAG 2.2 — متن عادی ۴.۵:۱ (AA) و متن بزرگ ۳:۱.
+ * `fgColor` برای رنگ‌های ثابتی است که نقشِ قابل‌override نیستند (مثل متنِ دکمه
+ * که `--site-primary-text` است و همیشه سفید می‌ماند).
+ */
+type ContrastPair = {
+  id: string;
+  fa: string;
+  fgRole?: string;
+  fgColor?: string;
+  bgRole: string;
+  large?: boolean;
+};
+
+const CONTRAST_PAIRS: ContrastPair[] = [
+  { id: "text-bg", fa: "متن روی پس‌زمینه", fgRole: "text", bgRole: "bg" },
+  { id: "text-surface", fa: "متن روی سطح", fgRole: "text", bgRole: "surface" },
+  { id: "text-surface2", fa: "متن روی سطح دوم", fgRole: "text", bgRole: "surface-2" },
+  { id: "muted-bg", fa: "متن کم‌رنگ روی پس‌زمینه", fgRole: "text-muted", bgRole: "bg" },
+  { id: "muted-surface", fa: "متن کم‌رنگ روی سطح", fgRole: "text-muted", bgRole: "surface" },
+  { id: "primary-bg", fa: "رنگ اصلی روی پس‌زمینه", fgRole: "primary", bgRole: "bg" },
+  { id: "primary-surface", fa: "رنگ اصلی روی سطح", fgRole: "primary", bgRole: "surface" },
+  { id: "accent-bg", fa: "رنگ تأکید روی پس‌زمینه", fgRole: "accent", bgRole: "bg" },
+  { id: "button-primary", fa: "متن دکمه روی رنگ اصلی", fgColor: "#ffffff", bgRole: "primary" },
+  { id: "button-primary-hover", fa: "متن دکمه روی رنگ اصلی (هاور)", fgColor: "#ffffff", bgRole: "primary-hover" },
+  { id: "border-surface", fa: "خط مرزی روی سطح (مؤلفهٔ رابط)", fgRole: "border", bgRole: "surface", large: true },
+];
+
+const LEVEL_FA: Record<WcagLevel, string> = { passAAA: "AAA", passAA: "AA", fail: "ناموفق" };
+const LEVEL_RANK: Record<WcagLevel, number> = { fail: 0, passAA: 1, passAAA: 2 };
 
 /** نقش‌های رنگی از توکن‌های حل‌شده گرفته می‌شوند تا پیش‌نمایش با ذخیره یکی باشد. */
 const tokenOf = (tokens: Tokens, role: string) => tokens[`--theme-${role}`] ?? "";
@@ -134,6 +169,31 @@ export function SiteThemeEditor() {
   if (!sel) return <Alert tone="amber">پوسته و رنگ‌بندیِ سایت هنوز قابل خواندن نیست.</Alert>;
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(sel.overrides ?? {});
+
+  /** مقدارِ نهاییِ یک نقش: پیش‌نویس بر توکنِ حل‌شده مقدم است. */
+  const resolveToken = (role: string) => draft[role] ?? tokenOf(state.tokens, role) ?? "";
+
+  /**
+   * سنجش کاملاً مشتق‌شده است — نه state، نه افکت. در بدنهٔ رندر فقط محاسبه
+   * می‌شود و هیچ `setState`/`fetch`ی ندارد، پس React #301 ممکن نیست.
+   */
+  const audit = CONTRAST_PAIRS.map((pair) => {
+    const fg = pair.fgColor ?? resolveToken(pair.fgRole ?? "");
+    const bg = resolveToken(pair.bgRole);
+    const valid = parseColor(fg) !== null && parseColor(bg) !== null;
+    const check = contrastCheck(fg, bg, { large: pair.large });
+    return { pair, fg, bg, valid, ...check };
+  });
+
+  /** بدترین دستهٔ نقش در همهٔ جفت‌های درگیر؛ `null` یعنی هیچ جفتی درگیرش نبود. */
+  const roleLevel = (role: string): WcagLevel | null => {
+    let worst: WcagLevel | null = null;
+    for (const row of audit) {
+      if (!row.valid || (row.pair.fgRole !== role && row.pair.bgRole !== role)) continue;
+      if (worst === null || LEVEL_RANK[row.level] < LEVEL_RANK[worst]) worst = row.level;
+    }
+    return worst;
+  };
 
   return (
     <div>
@@ -219,9 +279,13 @@ export function SiteThemeEditor() {
         <div className="grid c2">
           {COLOR_ROLES.map((r) => {
             const value = draft[r.key] ?? "";
+            const worst = roleLevel(r.key);
             return (
               <div className="field" key={r.key}>
-                <label>{r.fa}</label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>{r.fa}</span>
+                  {worst === "fail" ? <Badge tone="red">کم‌کنتراست</Badge> : null}
+                </label>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input
                     type="color"
@@ -282,6 +346,59 @@ export function SiteThemeEditor() {
           >
             بازگشت به پیش‌فرض
           </button>
+        </div>
+      </div>
+
+      {/* ── WF-M16 — سنجش کنتراست (هشدار، نه مسدودکننده) ── */}
+      <div className="card card-pad" style={{ marginBlockStart: 14 }}>
+        <div className="card-title">سنجش کنتراست (WCAG AA)</div>
+        <p className="muted" style={{ fontSize: 12, margin: "0 0 10px" }}>
+          نسبتِ کنتراستِ جفت‌های پُرمصرف، بر پایهٔ پیش‌نویسِ فعلی. آستانهٔ متن عادی ۴.۵:۱ و
+          متن بزرگ/مؤلفهٔ رابط ۳:۱ است. این سنجش فقط <b>هشدار</b> می‌دهد و ذخیره را مسدود نمی‌کند.
+        </p>
+        <div>
+          {audit.map(({ pair, fg, bg, ratio, level, valid }) => (
+            <div
+              key={pair.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 0",
+                borderBlockEnd: "1px solid var(--border)",
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  inlineSize: 46,
+                  blockSize: 28,
+                  flex: "0 0 auto",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  background: valid ? bg : "transparent",
+                  color: valid ? fg : "var(--text-muted)",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                آ
+              </span>
+              <span style={{ flex: 1, fontSize: 12.5 }}>
+                {pair.fa}
+                {pair.large ? <small className="muted"> · آستانهٔ ۳:۱</small> : null}
+              </span>
+              <span dir="ltr" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums", color: "var(--text-muted)" }}>
+                {formatRatio(ratio)}
+              </span>
+              <Badge tone={!valid ? "gray" : level === "passAAA" ? "green" : level === "passAA" ? "gray" : "red"}>
+                {!valid ? "نامعتبر" : LEVEL_FA[level]}
+              </Badge>
+            </div>
+          ))}
         </div>
       </div>
 

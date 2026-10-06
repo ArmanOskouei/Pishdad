@@ -38,9 +38,24 @@ if (Test-Path -LiteralPath $pubSrc) {
 
 Write-Output "[5/5] starting on port $port ..."
 Pop-Location
+# REVALIDATE_SECRET is a real shared secret, so it is NEVER written here: anyone
+# with this repo could POST /api/revalidate and purge the cache of every install
+# that reuses it. Order: (1) the environment (production / CI), (2) the backend's
+# own git-ignored .env, which is the single source of truth. Neither -> stop,
+# because a guessed value would silently break the revalidate handshake between
+# the two halves of the app.
+$revalidateSecret = $env:REVALIDATE_SECRET
+if (-not $revalidateSecret) {
+  $backendEnv = Join-Path $root 'cms-core\backend\.env'
+  if (Test-Path -LiteralPath $backendEnv) {
+    $hit = Select-String -LiteralPath $backendEnv -Pattern '^\s*REVALIDATE_SECRET\s*=\s*(\S+)' | Select-Object -First 1
+    if ($hit) { $revalidateSecret = $hit.Matches[0].Groups[1].Value }
+  }
+}
+if (-not $revalidateSecret) { throw 'REVALIDATE_SECRET not found. Set it in the environment or in cms-core/backend/.env.' }
 $env:NEXT_PUBLIC_API_URL = 'http://localhost:8080/api'
 $env:INTERNAL_API_URL = 'http://localhost:8080/api'
-$env:REVALIDATE_SECRET = 'e39f4ba00cc6eb04534f15e757ad5964013aecd91177b623'
+$env:REVALIDATE_SECRET = $revalidateSecret
 $env:PORT = $port
 $env:HOSTNAME = '0.0.0.0'
 # Project-local log dir: keeps logs off the system drive (C:) and off $env:TEMP,

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\LoginEvent;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,14 +41,19 @@ class AuthController extends Controller
             ]
         );
 
-        $user = User::query()->where('email', $request->string('email'))->first();
+        $email = (string) $request->string('email');
+        $user = User::query()->where('email', $email)->first();
 
         if (! $user || ! Hash::check($request->string('password'), $user->password)) {
+            $this->recordLoginEvent($request, $user, false, $email);
+
             return response()->json(['message' => self::INVALID_CREDENTIALS], 401);
         }
 
         // Step 2 required: hand out a short-lived challenge, NOT a session token.
         if ($user->google2fa_enabled) {
+            // مرحلهٔ اولِ ۲FA ورودِ کامل نیست؛ نتیجهٔ نهایی در `verifyTwoFactor`
+            // ثبت می‌شود تا «موفق» یعنی «نشست صادر شد».
             $challenge = (string) Str::uuid();
             Cache::put("2fa:{$challenge}", $user->id, now()->addMinutes(10));
 
@@ -58,11 +64,11 @@ class AuthController extends Controller
             ]);
         }
 
-        // F1.1.F — سوپرادمینِ نصب‌شده با نصب‌کننده هنوز 2FA ندارد؛ اولین ورود
-        // باید راه‌اندازی‌اش را اجبار کند (EnsureTwoFactorSetup + این پرچم).
-        $setupRequired = (bool) $user->is_super_admin && ! (bool) $user->google2fa_enabled;
+        $this->recordLoginEvent($request, $user, true);
 
-        return $this->tokenResponse($request, $user, $setupRequired);
+        // WF-M8 — نقش‌های «۲FA اجباری»: کاربرِ بدونِ ۲FA مسدود نمی‌شود؛ توکن
+        // می‌گیرد و فرانت او را به صفحهٔ راه‌اندازی پروفایل هدایت می‌کند.
+        return $this->tokenResponse($request, $user, $user->rolesRequireTwoFactor());
     }
 
     public function verifyTwoFactor(Request $request): JsonResponse
@@ -83,6 +89,8 @@ class AuthController extends Controller
         $user = $userId ? User::query()->find($userId) : null;
 
         if (! $user) {
+            $this->recordLoginEvent($request, null, false);
+
             return response()->json(['message' => 'شناسه مرحله دوم منقضی یا نامعتبر است.'], 401);
         }
 
@@ -96,6 +104,7 @@ class AuthController extends Controller
                 $user->forceFill(['recovery_codes' => array_values($recoveryCodes)])->save();
                 Cache::forget("2fa:{$request->string('challenge')}");
                 $this->markFreshTwoFactor($user);
+                $this->recordLoginEvent($request, $user, true);
 
                 return $this->tokenResponse($request, $user);
             }
@@ -107,11 +116,14 @@ class AuthController extends Controller
             && $google2fa->verifyKey($user->google2fa_secret, $code, 1);
 
         if (! $valid) {
+            $this->recordLoginEvent($request, $user, false);
+
             return response()->json(['message' => self::INVALID_CREDENTIALS], 401);
         }
 
         Cache::forget("2fa:{$request->string('challenge')}");
         $this->markFreshTwoFactor($user);
+        $this->recordLoginEvent($request, $user, true);
 
         return $this->tokenResponse($request, $user);
     }
@@ -203,6 +215,28 @@ class AuthController extends Controller
     }
 
     /**
+     * WF-H8 — ثبت یک تلاشِ ورود برای کارت امنیتِ پروفایل.
+     *
+     * هرگز نباید خودِ ورود را بشکند: اگر ثبت شکست بخورد (مثلاً جدول نباشد)
+     * جریانِ احراز هویت ادامه می‌یابد. UA خام ذخیره و در زمان خواندن با
+     * `SessionDeviceParser` parse می‌شود تا تغییرِ پارسر به گذشته هم اعمال شود.
+     */
+    private function recordLoginEvent(Request $request, ?User $user, bool $successful, ?string $email = null): void
+    {
+        try {
+            LoginEvent::query()->create([
+                'user_id' => $user?->id,
+                'email' => $email ?? $user?->email,
+                'ip' => $request->ip(),
+                'user_agent' => substr((string) $request->userAgent(), 0, 1000) ?: null,
+                'successful' => $successful,
+            ]);
+        } catch (\Throwable) {
+            // تاریخچه نباید مانع ورود شود.
+        }
+    }
+
+    /**
      * صدور توکن + ثبت فراداده نشست (مسئله ۲): IP و user-agent زمان لاگین
      * روی خود توکن ذخیره می‌شود تا GET profile/sessions نمایش دهد.
      */
@@ -220,6 +254,7 @@ class AuthController extends Controller
             'token_type' => 'Bearer',
             'two_factor_required' => false,
             'two_factor_setup_required' => $setupRequired,
+            'requires_2fa_setup' => $setupRequired,
             'user' => $this->userPayload($user),
         ]);
 

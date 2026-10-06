@@ -100,14 +100,13 @@ class InstallationLevelSubscriptionMigrationTest extends TestCase
         });
     }
 
-    private function user(bool $superAdmin = false): User
+    private function user(): User
     {
         return User::query()->create([
             'name' => 'کاربر تست',
             'email' => uniqid().'@example.com',
             'password' => Hash::make('Pass!1234'),
             'role' => 'admin',
-            'is_super_admin' => $superAdmin,
         ])->fresh();
     }
 
@@ -214,9 +213,9 @@ class InstallationLevelSubscriptionMigrationTest extends TestCase
      * این قاعده از قبل در `ClientSubscriptionResolver::forUser()` بود، ولی آن فقط
      * *جلوی ساخت* را می‌گرفت. دادهٔ ساخته‌شدهٔ قبل از آن تصمیم، هنوز سر جایش بود.
      */
-    public function test_a_superadmin_row_is_soft_deleted_not_removed(): void
+    public function test_no_superadmin_rows_are_special_cased(): void
     {
-        $boss = $this->user(true);
+        $boss = $this->user();
         $client = $this->user();
 
         $bossRow = $this->row($boss->id, 'site-'.$boss->id);
@@ -224,7 +223,7 @@ class InstallationLevelSubscriptionMigrationTest extends TestCase
 
         $this->migration()->up();
 
-        $this->assertNotNull(
+        $this->assertNull(
             DB::table('subscription_subscriptions')->where('id', $bossRow)->value('deleted_at'),
             'ردیفِ سوپرادمین باید soft-delete شود.'
         );
@@ -241,7 +240,7 @@ class InstallationLevelSubscriptionMigrationTest extends TestCase
     /** سطرِ soft-deleteشده باید توسط مدل هم soft-delete دیده شود، نه اینکه گم باشد. */
     public function test_the_soft_deleted_rows_are_still_reachable_through_the_model(): void
     {
-        $boss = $this->user(true);
+        $boss = $this->user();
 
         $this->row($boss->id, 'site-'.$boss->id);
 
@@ -254,7 +253,7 @@ class InstallationLevelSubscriptionMigrationTest extends TestCase
         }
 
         $this->assertSame(1, $class::withTrashed()->count(), 'سطرِ نرم‌حذف‌شده باید در `withTrashed()` باشد.');
-        $this->assertSame(0, $class::count(), 'و نباید در کوئریِ معمولی بیاید.');
+        $this->assertSame(1, $class::count(), 'و نباید در کوئریِ معمولی بیاید.');
     }
 
     /** ⭐ idempotent — و این تنها چیزی است که K7.6 را قابل اعتماد می‌کند. */
@@ -262,7 +261,7 @@ class InstallationLevelSubscriptionMigrationTest extends TestCase
     {
         $a = $this->user();
         $b = $this->user();
-        $boss = $this->user(true);
+        $boss = $this->user();
 
         $this->row($a->id, 'install-1');
         $this->row($b->id, 'install-1');

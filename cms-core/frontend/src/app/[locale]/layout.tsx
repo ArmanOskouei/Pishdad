@@ -1,5 +1,21 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { isPublicLocale, publicDir, publicHtmlLang, type PublicLocale } from "@/lib/i18n/public";
+import { PageViewBeacon } from "@/components/site/PageViewBeacon";
+import { WebVitalsBeacon } from "@/components/site/WebVitalsBeacon";
+import { CookieConsentBanner } from "@/components/site/CookieConsentBanner";
+import { fetchSiteChrome } from "@/lib/site";
+
+/**
+ * WF-H1 — کد تأیید مالکیت Google Search Console روی `<head>` همهٔ صفحاتِ
+ * عمومی. `metadata.verification` در لایهٔ عمومی می‌نشیند تا با متادیتای
+ * per-page (canonical/robots) تعارض نکند.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const chrome = await fetchSiteChrome().catch(() => null);
+  const code = chrome?.google_site_verification?.trim();
+  return code ? { verification: { google: code } } : {};
+}
 
 /**
  * ECO2 — `lang`/`dir` سرور-رندرِ سایت عمومی per-locale.
@@ -26,6 +42,9 @@ export default async function LocaleLayout({
 
   return (
     <div lang={publicHtmlLang(locale)} dir={publicDir(locale)} data-locale={locale}>
+      <PageViewBeacon />
+      <WebVitalsBeacon />
+      <CookieConsentBanner locale={locale} />
       {children}
     </div>
   );

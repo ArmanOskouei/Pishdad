@@ -15,7 +15,9 @@ type Ctx = {
   user: User | null;
   loading: boolean;
   challenge: string | null;
-  login: (email: string, password: string) => Promise<{ need2fa: boolean }>;
+  /** WF-M8 — ورود موفق ولی نقش کاربر «۲FA اجباری» است و هنوز فعال نشده. */
+  setupRequired: boolean;
+  login: (email: string, password: string) => Promise<{ need2fa: boolean; need2faSetup: boolean }>;
   verify2fa: (code: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [challenge, setChallenge] = useState<string | null>(null);
+  const [setupRequired, setSetupRequired] = useState(false);
   const { pullFromServer, markLoggedOut } = useTheme();
 
   const refreshMe = useCallback(async () => {
@@ -47,8 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     setChallenge(null);
+    const needsSetup = r.requires_2fa_setup === true;
     await setCookie(r.token);
+    // دو setState پیاپی در یک بلوک، پس React هر دو را با هم flush می‌کند و
+    // دروازهٔ لاگین هیچ‌گاه با وضعیتِ ناهم‌زمان به داشبورد نمی‌پرد.
     setUser(r.user);
+    setSetupRequired(needsSetup);
     // قلب ۰.۲: DB مرجع نهایی است — فقط تم سرور را بکش.
     // عمداً sync (push) نمی‌کنیم تا پیش‌فرض‌های localStorage مرورگر تازه روی DB بازنویسی نشود.
     await pullFromServer(r.token);
@@ -65,7 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok) throw new Error(json?.message ?? "اعتبار ورود نامعتبر است.");
     const result = (json?.data ?? json) as LoginResult;
     await finishLogin(result);
-    return { need2fa: isChallenge(result) };
+    return {
+      need2fa: isChallenge(result),
+      need2faSetup: !isChallenge(result) && result.requires_2fa_setup === true,
+    };
   }, [finishLogin]);
 
   const verify2fa = useCallback(async (code: string) => {
@@ -83,11 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
     setUser(null);
     setChallenge(null);
+    setSetupRequired(false);
     // نشست بسته شد — PUT دبونس معلق تم نباید با 401 به سرور برود.
     markLoggedOut();
   }, [markLoggedOut]);
 
-  return <AuthCtx.Provider value={{ user, loading, challenge, login, verify2fa, logout, refreshMe }}>{children}</AuthCtx.Provider>;
+  return <AuthCtx.Provider value={{ user, loading, challenge, setupRequired, login, verify2fa, logout, refreshMe }}>{children}</AuthCtx.Provider>;
 }
 
 export function useAuth(): Ctx {

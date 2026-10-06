@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * تسک ۵.۱ — نگهبان دسترسی spatie برای پنل مشتری.
- * سوپرادمین همیشه عبور می‌کند؛ بقیه باید پرمیشن صریح داشته باشند.
+ * دسترسی فقط با پرمیشنِ صریحِ نقش؛ هیچ نقشِ مستثنا/مخفی‌ای وجود ندارد.
  * پیام فارسی بدون افشای جزئیات (OWASP).
  */
 class EnsurePermission
@@ -17,7 +17,7 @@ class EnsurePermission
     {
         $user = $request->user();
 
-        if ($user && ($user->is_super_admin || $user->can($permission))) {
+        if ($user && $user->can($permission)) {
             return $next($request);
         }
 

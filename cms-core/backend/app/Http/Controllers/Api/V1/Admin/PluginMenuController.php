@@ -113,8 +113,7 @@ class PluginMenuController extends Controller
 
         return response()->json([
             'data' => [
-                'is_super_admin' => (bool) $user->is_super_admin,
-                'can_view_plugins' => Gate::allows('plugins.view') || (bool) $user->is_super_admin,
+                'can_view_plugins' => Gate::allows('plugins.view'),
             ],
         ]);
     }

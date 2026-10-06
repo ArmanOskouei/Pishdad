@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function Badge({ tone = "gray", children }: { tone?: "violet" | "green" | "amber" | "red" | "gray"; children: React.ReactNode }) {
   const cls = { violet: "b-violet", green: "b-green", amber: "b-amber", red: "b-red", gray: "b-gray" }[tone];
   return <span className={`badge ${cls}`}>{children}</span>;
@@ -21,12 +23,41 @@ export function StatCard({ icon, value, label, delta, up }: { icon: string; valu
   );
 }
 
-export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
+export function EmptyState({
+  title,
+  hint,
+  icon,
+  action,
+  cta,
+}: {
+  title: string;
+  hint?: string;
+  /** آیکون SVG درون‌خطی بالای حالت خالی (بدون CDN). */
+  icon?: React.ReactNode;
+  /** اکشن دلخواه؛ مثلاً یک کامپوننت کلاینتی. */
+  action?: React.ReactNode;
+  /**
+   * CTA اصلی حالت خالی. `href` ⇒ لینک، در غیر این صورت دکمه.
+   * `onClick` تنها از یک کامپوننت کلاینتی قابل پاس دادن است (نه Server Component).
+   */
+  cta?: { label: string; href?: string; onClick?: () => void; tone?: "primary" | "ghost"; disabled?: boolean };
+}) {
+  const ctaCls = `btn ${cta?.tone === "ghost" ? "btn-ghost" : "btn-primary"}`;
   return (
     <div className="empty">
+      {icon ? <div style={{ fontSize: 28, lineHeight: 1, marginBlockEnd: 8 }} aria-hidden>{icon}</div> : null}
       <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{title}</div>
       {hint ? <p style={{ margin: "6px 0 12px" }}>{hint}</p> : null}
       {action}
+      {cta ? (
+        <div style={{ marginBlockStart: action ? 10 : 0 }}>
+          {cta.href ? (
+            <Link className={ctaCls} href={cta.href}>{cta.label}</Link>
+          ) : (
+            <button type="button" className={ctaCls} onClick={cta.onClick} disabled={cta.disabled}>{cta.label}</button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

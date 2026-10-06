@@ -5,10 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /** صفحه (تسک ۱.۱): blocks = پیش‌نویس جاری؛ انتشار فقط via published_revision_id. */
 class Page extends Model
 {
+    use SoftDeletes;
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_PUBLISHED = 'published';
@@ -18,7 +22,7 @@ class Page extends Model
 
     protected $fillable = [
         'user_id', 'title', 'slug', 'locale', 'status', 'is_single', 'blocks', 'meta',
-        'published_revision_id', 'published_at',
+        'published_revision_id', 'published_at', 'scheduled_at',
         'left_preset_id', 'right_preset_id', 'left_enabled', 'right_enabled',
     ];
 
@@ -28,6 +32,7 @@ class Page extends Model
             'blocks' => 'array',
             'meta' => 'array',
             'published_at' => 'datetime',
+            'scheduled_at' => 'datetime',
             'is_single' => 'boolean',
             'left_enabled' => 'boolean',
             'right_enabled' => 'boolean',
@@ -47,6 +52,12 @@ class Page extends Model
     public function revisions(): HasMany
     {
         return $this->hasMany(PageRevision::class)->orderBy('version');
+    }
+
+    /** WF-H3 — قفلِ نرمِ ویرایشِ هم‌زمانِ این صفحه. */
+    public function editLock(): HasOne
+    {
+        return $this->hasOne(PageEditLock::class);
     }
 
     public function publishedRevision(): BelongsTo

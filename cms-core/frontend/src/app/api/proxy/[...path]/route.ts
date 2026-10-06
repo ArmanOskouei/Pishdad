@@ -16,12 +16,24 @@ async function proxy(req: NextRequest, path: string[]) {
   const target = `${UPSTREAM}/${decision.path}${req.nextUrl.search}`;
   const contentType = req.headers.get("content-type") ?? "";
 
+  // WF-M7 — انتقالِ نشانیِ واقعیِ کاربر (مثل روتِ login) تا فهرستِ IP مجاز و
+  // سقفِ تلاش per-IP روی IP پروکسی اعمال نشود. بدون این، بک‌اند فقط IP نودِ
+  // فرانت را می‌بیند و allowlist عملاً بی‌اثر می‌شود.
+  const forwardedFor = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip");
+  const proxyHeaders: Record<string, string> = {};
+  if (forwardedFor) {
+    proxyHeaders["X-Forwarded-For"] = forwardedFor;
+    proxyHeaders["X-Real-IP"] = forwardedFor.split(",")[0].trim();
+  }
+  const userAgent = req.headers.get("user-agent");
+  if (userAgent) proxyHeaders["User-Agent"] = userAgent;
+
   // آپلود ZIP (قالب/پلاگین): بدنه multipart باید دست‌نخورده با همان boundary فوروارد شود.
   if (contentType.includes("multipart/form-data")) {
     const buf = await req.arrayBuffer().catch(() => null);
     const up = await fetch(target, {
       method: req.method,
-      headers: { "Content-Type": contentType, Accept: "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": contentType, Accept: "application/json", Authorization: `Bearer ${token}`, ...proxyHeaders },
       body: buf ? Buffer.from(buf) : undefined,
       cache: "no-store",
     });
@@ -32,7 +44,7 @@ async function proxy(req: NextRequest, path: string[]) {
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text().catch(() => undefined);
   const up = await fetch(target, {
     method: req.method,
-    headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${token}`, ...proxyHeaders },
     body,
     cache: "no-store",
   });

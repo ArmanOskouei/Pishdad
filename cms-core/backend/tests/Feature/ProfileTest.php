@@ -103,6 +103,51 @@ class ProfileTest extends TestCase
     }
 
     /**
+     * WF-M9 — endpointِ شمارش کدهای بازیابی: بدون لو دادن خودِ کدها،
+     * «باقی‌مانده/کل/هشدار» می‌دهد و پس از مصرف و بازتولید درست به‌روز می‌شود.
+     */
+    public function test_recovery_code_count_endpoint(): void
+    {
+        $user = $this->user();
+        $auth = $this->actingAs($user, 'sanctum');
+        $google2fa = new Google2FA;
+
+        // پیش از فعال‌سازی: صفر، بدون هشدار و بدون کدِ plaintext.
+        $auth->getJson('/api/v1/admin/profile/2fa/recovery-codes')->assertOk()
+            ->assertJsonPath('data.enabled', false)
+            ->assertJsonPath('data.remaining', 0)
+            ->assertJsonPath('data.total', 8)
+            ->assertJsonPath('data.low', false)
+            ->assertJsonMissingPath('data.recovery_codes');
+
+        // فعال‌سازی → ۸ کد؛ و شمارنده همان را می‌گوید.
+        $secret = $auth->postJson('/api/v1/admin/profile/2fa/enable')->assertOk()->json('data.secret');
+        $auth->postJson('/api/v1/admin/profile/2fa/enable', [
+            'code' => $google2fa->getCurrentOtp($secret),
+        ])->assertOk()->assertJsonCount(8, 'data.recovery_codes');
+
+        $count = $auth->getJson('/api/v1/admin/profile/2fa/recovery-codes')->assertOk()
+            ->assertJsonPath('data.enabled', true)
+            ->assertJsonPath('data.remaining', 8)
+            ->assertJsonPath('data.low', false);
+        $count->assertJsonMissingPath('data.recovery_codes');
+
+        // مصرف ۶ کد → باقی‌مانده ۲ و هشدارِ کم‌شدن.
+        $user->refresh();
+        $user->forceFill(['recovery_codes' => array_slice($user->recovery_codes, 0, 2)])->save();
+        $auth->getJson('/api/v1/admin/profile/2fa/recovery-codes')->assertOk()
+            ->assertJsonPath('data.remaining', 2)
+            ->assertJsonPath('data.low', true);
+
+        // بازتولید با مدرک → دوباره ۸ و بدون هشدار.
+        $auth->postJson('/api/v1/admin/profile/2fa/recovery-codes', ['password' => 'OldPass!123'])
+            ->assertOk()->assertJsonCount(8, 'data.recovery_codes');
+        $auth->getJson('/api/v1/admin/profile/2fa/recovery-codes')->assertOk()
+            ->assertJsonPath('data.remaining', 8)
+            ->assertJsonPath('data.low', false);
+    }
+
+    /**
      * E9 — کدهای بازیابی: «نمایش یک‌بار» + «یک‌بارمصرف» از مسیرِ عمومی.
      *
      * این تست دو ویژگی امنیتی را قفل می‌کند:

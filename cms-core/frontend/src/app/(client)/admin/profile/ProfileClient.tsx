@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { authed } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge } from "@/components/ui/primitives";
@@ -8,14 +9,23 @@ import { CopyToClipboard } from "@/components/ui/CopyToClipboard";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { useTheme, type ThemeState } from "@/lib/theme";
 import { faNum, jalali } from "@/lib/fa";
-import { mediaUrl, type MediaItem, type ProfileData, type TwoFactorMethods, type UserSession } from "@/lib/domain";
+import { mediaUrl, type MediaItem, type ProfileData, type TwoFactorMethods, type UserSession, type LoginEvent } from "@/lib/domain";
 
 /** فرم‌های پروفایل: مشخصات + رمز + 2FA دومرحله‌ای + AppearancePanel فشرده. */
 export function ProfileClient({ initial, methods, issuer = "CMS" }: { initial: ProfileData; methods: TwoFactorMethods | null; issuer?: string }) {
   const [profile, setProfile] = useState(initial);
+  const searchParams = useSearchParams();
+  const setupRequired = searchParams?.get("setup") === "2fa";
 
   return (
     <div className="grid c2" style={{ alignItems: "start" }}>
+      {setupRequired ? (
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Alert tone="amber">
+            نقش شما ورود با تأیید دومرحله‌ای را الزامی می‌کند. برای ادامه، همین‌حالا در همین صفحه تأیید دومرحله‌ای را فعال کنید.
+          </Alert>
+        </div>
+      ) : null}
       <div>
         <BasicForm initial={profile} onUpdated={setProfile} />
         <PasswordForm />
@@ -24,6 +34,7 @@ export function ProfileClient({ initial, methods, issuer = "CMS" }: { initial: P
       <div>
         <TwoFactorCard initial={profile} methods={methods} issuer={issuer} />
         <SessionsCard />
+        <LoginHistoryCard />
         <AppearanceMini />
       </div>
     </div>
@@ -205,6 +216,55 @@ function buildOtpauthUrl(secret: string, email: string, issuer: string): string 
   return `otpauth://totp/${label}?${query.toString()}`;
 }
 
+const RECOVERY_LOW_THRESHOLD = 2;
+
+function buildRecoveryCodesText(codes: string[], email: string): string {
+  return [
+    "کدهای بازیابی تأیید دومرحله‌ای",
+    `حساب: ${email}`,
+    `تاریخ: ${jalali(new Date().toISOString())}`,
+    `تعداد کد: ${codes.length}`,
+    "----------------------------------------",
+    ...codes,
+    "----------------------------------------",
+    "هر کد فقط یک‌بار قابل استفاده است.",
+    "این فایل را در جای امن نگه دارید و با کسی به اشتراک نگذارید.",
+  ].join("\r\n");
+}
+
+/** WF-M9 — دانلود کدهای بازیابی به‌صورت txt از Blobِ سمت کلاینت. */
+function downloadRecoveryCodes(codes: string[], email: string): void {
+  const blob = new Blob(["\uFEFF" + buildRecoveryCodesText(codes, email)], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "recovery-codes.txt";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** WF-M9 — چاپ کدهای بازیابی در پنجرهٔ مستقل. */
+function printRecoveryCodes(codes: string[], email: string): void {
+  const win = window.open("", "_blank", "width=480,height=640");
+  if (!win) return;
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (ch) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string
+  ));
+  const rows = codes.map((c) => `<li><code>${escapeHtml(c)}</code></li>`).join("");
+  win.document.write(
+    `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>کدهای بازیابی</title>`
+    + `<style>body{font-family:system-ui,sans-serif;padding:24px;line-height:1.9}`
+    + `code{font-size:18px;direction:ltr;display:inline-block}li{margin-block:6px}</style></head><body>`
+    + `<h1>کدهای بازیابی تأیید دومرحله‌ای</h1><p>حساب: ${escapeHtml(email)}</p><ol>${rows}</ol>`
+    + `<p>هر کد فقط یک‌بار قابل استفاده است؛ آن را در جای امن نگه دارید.</p></body></html>`,
+  );
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
 function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; methods: TwoFactorMethods | null; issuer: string }) {
   const toast = useToast();
   const [enabled, setEnabled] = useState(initial.google2fa_enabled);
@@ -218,12 +278,12 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
   const [regenOpen, setRegenOpen] = useState(false);
   const [proof, setProof] = useState("");
   const [regenBusy, setRegenBusy] = useState(false);
-  const [remaining, setRemaining] = useState(methods?.recovery_codes_remaining ?? 0);
+  const [remaining, setRemaining] = useState<number | null>(methods?.recovery_codes_remaining ?? null);
   const confirmingRef = useRef(false);
   const codeInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    setRemaining(methods?.recovery_codes_remaining ?? 0);
+    setRemaining(methods?.recovery_codes_remaining ?? null);
   }, [methods]);
 
   useEffect(() => {
@@ -236,6 +296,21 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
       setRecovery(null);
     }
   }, [initial.google2fa_enabled]);
+
+  // WF-M9 — تازگیِ شمارنده از endpointِ اختصاصیِ «باقی‌مانده» (سرور آستانهٔ
+  // هشدار را هم می‌دهد). `enabled` کلیدِ وابستگی است تا فقط در حالت فعال و بعد
+  // از فعال‌سازیِ همین‌سشن، مقدار واقعی کشیده شود.
+  useEffect(() => {
+    if (!enabled) {
+      setRemaining(0);
+      return;
+    }
+    let cancelled = false;
+    void authed<{ remaining: number }>(`/v1/admin/profile/2fa/recovery-codes`)
+      .then((r) => { if (!cancelled) setRemaining(r.remaining); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [enabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -383,13 +458,18 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
       <div className="card-title">
         تأیید دومرحله‌ای <Badge tone={enabled ? "green" : "gray"}>{enabled ? "فعال" : "غیرفعال"}</Badge>
       </div>
-      {methods ? (
+      {enabled || methods ? (
         <div>
-          <div className="kv"><span>کدهای بازیابی باقی‌مانده</span><span>{faNum(remaining)}</span></div>
+          <div className="kv"><span>کدهای بازیابی باقی‌مانده</span><span>{remaining === null ? "…" : faNum(remaining)}</span></div>
+          {enabled && remaining !== null && remaining <= RECOVERY_LOW_THRESHOLD ? (
+            <Alert tone="red">
+              تعداد کدهای بازیابی باقی‌مانده کم است ({faNum(remaining)}). با تمام‌شدن آن‌ها ورود اضطراری ممکن نیست؛ همین‌حالا کدهای تازه بسازید.
+            </Alert>
+          ) : null}
           {/* J5 — کلید سخت‌افزاری دادهٔ افزونهٔ مرکزی است و در پاسخِ پروفایلِ
               هسته نیست. روی نصبِ بدون افزونه این کلید غایب است، و سطر باید
               پنهان شود — نه اینکه `undefined.length` بیندازد. */}
-          {methods.hardware_keys ? (
+          {methods?.hardware_keys ? (
             <div className="kv"><span>کلیدهای سخت‌افزاری</span><span>{faNum(methods.hardware_keys.length)}</span></div>
           ) : null}
         </div>
@@ -466,6 +546,14 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
         <Alert tone="amber">
           <div>کدهای بازیابی — فقط همین‌بار نمایش داده می‌شود، در جای امن نگه دارید:</div>
           <div dir="ltr" style={{ fontFamily: "monospace", marginBlockStart: 6 }}>{recovery.join(" · ")}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBlockStart: 10 }}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => downloadRecoveryCodes(recovery, initial.email)}>
+              دانلود کدهای بازیابی (txt)
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => printRecoveryCodes(recovery, initial.email)}>
+              چاپ
+            </button>
+          </div>
         </Alert>
       ) : null}
 
@@ -762,6 +850,74 @@ function SessionRow({ s, dropping, onDrop }: { s: UserSession; dropping: boolean
           {dropping ? "…" : "خروج از این نشست"}
         </button>
       )}
+    </div>
+  );
+}
+
+/** WF-H8 — تاریخچهٔ ورود: آخرین ~۱۰ تلاش (موفق/ناموفق)، مکملِ نشست‌های فعال. */
+function LoginHistoryCard() {
+  const toast = useToast();
+  const [items, setItems] = useState<LoginEvent[] | null>(null);
+
+  const load = async () => {
+    try {
+      const r = await authed<{ events: LoginEvent[] }>(`/v1/admin/profile/login-history`);
+      setItems(r.events);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "بارگذاری تاریخچهٔ ورود ناموفق بود.", "err");
+    }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  return (
+    <div className="card card-pad" style={{ marginBlockEnd: 14 }}>
+      <div className="card-title">
+        تاریخچهٔ ورود {items ? <Badge tone="gray">{faNum(items.length)}</Badge> : null}
+      </div>
+      {items === null ? (
+        <button className="btn btn-ghost btn-sm" onClick={() => void load()}>نمایش تاریخچه</button>
+      ) : items.length === 0 ? (
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>ورودی ثبت نشده.</p>
+      ) : (
+        <div>
+          {items.map((e) => (
+            <LoginEventRow key={e.id} e={e} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoginEventRow({ e }: { e: LoginEvent }) {
+  const osLabel = formatOsLabel(e.os, e.os_version);
+  const browserLabel = formatBrowserLabel(e.browser, e.browser_version);
+  const osTitle = osLabel ?? "سیستم‌عامل نامشخص";
+  const browserTitle = browserLabel ?? "مرورگر نامشخص";
+  const deviceTitle = browserLabel && osLabel
+    ? `${browserLabel} روی ${osLabel}`
+    : browserLabel ?? osLabel ?? e.device ?? "دستگاه نامشخص";
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, paddingBlock: 12, borderBlockEnd: "1px solid var(--border)" }}>
+      <div style={{ minInlineSize: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <b title={deviceTitle}>{deviceTitle}</b>
+          <Badge tone={e.successful ? "green" : "red"}>{e.successful ? "موفق" : "ناموفق"}</Badge>
+        </div>
+        {e.device_type ? <small style={{ color: "var(--text-muted)", display: "block" }}>{e.device_type}</small> : null}
+        <small style={{ color: "var(--text-muted)", display: "block" }}>{jalali(e.created_at)}</small>
+        {e.ip ? <small style={{ color: "var(--text-muted)", display: "block" }}>IP: <span dir="ltr">{e.ip}</span></small> : null}
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flexShrink: 0 }}>
+        <span role="img" aria-label={osTitle} title={osTitle} style={{ display: "grid", placeItems: "center", inlineSize: 40, minBlockSize: 40 }}>
+          <OsIcon os={e.os} />
+        </span>
+        <span role="img" aria-label={browserTitle} title={browserTitle} style={{ display: "grid", placeItems: "center", inlineSize: 40, minBlockSize: 40 }}>
+          <BrowserIcon browser={e.browser} />
+        </span>
+      </div>
     </div>
   );
 }

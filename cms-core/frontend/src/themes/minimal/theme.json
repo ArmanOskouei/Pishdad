@@ -4,7 +4,7 @@
   "description": "چیدمان تنفسی و بدون تزئین؛ ستون‌های کناری زیر محتوا می‌آیند. مناسب وبلاگ و سایت شرکتی سبک.",
   "version": "1.0.0",
   "modes": ["light", "dark", "system"],
-  "slots": ["header", "footer", "main", "left", "right", "banner"],
+  "slots": ["header", "footer", "main", "left", "right", "banner", "blog"],
   "tokens": {
     "radius-sm": "2px",
     "radius-md": "4px",

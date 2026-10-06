@@ -141,7 +141,7 @@ class CmsInstall extends Command
 
                 return self::FAILURE;
             }
-            $user = InstallController::createSuperAdmin((string) $name, $email, $password);
+            $user = InstallController::createFirstAdmin((string) $name, $email, $password);
             InstallJournal::put('superadmin', ['email' => $user->email, 'id' => $user->id]);
             InstallJournal::markStepDone('superadmin');
         } else {

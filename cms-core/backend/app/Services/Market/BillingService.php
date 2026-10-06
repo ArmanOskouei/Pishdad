@@ -57,7 +57,7 @@ class BillingService
             return $order;
         }
 
-        $isOperator = (bool) ($actor->is_super_admin ?? false) || (($actor->role ?? null) === 'operator');
+        $isOperator = (($actor->role ?? null) === 'operator');
         if ((int) $order->user_id !== (int) $actor->id && ! $isOperator) {
             throw new MarketException('Only the buyer or an operator can confirm payment.', 403);
         }

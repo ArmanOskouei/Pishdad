@@ -23,7 +23,7 @@ class ManagerController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $managers = User::query()->visible()->with('roles')->latest()->paginate(
+        $managers = User::query()->with('roles')->latest()->paginate(
             (int) $request->query('per_page', 20)
         );
 
@@ -58,8 +58,6 @@ class ManagerController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => 'admin',
-            'is_super_admin' => false,
-            'is_hidden' => false,
         ]);
         $user->assignRole($validated['role'] ?? 'viewer');
 
@@ -71,15 +69,11 @@ class ManagerController extends Controller
 
     public function show(Request $request, User $manager): JsonResponse
     {
-        $this->guardSuperAdmin($manager);
-
         return response()->json(['data' => $this->payload($manager->load('roles'))]);
     }
 
     public function update(Request $request, User $manager): JsonResponse
     {
-        $this->guardSuperAdmin($manager);
-
         $validated = $request->validate([
             'name' => 'sometimes|string|max:150',
             'email' => ['sometimes', 'email', 'max:200', Rule::unique('users', 'email')->ignore($manager->id)],
@@ -104,8 +98,6 @@ class ManagerController extends Controller
 
     public function destroy(Request $request, User $manager): JsonResponse
     {
-        $this->guardSuperAdmin($manager);
-
         if ((int) $manager->id === (int) $request->user()->id) {
             return response()->json(['message' => 'نمی‌توانید حساب خودتان را حذف کنید.'], 422);
         }
@@ -131,13 +123,6 @@ class ManagerController extends Controller
                 ])->values()->all(),
             ],
         ]);
-    }
-
-    private function guardSuperAdmin(User $manager): void
-    {
-        if ($manager->is_super_admin || $manager->is_hidden) {
-            abort(response()->json(['message' => 'دسترسی مجاز نیست.'], 403));
-        }
     }
 
     private function payload(User $user): array

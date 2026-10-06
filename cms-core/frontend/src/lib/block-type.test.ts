@@ -39,7 +39,7 @@ test("هر بلوکِ هسته در واژگان هست و واژگان چیزِ
   // بلوکِ تازه اضافه کرد، این‌جا یادش بیاید و کسی یواشکی پاکش نکند.
   assert.deepEqual(
     [...BUILTIN_BLOCK_TYPES].sort(),
-    ["contact", "contact-form", "cta", "faq", "gallery", "hero", "image", "quote", "text", "video"].sort(),
+    ["contact", "contact-form", "cta", "faq", "form", "gallery", "hero", "image", "quote", "text", "video"].sort(),
   );
   for (const type of BUILTIN_BLOCK_TYPES) {
     assert.equal(isBuiltinBlockType(type), true, `باید هسته باشد: ${type}`);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Site;
 
 use App\Http\Controllers\Controller;
+use App\Models\SearchQuery;
 use App\Search\SearchManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,9 +40,29 @@ class SearchController extends Controller
 
         $results = $search->search($q, $perPage);
 
+        $this->record($q, count($results));
+
         return response()->json([
             'data' => $results,
             'meta' => ['q' => $q, 'total' => count($results), 'per_page' => $perPage],
         ])->header('Cache-Control', 'public, max-age=30');
+    }
+
+    /**
+     * WF-M11 — ثبت عبارت و شمار نتیجه‌اش برای گزارش پنل.
+     *
+     * کاملاً fail-soft است: خرابیِ نوشتن هرگز نباید پاسخِ جستجوی عمومی را
+     * بشکند. هیچ IP/شناسهٔ پایداری ذخیره نمی‌شود؛ فقط متنِ عبارت و شمار نتیجه.
+     */
+    private function record(string $query, int $resultsCount): void
+    {
+        try {
+            SearchQuery::query()->create([
+                'query' => mb_substr($query, 0, 200),
+                'results_count' => max(0, $resultsCount),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

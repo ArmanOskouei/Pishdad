@@ -4,7 +4,7 @@
   "description": "چیدمان چگال و شبکه‌ای با شعاع گوشهٔ بزرگ‌تر؛ مناسب فهرست کالا و صفحه‌های پرتراکم.",
   "version": "1.0.0",
   "modes": ["light", "dark", "system"],
-  "slots": ["header", "footer", "main", "left", "right", "banner"],
+  "slots": ["header", "footer", "main", "left", "right", "banner", "blog"],
   "tokens": {
     "radius-sm": "6px",
     "radius-md": "10px",

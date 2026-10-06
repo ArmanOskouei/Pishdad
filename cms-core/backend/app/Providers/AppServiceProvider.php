@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Mail\MailTemplates;
+use App\Models\Page;
+use App\Models\Ticket;
+use App\Observers\PageObserver;
+use App\Observers\TicketObserver;
 use App\Services\Audit\AuditSink;
 use App\Services\Audit\AuditTrail;
 use App\Services\Billing\PaymentGatewayInterface;
@@ -14,8 +19,10 @@ use App\Services\Chabokan\ChabokanDriverFactory;
 use App\Services\Plugins\PluginAutoloader;
 use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\PluginReleaseManager;
+use App\Services\Pages\PageShareSigner;
 use App\Services\Plugins\ServiceProviderRegistry;
 use App\Services\RevalidateSigner;
+use App\Services\Settings\SecuritySettings;
 use App\Services\Sms\SmsDriverFactory;
 use App\Services\Sms\SmsSenderInterface;
 use App\Services\Subscription\NullSubscriptionResolver;
@@ -29,6 +36,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Application;
 use Illuminate\Console\Command;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
@@ -45,6 +53,15 @@ class AppServiceProvider extends ServiceProvider
             fn () => new RevalidateSigner(
                 (string) config('revalidate.secret'),
                 (int) config('revalidate.leeway', 300),
+            )
+        );
+
+        // WF-H2 — امضای لینکِ اشتراکِ پیش‌نویس با همان رازِ revalidate.
+        $this->app->singleton(
+            PageShareSigner::class,
+            fn () => new PageShareSigner(
+                (string) config('revalidate.secret'),
+                (int) config('revalidate.share_ttl', 86400),
             )
         );
 
@@ -146,6 +163,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->bootBundledPlugins();
 
+        $this->observeDomainEvents();
+
         // F0.1 / F0.2 — قاعده‌های اعتبارسنجی سراسری.
         //
         // اینها «پیش‌فرض امن» را در لحظهٔ نوشتن می‌سازند، نه در لحظهٔ رندر. دلیل:
@@ -181,6 +200,22 @@ class AppServiceProvider extends ServiceProvider
             return "{$base}/reset-password?token={$token}&email=".urlencode($user->getEmailForPasswordReset());
         });
 
+        // WF-H11 — بدنهٔ ایمیل بازیابی رمز از قالبِ قابل ویرایش می‌آید.
+        ResetPassword::toMailUsing(function ($user, string $token) {
+            $base = rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/');
+            $url = "{$base}/reset-password?token={$token}&email=".urlencode($user->getEmailForPasswordReset());
+
+            $template = MailTemplates::render('password_reset', [
+                'app_name' => (string) config('app.name'),
+                'name' => (string) ($user->name ?? ''),
+                'url' => $url,
+            ]);
+
+            return (new MailMessage)
+                ->subject($template['subject'])
+                ->view('emails.mail-template', ['body' => $template['body']]);
+        });
+
         // فرم تماس عمومی (تسک ۵.۳): سفت — ۵ تلاش در دقیقه برای هر IP.
         RateLimiter::for('contact', function (Request $request) {
             return Limit::perMinute(5)
@@ -214,6 +249,38 @@ class AppServiceProvider extends ServiceProvider
                     ], 429);
                 });
         });
+        // WF-M7 — سقف تلاش ورود به‌ازای هر IP (علاوه بر سقف email+IP بالا).
+        // مقدار از تنظیمات امنیتیِ پنل می‌آید و بین ۳ تا ۱۰۰ نگه داشته می‌شود.
+        // پیام ۴۲۹ عیناً همان پیام سقفِ حساب است تا شمارش اطلاعات لو نرود.
+        RateLimiter::for('auth-login-ip', function (Request $request) {
+            return Limit::perMinutes(15, SecuritySettings::loginAttemptCap())
+                ->by($request->ip())
+                ->response(function () {
+                    return response()->json([
+                        'message' => 'تلاش‌های ورود بیش از حد مجاز است. لطفاً دقایقی دیگر تلاش کنید.',
+                    ], 429);
+                });
+        });
+    }
+
+    /**
+     * WF-L2 — ناظرهای رویدادِ دامنه، برای وب‌هوکِ خروجی.
+     *
+     * ## ⭐ چرا observer و نه فراخوانیِ صریح
+     *
+     * انتشار/لغو انتشارِ صفحه **سه** مسیر دارد (تکی، گروهی، زمان‌بند) و تیکت
+     * **سه** مسیر (فرم تماس، پنل، فرم‌های سازنده). اگر وب‌هوک در هر کنترلر یک خط
+     * می‌گرفت، شش خطِ موازی بود که مسیرِ هفتمِ فردا بی‌سروصدا از قلم می‌افتاد.
+     * ناظرها همان یک نقطه‌اند و ضمناً اجازه می‌دهند کنترلرهای در حال تغییرِ
+     * دیگران دست‌نخورده بمانند.
+     *
+     * ثبت اینجا صریح است (نه قراردادِ پوشه‌ای) چون پروژه کلاس‌ها را دستی
+     * autoload می‌کند و هیچ چیز خودکاری را در `app/Observers` پیدا نمی‌کند.
+     */
+    private function observeDomainEvents(): void
+    {
+        Page::observe(PageObserver::class);
+        Ticket::observe(TicketObserver::class);
     }
 
     /**

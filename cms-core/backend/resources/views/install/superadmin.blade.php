@@ -1,16 +1,16 @@
 @extends('install.layout')
 
-@section('title', 'گام ۵ — سوپرادمین')
+@section('title', 'گام ۵ — مدیر اصلی')
 
 @section('content')
-<h2>گام ۵ — حساب سوپرادمین</h2>
+<h2>گام ۵ — حساب مدیر اصلی</h2>
 
 @if (! empty($formError ?? null))
   <div class="err" role="alert">{{ $formError }}</div>
 @endif
 @php $old = $old ?? []; @endphp
 
-<p>حساب مخفی و حذف‌نشدنی مدیر ارشد. تأیید دومرحله‌ای در <strong>اولین ورود</strong> اجباری می‌شود (هیچ سکرتی چاپ/نمایش داده نمی‌شود).</p>
+<p>حسابِ مدیرِ ارشدِ سایت. هیچ حسابِ مخفی یا حذف‌نشدنی‌ای وجود ندارد؛ همهٔ مدیران عادی‌اند و دسترسی‌شان از نقش/پرمیشن می‌آید. تأیید دومرحله‌ای را هر مدیر می‌تواند از پروفایل خودش فعال کند.</p>
 
 <form method="post" action="{{ route('install.superadmin.save') }}">
   <input type="hidden" name="install_token" value="{{ $token }}">
