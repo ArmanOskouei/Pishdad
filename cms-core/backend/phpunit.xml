@@ -31,6 +31,7 @@
             <!-- BEGIN:GENERATED:Unit -->
             <file>tests/Unit/BigNumArithmeticTest.php</file>
             <file>tests/Unit/CurveEcdhTest.php</file>
+            <file>tests/Unit/EcdhRangeTest.php</file>
             <file>tests/Unit/ExampleTest.php</file>
             <file>tests/Unit/PushEncryptionRoundTripTest.php</file>
             <file>tests/Unit/RevalidateSignerTest.php</file>

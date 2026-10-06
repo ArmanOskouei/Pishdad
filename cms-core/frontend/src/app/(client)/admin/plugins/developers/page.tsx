@@ -1,4 +1,4 @@
-import { serverApi } from "@/lib/server-api";
+import { serverOne } from "@/lib/server-api";
 import { type PluginPackageContract } from "@/lib/plugin-contract";
 import { Alert } from "@/components/ui/primitives";
 import { DeveloperDocsClient } from "./DeveloperDocsClient";
@@ -20,7 +20,7 @@ export default async function DeveloperDocsPage() {
   let contract: unknown = null;
   let error: string | null = null;
   try {
-    contract = await serverApi<unknown>("/v1/admin/plugins/contract");
+    contract = await serverOne<unknown>("/v1/admin/plugins/contract");
   } catch (e) {
     error = e instanceof Error ? e.message : "خطا در بارگذاری قرارداد توسعه‌دهندگان.";
   }

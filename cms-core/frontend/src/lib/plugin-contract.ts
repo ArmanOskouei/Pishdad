@@ -152,6 +152,20 @@ type Ctx = { missing: string[] };
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
+/**
+ * map (شیءِ کلید→مقدار) را با تحملِ **آرایهٔ خالی** برمی‌گرداند.
+ *
+ * ⚠️ تلهٔ PHP: `json_encode([])` → `[]` نه `{}`. قراردادِ بک‌اند نقاطی دارد که
+ * در PHP `'schema' => ['fields' => []]` هستند، پس JSON آن‌ها `fields: []`
+ * می‌شود. اگر `[]` را «نبودِ map» بشماریم، پنج نقطه («ویجت داشبورد»،
+ * «تنظیمات»، «مجموعه‌داده»، «block type»، «رجیستری صفحه») «کمبود» اعلام
+ * می‌شوند و کلِ صفحهٔ مستندات به یک پیام خطا تبدیل می‌شود — بدون اینکه
+ * واقعاً چیزی کم باشد. آرایهٔ خالی و شیءِ خالی اینجا **هم‌معنا**اند: هیچ
+ * عضوی نیست.
+ */
+const asMap = (v: unknown): Record<string, unknown> | undefined =>
+  isRecord(v) ? v : Array.isArray(v) && v.length === 0 ? {} : undefined;
+
 function str(ctx: Ctx, obj: Record<string, unknown> | undefined, key: string, path: string): string {
   const v = obj?.[key];
   if (typeof v !== "string" || v === "") {
@@ -189,8 +203,8 @@ function strList(ctx: Ctx, obj: Record<string, unknown> | undefined, key: string
 }
 
 function strMap(ctx: Ctx, obj: Record<string, unknown> | undefined, key: string, path: string): Record<string, string> {
-  const v = obj?.[key];
-  if (!isRecord(v) || Object.values(v).some((x) => typeof x !== "string")) {
+  const v = asMap(obj?.[key]);
+  if (!v || Object.values(v).some((x) => typeof x !== "string")) {
     ctx.missing.push(path);
     return {};
   }
@@ -198,8 +212,8 @@ function strMap(ctx: Ctx, obj: Record<string, unknown> | undefined, key: string,
 }
 
 function numMap(ctx: Ctx, obj: Record<string, unknown> | undefined, key: string, path: string): Record<string, number> {
-  const v = obj?.[key];
-  if (!isRecord(v) || Object.values(v).some((x) => typeof x !== "number")) {
+  const v = asMap(obj?.[key]);
+  if (!v || Object.values(v).some((x) => typeof x !== "number")) {
     ctx.missing.push(path);
     return {};
   }
@@ -289,7 +303,8 @@ function parsePoint(raw: Record<string, unknown>, at: string, ctx: Ctx): PluginE
   const status = str(ctx, raw, "status", `${at}.status`) as PluginPointStatus;
   const openness = str(ctx, raw, "openness", `${at}.openness`) as PluginPointOpenness;
 
-  const fields = isRecord(schema?.fields) ? (schema?.fields as Record<string, unknown>) : undefined;
+  // `fields: []` از PHP هم‌معنای «هیچ فیلدی» است — نه «نبودِ schema.fields».
+  const fields = asMap(schema?.fields);
   if (!fields) ctx.missing.push(`${at}.schema.fields`);
 
   const point: PluginExtensionPoint = {
@@ -372,6 +387,19 @@ function parseDocEntry(raw: Record<string, unknown>, at: string, ctx: Ctx): Plug
  */
 export function parsePluginContract(raw: unknown): ContractParse {
   const ctx: Ctx = { missing: [] };
+
+  /*
+   * ⚠️ نگهبانِ رگرسیون — چرا پوشش را همین‌جا باز می‌کنیم:
+   *
+   * بک‌اند پاسخِ تک‌نمونه را در `{ data: … }` می‌پیچد. `serverApi` عمداً unwrap
+   * نمی‌کند و `serverOne` می‌کند. اگر صفحه‌ای اشتباهاً `serverApi` را صدا بزند،
+   * پوشش به‌جای خودِ قرارداد به اینجا می‌رسد و **همهٔ** کلیدها «missing» می‌شوند —
+   * دقیقاً همان چیزی که صفحهٔ «مستندات توسعه‌دهندگان» را به یک صفحهٔ خطای کامل
+   * تبدیل کرده بود (ECO3 در عمل هرگز رندر نمی‌شد، ولی ردیفش `done` بود).
+   * یک unwrapِ یک‌سطحی این اشتباه را پنهان نمی‌کند، فقط بی‌اثر می‌کند.
+   */
+  if (isRecord(raw) && isRecord(raw.data)) raw = raw.data;
+
   if (!isRecord(raw)) return { ok: false, missing: ["data"] };
 
   const pkg = isRecord(raw.package) ? raw.package : undefined;

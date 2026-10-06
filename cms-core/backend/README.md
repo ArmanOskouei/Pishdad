@@ -14,7 +14,7 @@
 ## بالا آوردن با یک دستور
 
 ```powershell
-cd "E:\Website Design\ArmanOskouei.ir\cms-core\backend"
+cd cms-core/backend
 copy .env.example .env
 docker compose up -d --build
 ```

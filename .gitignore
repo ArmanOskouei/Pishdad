@@ -97,6 +97,7 @@ docs/demo/admin/central/
 # این‌ها خروجی یا وضعیتِ ماشینِ توسعه‌اند، نه محصول. اگر track شوند، بستهٔ خام
 # آن‌ها را با خود می‌برد و نصب‌کننده چیزی می‌گیرد که به او مربوط نیست.
 dist-pishdad/
+dist-public/
 .opencode/
 cms-core/frontend/.local-serve.err
 cms-core/frontend/.local-serve.out

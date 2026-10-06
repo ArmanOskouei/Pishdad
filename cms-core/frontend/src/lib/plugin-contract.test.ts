@@ -142,6 +142,56 @@ test("بدنهٔ غیرobject، ناقص گزارش می‌شود — نه cast 
   }
 });
 
+/**
+ * ⭐ نگهبانِ رگرسیون — باگِ واقعیِ ECO3.
+ *
+ * بک‌اند پاسخِ تک‌نمونه را در `{ data: … }` می‌پیچد. صفحهٔ «مستندات
+ * توسعه‌دهندگان» اشتباهاً `serverApi` را صدا زد (که عمداً unwrap نمی‌کند) و
+ * پوشش را مستقیم به پارسر داد؛ نتیجه این بود که **هر ۲۵ کلید** «missing»
+ * شدند و کلِ صفحه به یک پیام خطا تبدیل شد — در حالی که ردیفِ ECO3 `done` بود.
+ * این تست همان مسیر را قفل می‌کند تا دوباره بی‌صدا خراب نشود.
+ */
+test("پوشش {data} از API باز می‌شود — نه اینکه کلیدها گم شوند", () => {
+  const parsed = parsePluginContract({ data: goodPayload() });
+  assert.equal(parsed.ok, true, "پوشش {data} باید به خودِ قرارداد باز شود.");
+  if (!parsed.ok) return;
+  assert.equal(parsed.value.core_contract_version, "1.6.0");
+  assert.equal(parsed.value.plugin_docs[0].entries[0].path, "/v1/p/blog/posts");
+});
+
+test("پوشش {data} که خودش قرارداد نیست، باز هم کمبود را نام می‌برد", () => {
+  const parsed = parsePluginContract({ data: 42 });
+  assert.equal(parsed.ok, false);
+  if (parsed.ok) return;
+  assert.ok(parsed.missing.includes("package"), "بدنهٔ بی‌ربط نباید «کامل» شمرده شود.");
+});
+
+/**
+ * ⭐ نگهبانِ رگرسیون — تلهٔ PHP/JSON.
+ *
+ * قراردادِ بک‌اند برای چند نقطه `'schema' => ['fields' => []]` دارد و
+ * `json_encode([])` در PHP `[]` می‌دهد نه `{}`. قبلاً همین باعث می‌شد آن نقاط
+ * «کمبود» اعلام شوند و کلِ صفحهٔ مستندات به یک پیام خطا تبدیل شود.
+ * آرایهٔ خالی و شیءِ خالی در معنای «هیچ فیلدی» یکی‌اند.
+ */
+test("fields: [] از PHP هم‌معنای «هیچ فیلدی» است — نه کمبود", () => {
+  const payload = goodPayload();
+  (payload.extension_points as Record<string, unknown>[])[0].schema = { fields: [], cross: [] };
+  const parsed = parsePluginContract(payload);
+  assert.equal(parsed.ok, true, "آرایهٔ خالی نباید schema.fields را «کمبود» کند.");
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.value.extension_points[0].schema.fields, {});
+});
+
+test("mapِ خالی به‌شکل آرایه هم پذیرفته می‌شود (strMap)", () => {
+  const payload = goodPayload();
+  payload.deferred_extension_points = [];
+  const parsed = parsePluginContract(payload);
+  assert.equal(parsed.ok, true, "mapِ خالی نباید «کمبود» شود.");
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.value.deferred_extension_points, {});
+});
+
 test("کمبودِ هر زیرمجموعه با مسیرش گزارش می‌شود", () => {
   for (const key of ["package", "limits", "grammar"] as const) {
     const payload = goodPayload();
