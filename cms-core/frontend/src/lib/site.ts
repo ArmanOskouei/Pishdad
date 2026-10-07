@@ -17,12 +17,14 @@ import { applyAssetBase, normalizeAssetBase, resolveAssetBase } from "@/lib/asse
 import { buildRssFeed, type FeedItem } from "@/lib/public/rss-feed";
 import { blogFeedHref } from "@/lib/blog";
 import { DEFAULT_PUBLIC_LOCALE, isPublicLocale, type PublicLocale } from "@/lib/i18n/public";
+import { runtimeValue } from "./runtime-config";
 
 export { applyAssetBase, normalizeAssetBase, resolveAssetBase } from "@/lib/asset-base";
 
 const UPSTREAM =
-  process.env.INTERNAL_API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
+  runtimeValue("INTERNAL_API_URL", "") ||
+  runtimeValue("CMS_PUBLIC_API_URL", "") ||
+  (process.env.NEXT_PUBLIC_API_URL ?? "").trim() ||
   "http://localhost:8080/api";
 
 export const SITE_REVALIDATE = 300; // ثانیه — ISR معقول برای صفحات عمومی
@@ -299,7 +301,7 @@ export async function buildSiteFeedXml(opts: {
 
 /** صفحه خانه عمومی (کار دوم): homepage_page_id ← home ← جدیدترین؛ null = چیزی منتشر نشده. F4.5: locale اختیاری. */
 export function fetchHomepage(locale?: string): Promise<SitePage | null> {
-  const siteId = process.env.NEXT_PUBLIC_SITE_ID ?? "";
+  const siteId = runtimeValue("CMS_SITE_ID", process.env.NEXT_PUBLIC_SITE_ID);
   const params = new URLSearchParams();
   if (siteId) params.set("site_id", siteId);
   if (locale) params.set("locale", locale);
@@ -325,7 +327,7 @@ export async function fetchHomepageFallback(
 export function siteBaseUrl(chrome: Pick<SiteChrome, "site_url"> | null): string | null {
   const fromSettings = chrome?.site_url?.trim().replace(/\/+$/, "");
   if (fromSettings) return fromSettings;
-  const fromEnv = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim().replace(/\/+$/, "");
+  const fromEnv = runtimeValue("CMS_SITE_URL", process.env.NEXT_PUBLIC_SITE_URL).replace(/\/+$/, "");
   return fromEnv || null;
 }
 
@@ -334,7 +336,7 @@ export function siteBaseUrl(chrome: Pick<SiteChrome, "site_url"> | null): string
  * `NEXT_PUBLIC_ASSET_URL` به‌عنوان fallbackِ محیطی. خالی ⇒ null (بدون CDN).
  */
 export function assetBaseUrl(chrome: Pick<SiteChrome, "asset_domain"> | null): string | null {
-  return resolveAssetBase(chrome) ?? normalizeAssetBase(process.env.NEXT_PUBLIC_ASSET_URL);
+  return resolveAssetBase(chrome) ?? normalizeAssetBase(runtimeValue("CMS_ASSET_URL", process.env.NEXT_PUBLIC_ASSET_URL));
 }
 
 /** WF-M13 — lazy-load تصاویر سایت روشن است مگر صریحاً خاموش شود. */
@@ -373,7 +375,7 @@ export function fetchSiteTheme(slug: string): Promise<SiteThemeTokens | null> {
 
 /** کروم واقعی سایت از اندپوینت عمومی (سبک، بدون احراز هویت) + fallback به پیش‌فرض‌ها وقتی خالی است. */
 export async function fetchSiteChrome(): Promise<SiteChrome> {
-  const siteId = process.env.NEXT_PUBLIC_SITE_ID ?? "";
+  const siteId = runtimeValue("CMS_SITE_ID", process.env.NEXT_PUBLIC_SITE_ID);
   const qs = siteId ? `?site_id=${encodeURIComponent(siteId)}` : "";
   const live = await get<SiteChrome>(`/v1/site/chrome${qs}`, [SITE_TAG, "site-chrome"]);
   if (!live) return CHROME_DEFAULTS;

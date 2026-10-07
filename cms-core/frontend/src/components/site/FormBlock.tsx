@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { publicT, type PublicLocale } from "@/lib/i18n/public";
 import { ContactForm } from "./ContactForm";
+import { publicConfig } from "@/lib/runtime-config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+const API_BASE = publicConfig().apiUrl;
 
 type FormFieldDef = {
   key: string;

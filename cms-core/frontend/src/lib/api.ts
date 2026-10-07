@@ -4,8 +4,12 @@
  * مدیریت 401/refresh، پیام فارسی یکدست. هیچ fetch مستقیم به بک‌اند در کامپوننت‌ها مجاز نیست.
  */
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+import { publicConfig } from "./runtime-config";
+
+// در زمانِ **اجرا** خوانده می‌شود، نه در زمانِ بیلد: نشانیِ API روی هر نصب
+// متفاوت است و باندلِ بیلدشده باید برای همه‌شان یکی باشد. مقدار از محیطِ سرور
+// در HTML تزریق می‌شود (نگاه کنید به `runtime-config.ts`).
+export const API_BASE = publicConfig().apiUrl;
 
 export class ApiError extends Error {
   status: number;

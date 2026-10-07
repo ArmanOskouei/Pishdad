@@ -9,6 +9,7 @@ import { AuthProvider } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/Toast";
 import { isPublicLocale, publicDir, publicHtmlLang } from "@/lib/i18n/public";
 import { SITE_LOCALE_HEADER } from "@/lib/public-routing";
+import { publicConfigScript } from "@/lib/runtime-config";
 import { fetchSiteChrome, siteFontPreloadEnabled } from "@/lib/site";
 
 /**
@@ -72,6 +73,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <head>
+        {/* مقدارهای عمومی در **زمانِ درخواست** اینجا نوشته می‌شوند، نه در
+            زمانِ بیلد. دلیلش: یک باندلِ بیلدشده باید روی هر سروری، با هر
+            نشانیِ API، «نصب» شود — نه اینکه برای هر نصب دوباره ساخته شود.
+            مصرف‌کننده‌اش `lib/runtime-config.ts` است. */}
+        <script dangerouslySetInnerHTML={{ __html: publicConfigScript() }} />
         <script dangerouslySetInnerHTML={{ __html: ANTI_FOUC }} />
         {preloadFont ? (
           <link

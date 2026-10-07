@@ -1,5 +1,7 @@
 /** تایپ‌های دامنه F2 — شکل واقعی پاسخ‌های بک‌اند (OpenAPI 1.7.0 + کنترلرها). */
 
+import { publicConfig } from "./runtime-config";
+
 export type Paginator<T> = {
   data: T[];
   current_page: number;
@@ -184,7 +186,7 @@ export type MediaTag = {
  */
 export function mediaUrl(m: Pick<MediaItem, "path"> & { url?: string | null }): string {
   if (typeof m.url === "string" && m.url) return m.url;
-  const base = (process.env.NEXT_PUBLIC_MEDIA_URL ?? "").trim().replace(/\/+$/, "");
+  const base = publicConfig().mediaUrl;
   return `${base}/${m.path.replace(/^\/+/, "")}`;
 }
 

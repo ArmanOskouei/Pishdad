@@ -11,6 +11,7 @@ import {
   SITE_LOCALES_HEADER,
   SITE_PRIMARY_LOCALE_HEADER,
 } from "@/lib/public-routing";
+import { RUNTIME_VARS, runtimeValue } from "./lib/runtime-config";
 
 /**
  * محافظت روت‌های پنل (F1) — سخت‌شده در K6.6.
@@ -72,7 +73,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
  * نادیده گرفته می‌شود (fail-closed).
  */
 function panelRoots(): Set<string> {
-  const raw = process.env.NEXT_PUBLIC_PANEL_ROOTS ?? "";
+  const raw = runtimeValue("CMS_PANEL_ROOTS", process.env.NEXT_PUBLIC_PANEL_ROOTS);
   const extra = raw
     .split(",")
     .map((s) => s.trim().replace(/^\/+|\/+$/g, ""))
@@ -95,9 +96,12 @@ let redirectCache: { at: number; rules: RedirectRule[] } | null = null;
 let redirectInflight: Promise<RedirectRule[]> | null = null;
 
 function apiBase(): string {
+  // ترتیب: مقدارِ زندهٔ عمومی → مقدارِ زندهٔ داخلی → مقدارِ زمانِ بیلد → پیش‌فرض.
   return (
-    process.env.NEXT_PUBLIC_API_URL ??
-    process.env.INTERNAL_API_URL ??
+    runtimeValue(RUNTIME_VARS.apiUrl, "") ||
+    runtimeValue("INTERNAL_API_URL", "") ||
+    runtimeValue("CMS_INTERNAL_API_URL", "") ||
+    (process.env.NEXT_PUBLIC_API_URL ?? "").trim() ||
     "http://localhost:8080/api"
   ).replace(/\/+$/, "");
 }
@@ -173,30 +177,54 @@ async function matchRedirect(req: NextRequest, event: NextFetchEvent): Promise<N
  * **داخلی** به `/{primary}/...` بازنویسی می‌شود تا `[locale]` تنها رندرکنندهٔ
  * عمومی باشد.
  */
+/**
+ * ⚠️ رفعِ باگِ حلقهٔ ریدایرکت — صفحهٔ اصلی هرگز باز نمی‌شد.
+ *
+ * Next مسیرِ بازنویسی‌شده را **دوباره** از پروکسی می‌گذراند. بدونِ این نشانه:
+ * `/about` → بازنویسی به `/fa/about` → پاسِ دوم قاعدهٔ «پیشوندِ زبانِ پایه
+ * باید برهنه باشد» را می‌بیند → ۳۰۸ به `/about` → بازنویسی → … یعنی حلقهٔ
+ * بی‌پایان. با آزمایشِ واقعیِ HTTP بازتولید شد: `/`، `/about` و `/search` همگی
+ * ۳۰۸ به خودشان می‌دادند و فقط `/{زبانِ غیرِپایه}` جواب می‌داد.
+ *
+ * در پاسِ دوم ریدایرکت نمی‌کنیم و همان مسیرِ دارای پیشوند را رندر می‌کنیم.
+ *
+ * جعلِ این هدر بی‌خطر است: نهایتش این است که کاربر `/fa/about` را بدونِ
+ * ریدایرکتِ زیبایی‌شناختی به `/about` ببیند. تصمیمِ پنل **پیش از** این تابع
+ * گرفته می‌شود، پس این نشانه هیچ راهی برای دورزدنِ گیتِ پنل باز نمی‌کند.
+ */
+const LOCALE_REWRITE_HEADER = "x-cms-locale-rewrite";
+
 function siteLocale(req: NextRequest): NextResponse {
   const pathname = req.nextUrl.pathname;
   if (!isPublicSitePath(pathname)) return NextResponse.next();
 
-  const locales = parseLocalesHeader(process.env.NEXT_PUBLIC_SITE_LOCALES ?? "");
+  const locales = parseLocalesHeader(runtimeValue("CMS_SITE_LOCALES", process.env.NEXT_PUBLIC_SITE_LOCALES));
   const primary =
-    parseLocalesHeader(process.env.NEXT_PUBLIC_SITE_PRIMARY_LOCALE ?? "")[0] ?? DEFAULT_PUBLIC_LOCALE;
+    parseLocalesHeader(runtimeValue("CMS_SITE_PRIMARY_LOCALE", process.env.NEXT_PUBLIC_SITE_PRIMARY_LOCALE))[0] ??
+    DEFAULT_PUBLIC_LOCALE;
   const effective = locales.length > 0 ? locales : [primary];
   const decision = resolveLocaleRoute(pathname, effective, primary);
-
-  if (decision.action === "redirect") {
-    const url = req.nextUrl.clone();
-    url.pathname = decision.path ?? "/";
-    return NextResponse.redirect(url, 308);
-  }
 
   const headers = new Headers(req.headers);
   headers.set(SITE_LOCALE_HEADER, decision.locale);
   headers.set(SITE_LOCALES_HEADER, localesForHeader(effective));
   headers.set(SITE_PRIMARY_LOCALE_HEADER, primary);
 
+  if (decision.action === "redirect") {
+    // پاسِ دومِ یک بازنویسیِ داخلی ⇒ ریدایرکت نکن، همان مسیر را رندر کن.
+    if (req.headers.get(LOCALE_REWRITE_HEADER) === "1") {
+      return NextResponse.next({ request: { headers } });
+    }
+
+    const url = req.nextUrl.clone();
+    url.pathname = decision.path ?? "/";
+    return NextResponse.redirect(url, 308);
+  }
+
   if (decision.action === "rewrite") {
     const url = req.nextUrl.clone();
     url.pathname = decision.path ?? pathname;
+    headers.set(LOCALE_REWRITE_HEADER, "1");
     return NextResponse.rewrite(url, { request: { headers } });
   }
 

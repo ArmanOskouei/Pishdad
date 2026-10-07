@@ -19,6 +19,7 @@
  */
 
 import { API_BASE } from './api';
+import { publicConfig } from './runtime-config';
 
 const OPT_OUT_KEY = 'pishdad:push-opted-out';
 
@@ -130,9 +131,8 @@ const PROXY_BASE = '/api/proxy';
  * origin خودِ Next می‌رفت و 404 می‌شد ⇒ `GET /push/public-key` هرگز کلید
  * نمی‌داد ⇒ opt-in **همیشه** شکست می‌خورد (بی‌صدا، چون caller فقط `false` می‌گیرد).
  *
- * ‎`API_BASE` تنها منبعِ حقیقتِ base است:
- * `process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api"` — دقیقاً همان
- * چیزی که `src/lib/site-search.ts` هم از آن استفاده می‌کند.
+ * ‎`API_BASE` تنها منبعِ حقیقتِ base است (از `publicConfig().apiUrl` در
+ * `runtime-config.ts`) — دقیقاً همان چیزی که `src/lib/api.ts` هم استفاده می‌کند.
  *
  * ‎فقط برای مسیرهای **عمومی** (`public-key`, `subscribe`, `unsubscribe`) — مسیر
  * احراز هویت‌شده از {@link PROXY_BASE} می‌رود، نه از این.
@@ -144,7 +144,7 @@ function pushUrl(endpoint: string): string {
 }
 
 function publicKeyFromEnv(): string | null {
-  return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || null;
+  return publicConfig().vapidPublicKey || null;
 }
 
 /**

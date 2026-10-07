@@ -1,8 +1,9 @@
 "use client";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { publicConfig } from "@/lib/runtime-config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+const API_BASE = publicConfig().apiUrl;
 
 /**
  * WF-M14 — چراغِ سبک Web Vitals (LCP/INP/CLS) برای سایت عمومی.

@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
+import { publicConfig } from "@/lib/runtime-config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+const API_BASE = publicConfig().apiUrl;
 
 /** فرم تماس عمومی → POST /v1/contact/tickets (honeypot + rate-limit سمت سرور).
  * subject = عنوان بلوک؛ تلفن (در صورت نمایش) به انتهای متن پیام الصاق می‌شود.

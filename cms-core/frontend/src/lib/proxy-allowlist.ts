@@ -37,7 +37,13 @@ const ALLOWED_ROOTS = new Set(["v1"]);
  * اینکه هسته برایش حدس بزند.
  */
 function browserReachablePluginSlugs(): Set<string> {
-  const raw = process.env.NEXT_PUBLIC_BROWSER_PLUGIN_SLUGS ?? "";
+  // ⚠️ عمداً بدونِ import از `runtime-config`: این ماژول را اجراکنندهٔ تستِ Node
+  // بار می‌کند و رزولورِ ESMِ Node برای importِ نسبی به پسوند نیاز دارد. همان
+  // الگوی «نامِ بدونِ پیشوند = زمانِ اجرا، نامِ NEXT_PUBLIC_ = زمانِ بیلد»
+  // اینجا مستقیم نوشته شده تا ماژول خودکفا بماند.
+  const raw =
+    (process.env["CMS_BROWSER_PLUGIN_SLUGS"] ?? "").trim() ||
+    (process.env.NEXT_PUBLIC_BROWSER_PLUGIN_SLUGS ?? "");
   return new Set(
     raw
       .split(",")

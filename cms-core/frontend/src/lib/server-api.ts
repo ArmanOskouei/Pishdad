@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { runtimeValue } from "./runtime-config";
 
 /**
  * فراخوانی سمت سرور به بک‌اند (برای Server Components لیست‌ها).
@@ -6,8 +7,9 @@ import { cookies } from "next/headers";
  * خروجی خام برمی‌گردد تا هر صفحه با asPaginator/asList نرمال کند.
  */
 const UPSTREAM =
-  process.env.INTERNAL_API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
+  runtimeValue("INTERNAL_API_URL", "") ||
+  runtimeValue("CMS_PUBLIC_API_URL", "") ||
+  (process.env.NEXT_PUBLIC_API_URL ?? "").trim() ||
   "http://localhost:8080/api";
 
 export class ServerApiError extends Error {
