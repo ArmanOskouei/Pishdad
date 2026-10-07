@@ -169,12 +169,49 @@ class InstallController extends Controller
         $this->ensureStepReachable('database');
 
         return view('install.database', [
-            'config' => Preflight::dbConfig(),
+            'config' => $this->withDatabaseDefaults(Preflight::dbConfig()),
             'token' => InstallJournal::token(),
             'step' => 'database',
             'formError' => null,
             'old' => [],
         ]);
+    }
+
+    /**
+     * پیش‌فرض‌های گام ۲ + رمزِ پیشنهادیِ همان لحظه.
+     *
+     * نام دیتابیس و کاربر هر دو `Pishdad` هستند تا کاربر لازم نباشد چیزی حدس
+     * بزند؛ اگر ژورنال یا `.env` مقدارِ واقعی داشته باشد، همان برنده است.
+     *
+     * رمز **در هر بارگذاریِ صفحه** تازه ساخته می‌شود و روی خودِ صفحه هم نمایش
+     * داده می‌شود، پس «راز» نیست — ولی همین باعث می‌شود کاربر مجبور نباشد یک
+     * رمزِ خوب از خودش دربیاورد و همان را در فرمان‌های SQL هم کپی کند.
+     * الفبای رمز فقط `A-Za-z0-9` است تا داخل `CREATE ROLE ... PASSWORD '…'`
+     * و `docker run -e POSTGRES_PASSWORD=…` بدون escape بنشیند.
+     */
+    private function withDatabaseDefaults(array $config): array
+    {
+        return [
+            'host' => ($config['host'] ?? '') !== '' ? (string) $config['host'] : '127.0.0.1',
+            'port' => ($config['port'] ?? '') !== '' ? (string) $config['port'] : '5432',
+            'database' => ($config['database'] ?? '') !== '' ? (string) $config['database'] : 'Pishdad',
+            'username' => ($config['username'] ?? '') !== '' ? (string) $config['username'] : 'Pishdad',
+            'password' => ($config['password'] ?? '') !== '' ? (string) $config['password'] : self::suggestedPassword(),
+        ];
+    }
+
+    /** رمزِ تصادفیِ امن، فقط حروف و عدد (امن برای SQL و shell). */
+    private static function suggestedPassword(int $length = 20): string
+    {
+        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+        $max = strlen($alphabet) - 1;
+        $out = '';
+
+        for ($i = 0; $i < $length; $i++) {
+            $out .= $alphabet[random_int(0, $max)];
+        }
+
+        return $out;
     }
 
     public function databaseSave(Request $request): RedirectResponse|JsonResponse|Response
@@ -199,7 +236,7 @@ class InstallController extends Controller
             }
 
             return $this->formFail('install.database', [
-                'config' => Preflight::dbConfig(),
+                'config' => $this->withDatabaseDefaults(Preflight::dbConfig($request->only(['host', 'port', 'database', 'username', 'password']))),
                 'token' => InstallJournal::token(),
                 'step' => 'database',
             ], (string) $validator->errors()->first(), $this->safeOld($request));
@@ -218,7 +255,7 @@ class InstallController extends Controller
             }
 
             return $this->formFail('install.database', [
-                'config' => Preflight::dbConfig(),
+                'config' => $this->withDatabaseDefaults($validated),
                 'token' => InstallJournal::token(),
                 'step' => 'database',
             ], $message, $this->safeOld($request));
