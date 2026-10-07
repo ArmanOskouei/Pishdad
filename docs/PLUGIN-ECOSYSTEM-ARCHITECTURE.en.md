@@ -36,7 +36,7 @@ The trust foundation (phase 0) was what made it safe to build on:
 
 1. Upload analyzes and validates the package **before** extracting anything, and only then
    installs it.
-2. `plugin_hooks` was removed — K5.5, 2026-09-27. The `hooks` manifest field was a promise the
+2. `plugin_hooks` was removed — 2026-09-27. The `hooks` manifest field was a promise the
    core did not keep: `PluginController::syncHooks()` wrote rows but no dispatcher read them.
    Instead of building a dispatcher, the field was removed from the contract; the table was
    dropped by migration `2026_10_06_000001_drop_plugin_hooks_table`. A manifest that still declares
@@ -353,8 +353,8 @@ After unlock: `dev_mode = true` with `expires_at = now() + 8h` and a random `unl
 install that enables it once.
 
 **The confirmation modal uses the user's password** (not just a checkbox): the five-click
-gesture is client-side state and vulnerable to CSRF. The event is recorded in
-`operator_activities`.
+gesture is client-side state and vulnerable to CSRF. The event must be recorded in the install's
+activity log.
 
 ### What is open and what is closed
 
@@ -395,7 +395,7 @@ unsafe".
 | **reverse loopback** (the target requests you) | `allow_url_fopen`/`ext-curl`; some firewalls block at DNS level |
 | **manual bootstrap** (an install file the user uploads) | ✅ works on 100% of hosting, near-zero risk |
 | **host plugin** (panel API) | DirectAdmin API is effectively disabled; most Iranian hosting is DirectAdmin ⇒ near-zero coverage |
-| **FTP push** | ⛔ **rejected.** Asking for FTP credentials from a user whose 30% comes from your site is the worst possible decision |
+| **FTP push** | ⛔ **rejected.** Asking for FTP credentials from a user is the worst possible decision |
 
 ### Decision (K0.2 / K0.5): VPS-first
 
@@ -403,17 +403,16 @@ Shared-hosting support is effectively impossible for this architecture: no Docke
 Next.js frontend has no path on DirectAdmin. The backend is nearly VPS-ready (`SESSION_DRIVER=file`,
 `CACHE_STORE=database`, `QUEUE_CONNECTION=database` — i.e. Redis is not required).
 
-**Backbone: a single `docker compose` command on a VPS.** Then bootstrap + heartbeat to report
-the install (the `HeartbeatController` infrastructure with HMAC and `install_token` already
-exists).
+**Backbone: a single `docker compose` command on a VPS.** Then bootstrap to install onto the
+target.
 
 ---
 
-## 8) Market and sales (phases 5–7)
+## 8) Market
 
 ### Data model
 
-`publishers`, `market_items`, `market_versions`, `licenses`, `orders`, `order_items`, `payouts`.
+`publishers`, `market_items`, `market_versions`, `licenses`.
 
 **Key point:** the signature must be on `market_versions`, not `market_items`. A signature means
 a specific version of the code.
@@ -426,7 +425,7 @@ a specific version of the code.
 out of reach by just "removing it from the market" — but a thousand active installs still run it
 and get no notice. `yanked` lets you push to active installs.
 
-### Sales model
+### License model
 
 **What is bought:** the right to run the code on N installs. **Not** a WordPress-style license
 key.
@@ -435,22 +434,11 @@ key.
 |---|---|
 | Perpetual, unlimited installs, no phone-home | Simple and honest, but stealable |
 | Perpetual + activation with phone-home | **Brand problem:** blocking a working site due to a service outage is indefensible |
-| Subscription | Recurring revenue, but 30% of a small base is not worth the trouble and creates kill-switch debt |
 
 **Explicit recommendation:** perpetual license, unlimited installs, no blocking phone-home.
 **The main lever is not price; it is compatibility.** When updates are free as long as the core
 is alive, a developer is incentivized to align with the core's stability — and you get a real
 reason to rein in breaking core changes.
-
-### About "no gateway needed for now"
-
-For what is currently requested, this is correct: `orders` with a manual `paid` status,
-`payouts` as an accrual ledger, monthly settlement by manual bank transfer. Zero gateway
-infrastructure.
-
-**But this boundary must be explicit:** if you want to charge the **customer** in the market, a
-gateway is mandatory. In Iran you cannot charge a rial consumer without a licensed PSP — and most
-importantly, **refunds**. That is a project, not a config flag. A separate milestone.
 
 ---
 
@@ -485,7 +473,7 @@ version and reads the code-derived parts live.
 | 2 | `system` was read from the manifest | `PluginController` | 🔴 | ✅ **fixed in phase 0** (`system_plugins` allowlist) |
 | 3 | `review_status` default `approved` (fail-open) | schema | 🔴 | ✅ **fixed in phase 0** |
 | 4 | Plugin is not extracted/executed | whole backend | 🔴 | ✅ **built** (`PluginInstaller`, `PluginAutoloader`, `PluginRouter`, `PluginDispatcher`) |
-| 5 | `plugin_hooks` had no dispatcher | ~~`PluginController::syncHooks`~~ | 🔴 | ✅ **fixed (K5.5)** — the field was removed |
+| 5 | `plugin_hooks` had no dispatcher | ~~`PluginController::syncHooks`~~ | 🔴 | ✅ **fixed** — the field was removed |
 | 6 | Permission without a slug prefix | `PluginController::ensurePermissions` | 🟠 | ✅ fixed — namespaced `plugin:{slug}:{module}.{action}` |
 | 7 | `config('search.providers')` static | `SearchManager` | 🟠 | ✅ registry-based (`ServiceProviderRegistry`) |
 | 8 | No backend route level for the search contract | `SEARCH-PLUGIN-CONTRACT.md` | 🟠 | ✅ superseded by `SearchableProvider` via `core.service_provider` |
@@ -499,8 +487,7 @@ version and reads the code-derived parts live.
 
 The biggest risk of this project is not building the market; it is attracting the **first 10
 developers**. That is why phase 4 (guide + scaffolder) must arrive earlier than expected — if a
-developer cannot build and install their first plugin in 30 minutes, the market stays empty and
-the 30% never happens.
+developer cannot build and install their first plugin in 30 minutes, the market stays empty.
 
 ---
 
@@ -517,9 +504,9 @@ no longer true. The current code has:
 - `PluginRouter` — the single core catch-all `GET|POST|… /api/v1/p/{slug}/{any?}` dispatching
   through `PluginDispatcher` / `PluginRouteTable`.
 - `PluginMigrationRunner` / `PluginMigrator` — migration verification and rewriting with the
-  `{slug}_` prefix, plus the PostgreSQL DDL role (K5.7).
+  `{slug}_` prefix, plus the PostgreSQL DDL role.
 - Developer mode — `DevMode`, `DevModeTaps`, `DevModeUnlock`, `DevModeAudit`, gated by the
   `devmode.gate` middleware on `plugins/upload` and `plugins/{plugin}/upgrade`.
 - `CoreRequirementChecker` — `requires.core` is now enforced (B25 closed).
-- A market API (`/v1/market/*`) with publisher registration, submission review, yank, install,
-  orders/licenses and manual payouts.
+- A market API (`/v1/market/*`) with publisher registration, submission review, yank, install
+  and licenses.

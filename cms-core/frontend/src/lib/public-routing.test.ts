@@ -23,7 +23,7 @@ import { localizeHref, publicDir, publicHreflang, type PublicLocale } from "./i1
 
 test("پنل/API/فایل ثابت زبانِ سایت نمی‌گیرند", () => {
   assert.equal(isPublicSitePath("/admin/dashboard"), false);
-  assert.equal(isPublicSitePath("/central"), false);
+  assert.equal(isPublicSitePath("/suspended"), false);
   assert.equal(isPublicSitePath("/api/revalidate"), false);
   assert.equal(isPublicSitePath("/preview"), false);
   assert.equal(isPublicSitePath("/robots.txt"), false);

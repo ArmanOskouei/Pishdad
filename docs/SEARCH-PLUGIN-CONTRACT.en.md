@@ -6,7 +6,7 @@
 >
 > **`fetchItems` was removed.** That function called `/api/proxy/v1/admin/...` from inside the
 > browser, which meant any plugin could call **any core API route** from the browser — exactly
-> what K1.5.8 was supposed to prevent.
+> what API separation was supposed to prevent.
 >
 > **The correct path:** declare a class that implements `App\Search\SearchableProvider` through
 > the `core.service_provider` extension point so it runs **on the server**.
@@ -165,21 +165,17 @@ export function MembersSearchSource() {
    tokens (AND).
 2. **The dynamic cache is yours** — at most one call per query; a 60-second client-side cache is
    recommended (the core does the same).
-3. **When suspended** (`subscription.status === "suspended"`) dynamic sources are **not called**,
-   and among static pages only `/admin/subscription` is shown.
-4. **No sensitive data in the static index** — no email, no amount, no token. Dynamic records
+3. **No sensitive data in the static index** — no email, no amount, no token. Dynamic records
    return only `title/subtitle/path`.
-5. Pick `group` correctly so results land under the right heading:
+4. Pick `group` correctly so results land under the right heading:
    `pages` (pages) • `content` (site content) • `files` (files) • `other` (everything else).
-6. The Topbar dropdown shows at most **8** results; Enter opens the full results page
+5. The Topbar dropdown shows at most **8** results; Enter opens the full results page
    (`/admin/search?q=…`) with grouping and highlighting.
 
 ## 6. Known TODOs
 
 - Deeper typo tolerance (Levenshtein distance) is not there yet — only includes + word-start.
 - Weighted priority between sources (e.g. boosting an active plugin) is undefined.
-- The static index only covers the customer panel; central pages (`/central/*`) are not
-  registered yet.
 
 </details>
 

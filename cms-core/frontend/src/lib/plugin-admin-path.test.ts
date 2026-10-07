@@ -34,7 +34,7 @@ test("قید: مسیر معتبر زیر /admin/ پذیرفته می‌شود", 
 
 test("قید: مسیر بیرون از /admin/ رد می‌شود", () => {
   for (const bad of [
-    "/central/shop",       // ریشهٔ مرکزی، نه ادمین
+    "/sampleplug/shop",       // ریشهٔ مرکزی، نه ادمین
     "/shop/orders",        // بدون ریشه
     "/api/admin/shop",     // زیر api
     "/login",
@@ -88,7 +88,7 @@ test("assertPluginAdminPath رشتهٔ معتبر را عیناً برمی‌گ�
 test("assertPluginAdminPath به‌جای نرمال‌سازی پنهان، خطا می‌دهد", () => {
   // اگر این به‌جای throw مقدارِ اصلاح‌شده برمی‌گرداند، مسیر اعلام‌شده بی‌صدا
   // عوض می‌شد و خطای اصلی از دست می‌رفت.
-  assert.throws(() => assertPluginAdminPath("/central/shop"), PluginAdminPathError);
+  assert.throws(() => assertPluginAdminPath("/sampleplug/shop"), PluginAdminPathError);
   assert.throws(() => assertPluginAdminPath("//evil.com"), PluginAdminPathError);
   assert.throws(() => assertPluginAdminPath("/admin/../x"), PluginAdminPathError);
 });
@@ -117,7 +117,7 @@ test("سازنده و نگهبان یک فضا دارند: هر مسیر ساخ�
     assert.equal(isGuardedAdminPath(built), true, `محافظت‌نشده: ${built}`);
   }
   assert.equal(isGuardedAdminPath(PLUGIN_ADMIN_ROOT), true, "خودِ ریشه هم باید محافظت شود");
-  assert.equal(isGuardedAdminPath("/central/shop"), false);
+  assert.equal(isGuardedAdminPath("/sampleplug/shop"), false);
   assert.equal(isGuardedAdminPath("/adminx"), false, "پیشوند باید مرزی باشد");
 });
 

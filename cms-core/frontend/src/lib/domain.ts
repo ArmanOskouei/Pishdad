@@ -15,7 +15,7 @@ const isPaginator = (x: unknown): x is Paginator<never> =>
 
 /**
  * نرمال‌سازی پاسخ لیست: بک‌اند گاهی paginator خام برمی‌گرداند
- * (pages/media/invoices مشتری) و گاهی `{data: paginator}` (central).
+ * (pages/media/invoices مشتری) و گاهی `{data: paginator}`.
  */
 export function asPaginator<T>(json: unknown): Paginator<T> {
   if (isPaginator(json)) return json as Paginator<T>;
@@ -452,15 +452,6 @@ export type ProfileData = {
 export type TwoFactorMethods = {
   totp: { enabled: boolean };
   recovery_codes_remaining: number;
-  /**
-   * J5 — اختیاری شد.
-   *
-   * کلیدِ سخت‌افزاری مفهومِ افزونهٔ مرکزی است، پس از پاسخِ پروفایلِ هسته حذف
-   * شد و به `GET /api/v1/p/central/operator/2fa/hardware` رفت. روی نصبِ بدون
-   * افزونه این کلید **نیست**، و UI باید سطر را پنهان کند نه اینکه
-   * `undefined.length` بدهد.
-   */
-  hardware_keys?: Array<{ id: number; name: string; created_at?: string }>;
   /** دسته UIUX (افزودنی): وضعیت تأیید پیامکی. */
   sms?: { enabled: boolean; phone?: string | null } | null;
 };

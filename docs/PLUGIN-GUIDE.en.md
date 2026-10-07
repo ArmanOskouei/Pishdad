@@ -223,7 +223,7 @@ POST /api/v1/admin/plugins/validate   (or upload directly)
    │         → review_status=pending    │
    └────────────────────────────────────┘
         ↓
-   waiting for operator approval
+   awaiting review
         ↓
    activation → declared permissions are created; routes go live
 ```
@@ -437,7 +437,7 @@ Two install paths:
 
 | Path | User | Risk |
 |---|---|---|
-| **Market** | Normal user | Low — the platform reviewed it |
+| **Market** | Normal user | Low — reviewed by the platform |
 | **Local** | Developer, bespoke plugin | High — untrusted code |
 
 The local path must be **closed** because untrusted code runs on the customer's server.
@@ -462,7 +462,7 @@ confirmation modal with the password  ← not a checkbox
    ↓
 dev_mode = true, expires_at = now() + 8h
    ↓
-recorded in operator_activities
+recorded in the install's activity log
    ↓
 the upload button + guide appear
 ```
@@ -502,17 +502,17 @@ unsafe".
 
 ---
 
-# Part 7 — System plugins and the central theme
+# Part 7 — System plugins
 
-## The difference between three things
+## The difference between two things
 
-| | Normal plugin | System plugin | Central theme |
-|---|---|---|---|
-| Gets `system: true` from the manifest? | ⛔ never | ⛔ never | ⛔ never |
-| Where it comes from | User upload | `system_plugins` allowlist | We write it ourselves |
-| Can be deactivated | ✅ | ⛔ | ⛔ |
-| Can be uninstalled | ✅ | ⛔ | ⛔ |
-| Can live in core folders | ⛔ | ⛔ (unless excepted) | ✅ the only case |
+| | Normal plugin | System plugin |
+|---|---|---|
+| Gets `system: true` from the manifest? | ⛔ never | ⛔ never |
+| Where it comes from | User upload | `system_plugins` allowlist |
+| Can be deactivated | ✅ | ⛔ |
+| Can be uninstalled | ✅ | ⛔ |
+| Can live in core folders | ⛔ | ⛔ (unless excepted) |
 
 ## The security bug phase 0 closed
 
@@ -570,7 +570,7 @@ second migration trail, and it breaks the product promise of "one `docker compos
 
 **⚠️ Remaining limitation:** if a plugin can run `DB::statement('DROP TABLE users')` directly, it
 bypasses all naming rules. The real closure is two PostgreSQL roles — an owner role for
-`migrate`, and an app role whose DDL is limited to `{slug}_*` (K5.7/K5.12). The `PluginDdlConnection`
+`migrate`, and an app role whose DDL is limited to `{slug}_*`. The `PluginDdlConnection`
 and the database guard are in place; the DDL role is provisioned by
 `plugin-ddl:reset-password` / `PLUGIN_DDL_PASSWORD`.
 
@@ -601,9 +601,9 @@ The backend half of several of these already exists (`widgetSchemas()`, `pageTyp
 | Status | Meaning | Who gets it |
 |---|---|---|
 | `unverified` | 🟢 **default** | Any plugin not from the market |
-| `pending` | Awaiting review | Uploaded by a customer |
-| `approved` | Technically approved | An operator approved it |
-| `rejected` | Rejected with a recorded reason | An operator |
+| `pending` | Awaiting review | A locally uploaded plugin |
+| `approved` | Technically approved | A reviewer approved it |
+| `rejected` | Rejected with a recorded reason | A reviewer |
 
 > ⚠️ **The default used to be `approved`** — fail-open. Phase 0 fixed it to `unverified`.
 
@@ -689,8 +689,7 @@ column is part of the plugin row.
 
 ## Data model
 
-`publishers` · `market_items` · `market_versions` · `licenses` · `orders` · `order_items` ·
-`payouts`
+`publishers` · `market_items` · `market_versions` · `licenses`
 
 **Key point:** the signature must be on `market_versions`, not `market_items`. A signature means
 a specific version of the code.
@@ -710,7 +709,7 @@ a specific version of the code.
 taken out of reach by just "removing it from the market" — but a thousand active installs still
 run it and get no notice. `yanked` lets you **push** to active installs.
 
-## Sales model
+## License model
 
 **What is bought:** the right to run the code on N installs. **Not** a WordPress-style license
 key.
@@ -719,7 +718,6 @@ key.
 |---|---|
 | Perpetual, unlimited installs, no phone-home | Simple and honest, but stealable |
 | Perpetual + activation with phone-home | **Brand problem:** blocking a working site due to an outage is indefensible |
-| Subscription | 30% of a small base is not worth the trouble and creates **kill-switch debt** |
 
 **Recommendation:** perpetual license, unlimited installs, no blocking phone-home. **The main
 lever is not price; it is compatibility.** When updates are free as long as the core is alive, a
@@ -731,54 +729,34 @@ developer is incentivized to align with the core's stability.
 GET  /v1/market/publishers              (public trust store)
 POST /v1/market/publishers              (publisher self-registration)
 POST /v1/market/submissions             (upload-to-review, plugins.edit)
-GET  /v1/market/submissions             (review queue, operator)
+GET  /v1/market/submissions             (review queue, reviewer permission)
 POST /v1/market/plugins/{slug}/approve | /reject | /yank | /unyank
 POST /v1/market/plugins/{slug}/install
-POST /v1/market/orders    |  GET /v1/market/orders  |  POST /v1/market/orders/{order}/pay
-GET  /v1/market/licenses  |  GET /v1/market/ledger  |  POST /v1/market/payouts
+GET  /v1/market/licenses
 ```
-
-## About payment
-
-If you want to charge the **customer** in the market, a gateway is **mandatory**. In Iran you
-cannot charge a rial consumer without a licensed PSP — and most importantly, **refunds**. That is
-a project, not a config flag. The v1 path is: sell outside the system + an accrual ledger + monthly
-settlement by manual transfer. Orders are marked `paid` manually.
 
 ---
 
-# Part 12 — Turning the central panel into a plugin
+# Part 12 — What belongs in the core, not in a plugin
 
 ## The rule
 
 > **If removing the plugin would break the ability to use the public site, that file belongs in
 > the core.**
 
-Files that violate this today are tracked in TASKS.md (group K / J). The three things that
-deliberately stay in the core:
-
-| Thing | Why |
-|---|---|
-| `EnsureCentralOperator` | **The guardian's guardian stays in the core.** Inside a plugin, a bad plugin could make itself an operator |
-| Ticket tables + `operatorReply` | Core data. A plugin working on core data is a correct pattern |
-| `PaymentWebhookController` | **Deliberate.** The gateway callback must always be live. The plugin owns the *invoice*, not the *callback route* |
-
-## The heart of the problem
-
-`ClientSubscriptionResolver` did three contradictory things (create a client row from a panel
-*read* path, create a 30-day free subscription, and read the plan). The solution is an interface
-with a harmless default:
+The corollary: a plugin must never become a hard dependency of the public site. When the core
+needs to call into optional behavior, the pattern is a **core-owned interface with a harmless
+default**, and the plugin registers an implementation through `core.service_provider`:
 
 ```
-Core:    interface SubscriptionSource { forUser(User): ?SubscriptionState }
-Default: NullSubscriptionSource → always active, reads no tables
-Central plugin: registers its own implementation via core.service_provider
+Core:    an interface the core defines
+Default: a no-op implementation that reads no tables and changes nothing
+Plugin:  registers its own implementation via core.service_provider
 ```
 
-Then the customer panel no longer depends on installing a plugin. No plugin = the site works,
-just without a subscription — which is exactly right for a public install. The registrable
-interfaces are closed and small: `PaymentGatewayInterface`, `ChabokanClientInterface`,
-`SearchableProvider`, `SubscriptionSource` (`PluginPackageContract::OVERRIDABLE_INTERFACES`).
+No plugin installed = the site still works, with the default. The registrable interfaces are
+closed and small (`PluginPackageContract::OVERRIDABLE_INTERFACES`); the search provider
+(`App\Search\SearchableProvider`) is the canonical example.
 
 ---
 
@@ -818,8 +796,8 @@ interfaces are closed and small: `PaymentGatewayInterface`, `ChabokanClientInter
 
 **Why "fully live" is wrong:** a guide generated from code has no reasons. **Why "fully fixed" is
 wrong:** a fixed guide without an owner lies within three months — the old `DeveloperGuide.tsx`
-had three content errors (old ZIP structure, the removed `system` field, a central key instead of
-a trust store).
+had three content errors (old ZIP structure, the removed `system` field, a single hardcoded key
+instead of a trust store).
 
 ## PDF
 
@@ -849,13 +827,13 @@ means surprising the user.
 | Separation of the trust model | 🟢 live |
 | Package-analysis UI | 🟢 live |
 | Extension points | 1 live, several declared, 2 deferred (see Part 4) |
-| Market API | 🟢 live (submit → review → yank → install → orders/licenses) |
+| Market API | 🟢 live (submit → review → yank → install → licenses) |
 | Per-point `panel.extensions` single shape | 🔵 tracked as `I1-b` |
 
 ## 3. The biggest danger is not building the market
 
 **It is attracting the first 10 developers.** If a developer cannot build and install their first
-plugin in 30 minutes, the market stays empty and the 30% never happens. That is why the guide plus
+plugin in 30 minutes, the market stays empty. That is why the guide plus
 scaffolder must arrive early — see [`DEVELOPER-QUICKSTART.en.md`](DEVELOPER-QUICKSTART.en.md).
 
 ## 4. Three things the UI must state honestly
@@ -884,9 +862,9 @@ This English edition follows the code. Where the Persian original diverges:
    `PluginAutoloader`), and interface overrides are declared via the `core.service_provider`
    extension point. Do not rely on `entry`.
 4. **Permissions key.** Preferred top-level key is `access`; `permissions` is a legacy fallback.
-5. **`hooks` is gone** (K5.5) — the field and its warning no longer exist.
+5. **`hooks` is gone** — the field and its warning no longer exist.
 6. **`admin.settings_schema`** is deprecated; settings are a top-level `settings` key.
-7. **`admin.plugin_tools`** is now `declared_only` (built in K6.2/K3.11), not "not built".
+7. **`admin.plugin_tools`** is now `declared_only` (built), not "not built".
 8. **`requires.core`** is enforced (`CoreRequirementChecker`), closing B25.
 9. **Review default** is `unverified` (fail-open closed in phase 0).
 10. **Rollback** is now release-based (`releases/{version}-{hash}/` + `current`), not a bare

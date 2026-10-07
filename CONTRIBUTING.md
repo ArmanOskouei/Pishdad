@@ -155,7 +155,9 @@ let it write into that plugin's namespace. slugBoundChecks() now rejects
 it at install.
 ```
 
-Reference the task id from `docs/TASKS.md` when the change belongs to one.
+Describe the behaviour change and its rationale in the pull request description. If the change
+belongs to a known bug or milestone, name it in words — this repository does not publish an
+internal task ledger.
 
 ---
 
@@ -307,7 +309,7 @@ let it write into that plugin's namespace. slugBoundChecks() now rejects
 it at install.
 ```
 
-اگر تغییر به تسکی در `docs/TASKS.md` مربوط است، شماره‌اش را بیاورید.
+اگر تغییر به یک باگ یا فاز شناخته‌شده مربوط است، آن را با کلمه نام ببرید.
 
 ## Pull Request
 

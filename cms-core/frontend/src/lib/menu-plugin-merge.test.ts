@@ -59,7 +59,7 @@ test("K6.1: همهٔ ردها هم یعنی بازگشت به منوی هسته�
   const out = mergePluginMenu(
     ADMIN_MENU,
     [
-      { slug: "acme", key: "x", label: "بیرون", href: "/central/x" },
+      { slug: "acme", key: "x", label: "بیرون", href: "/sampleplug/x" },
       { slug: "acme", key: "y", label: "محرم", href: "/admin/y", permission: "plugin:acme:nope" },
     ],
     ALL_PERMS,
@@ -195,7 +195,7 @@ test("K6.1/قاعدهٔ۳: href بیرون از /admin/ حذف می‌شود", (
     "http://evil.com",         // مطلق ⇒ open redirect
     "//evil.com",              // protocol-relative
     "javascript:alert(1)",     // XSS
-    "/central/orders",         // ریشهٔ مرکزی
+    "/sampleplug/orders",         // ریشهٔ مرکزی
     "/orders",                 // بدون ریشه
     "/admin/../x",             // traversal — از پیشوند بیرون می‌زند
     "/adminx",                 // پیشوند دیگر

@@ -43,11 +43,11 @@ test("K6.5 — normalizePluginPages", async (t) => {
   });
 
   await t.test("rejects paths outside /admin/", () => {
-    // بدون این قاعده یک افزونه می‌توانست /central/ را ثبت کند و جای پنل
+    // بدون این قاعده یک افزونه می‌توانست /sampleplug/ را ثبت کند و جای پنل
     // مرکزی بنشیند.
     const out = normalizePluginPages([
-      { slug: "evil", path: "/central/steal" },
-      { slug: "evil", path: "/admin/../central/steal" },
+      { slug: "evil", path: "/sampleplug/steal" },
+      { slug: "evil", path: "/admin/../sampleplug/steal" },
       { slug: "evil", path: "admin/relative" },
     ]);
     assert.deepEqual(out, []);

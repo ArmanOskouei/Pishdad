@@ -256,6 +256,15 @@ const PUBLIC_DOCS = [
   "SECURITY.md",
   "COMPARISON.md",
   "llms.txt",
+  "docs/PLUGIN-GUIDE.md",
+  "docs/PLUGIN-GUIDE.en.md",
+  "docs/PLUGIN-MANIFEST-CONTRACT.md",
+  "docs/PLUGIN-MANIFEST-CONTRACT.en.md",
+  "docs/SEARCH-PLUGIN-CONTRACT.md",
+  "docs/SEARCH-PLUGIN-CONTRACT.en.md",
+  "docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.md",
+  "docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.en.md",
+  "docs/DEVELOPER-QUICKSTART.en.md",
 ];
 
 const REQUIRED = [

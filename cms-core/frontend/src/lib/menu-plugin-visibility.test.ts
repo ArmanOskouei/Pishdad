@@ -45,7 +45,7 @@ test("an item whose plugin is inactive disappears", () => {
 });
 
 test("another plugin being active does not bring it back", () => {
-  const out = filterMenuByPlugins(groups(subItem), new Set(["central"]));
+  const out = filterMenuByPlugins(groups(subItem), new Set(["sampleplug"]));
   assert.deepEqual(keys(out), []);
 });
 

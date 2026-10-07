@@ -466,12 +466,6 @@ function TwoFactorCard({ initial, methods, issuer }: { initial: ProfileData; met
               تعداد کدهای بازیابی باقی‌مانده کم است ({faNum(remaining)}). با تمام‌شدن آن‌ها ورود اضطراری ممکن نیست؛ همین‌حالا کدهای تازه بسازید.
             </Alert>
           ) : null}
-          {/* J5 — کلید سخت‌افزاری دادهٔ افزونهٔ مرکزی است و در پاسخِ پروفایلِ
-              هسته نیست. روی نصبِ بدون افزونه این کلید غایب است، و سطر باید
-              پنهان شود — نه اینکه `undefined.length` بیندازد. */}
-          {methods?.hardware_keys ? (
-            <div className="kv"><span>کلیدهای سخت‌افزاری</span><span>{faNum(methods.hardware_keys.length)}</span></div>
-          ) : null}
         </div>
       ) : null}
 

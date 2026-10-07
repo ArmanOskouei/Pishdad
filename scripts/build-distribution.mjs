@@ -198,7 +198,30 @@ const PUBLIC_ROOT_DOCS = [
   "llms.txt",
 ];
 
-const missingDocs = PUBLIC_ROOT_DOCS.filter((f) => !tracked.includes(f));
+/**
+ * E27 — راهنماهای افزونه در `docs/` هستند، نه ریشه، پس `INCLUDE_ROOTS` آن‌ها را
+ * نمی‌بیند. ولی README و CONTRIBUTING به همین نام‌ها لینک می‌دهند؛ بدون کپی،
+ * بسته ده‌ها لینکِ شکسته به کاربرِ عمومی می‌داد.
+ *
+ * این فهرست عمداً **کوتاه** است: فقط همان چیزی که لینک شده. دفترِ داخلیِ
+ * تسک‌ها (`docs/TASKS.md`) و اسنادِ استقرار منتشر نمی‌شوند، و ارجاعِ
+ * CONTRIBUTING به آن هم حذف شد.
+ */
+const SHIPPED_DOCS = [
+  "docs/PLUGIN-GUIDE.md",
+  "docs/PLUGIN-GUIDE.en.md",
+  "docs/PLUGIN-MANIFEST-CONTRACT.md",
+  "docs/PLUGIN-MANIFEST-CONTRACT.en.md",
+  "docs/SEARCH-PLUGIN-CONTRACT.md",
+  "docs/SEARCH-PLUGIN-CONTRACT.en.md",
+  "docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.md",
+  "docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.en.md",
+  "docs/DEVELOPER-QUICKSTART.en.md",
+];
+
+const PUBLIC_DOCS = [...PUBLIC_ROOT_DOCS, ...SHIPPED_DOCS];
+
+const missingDocs = PUBLIC_DOCS.filter((f) => !tracked.includes(f));
 
 if (missingDocs.length) {
   console.error(`\n✗ public document(s) exist but are NOT tracked — the package would ship without them:`);
@@ -206,11 +229,12 @@ if (missingDocs.length) {
   process.exit(1);
 }
 
-for (const f of PUBLIC_ROOT_DOCS) {
+for (const f of PUBLIC_DOCS) {
+  mkdirSync(dirname(join(OUT, f)), { recursive: true });
   cpSync(resolve(ROOT, f), join(OUT, f));
 }
 
-console.log(`public docs copied: ${PUBLIC_ROOT_DOCS.length}`);
+console.log(`public docs copied: ${PUBLIC_DOCS.length}`);
 
 /* ── ۵. فایل‌های کمکی ─────────────────────────────────────────────────── */
 
@@ -295,7 +319,7 @@ const manifest = {
   copied_files: copied,
   shipped_files: shippedFiles,
   shipped_bytes: shippedBytes,
-  public_docs: PUBLIC_ROOT_DOCS,
+  public_docs: PUBLIC_DOCS,
   excluded: {
     reason: "untracked by design — see scripts/build-distribution.mjs",
     items: [

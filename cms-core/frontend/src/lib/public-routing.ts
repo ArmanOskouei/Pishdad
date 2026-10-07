@@ -24,7 +24,6 @@ export const SITE_PRIMARY_LOCALE_HEADER = "x-site-primary-locale";
 /** پنل و API هرگز زبانِ سایت نمی‌گیرند. */
 const NON_SITE_SEGMENTS = new Set([
   "admin",
-  "central",
   "api",
   "preview",
   "suspended",

@@ -146,8 +146,8 @@ writes into core tables. So declare it.
 
 ## 5. Authentication on plugin routes
 
-> This section came from K7.13, because **moving `operatorReply` into a plugin** revealed it —
-> and it was documented nowhere.
+> This section exists because **moving a stateful handler into a plugin** revealed it — and it
+> was documented nowhere.
 
 ### The core catch-all has no `auth:sanctum`
 
@@ -174,8 +174,8 @@ $request->user()->id
 "please log in" the user sees a meaningless error, and **the plugin author gets no message to fix
 it**.
 
-This really happened in K7.13: the first fixture version had exactly this, and a test that
-"expected 401" got 500.
+This is a real failure mode, not a hypothetical: a fixture handler written exactly like this
+returned 500 where the test expected 401.
 
 ### The contract
 
@@ -196,8 +196,6 @@ And `manifest.api.routes[].middleware` can also declare `auth:sanctum`. **Both l
 | `middleware` in the manifest | Declared protection, readable by a reviewer | Nothing if the author forgets |
 | A check in the handler | Always works | Redundant if both are present |
 
-> Reference: `cms-core/backend/tests/Fixtures/PluginCentral/Http/OperatorReplyController.php`
-
 ### User-facing errors must come from the handler
 
 `PluginRouter` passes these through and does not turn them into 500:
@@ -212,14 +210,14 @@ So if you want your own message, `abort(403, '…')` is enough.
 ## 6. Shared rules
 
 1. All hooks are optional; a manifest without them is valid.
-2. Ed25519 signing and the central review flow are still in place (item 6) — this contract only
+2. Ed25519 signing and the review flow are still in place (item 6) — this contract only
    applies **after activation**.
 3. A plugin's data is shared within a single-site install; `user_id` is only creator/audit
    metadata and is not filtered on read.
 4. A plugin **can read and write** core tables — but it cannot declare them in `db.tables`.
-   K7.13 proved this in practice: the central plugin writes the ticket tables.
+   Working on core data from a plugin is a correct pattern, not a workaround.
 5. **Plugin DDL** runs on a separate role and the new table names are registered in the core
-   registry. The database guard (K5.12) rejects any unregistered name.
+   registry. The database guard rejects any unregistered name.
 
 ---
 
@@ -229,7 +227,7 @@ So if you want your own message, `abort(403, '…')` is enough.
   `PluginPackageContract::PERMISSIONS_FIELD = 'access'`); `permissions` is still read as a
   legacy fallback (`ManifestRegistry::manifestPermissions()`), so the examples above still work.
   New plugins should prefer `access`.
-- **`hooks` is gone.** The `hooks` manifest field and its table/model were removed (K5.5); it is
+- **`hooks` is gone.** The `hooks` manifest field and its table/model were removed; it is
   neither registered nor dispatched. Do not put it in the manifest.
 - **Settings moved.** `admin.settings_schema` under `panel.extensions` is deprecated; use the
   top-level `settings` key instead (`ManifestRegistry::pluginSettingsSchemas()`).

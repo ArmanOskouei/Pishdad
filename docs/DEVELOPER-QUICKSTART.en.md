@@ -233,7 +233,7 @@ Upload analyzes the package, verifies the publisher signature from the trust sto
 
 ```
 POST /api/v1/market/submissions        (multipart form-data, field `file`, requires plugins.edit)
-POST /api/v1/market/plugins/{slug}/approve | /reject   (central operator only)
+POST /api/v1/market/plugins/{slug}/approve | /reject   (reviewer permission)
 ```
 
 Publisher trust store (public): `GET /api/v1/market/publishers`. Approved, non-yanked plugins are

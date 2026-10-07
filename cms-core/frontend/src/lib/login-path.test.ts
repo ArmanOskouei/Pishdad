@@ -54,7 +54,7 @@ test("a similarly-named path does not slip through the exception", () => {
 });
 
 test("unrelated paths are not the login page", () => {
-  for (const p of ["/", "/about", "/search", "/central/login", "/login"]) {
+  for (const p of ["/", "/about", "/search", "/sampleplug/login", "/login"]) {
     assert.equal(isLoginPath(p), false, `${p} نباید صفحهٔ ورود باشد`);
   }
 });
