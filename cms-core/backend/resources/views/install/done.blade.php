@@ -72,10 +72,98 @@
     <p class="hint">{{ __('install.done.admin_pass_note') }}</p>
   @endif
 
-  {{-- E56 — اطلاعاتِ نصبِ فرانت، آمادهٔ کپی تا کاربر دنبالشان نگردد. --}}
+  {{-- E56 + E61 — اطلاعاتِ نصبِ فرانت، آمادهٔ کپی و همراه با دکمهٔ کپی. --}}
   <h4>{{ __('install.done.frontend_title') }}</h4>
   <p class="hint">{{ __('install.done.frontend_lead') }}</p>
-  <pre dir="ltr" style="overflow-x:auto;background:#0f172a;color:#e2e8f0;padding:12px;border-radius:10px;font-size:12px;line-height:1.9;">{{ 'CMS_PUBLIC_API_URL=' . ($apiUrl ?? '') . "\n" . 'CMS_INTERNAL_API_URL=' . ($apiUrl ?? '') . "\n" . 'CMS_SITE_URL=' . $frontend . "\n" . 'CMS_SITE_LOCALES=fa' . "\n" . 'CMS_SITE_PRIMARY_LOCALE=fa' . "\n" . 'REVALIDATE_SECRET=' . ($revalidateSecret ?? '') }}</pre>
+
+  @php
+    /*
+     * متنِ بلوک در یک متغیر ساخته میشود تا یک منبعِ واحد باشد: همان چیزی که
+     * دیده میشود همان چیزی است که کپی میشود، بدونِ خواندنِ دوبارهٔ DOM.
+     */
+    $frontendEnv = implode("\n", [
+      'CMS_PUBLIC_API_URL=' . ($apiUrl ?? ''),
+      'CMS_INTERNAL_API_URL=' . ($apiUrl ?? ''),
+      'CMS_SITE_URL=' . $frontend,
+      'CMS_SITE_LOCALES=fa',
+      'CMS_SITE_PRIMARY_LOCALE=fa',
+      'REVALIDATE_SECRET=' . ($revalidateSecret ?? ''),
+    ]);
+  @endphp
+
+  <style>
+    /*
+     * ⚠️ `dir="ltr"` روی خودِ کادر است، نه فقط روی متن.
+     *
+     * متن لاتین است، پس همیشه چپ‌به‌راست خوانده می‌شود و دکمه باید **سمتِ
+     * راستِ** کادر بماند — در فارسی و انگلیسی هر دو. اگر کادر RTL می‌ماند،
+     * `inset-inline-end` در انگلیسی به سمتِ چپ می‌رفت و دکمه جابه‌جا می‌شد.
+     */
+    .frontend-copy { position: relative; margin-top: 6px; }
+    .frontend-copy pre {
+      margin: 0; padding: 14px 84px 14px 14px;
+      overflow-x: auto; border-radius: 10px;
+      background: #0f172a; color: #e2e8f0;
+      font-size: 12px; line-height: 1.9;
+    }
+    .frontend-copy .copy-btn {
+      position: absolute; top: 8px; inset-inline-end: 8px;
+      border: 1px solid #334155; border-radius: 6px;
+      background: #1e293b; color: #e2e8f0;
+      font-size: 11px; padding: 4px 10px; cursor: pointer;
+    }
+    .frontend-copy .copy-btn:hover { background: #334155; }
+    .frontend-copy .copy-btn.done { background: #065f46; border-color: #065f46; }
+    @media print { .frontend-copy .copy-btn { display: none; } }
+  </style>
+
+  <div class="frontend-copy" dir="ltr">
+    <pre id="frontend-env">{{ $frontendEnv }}</pre>
+    <button type="button" class="copy-btn" id="frontend-copy-btn" data-copied="{{ __('install.done.copied') }}">{{ __('install.done.copy') }}</button>
+  </div>
+
+  <script>
+    (function () {
+      var btn = document.getElementById('frontend-copy-btn');
+      var src = document.getElementById('frontend-env');
+      if (!btn || !src) return;
+
+      btn.addEventListener('click', function () {
+        var text = src.textContent || '';
+        var label = btn.textContent;
+        var flash = function () {
+          btn.textContent = btn.getAttribute('data-copied') || label;
+          btn.classList.add('done');
+          window.setTimeout(function () { btn.textContent = label; btn.classList.remove('done'); }, 1600);
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(flash, function () { legacy(text, flash); });
+        } else {
+          legacy(text, flash);
+        }
+      });
+
+      /*
+       * کلیپ‌بوردِ مرورگر در بسترِ ناامن (http روی دامنهٔ غیرِ localhost) یا بدونِ
+       * اجازه کار نمی‌کند. اینجا کاربر دارد نصب می‌کند؛ نباید دستش خالی بماند،
+       * پس راهِ قدیمی را هم می‌رویم.
+       */
+      function legacy(text, flash) {
+        var area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        try { document.execCommand('copy'); } catch (e) { /* بی‌صدا: دکمه وضعیت را نشان می‌دهد */ }
+        document.body.removeChild(area);
+        flash();
+      }
+    })();
+  </script>
+
   <p class="hint">{{ __('install.done.frontend_setup_hint', ['url' => $frontend.'/setup']) }}</p>
 
   <div class="recap-links">

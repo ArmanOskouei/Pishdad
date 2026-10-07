@@ -477,6 +477,8 @@ return [
         'submit' => 'Finish installation',
     ],
     'done' => [
+        'copy' => 'Copy',
+        'copied' => 'Copied',
         'expiry_title' => 'This page holds its information for :hours hours, then it is deleted automatically.',
         'expiry_body' => 'The admin password and the database details are not kept for security. Save this page as a PDF now, or copy the values somewhere safe.',
         'pdf_body' => 'The print dialog opens by itself - choose Save as PDF in it.',

@@ -142,7 +142,7 @@
 
   <div class="conn-box">
     <label class="f" for="g-conn">{{ $g('gen_conn_title') }}</label>
-    <div class="cmd-wrap">
+    <div class="cmd-wrap" dir="ltr">
       <code class="cmd" id="g-conn" dir="ltr">{{ $connStr }}</code>
       <button type="button" class="copy-btn" data-copy="#g-conn">{{ $g('gen_copy') }}</button>
     </div>
@@ -210,7 +210,7 @@
         <li><b>{{ $g('win.s1t') }}</b><p>{{ $g('win.s1h') }}</p></li>
         <li><b>{{ $g('win.s2t') }}</b><p>{{ $g('win.s2h') }}</p></li>
         <li><b>{{ $g('win.s3t') }}</b><p>{{ $g('win.s3h') }}</p>
-          <div class="cmd-wrap">
+          <div class="cmd-wrap" dir="ltr">
             <code class="cmd" data-tpl="{{ $tplSql }}">{{ $fill($tplSql) }}</code>
             <button type="button" class="copy-btn" data-copy-closest>{{ $g('gen_copy') }}</button>
           </div>
@@ -242,7 +242,7 @@
           <code class="cmd">sudo -u postgres psql</code>
           <p class="note">{{ $g('linux.s2h') }}</p></li>
         <li><b>{{ $g('linux.s3t') }}</b>
-          <div class="cmd-wrap">
+          <div class="cmd-wrap" dir="ltr">
             <code class="cmd" data-tpl="{{ $tplSql }}">{{ $fill($tplSql) }}</code>
             <button type="button" class="copy-btn" data-copy-closest>{{ $g('gen_copy') }}</button>
           </div>
@@ -272,7 +272,7 @@ brew services start postgresql@16</code>
           <code class="cmd">psql postgres</code>
           <p class="note">{{ $g('mac.s2h') }}</p></li>
         <li><b>{{ $g('mac.s3t') }}</b>
-          <div class="cmd-wrap">
+          <div class="cmd-wrap" dir="ltr">
             <code class="cmd" data-tpl="{{ $tplSql }}">{{ $fill($tplSql) }}</code>
             <button type="button" class="copy-btn" data-copy-closest>{{ $g('gen_copy') }}</button>
           </div>
@@ -294,7 +294,7 @@ brew services start postgresql@16</code>
     <div class="body">
       <ol class="steps">
         <li><b>{{ $g('docker.s1t') }}</b><p>{{ $g('docker.s1h') }}</p>
-          <div class="cmd-wrap">
+          <div class="cmd-wrap" dir="ltr">
             <code class="cmd" data-tpl="{{ $tplDocker }}">{{ $fill($tplDocker) }}</code>
             <button type="button" class="copy-btn" data-copy-closest>{{ $g('gen_copy') }}</button>
           </div>
@@ -322,7 +322,7 @@ brew services start postgresql@16</code>
       <ol class="steps">
         <li><b>{{ $g('cloud.s1t') }}</b><p>{{ $g('cloud.s1h') }}</p></li>
         <li><b>{{ $g('cloud.s2t') }}</b><p>{{ $g('cloud.s2h') }}</p>
-          <div class="cmd-wrap">
+          <div class="cmd-wrap" dir="ltr">
             <code class="cmd" data-conn="1">{{ $connStr }}</code>
             <button type="button" class="copy-btn" data-copy-closest>{{ $g('gen_copy') }}</button>
           </div>
@@ -336,7 +336,7 @@ brew services start postgresql@16</code>
           </table>
           <div class="warnbox">{{ $g('cloud.warn') }}</div></li>
         <li><b>{{ $g('remote_test') }}</b><p>{{ $g('remote_test_lead') }}</p>
-          <div class="cmd-wrap">
+          <div class="cmd-wrap" dir="ltr">
             <code class="cmd" data-tpl="{{ $tplTest }}">{{ $fill($tplTest) }}</code>
             <button type="button" class="copy-btn" data-copy-closest>{{ $g('gen_copy') }}</button>
           </div></li>
@@ -352,7 +352,7 @@ brew services start postgresql@16</code>
       <ol class="steps">
         <li><b>{{ __('install.guides.remote_diff_1') }}</b>
           <p>{{ $g('remote_diff_2') }}</p>
-          <div class="cmd-wrap">
+          <div class="cmd-wrap" dir="ltr">
             <code class="cmd" data-tpl="{{ $tplVerify }}">{{ $fill($tplVerify) }}</code>
             <button type="button" class="copy-btn" data-copy-closest>{{ $g('gen_copy') }}</button>
           </div></li>
@@ -377,7 +377,7 @@ brew services start postgresql@16</code>
     <summary>{{ $g('gen_verify_title') }} <span class="tag">{{ $g('gen_live_badge') }}</span></summary>
     <div class="body">
       <p>{{ $g('gen_verify_lead') }}</p>
-      <div class="cmd-wrap">
+      <div class="cmd-wrap" dir="ltr">
         <code class="cmd" data-tpl="{{ $tplVerify }}">{{ $fill($tplVerify) }}</code>
         <button type="button" class="copy-btn" data-copy-closest>{{ $g('gen_copy') }}</button>
       </div>
