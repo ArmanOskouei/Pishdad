@@ -504,7 +504,16 @@ export const REVIEW_FA: Record<ReviewStatus, string> = {
 
 /* ── هدر/فوتر + بلوک‌ها (۱.۱۱ / ۱.۱۲) ── */
 
-export type WidgetValue = { type: string; settings: Record<string, unknown> };
+export type WidgetValue = {
+  type: string;
+  settings: Record<string, unknown>;
+  /**
+   * E66 — جای ویجت در فوتر: غایب/`"grid"` = در ستون‌ها (رفتارِ قبلی)،
+   * `"above"` = تمام‌عرض بالای ستون‌ها، `"below"` = تمام‌عرض پایینِ ستون‌ها.
+   * در هدر بی‌معناست و بک‌اند هم فقط برای فوتر ذخیره‌اش می‌کند.
+   */
+  place?: "above" | "grid" | "below" | null;
+};
 
 export type LayoutData = { widgets: WidgetValue[]; layout: Record<string, unknown> };
 

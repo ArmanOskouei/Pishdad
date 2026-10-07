@@ -67,6 +67,59 @@ class LayoutsTest extends TestCase
             ->assertNotFound();
     }
 
+    /**
+     * E66 — ناحیهٔ ویجتِ فوتر (بالاتر/پایین‌تر از ستون‌ها) ذخیره می‌شود و از
+     * کرومِ عمومی هم به فرانت می‌رسد. بدونِ این، انتخابِ کاربر فقط در پنل
+     * می‌ماند و سایت همان ترتیبِ قدیمی را رندر می‌کند.
+     */
+    public function test_footer_widget_place_roundtrips_and_reaches_public_chrome(): void
+    {
+        $user = $this->user();
+        $auth = $this->actingAs($user, 'sanctum');
+
+        $auth->putJson('/api/v1/admin/layouts/footer', [
+            'widgets' => [
+                ['type' => 'about', 'settings' => [], 'place' => 'above'],
+                ['type' => 'links', 'settings' => ['links' => []]],
+                ['type' => 'newsletter', 'settings' => [], 'place' => 'below'],
+                ['type' => 'copyright', 'settings' => []],
+            ],
+            'layout' => ['columns' => 2],
+        ])->assertOk()
+            ->assertJsonPath('data.widgets.0.place', 'above')
+            ->assertJsonPath('data.widgets.1.place', null)
+            ->assertJsonPath('data.widgets.2.place', 'below');
+
+        // `grid` صریح نباید ذخیره شود: دادهٔ ویجت‌های داخلِ ستون‌ها باید عیناً
+        // همان شکلِ قبلی بماند (سازگاری عقب‌رو).
+        $auth->putJson('/api/v1/admin/layouts/footer', [
+            'widgets' => [['type' => 'about', 'settings' => [], 'place' => 'grid']],
+        ])->assertOk()->assertJsonPath('data.widgets.0.place', null);
+
+        // و کرومِ عمومی (بدون احراز هویت) همان ناحیه را می‌دهد.
+        $auth->putJson('/api/v1/admin/layouts/footer', [
+            'widgets' => [
+                ['type' => 'about', 'settings' => [], 'place' => 'above'],
+                ['type' => 'copyright', 'settings' => []],
+            ],
+            'layout' => ['columns' => 1],
+        ])->assertOk();
+
+        $this->getJson('/api/v1/site/chrome')->assertOk()
+            ->assertJsonPath('data.footer.widgets.0.place', 'above')
+            ->assertJsonPath('data.footer.widgets.1.place', null);
+    }
+
+    /** E66 — ناحیهٔ ناشناس باید رد شود، نه بی‌صدا به «ستون‌ها» فروبیفتد. */
+    public function test_footer_rejects_unknown_place(): void
+    {
+        $user = $this->user();
+
+        $this->actingAs($user, 'sanctum')->putJson('/api/v1/admin/layouts/footer', [
+            'widgets' => [['type' => 'about', 'settings' => [], 'place' => 'middle']],
+        ])->assertStatus(422);
+    }
+
     public function test_page_types_list_and_blocks_roundtrip(): void
     {
         $user = $this->user();

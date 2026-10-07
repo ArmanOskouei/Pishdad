@@ -1,4 +1,6 @@
 import { SOCIAL_FA, type ChromeLinkItem, type SocialItem, type WidgetValue } from "@/lib/domain";
+// E66 — چیدمانِ فوتر (بالاتر/ستون‌ها/پایین‌تر) یک منطقِ مشترک با بومِ پنل دارد.
+import { distributeFooter, footerColumnCount, interleaveColumns } from "@/lib/footer-layout";
 // F0.2: ویجت CTA و آیتم‌های فوتر/ناوبری `href` می‌دهند و تا امروز هیچ
 // sanitize‌ای نداشتند ⇒ `javascript:` در هدر *همهٔ صفحات* سایت زنده بود.
 // منبع حقیقت سمت سرور `App\Validation\SafeUrl` است؛ این لایه دفاع عمقی برای
@@ -267,26 +269,33 @@ export function SiteFooter({
   diagnostics?: boolean;
   locale?: PublicLocale;
 }) {
-  // گرید واقعی ستون‌ها: هر ویجت links یک ستون (به ترتیب، راست‌به‌چپ)؛
-  // تعداد = footer.layout.columns وگرنه تعداد واقعی (۱ تا ۴) — همان قاعده بک‌اند.
+  // E66 — سه ناحیه: بالاتر از ستون‌ها، ستون‌ها، پایین‌تر از ستون‌ها.
+  // همین ماژول در بومِ پنل هم مصرف می‌شود تا ترتیبِ پنل و سایت یکی بماند.
   const widgets = chrome?.footer.widgets ?? [];
   const linksCount = widgets.filter((w) => w.type === "links").length;
   const rawCols = (chrome?.footer.layout as Record<string, unknown> | undefined)?.columns;
-  const cols =
-    typeof rawCols === "number" && Number.isInteger(rawCols) && rawCols >= 1 && rawCols <= 4
-      ? rawCols
-      : Math.max(1, Math.min(4, linksCount === 0 ? 1 : linksCount));
+  const cols = footerColumnCount(rawCols, linksCount);
+  const zones = distributeFooter(widgets, cols);
+
+  const fullWidth = (w: WidgetValue, key: string) => (
+    <div key={key} style={{ gridColumn: "1 / -1" }}>
+      <ChromeWidget w={w} chrome={chrome} diagnostics={diagnostics} locale={locale} />
+    </div>
+  );
+
   return (
     <footer className="site-footer">
       <div
         className="site-footer-inner"
         style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
       >
-        {widgets.map((w, i) => (
-          <div key={i} style={w.type === "copyright" ? { gridColumn: "1 / -1" } : undefined}>
+        {zones.above.map((w, i) => fullWidth(w, `above-${i}`))}
+        {interleaveColumns(zones.columns).map((w, i) => (
+          <div key={`grid-${i}`}>
             <ChromeWidget w={w} chrome={chrome} diagnostics={diagnostics} locale={locale} />
           </div>
         ))}
+        {zones.below.map((w, i) => fullWidth(w, `below-${i}`))}
         <Socials socials={chrome?.socials ?? []} locale={locale} />
       </div>
     </footer>

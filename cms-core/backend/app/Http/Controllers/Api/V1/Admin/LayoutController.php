@@ -59,6 +59,9 @@ class LayoutController extends Controller
             'widgets' => 'required|array|max:30',
             'widgets.*.type' => "required|string|in:{$allowed}",
             'widgets.*.settings' => 'nullable|array',
+            // E66 — ناحیهٔ ویجتِ فوتر (بالاتر از ستون‌ها / پایین‌تر). `grid`
+            // مقدارِ پیش‌فرض است و صریح هم پذیرفته می‌شود.
+            'widgets.*.place' => 'nullable|string|in:above,grid,below',
             'layout' => 'nullable|array',
         ], [
             'widgets.required' => 'لیست ویجت‌ها الزامی است.',
@@ -93,15 +96,27 @@ class LayoutController extends Controller
         }
 
         $data = [
-            'widgets' => collect($validated['widgets'])->map(fn (array $w) => [
-                'type' => $w['type'],
-                // ویجت logo ساده‌سازی شد: لوگو همیشه از تنظیمات سایت + سایز با
-                // قالب است؛ کلیدهای قدیمی media_id/size/media_url ذخیره‌شده
-                // سازگار عقب‌رو نادیده گرفته می‌شوند (نه خطا).
-                'settings' => $area === 'header' && $w['type'] === 'logo'
-                    ? self::sanitizeLogoSettings($w['settings'] ?? [])
-                    : ($w['settings'] ?? []),
-            ])->values()->all(),
+            'widgets' => collect($validated['widgets'])->map(function (array $w) use ($area): array {
+                $widget = [
+                    'type' => $w['type'],
+                    // ویجت logo ساده‌سازی شد: لوگو همیشه از تنظیمات سایت + سایز با
+                    // قالب است؛ کلیدهای قدیمی media_id/size/media_url ذخیره‌شده
+                    // سازگار عقب‌رو نادیده گرفته می‌شوند (نه خطا).
+                    'settings' => $area === 'header' && $w['type'] === 'logo'
+                        ? self::sanitizeLogoSettings($w['settings'] ?? [])
+                        : ($w['settings'] ?? []),
+                ];
+
+                // E66 — ناحیهٔ تمام‌عرضِ فوتر. `grid` صریح ذخیره **نمی‌شود** تا
+                // دادهٔ ویجت‌های داخلِ ستون‌ها عیناً همان شکلِ قبلی بماند.
+                // برای هدر بی‌معناست، پس هرگز ذخیره نمی‌شود.
+                $place = $w['place'] ?? null;
+                if ($area === 'footer' && in_array($place, ['above', 'below'], true)) {
+                    $widget['place'] = $place;
+                }
+
+                return $widget;
+            })->values()->all(),
             'layout' => $validated['layout'] ?? [],
         ];
 

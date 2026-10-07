@@ -14,6 +14,14 @@ import { localRevalidate } from "@/lib/local-revalidate";
 import type { SiteChrome } from "@/lib/site";
 import { faNum } from "@/lib/fa";
 import type { ChromeLinkItem, LayoutData, WidgetSchema, WidgetValue } from "@/lib/domain";
+// E66 — منطقِ مشترکِ نواحیِ فوتر (بالاتر/ستون‌ها/پایین‌تر) با رندرِ سایتِ عمومی.
+import {
+  distributeFooter,
+  flattenFooter,
+  footerColumnCount,
+  type FooterDropTarget,
+  type FooterZones,
+} from "@/lib/footer-layout";
 
 type Area = "header" | "footer";
 type WItem = WidgetValue & { id: string };
@@ -37,6 +45,8 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
   // دسته UIUX (افزودنی): سوییچ پیش‌نمایش دسکتاپ/موبایل.
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const [previewLayerOpen, setPreviewLayerOpen] = useState(true);
+  // E66 — نوعِ ویجتی که کاربر از پالتِ فوتر زده و منتظرِ انتخابِ مقصد است.
+  const [addingFooterType, setAddingFooterType] = useState<string | null>(null);
   // ستون‌بندی فوتر: layout.columns (۱ تا ۴ یا خالی = خودکار از تعداد ستون‌ها).
   const [layouts, setLayouts] = useState<Record<Area, Record<string, unknown>>>({
     header: initial.header.layout ?? {},
@@ -67,9 +77,34 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
 
   const move = (from: number, to: number) => moveInArea(area, from, to);
 
-  const add = (targetArea: Area, type: string) => {
+  /**
+   * E66 — افزودنِ ویجت. در **فوتر** می‌توان مقصد را هم داد (بالاتر از ستون‌ها،
+   * ستونِ مشخص، پایین‌تر از ستون‌ها)؛ بدونِ مقصد رفتارِ قبلی است (انتهای لیست).
+   */
+  const add = (targetArea: Area, type: string, drop?: FooterDropTarget) => {
     const sequence = idSequence.current++;
-    setItems((prev) => ({ ...prev, [targetArea]: [...prev[targetArea], { id: nextWidgetId(targetArea, sequence), type, settings: {} }] }));
+    const item: WItem = { id: nextWidgetId(targetArea, sequence), type, settings: {} };
+    setItems((prev) => {
+      const list = [...prev[targetArea], item];
+      if (targetArea !== "footer" || !drop) return { ...prev, [targetArea]: list };
+
+      const cols = footerColumnCount(layouts.footer?.columns, list.filter((w) => w.type === "links").length);
+      const zones = distributeFooter(list, cols);
+      // ویجتِ تازه اول در ناحیهٔ پیش‌فرضش می‌نشیند؛ از همان‌جا برمی‌داریم و به مقصد می‌بریم.
+      zones.above = zones.above.filter((w) => w.id !== item.id);
+      zones.below = zones.below.filter((w) => w.id !== item.id);
+      zones.columns = zones.columns.map((column) => column.filter((w) => w.id !== item.id));
+
+      if (drop.zone === "column") {
+        const target = Math.max(0, Math.min(cols - 1, drop.column));
+        zones.columns[target]!.push({ ...item, place: undefined });
+      } else {
+        const zone = drop.zone === "above" ? zones.above : zones.below;
+        zone.push({ ...item, place: drop.zone });
+      }
+
+      return { ...prev, footer: flattenFooter(zones) };
+    });
   };
 
   const remove = (id: string) =>
@@ -78,7 +113,13 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
   const save = async () => {
     setBusy(true);
     try {
-      const clean = items[area].map(({ type, settings }) => ({ type, settings }));
+      // E66 — `place` فقط برای فوتر معنا دارد؛ برای ویجت‌های داخلِ ستون‌ها فرستاده
+      // نمی‌شود تا دادهٔ ذخیره‌شده همان شکلِ قبلی بماند.
+      const clean = items[area].map(({ type, settings, place }) => ({
+        type,
+        settings,
+        ...(area === "footer" && place ? { place } : null),
+      }));
       await authed(`/v1/admin/layouts/${area}`, { method: "PUT", body: { widgets: clean, layout: layouts[area] } });
       await localRevalidate(["site-chrome", "pages"]);
       toast(area === "header" ? "چیدمان هدر ذخیره شد." : "چیدمان فوتر ذخیره شد.", "ok");
@@ -91,70 +132,73 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
   };
 
   const list = items[area];
-  // ستون‌های فوتر به ترتیب (راست‌به‌چپ) + ستون مؤثر برای پیش‌نمایش زنده.
-  const footerCols = items.footer.filter((w) => w.type === "links");
-  const footerColumns = effectiveColumns(layouts.footer?.columns, footerCols.length);
-  const footerGridWidgets = items.footer.filter((w) => w.type !== "copyright");
-  const footerColumnItems = Array.from({ length: footerColumns }, (_, columnIndex) =>
-    footerGridWidgets.filter((_, index) => index % footerColumns === columnIndex),
+  // E66 — ستون‌ها و دو ناحیهٔ تمام‌عرض، از یک منبعِ مشترک با رندرِ سایتِ عمومی.
+  const footerColumns = footerColumnCount(
+    layouts.footer?.columns,
+    items.footer.filter((w) => w.type === "links").length,
   );
-  const footerFullWidthItems = items.footer.filter((w) => w.type === "copyright");
+  const footerZones = distributeFooter(items.footer, footerColumns);
+  const footerColumnItems = footerZones.columns;
+  const footerAboveItems = footerZones.above;
+  const footerBelowItems = footerZones.below;
+
+  /**
+   * همهٔ تغییرهای فوتر از همین یک مسیر می‌گذرند: نواحی را می‌سازیم، دست می‌بریم،
+   * و با `flattenFooter` برمی‌گردانیم. نتیجه: آرایهٔ ذخیره‌شده **همیشه** با
+   * ترتیبِ DOM یکی است (لایهٔ ویرایشِ پیش‌نمایش بر ایندکس حساب می‌کند).
+   */
+  const updateFooterZones = (mutate: (zones: FooterZones<WItem>, cols: number) => void) => {
+    setItems((prev) => {
+      const cols = footerColumnCount(layouts.footer?.columns, prev.footer.filter((w) => w.type === "links").length);
+      const zones = distributeFooter(prev.footer, cols);
+      mutate(zones, cols);
+      return { ...prev, footer: flattenFooter(zones) };
+    });
+  };
+
+  /** جابه‌جایی درونِ یک ناحیهٔ تمام‌عرض (بالاتر/پایین‌تر). */
+  const moveFooterZoneItem = (zone: "above" | "below", from: number, to: number) => {
+    if (from === to) return;
+    updateFooterZones((zones) => {
+      const target = zone === "above" ? zones.above : zones.below;
+      const [moved] = target.splice(from, 1);
+      if (!moved) return;
+      target.splice(Math.max(0, Math.min(to, target.length)), 0, moved);
+    });
+  };
+
+  /** برداشتنِ ویجت از هر ناحیه‌ای (برای انتقال یا حذف). */
+  const takeFooterWidget = (zones: FooterZones<WItem>, id: string): WItem | undefined => {
+    for (const column of zones.columns) {
+      const index = column.findIndex((w) => w.id === id);
+      if (index >= 0) return column.splice(index, 1)[0];
+    }
+    for (const zone of [zones.above, zones.below]) {
+      const index = zone.findIndex((w) => w.id === id);
+      if (index >= 0) return zone.splice(index, 1)[0];
+    }
+
+    return undefined;
+  };
 
   const moveFooterColumnItem = (columnIndex: number, from: number, to: number) => {
-    const column = footerColumnItems[columnIndex] ?? [];
-    const source = column[from];
-    const target = column[to];
-    if (!source || !target || from === to) return;
-    setItems((prev) => {
-      const currentColumnItems = prev.footer
-        .filter((w) => w.type !== "copyright")
-        .filter((_, index) => index % footerColumns === columnIndex);
-      if (!currentColumnItems.some((w) => w.id === source.id) || !currentColumnItems.some((w) => w.id === target.id)) return prev;
-      const next = [...prev.footer];
-      const fromIndex = next.findIndex((w) => w.id === source.id);
-      const targetIndexBefore = next.findIndex((w) => w.id === target.id);
-      if (fromIndex < 0 || targetIndexBefore < 0) return prev;
-      const [moved] = next.splice(fromIndex, 1);
-      if (!moved) return prev;
-      const targetIndex = next.findIndex((w) => w.id === target.id);
-      const insertionIndex = fromIndex < targetIndexBefore ? targetIndex + 1 : targetIndex;
-      next.splice(insertionIndex, 0, moved);
-      return { ...prev, footer: next };
+    if (from === to) return;
+    updateFooterZones((zones) => {
+      const column = zones.columns[columnIndex];
+      if (!column) return;
+      const [moved] = column.splice(from, 1);
+      if (!moved) return;
+      column.splice(Math.max(0, Math.min(to, column.length)), 0, moved);
     });
   };
 
   const transferFooterWidget = (id: string, targetColumn: number) => {
     if (area !== "footer" || !Number.isInteger(targetColumn)) return;
-    const target = Math.max(0, Math.min(footerColumns - 1, targetColumn));
-    setItems((prev) => {
-      const next = [...prev.footer];
-      const fromIndex = next.findIndex((w) => w.id === id);
-      if (fromIndex < 0) return prev;
-      const [moved] = next.splice(fromIndex, 1);
-      if (!moved) return prev;
-      const targetItems = next.filter((w, index) => w.type !== "copyright" && index % footerColumns === target);
-      const targetId = targetItems[0]?.id;
-      const targetIndex = targetId ? next.findIndex((w) => w.id === targetId) : next.length;
-      next.splice(targetIndex < 0 ? next.length : targetIndex, 0, moved);
-      return { ...prev, footer: next };
-    });
-  };
-
-  const moveFooterFullWidthItem = (from: number, to: number) => {
-    const source = footerFullWidthItems[from];
-    const target = footerFullWidthItems[to];
-    if (!source || !target || from === to) return;
-    setItems((prev) => {
-      const next = [...prev.footer];
-      const fromIndex = next.findIndex((w) => w.id === source.id);
-      const targetIndexBefore = next.findIndex((w) => w.id === target.id);
-      if (fromIndex < 0 || targetIndexBefore < 0) return prev;
-      const [moved] = next.splice(fromIndex, 1);
-      if (!moved) return prev;
-      const targetIndex = next.findIndex((w) => w.id === target.id);
-      const insertionIndex = fromIndex < targetIndexBefore ? targetIndex + 1 : targetIndex;
-      next.splice(insertionIndex, 0, moved);
-      return { ...prev, footer: next };
+    updateFooterZones((zones, cols) => {
+      const moved = takeFooterWidget(zones, id);
+      if (!moved) return;
+      const target = Math.max(0, Math.min(cols - 1, targetColumn));
+      zones.columns[target]!.push({ ...moved, place: undefined });
     });
   };
 
@@ -295,10 +339,19 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
       <div className="grid c2" style={{ alignItems: "start" }}>
         <div className="card card-pad">
           <div className="card-title">پالت ویجت‌ها ({area === "header" ? "هدر" : "فوتر"})</div>
-          <p className="card-sub">برای افزودن به بوم کلیک کنید.</p>
+          <p className="card-sub">
+            {area === "footer"
+              ? "برای افزودن کلیک کنید؛ بعد می‌پرسد در ستون کدام یا بالاتر/پایین‌تر از ستون‌ها."
+              : "برای افزودن به بوم کلیک کنید."}
+          </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {palette.map((p) => (
-              <button key={p.type} className="btn btn-ghost btn-sm" title={p.description ?? p.type} onClick={() => add(area, p.type)}>
+              <button
+                key={p.type}
+                className="btn btn-ghost btn-sm"
+                title={p.description ?? p.type}
+                onClick={() => (area === "footer" ? setAddingFooterType(p.type) : add(area, p.type))}
+              >
                 ＋                 {p.title}
                 {p.source !== "core" ? <Badge tone="violet">پلاگین</Badge> : null}
               </button>
@@ -336,6 +389,19 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
                 </select>
               </div>
               {items.footer.length === 0 ? <p className="layout-footer-empty">بوم فوتر خالی است — از پالت ویجت اضافه کنید.</p> : null}
+              {footerAboveItems.length > 0 ? (
+                <section className="layout-footer-full-width" aria-label="ویجت‌های بالاتر از ستون‌ها">
+                  <div className="layout-footer-column-head">
+                    <strong>بالاتر از ستون‌ها</strong>
+                    <span>تمام‌عرض</span>
+                  </div>
+                  <DragDropList
+                    items={footerAboveItems}
+                    onMove={(from, to) => moveFooterZoneItem("above", from, to)}
+                    render={(w, i, helpers) => renderWidgetRow(w, i, helpers)}
+                  />
+                </section>
+              ) : null}
               <div
                 className="layout-footer-column-grid"
                 dir="rtl"
@@ -360,20 +426,20 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
                   </section>
                 ))}
               </div>
-              {footerFullWidthItems.length > 0 ? (
-                <section className="layout-footer-full-width" aria-label="ویجت‌های تمام‌عرض فوتر">
+              {footerBelowItems.length > 0 ? (
+                <section className="layout-footer-full-width" aria-label="ویجت‌های پایین‌تر از ستون‌ها">
                   <div className="layout-footer-column-head">
-                    <strong>تمام‌عرض</strong>
-                    <span>مانند کپی‌رایت</span>
+                    <strong>پایین‌تر از ستون‌ها</strong>
+                    <span>تمام‌عرض — مانند کپی‌رایت</span>
                   </div>
                   <DragDropList
-                    items={footerFullWidthItems}
-                    onMove={moveFooterFullWidthItem}
+                    items={footerBelowItems}
+                    onMove={(from, to) => moveFooterZoneItem("below", from, to)}
                     render={(w, i, helpers) => renderWidgetRow(w, i, helpers)}
                   />
                 </section>
               ) : null}
-              <p className="layout-footer-hint">هر ستون راست‌به‌چپ نمایش داده می‌شود؛ برای جابه‌جایی بین ستون‌ها، «انتقال به ستون» را تغییر دهید.</p>
+              <p className="layout-footer-hint">هر ستون راست‌به‌چپ نمایش داده می‌شود؛ برای جابه‌جایی بین ستون‌ها، «انتقال به ستون» را تغییر دهید. برای افزودن به نواحیِ تمام‌عرض، از پالت گزینهٔ «بالاتر/پایین‌تر از ستون‌ها» را بزنید.</p>
             </div>
           ) : null}
           {area === "header" ? (
@@ -449,7 +515,7 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
                 onMove={(from, to) => moveInArea("footer", from, to)}
                 onRemove={remove}
                 onEdit={setEditing}
-                onAdd={(type) => add("footer", type)}
+                onAdd={(type) => setAddingFooterType(type)}
                 enrichWidget={enrichWidget}
               />
             ) : null}
@@ -471,6 +537,18 @@ export function LayoutsClient({ initial, tab, schemas, chromeBase }: { initial: 
             setEditing(null);
           }}
           onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      {addingFooterType ? (
+        <FooterAddModal
+          title={paletteFor("footer", schemas, items.footer).find((p) => p.type === addingFooterType)?.title ?? addingFooterType}
+          columns={footerColumns}
+          onPick={(target) => {
+            add("footer", addingFooterType, target);
+            setAddingFooterType(null);
+          }}
+          onClose={() => setAddingFooterType(null)}
         />
       ) : null}
     </div>
@@ -582,10 +660,60 @@ function nextWidgetId(area: Area, sequence: number): string {
   return `${area}-${random}`;
 }
 
-/** ستون مؤثر فوتر — همان قاعده بک‌اند (LinkItems): columns معتبر ۱ تا ۴ وگرنه تعداد واقعی ستون‌ها. */
-function effectiveColumns(raw: unknown, linksCount: number): number {
-  if (typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= 4) return raw;
-  return Math.max(1, Math.min(4, linksCount === 0 ? 1 : linksCount));
+/**
+ * E66 — پنجرهٔ کوچکِ «کجا اضافه شود؟» برای فوتر.
+ *
+ * ستون‌ها بر اساسِ تعدادِ **فعال** ساخته می‌شوند (همان عددی که در بوم و سایت
+ * رندر می‌شود) و دو گزینهٔ تمام‌عرض هم کنارش‌اند. بدونِ این پنجره، کاربر جای
+ * ویجتِ تازه را انتخاب نمی‌کرد و همهٔ افزودنی‌ها در ستون‌ها می‌افتادند.
+ *
+ * تعدادِ ستونِ مؤثر از `lib/footer-layout.ts::footerColumnCount` می‌آید تا با
+ * بک‌اند و رندرِ سایتِ عمومی **یک** قاعده بماند.
+ */
+function FooterAddModal({
+  title,
+  columns,
+  onPick,
+  onClose,
+}: {
+  title: string;
+  columns: number;
+  onPick: (target: FooterDropTarget) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal title={`افزودن «${title}»`} onClose={onClose}>
+      <p style={{ fontSize: 13, color: "var(--text-muted)" }}>کجا اضافه شود؟</p>
+      <div style={{ display: "grid", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, marginBlockEnd: 6 }}>در ستون‌ها</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {Array.from({ length: columns }, (_, index) => (
+              <button
+                key={index}
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => onPick({ zone: "column", column: index })}
+              >
+                ستون {faNum(index + 1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, marginBlockEnd: 6 }}>تمام‌عرض</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => onPick({ zone: "above" })}>
+              ⬆ بالاتر از ستون‌ها
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => onPick({ zone: "below" })}>
+              ⬇ پایین‌تر از ستون‌ها
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 /** پالت ناحیه از schema بک‌اند (+ typeهای موجود در چیدمان که در schema نیستند). */
