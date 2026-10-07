@@ -13,9 +13,10 @@ RUN npm ci || npm install
 FROM deps AS build
 WORKDIR /app
 COPY . .
-# `NEXT_PUBLIC_*` is inlined into the client bundle at build time, so it has to be
-# known here rather than at run time. It defaults to the port the backend compose
-# publishes; override it if you publish the API somewhere else.
+# `NEXT_PUBLIC_*` is only a BUILD-TIME FALLBACK now. The public values are
+# injected at request time (`src/lib/runtime-config.ts`), so one image serves any
+# API address: run the container, open `/setup`, enter the backend URL. Set this
+# arg only if you want a pre-filled default.
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080/api
 ARG NEXT_PUBLIC_SITE_ID=
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
@@ -29,6 +30,10 @@ ENV PORT=3000
 # Bind to every interface: a container that only listens on 127.0.0.1 is
 # unreachable from outside, which looks exactly like a crashed server.
 ENV HOSTNAME=0.0.0.0
+# Where the installer writes. The compose files mount a volume here so the
+# configuration survives `up`/`down`; a bare `docker run` writes into the
+# container, which works but does not persist.
+ENV CMS_CONFIG_FILE=/app/config/runtime.json
 
 # Standalone output only. The second/third COPY bring in what Next deliberately
 # leaves out of `standalone` (served statically by the server itself): the
