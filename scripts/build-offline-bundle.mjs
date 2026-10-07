@@ -73,7 +73,21 @@ const IMAGES = [
   {
     name: "minio",
     from: "cache",
-    source: "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e",
+    // ⚠️ عمداً برچسبِ Docker Hub و نه آن digestِ پین‌شده‌ی quay.io که compose
+    // استفاده می‌کند. دلیلش قابل‌راستی‌آزمایی است، نه سلیقه:
+    //
+    // ایمیجی که با `@sha256:` کشیده شده باشد، در snapshotterِ containerd
+    // **ID و RepoDigest یکسان** می‌شود (`14cea493…`). آن حالت برای export
+    // قابل‌استفاده نیست: `docker save` با کدِ خروجی **صفر** یک tarِ خالیِ
+    // ۱۰ کیلوبایتی می‌نویسد و حتی `docker commit` هم نجاتش نمی‌دهد
+    // (`no suitable export target found`). پس نسخهٔ پین‌شده هرگز داخل بسته
+    // نمی‌نشیند و کاربر آفلاین مجبور به pull می‌شد — یعنی کل هدف نقض می‌شد.
+    //
+    // این نسخه از Docker Hub قابلِ‌ذخیره است (۵۶ مگابایت) و MinIO در این
+    // پروژه فقط یک object store محلیِ توسعه است («Do not expose it» در
+    // compose). نسخه‌اش از پینِ قبلی قدیمی‌تر است و همین در README بسته
+    // مستند می‌شود تا کسی فکر نکند جابه‌جایی بی‌دلیل بوده.
+    source: "minio/minio:RELEASE.2024-10-13T13-34-11Z",
   },
   { name: "minio-mc", from: "cache", source: "quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z" },
 ];
@@ -368,6 +382,8 @@ writeFileSync(
 
 console.log("\n── saving images ──");
 let saved = 0;
+const MIN_PLAUSIBLE_TAR = 1024 * 1024; // 1 MB
+
 for (const img of IMAGES) {
   const ref = tag(img.name);
   if (!imageExists(ref)) {
@@ -377,7 +393,19 @@ for (const img of IMAGES) {
   const file = join(IMAGES_DIR, `${img.name}.tar`);
   console.log(`  ${img.name}.tar`);
   run("docker", ["save", "-o", file, ref], { stdio: "ignore" });
-  saved += statSync(file).size;
+
+  // ⚠️ `docker save` در snapshotterِ containerd روی بعضی ایمیج‌ها با کدِ خروجی
+  // **صفر** شکست می‌خورد و یک tarِ خالی می‌نویسد (ایمیجی که با digest کشیده
+  // شده، `no suitable export target`). بدون این بررسی، بسته با یک ایمیجِ خالی
+  // ساخته می‌شد و کاربر تازه موقعِ نصب می‌فهمید.
+  const size = statSync(file).size;
+  if (size < MIN_PLAUSIBLE_TAR) {
+    console.error(`✗ ${img.name}.tar is only ${size} bytes - docker save produced an empty archive`);
+    console.error(`  source: ${img.source ?? ref}`);
+    console.error("  یک ایمیجِ کشیده‌شدهٔ digest را نمی‌توان export کرد؛ منبعِ برچسب‌دار انتخاب کنید.");
+    process.exit(1);
+  }
+  saved += size;
 }
 console.log(`  total: ${human(saved)}`);
 

@@ -61,13 +61,22 @@ if (!existsSync(vendorTar)) {
 
 const imagesDir = join(root, "offline", "images");
 const tars = new Set();
+const tarSizes = new Map();
 if (!existsSync(imagesDir)) {
   fail("offline/images/ is missing - there is nothing to load");
 } else {
   for (const f of readdirSync(imagesDir)) {
-    if (f.endsWith(".tar")) tars.add(f);
+    if (!f.endsWith(".tar")) continue;
+    tars.add(f);
+    tarSizes.set(f, statSync(join(imagesDir, f)).size);
   }
   if (tars.size === 0) fail("offline/images/ contains no .tar files");
+
+  // یک tarِ خالی نشانهٔ شکستِ خاموشِ `docker save` است (ایمیجِ کشیده‌شده با
+  // digest در snapshotterِ containerd). وجودِ فایل کافی نیست — باید حجم داشته باشد.
+  for (const [f, size] of tarSizes) {
+    if (size < 1024 * 1024) fail(`offline/images/${f} is only ${size} bytes - docker save wrote an empty archive`);
+  }
 }
 
 /* ── ۴. composeهای آفلاین: هر ارجاع باید tar داشته باشد ───────────────── */
@@ -93,12 +102,15 @@ for (const rel of COMPOSES) {
     fail(`${rel} still contains a \`build:\` - an offline stack must only reference images`);
   }
 
-  // هر سرویس باید `pull_policy: never` داشته باشد.
-  const services = text.split(/^\s{2}[a-z0-9_-]+:\s*$/m).slice(1);
+  // هر سرویسِ دارای ایمیج باید `pull_policy: never` داشته باشد.
+  //
+  // شمارش با `image:` انجام می‌شود نه با تقسیم بر نامِ سرویس‌ها: آن روش بلوکِ
+  // `volumes:` را هم «سرویس» می‌شمرد و مثبتِ کاذب می‌داد.
+  const imageCount = (text.match(/^\s*image:/gm) ?? []).length;
   const policyCount = (text.match(/pull_policy:\s*never/g) ?? []).length;
-  if (policyCount < services.length) {
+  if (policyCount < imageCount) {
     fail(
-      `${rel}: ${policyCount} \`pull_policy: never\` for ${services.length} service(s) - ` +
+      `${rel}: ${policyCount} \`pull_policy: never\` for ${imageCount} image(s) - ` +
         `a service without it can reach a registry`,
     );
   }
