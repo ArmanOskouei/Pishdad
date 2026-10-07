@@ -17,6 +17,7 @@
  * اجرا: node scripts/verify-offline-bundle.mjs [dist-offline]
  */
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, statSync as st } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -55,6 +56,36 @@ if (!existsSync(vendorTar)) {
     fail(`offline/vendor.tar.gz is only ${(size / 1024 / 1024).toFixed(1)} MB - that is not a complete Laravel vendor tree`);
   }
   notes.push(`vendor.tar.gz: ${(size / 1024 / 1024).toFixed(1)} MB`);
+
+/*
+ * 🛡️ E50 — autoloader قابلِ حمل است؟
+ *
+ * فقط همین دو فایل از داخلِ tar باز می‌شوند، چون این خطا در جای دیگری دیده
+ * نمی‌شود: اندازهٔ tar درست است، ایمیج‌ها سرِ جایشان‌اند و بسته سالم به‌نظر
+ * می‌رسد — ولی سرِ نصبِ کاربر روی `AppServiceProvider` می‌میرد، آن هم در
+ * نصبِ آفلاین که شبکه نیست تا خودش را درمان کند.
+ *
+ * الگو عمداً `=> '/` است: حالتِ سالم `=> __DIR__ . '/../..' . '/app/…'` است و
+ * حالتِ خراب `=> '/app' . '/app/…'` — فقط دومی با این الگو می‌خورد.
+ */
+for (const rel of ["./composer/autoload_classmap.php", "./composer/autoload_static.php"]) {
+  let body = "";
+  try {
+    body = execFileSync("tar", ["-xzOf", vendorTar, rel], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  } catch {
+    fail(`could not read ${rel} out of vendor.tar.gz - the autoloader cannot be checked`);
+    continue;
+  }
+
+  const absolute = body.split("\n").filter((line) => /=> '\//.test(line));
+
+  if (absolute.length > 0) {
+    fail(
+      `vendor.tar.gz carries ${absolute.length} ABSOLUTE build paths in ${rel} (E50) - ` +
+        `the install would die with "Failed to open stream". First: ${absolute[0].trim().slice(0, 88)}`,
+    );
+  }
+}
 }
 
 /* ── ۳. ایمیج‌ها ──────────────────────────────────────────────────────── */

@@ -15,6 +15,10 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 5432
+      # ⚠️ عمداً هم‌نامِ POSTGRES_DB سرویسِ db پایین‌تر. نبودنش یعنی گامِ
+      # «prerequisites» نمی‌تواند اتصال را بسنجد و گامِ «پایگاه داده» هم نام را
+      # نمی‌داند. مستندات: docs/install یا INSTALL.
+      DB_DATABASE: cms
       DB_USERNAME: cms
       DB_PASSWORD: cmssecret
       REDIS_HOST: redis

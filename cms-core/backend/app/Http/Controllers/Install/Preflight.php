@@ -8,7 +8,13 @@ use Throwable;
 /**
  * F1.1.B — پیش‌نیازهای نصب.
  *
- * هر چک: ['key','label','status' => pass|warn|fail,'detail','remedy'].
+ * هر چک: ['key','label','status' => pass|warn|pending|fail,'detail','remedy'].
+ *
+ *   pass    — سنجیده شد و درست است.
+ *   warn    — کار می‌کند ولی بهتر است درست شود.
+ *   pending — **هنوز قابلِ سنجش نیست**؛ ورودی‌اش را گامی بعدی می‌دهد.
+ *             بلاک نمی‌کند و فقط شفاف می‌گوید «اینجا نمی‌توانم قضاوت کنم».
+ *   fail    — سنجیده شد و غلط است. تنها چیزی که `preflightConfirm` را می‌بندد.
  *
  * دو چک عمداً «واقعی» هستند (نه extension_loaded / has_database_privilege):
  * - sodium: رمزنگاری+رمزگشایی واقعی (native یا sodium_compat).
@@ -39,6 +45,13 @@ class Preflight
         return $checks;
     }
 
+    /**
+     * آیا چکی جلوی ادامه را می‌گیرد؟
+     *
+     * فقط `fail`. `pending` عمداً بلاک نمی‌کند: معنایش این است که ورودیِ سنجش را
+     * گامی **بعدی** می‌دهد، پس متوقف کردنِ کاربر اینجا یعنی قفل‌شدنِ نصب پیش از
+     * رسیدن به همان گامی که مقدار را می‌گیرد.
+     */
     public static function blockingFailures(array $checks): bool
     {
         foreach ($checks as $check) {
@@ -211,12 +224,25 @@ class Preflight
     {
         $config = self::dbConfig($dbConfig);
         if (($config['database'] ?? '') === '') {
+            /*
+             * ⚠️ `pending` و نه `fail`.
+             *
+             * نامِ دیتابیس را **گام ۲** می‌گیرد و گام ۲ بعد از این گام است. پس
+             * نبودنش یعنی «هنوز قابلِ سنجش نیست»، نه «مشکل دارد». وقتی اینجا
+             * `fail` بود، هر نصبِ تازه‌ای که مشخصات را در `.env` نگذاشته بود در
+             * گام ۱ قفل می‌شد — از جمله نصبِ داکری، چون compose نامِ دیتابیس را
+             * به کانتینرِ app نمی‌داد. بدترین بخشش این بود که گامی که مشکل را
+             * حل می‌کند (گام ۲) هرگز اجرا نمی‌شد.
+             *
+             * `blockingFailures()` فقط `fail` را بلاک می‌کند، پس `pending` راه را
+             * باز می‌گذارد و کاربر در گامِ بعد سنجشِ واقعی را می‌بیند.
+             */
             return [
                 'key' => 'db_connection',
                 'label' => __('install.checks.db_connection.label'),
-                'status' => 'fail',
-                'detail' => __('install.checks.db_connection.detail_empty'),
-                'remedy' => __('install.checks.db_connection.remedy_empty'),
+                'status' => 'pending',
+                'detail' => __('install.checks.db_connection.detail_pending'),
+                'remedy' => __('install.checks.db_connection.remedy_pending'),
             ];
         }
         try {
@@ -246,49 +272,77 @@ class Preflight
     private static function collationPrivilegeCheck(array $dbConfig): array
     {
         $config = self::dbConfig($dbConfig);
+
         if (($config['database'] ?? '') === '') {
-            return [
-                'key' => 'db_collation_privilege',
-                'label' => __('install.checks.db_collation_privilege.label'),
-                'status' => 'fail',
-                'detail' => __('install.checks.db_collation_privilege.detail_empty'),
-                'remedy' => __('install.checks.db_collation_privilege.remedy_empty'),
-            ];
+            // همان دلیلِ `dbConnectionCheck` — نام را گام ۲ می‌دهد، پس اینجا
+            // «هنوز قابلِ سنجش نیست» درست است، نه «رد شد».
+            return self::collationResult(
+                'pending',
+                __('install.checks.db_collation_privilege.detail_pending'),
+                __('install.checks.db_collation_privilege.remedy_pending'),
+            );
         }
-        $probe = 'cms_probe_'.bin2hex(random_bytes(4));
+
+        /*
+         * ⚠️ باز کردنِ اتصال از تلاشِ CREATE COLLATION جدا شده است.
+         *
+         * اگر اتصال برقرار نشود، مجوز **سنجیده نشده** — نه رد شده. پیش‌تر همین
+         * حالت `fail` می‌داد و نتیجه دو `fail` روی صفحه بود (اتصال + مجوز) در
+         * حالی که کاربر فقط **یک** مشکل دارد؛ آن هم در چکی که اصلاً چیزی برای
+         * گفتن نداشت. حالا تنها چیزی که این چک `fail` می‌کند این است که اتصال
+         * برقرار شده باشد و پستگرس واقعاً CREATE COLLATION را رد کند.
+         */
         try {
             $pdo = self::pdo($config);
+        } catch (Throwable $e) {
+            return self::collationResult(
+                'pending',
+                __('install.checks.db_collation_privilege.detail_pending_connection', ['error' => self::shortError($e)]),
+            );
+        }
+
+        $probe = 'cms_probe_'.bin2hex(random_bytes(4));
+
+        try {
             // تست واقعی با شیء واقعی و پاک‌سازی فوری (نه has_database_privilege).
             $pdo->exec('CREATE COLLATION "'.$probe.'" (provider = icu, locale = \'und\')');
-            try {
-                $pdo->exec('DROP COLLATION "'.$probe.'"');
-            } catch (Throwable) {
-                // ساخت موفق بود؛ حذف ناموفق را نادیده نگیر ولی خطا نده — گزارش بده.
-                return [
-                    'key' => 'db_collation_privilege',
-                    'label' => __('install.checks.db_collation_privilege.label'),
-                    'status' => 'warn',
-                    'detail' => __('install.checks.db_collation_privilege.detail_drop_warn', ['probe' => $probe]),
-                    'remedy' => __('install.checks.db_collation_privilege.remedy_drop_warn', ['sql' => 'DROP COLLATION "'.$probe.'";']),
-                ];
-            }
-
-            return [
-                'key' => 'db_collation_privilege',
-                'label' => __('install.checks.db_collation_privilege.label'),
-                'status' => 'pass',
-                'detail' => __('install.checks.db_collation_privilege.detail_ok'),
-                'remedy' => '',
-            ];
         } catch (Throwable $e) {
-            return [
-                'key' => 'db_collation_privilege',
-                'label' => __('install.checks.db_collation_privilege.label'),
-                'status' => 'fail',
-                'detail' => __('install.checks.db_collation_privilege.detail_fail', ['error' => self::shortError($e)]),
-                'remedy' => __('install.checks.db_collation_privilege.remedy_fail'),
-            ];
+            return self::collationResult(
+                'fail',
+                __('install.checks.db_collation_privilege.detail_fail', ['error' => self::shortError($e)]),
+                // نام‌های واقعی در SQL جای‌گذاری می‌شوند تا کاربر کورکورانه
+                // کپی نکند و بداند روی کدام دیتابیس/نقش باید اجرا شود.
+                __('install.checks.db_collation_privilege.remedy_fail', [
+                    'database' => (string) $config['database'],
+                    'username' => (string) $config['username'],
+                ]),
+            );
         }
+
+        try {
+            $pdo->exec('DROP COLLATION "'.$probe.'"');
+        } catch (Throwable) {
+            // ساخت موفق بود؛ حذف ناموفق را نادیده نگیر ولی خطا نده — گزارش بده.
+            return self::collationResult(
+                'warn',
+                __('install.checks.db_collation_privilege.detail_drop_warn', ['probe' => $probe]),
+                __('install.checks.db_collation_privilege.remedy_drop_warn', ['sql' => 'DROP COLLATION "'.$probe.'";']),
+            );
+        }
+
+        return self::collationResult('pass', __('install.checks.db_collation_privilege.detail_ok'));
+    }
+
+    /** @return array{key:string,label:string,status:string,detail:string,remedy:string} */
+    private static function collationResult(string $status, string $detail, string $remedy = ''): array
+    {
+        return [
+            'key' => 'db_collation_privilege',
+            'label' => __('install.checks.db_collation_privilege.label'),
+            'status' => $status,
+            'detail' => $detail,
+            'remedy' => $remedy,
+        ];
     }
 
     /** @param array<string, mixed> $config */

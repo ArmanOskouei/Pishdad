@@ -1,5 +1,5 @@
 @php
-  $fa = ['pass' => __('install.status.pass'), 'warn' => __('install.status.warn'), 'fail' => __('install.status.fail')];
+  $fa = ['pass' => __('install.status.pass'), 'warn' => __('install.status.warn'), 'pending' => __('install.status.pending'), 'fail' => __('install.status.fail')];
 @endphp
 <table class="checks">
   <thead>

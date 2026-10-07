@@ -19,7 +19,7 @@ return [
         'finalize' => '6. Finish',
         'go_to' => 'Go to :step',
     ],
-    'status' => ['pass' => 'Pass', 'warn' => 'Warning', 'fail' => 'Fail'],
+    'status' => ['pass' => 'Pass', 'warn' => 'Warning', 'pending' => 'Pending', 'fail' => 'Fail'],
     'table' => [
         'check' => 'Check',
         'status' => 'Status',
@@ -537,20 +537,24 @@ return [
         'db_connection' => [
             'label' => 'Database connection',
             'detail_ok' => 'Connected to :host::port/:database.',
-            'detail_empty' => 'Database name is missing.',
+            // "pending", not an error: the database step supplies the name.
+            'detail_pending' => 'The “database” step supplies the name; there is nothing to probe here yet.',
             'detail_fail' => 'Connection failed: :error',
-            'remedy_empty' => 'Enter the connection details in the “database” step.',
+            'remedy_pending' => 'Continue; the “database” step probes the connection for real.',
             'remedy_fail' => 'Check host/port/name/user/password and make sure Postgres is reachable.',
         ],
         'db_collation_privilege' => [
             'label' => 'CREATE COLLATION privilege (real test)',
-            'detail_empty' => 'Privilege not probed without a healthy connection.',
+            'detail_pending' => 'The “database” step supplies the name; the privilege is not probed before that.',
+            // No connection means "not measured", not "denied". Reporting two
+            // failures at once sends the user after two problems when there is one.
+            'detail_pending_connection' => 'Could not connect, so the privilege was not measured: :error',
             'detail_drop_warn' => 'Create worked but dropping probe “:probe” failed; remove it manually.',
             'detail_ok' => 'Test collation create & drop passed.',
             'detail_fail' => 'Real test failed: :error',
-            'remedy_empty' => 'Fix the database connection first.',
+            'remedy_pending' => 'Continue; the “database” step probes the connection and the privilege together.',
             'remedy_drop_warn' => 'Run on the database: :sql',
-            'remedy_fail' => 'Grant CREATE on the schema to the DB user (GRANT CREATE ON SCHEMA public).',
+            'remedy_fail' => 'The role “:username” must own the database “:database”: ALTER DATABASE ":database" OWNER TO ":username"; — database ownership is what grants CREATE COLLATION. (GRANT CREATE ON SCHEMA public does not.)',
         ],
     ],
     'validation' => [

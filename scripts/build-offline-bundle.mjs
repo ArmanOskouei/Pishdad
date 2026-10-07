@@ -180,25 +180,42 @@ if (!imageExists(COMPOSER_IMAGE)) run("docker", ["pull", COMPOSER_IMAGE]);
 
 run("docker", [
   "run", "--rm",
-  "-v", `${BACKEND}:/app:ro`,
+  "-v", `${BACKEND}:/src:ro`,
   "-v", `${VENDOR_VOLUME}:/vendor`,
-  "-w", "/app",
-  // COMPOSER_VENDOR_DIR به‌جای `composer config vendor-dir` که composer.json را
-  // دست می‌زد — سورس باید دست‌نخورده بماند.
-  "-e", "COMPOSER_VENDOR_DIR=/vendor",
   // بسته‌های بزرگ روی بعضی شبکه‌ها از ۳۰۰ ثانیه می‌گذرند؛ پیش‌فرض را بالا می‌بریم.
   "-e", "COMPOSER_PROCESS_TIMEOUT=1800",
   COMPOSER_IMAGE,
   "sh", "-lc",
-  // `--no-dev`: بستهٔ منتشرشده محیطِ production است و phpunit/pint هیچ‌وقت روی
-  // ماشینِ کاربر اجرا نمی‌شوند.
-  //
-  // `--no-scripts` عمدی است: اسکریپتِ `post-autoload-dump` لاراول
-  // (`artisan package:discover`) در `storage/logs/` و `bootstrap/cache/`
-  // می‌نویسد — و سورس اینجا read-only است تا درختِ کاری آلوده نشود. لاراول در
-  // اولین بوت، خودش این کش را می‌سازد (`PackageManifest::build()` وقتی فایل
-  // کش نباشد صدا زده می‌شود)، پس چیزی از دست نمی‌رود.
-  "composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader",
+  /*
+   * ⚠️ E50 — چرا پروژه کپی می‌شود و vendor **داخلِ** پروژه ساخته می‌شود.
+   *
+   * پیش‌تر پروژه روی `/app` مانت و `COMPOSER_VENDOR_DIR=/vendor` ست می‌شد،
+   * یعنی vendor **بیرونِ** پروژه. Composer در آن حالت `$baseDir` را `dirname`
+   * مسیرِ vendor می‌گیرد که می‌شود `/`، و در classmap به‌جای `__DIR__ . '/../..'`
+   * مسیرِ **مطلقِ** زمانِ بیلد را می‌نویسد:
+   *
+   *     'App\Providers\AppServiceProvider' => '/app' . '/app/Providers/AppServiceProvider.php'
+   *
+   * آن مسیر روی ماشینِ کاربر وجود ندارد، پس اولین درخواست با
+   * `include(/app/app/Providers/AppServiceProvider.php)` می‌میرد. و چون
+   * `vendor/autoload.php` «موجود» است، entrypoint هم `composer install` نمی‌زند
+   * تا خودش را درمان کند — در نصبِ آفلاین که شبکه هم نیست، یعنی مرگِ کامل.
+   *
+   * الان پروژه داخلِ کانتینر و روی همان مسیرِ زمانِ اجرا (`/var/www/html`) کپی
+   * می‌شود، پس vendor داخلِ پروژه می‌افتد و Composer `__DIR__ . '/../..'`
+   * می‌نویسد که هر جا قابلِ حمل است. کپی روی فایل‌سیستمِ کانتینر سریع است؛
+   * مسئله‌ای که باعث شد از volume استفاده شود (unzipِ فایل‌به‌فایل روی
+   * bind-mountِ ویندوز) همچنان حل است.
+   *
+   * `--no-dev`: بستهٔ منتشرشده محیطِ production است.
+   * `--no-scripts`: اسکریپتِ `post-autoload-dump` لاراول در `storage/logs/` و
+   * `bootstrap/cache/` می‌نویسد؛ آن فایل‌ها داخلِ tar نیستند و لاراول در اولین
+   * بوت خودش می‌سازدشان (`PackageManifest::build()`).
+   */
+  "cp -a /src/. /var/www/html/ && " +
+    "cd /var/www/html && " +
+    "composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader && " +
+    "cp -a /var/www/html/vendor/. /vendor/",
 ]);
 
 mkdirSync(join(OUT, "offline"), { recursive: true });
@@ -207,7 +224,20 @@ run("docker", [
   "-v", `${VENDOR_VOLUME}:/vendor:ro`,
   "-v", `${join(OUT, "offline")}:/out`,
   "alpine:3.24",
-  "tar", "-czf", `/out/${VENDOR_TAR}`, "-C", "/vendor", ".",
+  "sh", "-lc",
+  /*
+   * 🛡️ E50 — گاردِ بیلد.
+   *
+   * یک مسیرِ مطلقِ زمانِ بیلد در classmap یعنی بسته روی مسیری ساخته شده که روی
+   * ماشینِ کاربر وجود ندارد. این خطا **بی‌صدا** ساخته می‌شد و فقط سرِ نصبِ
+   * کاربر کشنده بود، پس باید همین‌جا بیلد را متوقف کند.
+   *
+   * الگو عمداً `=> '/` است: حالتِ سالم `=> __DIR__ . '/../..' . '/app/…'` است و
+   * حالتِ خراب `=> '/app' . '/app/…'` — فقط دومی با این الگو می‌خورد.
+   */
+  "if grep -Eq \"=> '/\" /vendor/composer/autoload_classmap.php /vendor/composer/autoload_static.php; " +
+    "then echo '✗ E50: absolute build paths leaked into the autoloader - the offline install would fail at boot' >&2; exit 1; fi; " +
+    "tar -czf /out/" + VENDOR_TAR + " -C /vendor .",
 ]);
 run("docker", ["volume", "rm", "-f", VENDOR_VOLUME], { stdio: "ignore" });
 

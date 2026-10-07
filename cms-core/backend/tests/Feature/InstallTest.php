@@ -82,6 +82,77 @@ class InstallTest extends TestCase
 
     // ─── preflight ───────────────────────────────────────────────
 
+    /**
+     * E49 — چک‌های دیتابیس در گام ۱ نباید نصب را قفل کنند.
+     *
+     * نامِ دیتابیس را **گام ۲** می‌گیرد و گام ۲ بعد از این گام است. وقتی اینجا
+     * `fail` بود، هر نصبِ تازه‌ای که مشخصات را در `.env` نگذاشته بود — از جمله
+     * نصبِ داکری — در گام ۱ قفل می‌شد و به همان گامی که مقدار را می‌گیرد
+     * نمی‌رسید. باگ با یک نصبِ تازهٔ واقعی گزارش شد.
+     */
+    public function test_database_checks_are_pending_and_do_not_block_before_the_database_step(): void
+    {
+        $checks = Preflight::run(['database' => '', 'host' => 'db', 'username' => 'cms', 'password' => 'x']);
+        $byKey = collect($checks)->keyBy('key');
+
+        $this->assertSame('pending', $byKey['db_connection']['status']);
+        $this->assertSame('pending', $byKey['db_collation_privilege']['status']);
+
+        // مهم‌تر از خودِ وضعیت: این وضعیت نباید گام را ببندد.
+        $this->assertFalse(
+            Preflight::blockingFailures($checks),
+            'a fresh install must be able to reach the database step',
+        );
+    }
+
+    /** فقط `fail` بلاک می‌کند؛ `pass` و `warn` و `pending` نه. */
+    public function test_only_fail_blocks_the_preflight_step(): void
+    {
+        $row = static fn (string $status): array => [
+            'key' => 'probe', 'label' => 'probe', 'status' => $status, 'detail' => '', 'remedy' => '',
+        ];
+
+        $this->assertFalse(Preflight::blockingFailures([$row('pass')]));
+        $this->assertFalse(Preflight::blockingFailures([$row('warn')]));
+        $this->assertFalse(Preflight::blockingFailures([$row('pending')]));
+        $this->assertTrue(Preflight::blockingFailures([$row('fail')]));
+        $this->assertTrue(Preflight::blockingFailures([$row('pass'), $row('pending'), $row('fail')]));
+        $this->assertFalse(Preflight::blockingFailures([$row('pass'), $row('warn'), $row('pending')]));
+    }
+
+    /**
+     * remedyِ مجوزِ collation باید **مالکیتِ دیتابیس** را بگوید.
+     *
+     * متنِ پیشین `GRANT CREATE ON SCHEMA public` را پیشنهاد می‌داد که این مجوز را
+     * نمی‌دهد؛ کاربر را دنبالِ راهِ اشتباه می‌فرستاد. چیزی که واقعاً کار می‌کند
+     * مالکیتِ دیتابیس است (تجربی تأیید شد).
+     */
+    public function test_the_collation_remedy_names_ownership_not_a_schema_grant(): void
+    {
+        foreach (['en', 'fa'] as $locale) {
+            App::setLocale($locale);
+            $text = __('install.checks.db_collation_privilege.remedy_fail', [
+                'database' => 'cms', 'username' => 'cms',
+            ]);
+
+            $this->assertStringContainsString('OWNER TO', $text, "[{$locale}] the remedy must name the ownership fix");
+            $this->assertStringContainsString('cms', $text, "[{$locale}] the remedy must carry the real names");
+            $this->assertStringNotContainsString('GRANT CREATE ON SCHEMA', $text, "[{$locale}] the wrong remedy is back");
+        }
+    }
+
+    /** هر وضعیتی که کد تولید می‌کند باید برچسبِ ترجمه‌شده داشته باشد (وگرنه صفحه ۵۰۰ می‌دهد). */
+    public function test_every_check_status_has_a_translated_label(): void
+    {
+        foreach (['pass', 'warn', 'pending', 'fail'] as $status) {
+            App::setLocale('fa');
+            $this->assertNotSame('install.status.'.$status, __('install.status.'.$status), "fa: {$status}");
+
+            App::setLocale('en');
+            $this->assertNotSame('install.status.'.$status, __('install.status.'.$status), "en: {$status}");
+        }
+    }
+
     public function test_preflight_page_renders_200_without_web_middleware(): void
     {
         $middlewares = Route::getRoutes()->getByName('install.preflight')?->gatherMiddleware() ?? [];

@@ -44,6 +44,8 @@
   .badge.pass { background:#dcfce7; color:var(--ok); }
   .badge.warn { background:#fef3c7; color:var(--warn); }
   .badge.fail { background:#fee2e2; color:var(--fail); }
+  /* کاری نمی‌توان کرد تا گامی بعدی ورودی را بدهد — نه خطا، نه موفقیت. */
+  .badge.pending { background:#e0e7ff; color:#4338ca; }
   .remedy { color:var(--muted); font-size:13px; }
   label.f { display:block; margin:12px 0 4px; font-size:14px; font-weight:bold; }
   input.f { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:15px; font-family:inherit; }
