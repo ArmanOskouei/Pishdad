@@ -63,7 +63,7 @@ export function localizeHref(
   const rest = href.replace(/^\/+/, "");
   const first = rest.split("/")[0]!;
   if (isPublicLocale(first)) return href; // از قبل پیشوند دارد
-  if (first === "admin" || first === "central") return href; // پنل، نه سایت
+  if (first === "admin") return href; // پنل، نه سایت. ریشه‌های دیگرِ پنل از `CMS_PANEL_ROOTS` می‌آیند و گیتِ واقعی پروکسی است، نه این تابع.
   return rest ? `/${locale}/${rest}` : `/${locale}`;
 }
 

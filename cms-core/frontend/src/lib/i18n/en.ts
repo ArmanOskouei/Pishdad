@@ -234,7 +234,7 @@ export const en: Record<MessageKey, string> = {
   "dir.sahar.accentIndigo": "Indigo",
   "dir.sahar.accentRose": "Ruby",
   "dir.amaliyat": "Ops",
-  "dir.amaliyatDesc": "Dark console — the central default",
+  "dir.amaliyatDesc": "Dark console — the default theme",
   "dir.amaliyat.accentIndigo": "Indigo",
   "dir.amaliyat.accentTeal": "Matrix",
   "dir.amaliyat.accentAmber": "Security",
