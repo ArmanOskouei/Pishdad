@@ -49,7 +49,7 @@ export const en: Record<MessageKey, string> = {
   "inbox.telegramChatIdHint": "e.g. 123456789 or @my_channel. Message @userinfobot to find yours.",
   "inbox.telegramNotConfigured": "The Telegram bot is not configured on this install; nothing will be sent until an administrator sets the bot token.",
   "inbox.telegramBotTitle": "Install Telegram bot",
-  "inbox.telegramBotHint": "Get the token from @BotFather. The full token is never displayed; only a masked form so you know which bot is connected. Clearing falls back to the .env token (if any).",
+  "inbox.telegramBotHint": "Get the token from @BotFather. The full token is never displayed; only a masked form so you know which bot is connected. Clearing falls back to the .env token (if any). Note: Telegram is filtered in Iran — if the server is in Iran, this feature will not work unless the server has unfiltered internet access.",
   "inbox.telegramBotToken": "Bot token",
   "inbox.telegramBotTokenPlaceholder": "123456:ABC-DEF...",
   "inbox.telegramBotSave": "Save token",
