@@ -1,11 +1,11 @@
-name: cms-core-backend
+name: ${PISHDAD_PROJECT:-cms-core-backend}
 
 # Single-command boot:  docker compose up -d --build
 # API: http://localhost:8080/api/v1/...   MinIO console: http://localhost:9101
 services:
   app:
     build: .
-    container_name: cms-app
+    container_name: ${PISHDAD_APP:-cms-app}
     restart: unless-stopped
     # NOTE: no `env_file` on purpose. The bind-mounted `.env` FILE is the single
     # source Laravel reads (via Dotenv). Injecting it into the process env too
@@ -29,10 +29,10 @@ services:
 
   web:
     image: nginx:1.31.6-alpine
-    container_name: cms-web
+    container_name: ${PISHDAD_WEB:-cms-web}
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "${PISHDAD_WEB_PORT:-8080}:80"
     volumes:
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./public:/var/www/html/public:ro
@@ -53,7 +53,7 @@ services:
 
   db:
     build: ./docker/postgres
-    container_name: cms-db
+    container_name: ${PISHDAD_DB:-cms-db}
     restart: unless-stopped
     environment:
       POSTGRES_DB: cms
@@ -63,7 +63,7 @@ services:
     ports:
       # Host-side 5433 avoids clashing with a local Windows Postgres on 5432.
       # Inside the compose network the app still uses db:5432 (see .env DB_PORT).
-      - "5433:5432"
+      - "${PISHDAD_DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -80,10 +80,10 @@ services:
     # so the running server is recorded in the file instead of being whatever
     # the registry served on the day of the pull.
     image: redis:8.10.2-alpine
-    container_name: cms-redis
+    container_name: ${PISHDAD_REDIS:-cms-redis}
     restart: unless-stopped
     ports:
-      - "6380:6379"
+      - "${PISHDAD_REDIS_PORT:-6380}:6379"
     volumes:
       - redisdata:/data
 
@@ -123,15 +123,15 @@ services:
     # MinIO is a dev-local object store only. Do not expose it, and plan the
     # migration described in docs/MINIO-U1.md before real data lands in it.
     image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-    container_name: cms-minio
+    container_name: ${PISHDAD_MINIO:-cms-minio}
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin123
     ports:
       # Host 9000 is often taken on dev machines → 9100/9101 on the host.
-      - "9100:9000"
-      - "9101:9001"
+      - "${PISHDAD_MINIO_PORT:-9100}:9000"
+      - "${PISHDAD_MINIO_CONSOLE_PORT:-9101}:9001"
     volumes:
       - miniodata:/data
     command: server /data --console-address ":9001"
@@ -152,7 +152,7 @@ services:
     # upgrade left on the table here. Left as a tag rather than a digest only
     # because it is idempotent infra: it runs once, creates a bucket, exits.
     image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-    container_name: cms-minio-init
+    container_name: ${PISHDAD_MINIO_INIT:-cms-minio-init}
     depends_on:
       minio:
         condition: service_started
