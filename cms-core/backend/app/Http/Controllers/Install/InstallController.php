@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 use Spatie\Permission\Models\Role;
@@ -622,6 +623,10 @@ class InstallController extends Controller
         InstallJournal::put('superadmin', ['email' => $user->email, 'id' => $user->id]);
         InstallJournal::markStepDone('superadmin');
 
+        // E30 — محتوای ازپیش‌ساختهٔ سایت (صفحه‌ها + تصویرها) همین حالا ساخته
+        // می‌شود، وگرنه نصبِ تازه با سایتِ خالی بالا می‌آمد.
+        self::seedSiteContent();
+
         if ($request->wantsJson()) {
             return response()->json(['message' => __('install.msgs.admin_made'), 'data' => ['next' => route('install.finalize'), 'email' => $user->email]]);
         }
@@ -716,6 +721,48 @@ class InstallController extends Controller
         $user->assignRole('owner');
 
         return $user;
+    }
+
+    /**
+     * E30 — محتوای ازپیش‌ساختهٔ سایت: صفحه‌ها، تصویرها، هویت و پوسته.
+     *
+     * ## چرا این متد لازم شد
+     *
+     * `PishdadSiteSeeder` تا امروز **هیچ‌جا در کدِ تولیدی** صدا زده نمی‌شد؛
+     * فقط تست و `phpunit.xml` به آن اشاره داشتند. یعنی هر نصبِ واقعی با سایتِ
+     * خالی بالا می‌آمد، در حالی که صفحه‌ها و تصویرهای آماده در مخزن بودند.
+     *
+     * ## چرا اینجا و نه در گام مهاجرت
+     *
+     * این seeder نخستین کاربر را مالکِ صفحه‌ها می‌کند، و نخستین کاربر همان
+     * مدیرِ گام ۵ است. پس نقطهٔ درست، بلافاصله بعد از ساختِ اوست.
+     *
+     * idempotent است (بر پایهٔ slug و هشِ محتوا)، پس نصبِ دوباره رکورد تکراری
+     * نمی‌سازد.
+     *
+     * ## لینکِ `public/storage`
+     *
+     * تصویرها روی دیسکِ `public` نوشته می‌شوند و از مسیر `/storage/...` سرو
+     * می‌شوند. بدونِ این symlink، فایل روی دیسک هست ولی مرورگر ۴۰۴ می‌گیرد و
+     * صفحه‌ها با تصویرِ شکسته بالا می‌آیند.
+     */
+    private static function seedSiteContent(): void
+    {
+        try {
+            $link = public_path('storage');
+
+            if (! is_link($link) && ! is_dir($link)) {
+                Artisan::call('storage:link');
+            }
+
+            app(\Database\Seeders\PishdadSiteSeeder::class)->run();
+        } catch (Throwable $e) {
+            // محتوای نمونه نباید نصب را بشکند: نصبِ سالمِ بدونِ محتوای نمونه
+            // بهتر از نصبِ نیمه‌کاره است. ولی سکوت هم نمی‌کنیم — دلیلش در لاگ
+            // می‌ماند تا کسی که سایتش خالی بالا آمده ردش را ببیند.
+            report($e);
+            Log::warning('install.site_content_seed_failed', ['reason' => $e->getMessage()]);
+        }
     }
 
     // ─── .env نویسی ─────────────────────────────────────────────────

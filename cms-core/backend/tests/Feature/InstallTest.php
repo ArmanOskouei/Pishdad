@@ -363,6 +363,45 @@ class InstallTest extends TestCase
 
     // ─── superadmin + 2FA ────────────────────────────────────────
 
+    /**
+     * E30 — گامِ مدیر، محتوای ازپیش‌ساختهٔ سایت را هم می‌سازد.
+     *
+     * رگرسیونِ ثبت‌شده: `PishdadSiteSeeder` هیچ‌جا در کدِ تولیدی صدا زده
+     * نمی‌شد، پس نصبِ واقعی با سایتِ **خالی** بالا می‌آمد در حالی که صفحه‌ها و
+     * تصویرها آماده در مخزن بودند. این تست نگهبانِ همان وصل‌شدن است.
+     */
+    public function test_the_admin_step_seeds_the_ready_made_site_content(): void
+    {
+        $this->markPriorSteps('preflight', 'database', 'app_key', 'migrate');
+
+        $this->post('/install/superadmin', [
+            'install_token' => $this->token(),
+            'name' => 'سوپرادمین',
+            'email' => 'boss@example.com',
+            'password' => 'Strong!1234',
+            'password_confirmation' => 'Strong!1234',
+        ])->assertRedirect(route('install.finalize'));
+
+        $owner = \App\Models\User::query()->where('email', 'boss@example.com')->firstOrFail();
+
+        // صفحهٔ خانه باید منتشرشده و مالِ نخستین مدیر باشد، وگرنه سایت خالی می‌ماند.
+        $home = \App\Models\Page::query()->where('slug', 'home')->first();
+        $this->assertNotNull($home, 'صفحهٔ خانه از محتوای آماده ساخته نشد.');
+        $this->assertSame($owner->id, $home->user_id);
+        $this->assertSame(\App\Models\Page::STATUS_PUBLISHED, $home->status);
+        $this->assertNotEmpty($home->blocks, 'صفحهٔ خانه بدونِ بلوک ساخته شد.');
+
+        // بیش از یک صفحه: سایت واقعی چند صفحه دارد، نه فقط خانه.
+        $this->assertGreaterThan(1, \App\Models\Page::query()->count());
+
+        // تصویرهای محتوا روی دیسکِ `public` و با رکوردِ media ثبت شده‌اند.
+        $this->assertGreaterThan(
+            0,
+            \App\Models\Media::query()->where('disk', 'public')->count(),
+            'تصویرهای محتوای آماده ثبت نشدند.',
+        );
+    }
+
     public function test_first_admin_created_inline_without_2fa(): void
     {
         $this->markPriorSteps('preflight', 'database', 'app_key', 'migrate');
