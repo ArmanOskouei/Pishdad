@@ -17,6 +17,7 @@ return [
         'migrate' => '4. Migrations',
         'superadmin' => '5. Superadmin',
         'finalize' => '6. Finish',
+        'go_to' => 'Go to :step',
     ],
     'status' => ['pass' => 'Pass', 'warn' => 'Warning', 'fail' => 'Fail'],
     'table' => [

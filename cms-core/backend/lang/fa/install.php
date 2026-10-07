@@ -17,6 +17,7 @@ return [
         'migrate' => '۴. مهاجرت‌ها',
         'superadmin' => '۵. مدیر اصلی',
         'finalize' => '۶. اتمام',
+        'go_to' => 'رفتن به :step',
     ],
     'status' => ['pass' => 'قبول', 'warn' => 'هشدار', 'fail' => 'خطا'],
     'table' => [

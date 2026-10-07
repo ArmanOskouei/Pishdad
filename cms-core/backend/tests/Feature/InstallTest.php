@@ -210,6 +210,37 @@ class InstallTest extends TestCase
         }
     }
 
+    /**
+     * E34 — نوارِ مراحل فقط گام‌های **قابل‌رفتن** را لینک می‌کند.
+     *
+     * `ensureStepReachable()` گام i را وقتی باز می‌گذارد که همهٔ گام‌های پیش از
+     * آن `done` باشند. اگر نوار گامِ دست‌نیافتنی را لینک کند، کاربر به ۴۰۴
+     * می‌خورد؛ و اگر گامِ `done` را لینک نکند، راهی برای **دیدنِ دوبارهٔ**
+     * گام‌های قبلی نمی‌ماند (شکایتِ اصلی: از گام ۲ راهی به گام ۱ نبود).
+     */
+    public function test_the_step_rail_links_only_reachable_steps(): void
+    {
+        $railLinkFor = function (string $html): array {
+            preg_match_all('/<li class="[^"]*"[^>]*>\s*<a href="([^"]+)"/', $html, $m);
+
+            return array_map(
+                static fn (string $u): string => (string) parse_url($u, PHP_URL_PATH),
+                $m[1],
+            );
+        };
+
+        // نصبِ تازه: هیچ گامی تمام نیست ⇒ فقط گامِ اولِ همیشه‌باز لینک است.
+        $fresh = $railLinkFor($this->get('/install/preflight')->assertOk()->getContent());
+        $this->assertContains('/install/preflight', $fresh);
+        $this->assertNotContains('/install/superadmin', $fresh, 'گامِ دست‌نیافتنی نباید لینک شود.');
+
+        // با تمام‌شدنِ گام ۱، گام ۲ هم باز می‌شود — و گام ۱ برای بازبینی می‌ماند.
+        $this->markPriorSteps('preflight');
+        $after = $railLinkFor($this->get('/install/database')->assertOk()->getContent());
+        $this->assertContains('/install/preflight', $after, 'گامِ انجام‌شده باید برای بازبینی قابل‌رفتن بماند.');
+        $this->assertContains('/install/database', $after);
+    }
+
     // ─── journal / resume / lock ─────────────────────────────────
 
     public function test_start_redirects_to_first_incomplete_step(): void

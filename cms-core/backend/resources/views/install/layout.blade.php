@@ -22,8 +22,15 @@
   @media (max-width:720px){ .grid{ grid-template-columns:1fr; } }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; }
   ol.rail { list-style:none; margin:0; padding:0; }
-  ol.rail li { display:flex; gap:10px; align-items:flex-start; padding:10px 4px; border-bottom:1px dashed var(--line); font-size:14px; }
+  ol.rail li { padding:0; border-bottom:1px dashed var(--line); font-size:14px; }
   ol.rail li:last-child{ border-bottom:0; }
+  /* E34 — گامِ قابل‌رفتن لینک است، پس همان چیدمانِ قبلی را با <a> می‌سازیم. */
+  ol.rail .rail-link, ol.rail .rail-item {
+    display:flex; gap:10px; align-items:flex-start; padding:10px 4px;
+    color:inherit; text-decoration:none; border-radius:6px; }
+  ol.rail .rail-link:hover { background:#f3f4f6; }
+  ol.rail .rail-link:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+  ol.rail li.current .rail-link { font-weight:bold; }
   .dot { width:22px; height:22px; border-radius:50%; border:2px solid var(--line); flex:none;
     display:inline-flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); }
   li.done .dot { background:var(--ok); border-color:var(--ok); color:#fff; }
