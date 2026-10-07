@@ -67,8 +67,11 @@ if [ -f "$VENDOR_TAR" ]; then
     mkdir -p "$VENDOR_DIR"
     tar -xzf "$VENDOR_TAR" -C "$VENDOR_DIR" || fail "failed to unpack offline/vendor.tar.gz"
   fi
-else
+elif [ -d "$ROOT/cms-core/backend" ]; then
   fail "offline/vendor.tar.gz is missing - the backend would need composer install (network)."
+else
+  # E44 — frontend-only bundle has no backend and no vendor tar.
+  echo "No backend in this bundle (frontend-only package) - skipping vendor/."
 fi
 
 # --- 4. Bring the stacks up --------------------------------------------------
@@ -80,19 +83,32 @@ export PISHDAD_FRONTEND_PORT="$FRONTEND_PORT"
 export INTERNAL_API_URL="http://host.docker.internal:$API_PORT/api"
 
 echo ""
-echo "Starting the backend..."
-docker compose -f "$ROOT/cms-core/backend/docker-compose.offline.yml" up -d \
-  || fail "docker compose up failed for the backend."
+if [ -f "$ROOT/cms-core/backend/docker-compose.offline.yml" ]; then
+  echo "Starting the backend..."
+  docker compose -f "$ROOT/cms-core/backend/docker-compose.offline.yml" up -d \
+    || fail "docker compose up failed for the backend."
+else
+  # E44 — frontend-only bundle has no backend compose.
+  echo "No backend compose in this bundle (frontend-only package) - skipping the backend."
+fi
 
 if [ "$BACKEND_ONLY" -eq 0 ]; then
-  echo "Starting the frontend..."
-  docker compose -f "$ROOT/cms-core/frontend/docker-compose.offline.yml" up -d \
-    || fail "docker compose up failed for the frontend."
+  if [ -f "$ROOT/cms-core/frontend/docker-compose.offline.yml" ]; then
+    echo "Starting the frontend..."
+    docker compose -f "$ROOT/cms-core/frontend/docker-compose.offline.yml" up -d \
+      || fail "docker compose up failed for the frontend."
+  else
+    # E44 — بستهٔ تک‌بخشِ بک‌اند compose فرانت ندارد؛ بی‌سروصدا رد نشو.
+    echo "No frontend compose in this bundle (backend-only package) - skipping the frontend."
+    BACKEND_ONLY=1
+  fi
 fi
 
 echo ""
 echo "Done."
-echo "  Installer : http://localhost:$API_PORT/install"
+if [ -f "$ROOT/cms-core/backend/docker-compose.offline.yml" ]; then
+  echo "  Installer : http://localhost:$API_PORT/install"
+fi
 if [ "$BACKEND_ONLY" -eq 0 ]; then
   echo "  Site      : http://localhost:$FRONTEND_PORT"
 fi

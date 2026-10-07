@@ -37,7 +37,18 @@ console.log(`verify-offline-bundle: ${root}\n`);
 
 /* ── ۱. بستهٔ سبک داخل بسته ───────────────────────────────────────────── */
 
-for (const p of ["README.md", "LICENSE", "cms-core/backend/artisan", "cms-core/frontend/package.json"]) {
+/**
+ * E44 — بستهٔ تک‌بخش فقط همان بخش را دارد. بخش‌ها از محتوای خودِ بسته
+ * تشخیص داده می‌شوند، نه از نام پوشه (نام قابل تغییر است با آرگومان).
+ */
+const hasBackend = existsSync(join(root, "cms-core/backend/artisan"));
+const hasFrontend = existsSync(join(root, "cms-core/frontend/package.json"));
+
+if (!hasBackend && !hasFrontend) {
+  fail("neither a backend nor a frontend lean package is inside - this bundle cannot install anything");
+}
+
+for (const p of ["README.md", "LICENSE"]) {
   if (!existsSync(join(root, p))) fail(`the lean package is incomplete: ${p} is missing`);
 }
 
@@ -46,7 +57,10 @@ for (const p of ["README.md", "LICENSE", "cms-core/backend/artisan", "cms-core/f
 // `vendor/` به‌صورت tar.gz سفر می‌کند و اسکریپتِ نصب بازش می‌کند. اینجا فقط
 // حضورش و اینکه خالی نیست سنجیده می‌شود؛ بازکردنش کارِ نصب‌کننده است.
 const vendorTar = join(root, "offline", "vendor.tar.gz");
-if (!existsSync(vendorTar)) {
+// E44 — vendor فقط وقتی لازم است که بک‌اند در بسته باشد.
+if (!hasBackend) {
+  notes.push("no backend in this bundle (frontend-only) - vendor.tar.gz not required");
+} else if (!existsSync(vendorTar)) {
   fail("offline/vendor.tar.gz is missing - the install would have to run composer install, which needs packagist");
 } else {
   const size = statSync(vendorTar).size;
@@ -115,7 +129,12 @@ if (!existsSync(imagesDir)) {
 const COMPOSES = [
   "cms-core/backend/docker-compose.offline.yml",
   "cms-core/frontend/docker-compose.offline.yml",
-];
+].filter((rel) => existsSync(join(root, rel)));
+
+// E44 — در بستهٔ تک‌بخش فقط compose همان بخش هست؛ نبودِ هیچ‌کدام یعنی بسته خراب.
+if (COMPOSES.length === 0) {
+  fail("no offline compose file at all - neither backend nor frontend can start");
+}
 
 const referenced = new Set();
 

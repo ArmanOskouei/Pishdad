@@ -267,7 +267,27 @@ const PUBLIC_DOCS = [
   "docs/DEVELOPER-QUICKSTART.en.md",
 ];
 
-const REQUIRED = [
+/**
+ * E41 — بستهٔ تک‌بخش فقط فایل‌های همان بخش را دارد. part از
+ * `DISTRIBUTION.json` خوانده می‌شود (بسته‌های قدیمیِ بدون part یعنی full).
+ */
+const part = (() => {
+  try {
+    const m = JSON.parse(readFileSync(join(PKG, "DISTRIBUTION.json"), "utf8"));
+    return m.part ?? "full";
+  } catch {
+    return "full";
+  }
+})();
+
+const inPart = (f) =>
+  part === "full"
+    ? true
+    : part === "backend"
+      ? f.startsWith("cms-core/backend/") || f === "DISTRIBUTION.json"
+      : f.startsWith("cms-core/frontend/") || f === "DISTRIBUTION.json";
+
+const REQUIRED_ALL = [
   "cms-core/backend/composer.json",
   "cms-core/backend/.env.example",
   "cms-core/backend/artisan",
@@ -283,6 +303,8 @@ const REQUIRED = [
   "cms-core/frontend/public/fonts/Vazirmatn-Regular.woff2",
   "DISTRIBUTION.json",
 ];
+
+const REQUIRED = REQUIRED_ALL.filter(inPart);
 
 for (const f of REQUIRED) {
   if (!all.includes(f)) problems.push(`missing required file: ${f}`);
@@ -350,7 +372,7 @@ if (existsSync(manifestPath)) {
  * tracked نیست، یعنی از بسته جا مانده است. فایل‌های build/dependency با
  * فیلتر کنار گذاشته می‌شوند چون عمداً هرگز نباید بیایند.
  */
-const SOURCE_DIRS = [
+const SOURCE_DIRS_ALL = [
   "cms-core/backend/app",
   "cms-core/backend/config",
   "cms-core/backend/database",
@@ -363,6 +385,15 @@ const SOURCE_DIRS = [
   "cms-core/installer",
   // E24 — `scripts` و `Run` دیگر منبعِ بسته نیستند (dev-only)، پس اینجا هم نیستند.
 ];
+
+/** E41 — در بستهٔ تک‌بخش فقط دایرکتوری‌های همان بخش وارسی می‌شوند. */
+const SOURCE_DIRS = SOURCE_DIRS_ALL.filter((d) =>
+  part === "full"
+    ? true
+    : part === "backend"
+      ? !d.startsWith("cms-core/frontend/")
+      : !d.startsWith("cms-core/backend/"),
+);
 
 const NOT_SOURCE =
   /\/(node_modules|vendor|\.next|out|storage\/app|plugins\/central|plugins\/subscription|plugins\/_quarantine|\(central\)|graphify-out|dist-pishdad)\//;

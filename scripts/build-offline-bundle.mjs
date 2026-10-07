@@ -31,6 +31,10 @@
  *   node scripts/build-offline-bundle.mjs                 # نسخه از package.json
  *   node scripts/build-offline-bundle.mjs --version 1.0.0
  *   node scripts/build-offline-bundle.mjs --skip-build    # فقط tar کردنِ ایمیج‌های موجود
+  *   node scripts/build-offline-bundle.mjs --part backend   # E44: فقط بک‌اند (از dist-pishdad-backend)
+  *   node scripts/build-offline-bundle.mjs --part frontend  # E44: فقط فرانت (از dist-pishdad-frontend)
+  *
+  * E44: هر بخش docker save خودش را دارد تا روی سرور جدا هم بدون دانلود نصب شود.
  */
 
 import { execFileSync } from "node:child_process";
@@ -40,7 +44,6 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-const OUT = join(ROOT, "dist-offline");
 
 const arg = (name, fallback = null) => {
   const i = process.argv.indexOf(name);
@@ -50,7 +53,16 @@ const has = (name) => process.argv.includes(name);
 
 const VERSION = arg("--version") ?? "1.0.0";
 const SKIP_BUILD = has("--skip-build");
-const LEAN = join(ROOT, "dist-pishdad");
+
+/** E44 — بخشِ درخواستی. مقدارِ نامعتبر = خطا (نه سکوت). */
+const PART = arg("--part") ?? "full";
+if (!["backend", "frontend", "full"].includes(PART)) {
+  console.error(`✗ unknown --part: ${PART} (expected backend, frontend or full)`);
+  process.exit(1);
+}
+
+const LEAN = join(ROOT, PART === "full" ? "dist-pishdad" : `dist-pishdad-${PART}`);
+const OUT = join(ROOT, PART === "full" ? "dist-offline" : `dist-offline-${PART}`);
 const IMAGES_DIR = join(OUT, "offline", "images");
 
 const run = (cmd, args, opts = {}) =>
@@ -64,7 +76,7 @@ const tag = (name) => `pishdad/${name}:${VERSION}`;
  * `from` یعنی از کجا بیاید: `build` = از خودِ پروژه ساخته می‌شود، `cache` =
  * از ایمیجِ عمومیِ موجود روی ماشین (و اگر نبود، کشیده می‌شود).
  */
-const IMAGES = [
+const IMAGES_ALL = [
   { name: "backend-app", from: "backend-build" },
   { name: "backend-db", from: "backend-db-build" },
   { name: "frontend", from: "frontend-build" },
@@ -91,6 +103,15 @@ const IMAGES = [
   },
   { name: "minio-mc", from: "cache", source: "quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z" },
 ];
+
+/**
+ * E44 — هر بخش فقط ایمیج‌های خودش را حمل می‌کند: بستهٔ فرانت فقط ایمیجِ
+ * فرانت، بستهٔ بک‌اند فقط ایمیج‌های بک‌اند. روی سرورِ جدا هم بدون دانلود
+ * نصب می‌شود.
+ */
+const IMAGES = IMAGES_ALL.filter((img) =>
+  PART === "full" ? true : PART === "backend" ? img.name !== "frontend" : img.name === "frontend",
+);
 
 const BACKEND = join(ROOT, "cms-core", "backend");
 const FRONTEND = join(ROOT, "cms-core", "frontend");
@@ -133,16 +154,21 @@ console.log(`version: ${VERSION}\n`);
 if (!SKIP_BUILD) {
   console.log("── building images ──");
 
-  console.log("  backend app...");
-  run("docker", ["compose", "-f", "docker-compose.yml", "build", "app"], { cwd: BACKEND });
-  run("docker", ["tag", "cms-core-backend-app:latest", tag("backend-app")]);
+  // E44 — فقط ایمیج‌های همین بخش ساخته می‌شوند.
+  if (PART !== "frontend") {
+    console.log("  backend app...");
+    run("docker", ["compose", "-f", "docker-compose.yml", "build", "app"], { cwd: BACKEND });
+    run("docker", ["tag", "cms-core-backend-app:latest", tag("backend-app")]);
 
-  console.log("  backend db...");
-  run("docker", ["compose", "-f", "docker-compose.yml", "build", "db"], { cwd: BACKEND });
-  run("docker", ["tag", "cms-core-backend-db:latest", tag("backend-db")]);
+    console.log("  backend db...");
+    run("docker", ["compose", "-f", "docker-compose.yml", "build", "db"], { cwd: BACKEND });
+    run("docker", ["tag", "cms-core-backend-db:latest", tag("backend-db")]);
+  }
 
-  console.log("  frontend (standalone build, this one is the slow one)...");
-  run("docker", ["build", "-t", tag("frontend"), "."], { cwd: FRONTEND });
+  if (PART !== "backend") {
+    console.log("  frontend (standalone build, this one is the slow one)...");
+    run("docker", ["build", "-t", tag("frontend"), "."], { cwd: FRONTEND });
+  }
 }
 
 for (const img of IMAGES) {
@@ -168,9 +194,13 @@ for (const img of IMAGES) {
 // سریع) و بعد **یک‌بار** به‌صورت tar بیرون کشیده می‌شود. کاربر هم در زمانِ نصب
 // همان tar را باز می‌کند که چند مرتبه از unzipِ فایل‌به‌فایل سریع‌تر است.
 
+// E44 — بستهٔ فرانت vendor ندارد (PHP اصلاً در آن نیست).
+const NEED_VENDOR = PART !== "frontend";
+const VENDOR_TAR = "vendor.tar.gz";
+
+if (NEED_VENDOR) {
 console.log("\n── backend vendor/ (into a container volume, then tarred out) ──");
 const VENDOR_VOLUME = "pishdad-offline-vendor";
-const VENDOR_TAR = "vendor.tar.gz";
 
 run("docker", ["volume", "rm", "-f", VENDOR_VOLUME], { stdio: "ignore" });
 run("docker", ["volume", "create", VENDOR_VOLUME], { stdio: "ignore" });
@@ -240,6 +270,7 @@ run("docker", [
     "tar -czf /out/" + VENDOR_TAR + " -C /vendor .",
 ]);
 run("docker", ["volume", "rm", "-f", VENDOR_VOLUME], { stdio: "ignore" });
+} // NEED_VENDOR
 
 /* ── ۳. بستهٔ سبک + اسکریپت‌ها ─────────────────────────────────────────── */
 
@@ -249,7 +280,8 @@ for (const entry of readdirSync(LEAN)) {
 }
 // vendor به‌صورت tar در `offline/` می‌رود (نه به‌عنوان پوشه زیر cms-core).
 // اسکریپتِ نصب بازش می‌کند؛ دلیلش در بخشِ ۲ توضیح داده شده.
-if (!existsSync(join(OUT, "offline", VENDOR_TAR))) {
+// E44 — فقط وقتی بک‌اند در بسته است.
+if (NEED_VENDOR && !existsSync(join(OUT, "offline", VENDOR_TAR))) {
   console.error(`✗ ${VENDOR_TAR} ساخته نشد`);
   process.exit(1);
 }
@@ -399,8 +431,13 @@ services:
       - "host.docker.internal:host-gateway"
 `;
 
-writeFileSync(join(OUT, "cms-core", "backend", "docker-compose.offline.yml"), backendOffline);
-writeFileSync(join(OUT, "cms-core", "frontend", "docker-compose.offline.yml"), frontendOffline);
+// E44 — فقط compose همان بخشی که در بسته است نوشته می‌شود.
+if (PART !== "frontend") {
+  writeFileSync(join(OUT, "cms-core", "backend", "docker-compose.offline.yml"), backendOffline);
+}
+if (PART !== "backend") {
+  writeFileSync(join(OUT, "cms-core", "frontend", "docker-compose.offline.yml"), frontendOffline);
+}
 
 const imageList = IMAGES.map((i) => i.name);
 writeFileSync(

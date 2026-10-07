@@ -18,6 +18,10 @@
  *
  *     node scripts/build-distribution.mjs                 # نوشتن بسته
  *     node scripts/build-distribution.mjs --out dist-v2   # مسیر دلخواه
+  *     node scripts/build-distribution.mjs --part backend  # E41: فقط بک‌اند
+  *     node scripts/build-distribution.mjs --part frontend # E41: فقط فرانت‌اند
+  *
+  * E41: بعضی‌ها دو سرور دارند (یکی بک‌اند، یکی فرانت). --part فقط همان بخش را حمل می‌کند؛ اسناد عمومی ریشه در هر سه حالت مشترک است.
  *
  * سپس `scripts/verify-distribution.mjs` را روی خروجی اجرا کنید.
  *
@@ -34,7 +38,17 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
 const argOut = process.argv.indexOf("--out");
-const OUT_NAME = argOut > -1 ? process.argv[argOut + 1] : "dist-pishdad";
+const argPart = process.argv.indexOf("--part");
+
+/** E41 — بخشِ درخواستی. مقدارِ نامعتبر = خطا (نه سکوت و نه full). */
+const PART = argPart > -1 ? process.argv[argPart + 1] : "full";
+if (!["backend", "frontend", "full"].includes(PART)) {
+  console.error(`✗ unknown --part: ${PART ?? "(empty)"} (expected backend, frontend or full)`);
+  process.exit(1);
+}
+
+const OUT_NAME =
+  argOut > -1 ? process.argv[argOut + 1] : PART === "full" ? "dist-pishdad" : `dist-pishdad-${PART}`;
 const OUT = resolve(ROOT, OUT_NAME);
 
 const git = (...args) =>
@@ -58,10 +72,15 @@ console.log(`tracked files: ${tracked.length}`);
  * گرافیک؛ هیچ‌کدام در کد ارجاع نشده‌اند — فاوآیکون/لوگوی واقعی در
  * `cms-core/frontend/public/` است) منتشر نمی‌شوند.
  */
-const INCLUDE_ROOTS = ["cms-core/", ".github/"];
+const INCLUDE_ROOTS =
+  PART === "backend"
+    ? ["cms-core/backend/", "cms-core/installer/", ".github/"]
+    : PART === "frontend"
+      ? ["cms-core/frontend/", "cms-core/installer/", ".github/"]
+      : ["cms-core/", ".github/"];
 
 /** فایل‌های قانونی که بدون‌شان بسته ناقص یا بی‌معنی است. */
-const REQUIRED = [
+const REQUIRED_ALL = [
   "cms-core/backend/composer.json",
   "cms-core/backend/.env.example",
   "cms-core/backend/artisan",
@@ -76,6 +95,11 @@ const REQUIRED = [
   // فونت محلی — قانون پروژه: هیچ CDN.
   "cms-core/frontend/public/fonts/Vazirmatn-Regular.woff2",
 ];
+
+/** E41 — در بستهٔ تک‌بخش فقط فایل‌های همان بخش لازم‌اند. */
+const REQUIRED = REQUIRED_ALL.filter((f) =>
+  PART === "full" ? true : PART === "backend" ? f.startsWith("cms-core/backend/") : f.startsWith("cms-core/frontend/"),
+);
 
 const missingRequired = REQUIRED.filter((f) => !tracked.includes(f));
 
@@ -238,7 +262,12 @@ console.log(`public docs copied: ${PUBLIC_DOCS.length}`);
 
 /* ── ۵. فایل‌های کمکی ─────────────────────────────────────────────────── */
 
-const keep = ["cms-core/backend", "cms-core/frontend"];
+const keep =
+  PART === "backend"
+    ? ["cms-core/backend"]
+    : PART === "frontend"
+      ? ["cms-core/frontend"]
+      : ["cms-core/backend", "cms-core/frontend"];
 
 for (const entry of readFileSync(resolve(ROOT, ".gitignore"), "utf8").split(/\r?\n/)) {
   const line = entry.trim();
@@ -307,8 +336,22 @@ for (const rel of [...shippedList].sort()) {
 }
 const contentDigest = digestOf.digest("hex");
 
+const FULL_INSTALL = [
+  "cd cms-core/backend && composer install",
+  "cp .env.example .env && php artisan key:generate",
+  "php artisan storage:link   # required: media/images are served from /storage/",
+  "php artisan migrate --force",
+  "php artisan db:seed --class=PishdadSiteSeeder   # optional: the Pishdad demo site",
+  "cd ../frontend && npm ci && npm run build",
+];
+
+const BACKEND_INSTALL = FULL_INSTALL.slice(0, 5);
+
+const FRONTEND_INSTALL = ["cd cms-core/frontend && npm ci && npm run build"];
+
 const manifest = {
   name: "pishdad",
+  part: PART,
   built_from: head,
   source_state: workingTreeDirty
     ? "dirty — the working tree had uncommitted changes, so built_from does NOT describe this package; use content_digest"
@@ -336,14 +379,7 @@ const manifest = {
       "build output (.next/, out/, dist-*)",
     ],
   },
-  install: [
-    "cd cms-core/backend && composer install",
-    "cp .env.example .env && php artisan key:generate",
-    "php artisan storage:link   # required: media/images are served from /storage/",
-    "php artisan migrate --force",
-    "php artisan db:seed --class=PishdadSiteSeeder   # optional: the Pishdad demo site",
-    "cd ../frontend && npm ci && npm run build",
-  ],
+  install: PART === "backend" ? BACKEND_INSTALL : PART === "frontend" ? FRONTEND_INSTALL : FULL_INSTALL,
 };
 
 writeFileSync(join(OUT, "DISTRIBUTION.json"), JSON.stringify(manifest, null, 2) + "\n", "utf8");

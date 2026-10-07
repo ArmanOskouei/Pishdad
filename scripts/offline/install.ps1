@@ -58,8 +58,11 @@ if (Test-Path $vendorTar) {
         tar -xzf $vendorTar -C $vendorDir
         if ($LASTEXITCODE -ne 0) { Fail "failed to unpack offline\vendor.tar.gz" }
     }
-} else {
+} elseif (Test-Path (Join-Path $root 'cms-core\backend')) {
     Fail "offline\vendor.tar.gz is missing - the backend would need composer install (network)."
+} else {
+    # E44 — frontend-only bundle has no backend and no vendor tar.
+    Write-Host "No backend in this bundle (frontend-only package) - skipping vendor/." -ForegroundColor DarkGray
 }
 
 # --- 4. Bring the stacks up --------------------------------------------------
@@ -74,17 +77,30 @@ if (Test-Path (Join-Path $root 'cms-core\frontend\docker-compose.offline.yml')) 
 }
 
 Write-Host "`nStarting the backend..." -ForegroundColor Cyan
-docker compose -f (Join-Path $root 'cms-core\backend\docker-compose.offline.yml') up -d
-if ($LASTEXITCODE -ne 0) { Fail "docker compose up failed for the backend." }
+if (Test-Path (Join-Path $root 'cms-core\backend\docker-compose.offline.yml')) {
+    docker compose -f (Join-Path $root 'cms-core\backend\docker-compose.offline.yml') up -d
+    if ($LASTEXITCODE -ne 0) { Fail "docker compose up failed for the backend." }
+} else {
+    # E44 — frontend-only bundle has no backend compose.
+    Write-Host "No backend compose in this bundle (frontend-only package) - skipping the backend." -ForegroundColor DarkGray
+}
 
 if (-not $BackendOnly) {
-    Write-Host "Starting the frontend..." -ForegroundColor Cyan
-    docker compose -f (Join-Path $root 'cms-core\frontend\docker-compose.offline.yml') up -d
-    if ($LASTEXITCODE -ne 0) { Fail "docker compose up failed for the frontend." }
+    if (Test-Path (Join-Path $root 'cms-core\frontend\docker-compose.offline.yml')) {
+        Write-Host "Starting the frontend..." -ForegroundColor Cyan
+        docker compose -f (Join-Path $root 'cms-core\frontend\docker-compose.offline.yml') up -d
+        if ($LASTEXITCODE -ne 0) { Fail "docker compose up failed for the frontend." }
+    } else {
+        # E44 — backend-only bundle has no frontend compose; do not fail silently.
+        Write-Host "No frontend compose in this bundle (backend-only package) - skipping the frontend." -ForegroundColor DarkGray
+        $BackendOnly = $true
+    }
 }
 
 Write-Host "`nDone." -ForegroundColor Green
-Write-Host "  Installer : http://localhost:$ApiPort/install"
+if (Test-Path (Join-Path $root 'cms-core\backend\docker-compose.offline.yml')) {
+    Write-Host "  Installer : http://localhost:$ApiPort/install"
+}
 if (-not $BackendOnly) { Write-Host "  Site      : http://localhost:$FrontendPort" }
 Write-Host ""
 Write-Host "vendor/ travelled with the bundle, so the entrypoint skips composer install." -ForegroundColor DarkGray
