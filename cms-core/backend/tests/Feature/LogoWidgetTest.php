@@ -9,8 +9,6 @@ use App\Models\User;
 use App\Services\Settings\CachedSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Pishdad\Plugins\Central\Models\Client;
-use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -31,23 +29,6 @@ class LogoWidgetTest extends TestCase
         ]);
     }
 
-    private function subscribe(User $owner): void
-    {
-        $client = Client::query()->oldest('id')->first();
-        if ($client) {
-            $client->forceFill(['owner_user_id' => $owner->id])->save();
-        } else {
-            $client = Client::query()->create([
-                'name' => 'نصب تست', 'site_id' => 'site-test-'.uniqid(),
-                'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $owner->id,
-            ]);
-            Subscription::query()->create([
-                'client_id' => $client->id, 'site_id' => $client->site_id,
-                'status' => 'active', 'due_at' => now()->addDays(30),
-            ]);
-        }
-    }
-
     public function test_schema_has_no_media_id_or_size(): void
     {
         $schemas = $this->actingAs($this->user(), 'sanctum')
@@ -63,7 +44,6 @@ class LogoWidgetTest extends TestCase
     public function test_legacy_logo_settings_accepted_and_ignored(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $auth = $this->actingAs($user, 'sanctum');
 
         // تنظیمات قدیمی خطا نمی‌دهد…
@@ -91,7 +71,6 @@ class LogoWidgetTest extends TestCase
     public function test_logo_url_still_comes_from_site_settings(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $key = 'global';
 
         $media = Media::query()->create([

@@ -9,8 +9,6 @@ use App\Models\User;
 use App\Services\Plugins\ManifestRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Pishdad\Plugins\Central\Models\Client;
-use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -61,21 +59,6 @@ class SiteChromeTest extends TestCase
             'user_id' => $user->id, 'name' => 'قالب روشن', 'slug' => 'light',
             'version' => '1.0.0', 'active' => true,
         ]);
-
-        // اشتراک پیش‌فرض نصب را به همین کاربر گره می‌زنیم تا مالک پیدا شود.
-        $client = Client::query()->oldest('id')->first();
-        if ($client) {
-            $client->forceFill(['owner_user_id' => $user->id])->save();
-        } else {
-            $client = Client::query()->create([
-                'name' => 'نصب تست', 'site_id' => 'site-test',
-                'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $user->id,
-            ]);
-            Subscription::query()->create([
-                'client_id' => $client->id, 'site_id' => $client->site_id,
-                'status' => 'active', 'due_at' => now()->addDays(30),
-            ]);
-        }
 
         $res = $this->getJson('/api/v1/site/chrome')->assertOk();
 

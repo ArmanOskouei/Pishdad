@@ -8,8 +8,6 @@ use App\Models\User;
 use App\Services\Settings\CachedSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Pishdad\Plugins\Central\Models\Client;
-use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -54,23 +52,6 @@ class NestedLinksTest extends TestCase
         return $page->fresh();
     }
 
-    private function subscribe(User $owner): void
-    {
-        $client = Client::query()->oldest('id')->first();
-        if ($client) {
-            $client->forceFill(['owner_user_id' => $owner->id])->save();
-        } else {
-            $client = Client::query()->create([
-                'name' => 'نصب تست', 'site_id' => 'site-test-'.uniqid(),
-                'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $owner->id,
-            ]);
-            Subscription::query()->create([
-                'client_id' => $client->id, 'site_id' => $client->site_id,
-                'status' => 'active', 'due_at' => now()->addDays(30),
-            ]);
-        }
-    }
-
     private function forgetChrome(User $owner): void
     {
         CachedSettings::forget('site_chrome', 'chrome-default-global');
@@ -79,7 +60,6 @@ class NestedLinksTest extends TestCase
     public function test_nested_menu_saves_and_resolves_recursively(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $childPage = $this->page($user, 'consult', 'مشاوره');
         $auth = $this->actingAs($user, 'sanctum');
 
@@ -155,7 +135,6 @@ class NestedLinksTest extends TestCase
     public function test_broken_nested_page_dropped_gracefully_parent_kept(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $childPage = $this->page($user, 'child-x', 'فرزند');
         $auth = $this->actingAs($user, 'sanctum');
 
@@ -183,7 +162,6 @@ class NestedLinksTest extends TestCase
     public function test_footer_nested_links_resolve(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $childPage = $this->page($user, 'faq-x', 'سوالات');
         $auth = $this->actingAs($user, 'sanctum');
 

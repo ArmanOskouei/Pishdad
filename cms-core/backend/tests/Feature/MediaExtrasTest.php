@@ -6,7 +6,6 @@ use App\Models\Media;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Pishdad\Plugins\Central\Models\Client;
 use Tests\TestCase;
 
 /** دسته ۱ (برابری UI/UX) — کارت مصرف فضای پلن + «بازیابی همه» سطل زباله. */
@@ -38,21 +37,19 @@ class MediaExtrasTest extends TestCase
     public function test_usage_reports_used_quota_and_percent(): void
     {
         $user = $this->user();
-        Client::query()->create([
-            'name' => 'من', 'tier' => 'standard', 'status' => 'active',
-            'owner_user_id' => $user->id, 'site_id' => 'site-'.$user->id,
-        ]);
         $this->file($user, 50_000_000);
         $this->file($user, 60_000_000);
         $this->file($user, 5000, true); // سطل زباله در مصرف حساب نمی‌شود.
 
         $res = $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/media/usage');
 
+        // نصبِ مستقل تیرِ کاربر ندارد ⇒ سقفِ ثابتِ خودِ هسته (`budget` = ۱ گیگابایت).
+        // مصرف اما همچنان مشترک است: جمعِ همهٔ فایل‌های همهٔ مدیران.
         $res->assertOk()
             ->assertJsonPath('data.used_bytes', 110_000_000)
-            ->assertJsonPath('data.quota_bytes', 5 * 1024 * 1024 * 1024)
-            ->assertJsonPath('data.tier', 'standard');
-        $this->assertEquals(2.0, $res->json('data.percent'));
+            ->assertJsonPath('data.quota_bytes', 1024 * 1024 * 1024)
+            ->assertJsonPath('data.tier', 'budget');
+        $this->assertEquals(10.2, $res->json('data.percent'));
     }
 
     /** مشترک نصب: «بازیابی همه» همه فایل‌های سطل زباله نصب را برمی‌گرداند. */

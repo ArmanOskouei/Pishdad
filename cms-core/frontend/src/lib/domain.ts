@@ -189,7 +189,7 @@ export function mediaUrl(m: Pick<MediaItem, "path"> & { url?: string | null }): 
 }
 
 
-/* â”€â”€ Ø³Ù‡Ù…ÛŒÙ‡Ù” ÙØ¶Ø§ Ùˆ ÙˆØ¶Ø¹ÛŒØª Ø³Ø§ÛŒØª â”€â”€ */
+/* ── سهمیهٔ فضا و وضعیت سایت ── */
 
 export type MediaUsage = {
   used_bytes: number;

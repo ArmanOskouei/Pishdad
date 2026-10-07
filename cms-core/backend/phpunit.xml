@@ -113,7 +113,6 @@
             <file>tests/Feature/PerformanceSettingsTest.php</file>
             <file>tests/Feature/PishdadSiteSeederTest.php</file>
             <file>tests/Feature/PluginAutoloaderTest.php</file>
-            <file>tests/Feature/PluginBoundaryTableSweepTest.php</file>
             <file>tests/Feature/PluginContractExampleIntegrityTest.php</file>
             <file>tests/Feature/PluginCoreTicketAccessTest.php</file>
             <file>tests/Feature/PluginDbContractTest.php</file>

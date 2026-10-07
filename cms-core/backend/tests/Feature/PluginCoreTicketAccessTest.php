@@ -13,7 +13,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Pishdad\Plugins\Central\Models\HardwareKey;
 use Tests\TestCase;
 
 /**
@@ -37,9 +36,8 @@ class PluginCoreTicketAccessTest extends TestCase
 
     private function plugin(): Plugin
     {
-        // `firstOrCreate` نه `create`: از K7.8 بستهٔ مرکزی **واقعی** در
-        // `plugins/central/` وجود دارد و `TestCase` آن را فعال می‌کند.
-        // `create` روی همان slug به `plugins_slug_unique` می‌خورد و کل تست
+        // `firstOrCreate` نه `create`: ممکن است تستی پیش از این، همین slug را
+        // ساخته باشد. `create` روی آن به `plugins_slug_unique` می‌خورد و کل تست
         // با `UniqueConstraintViolationException` می‌مرد.
         //
         // این تست فقط به «یک افزونهٔ فعال با namespace ثبت‌شده» نیاز دارد، نه به
@@ -63,9 +61,9 @@ class PluginCoreTicketAccessTest extends TestCase
         // پس به کدِ افزونه نیازی ندارد، و مسیرِ واقعی فقط آن را به تست
         // وابسته می‌کرد.
         //
-        // J11 — ولی اگر `TestCase` از قبل بستهٔ قرنطینه‌شده را ثبت کرده باشد
-        // (این تست به `HardwareKey` واقعی نیاز دارد)، ثبت با پوشهٔ خالی قبلی را
-        // **بازنویسی** می‌کرد و کلاس پیدا نمی‌شد. پس فقط وقتی چیزی ثبت نشده.
+        // J11 — ولی اگر از قبل همین slug ثبت شده باشد، ثبت با پوشهٔ خالی
+        // قبلی آن را **بازنویسی** می‌کرد و ریشهٔ واقعی از دست می‌رفت. پس فقط
+        // وقتی چیزی ثبت نشده.
         $loader = app(PluginAutoloader::class);
 
         if (! $loader->isRegistered('central')) {
@@ -265,11 +263,28 @@ class PluginCoreTicketAccessTest extends TestCase
         $this->assertSame('tickets', (new Ticket)->getTable());
     }
 
-    public function test_central_tables_stay_inaccessible_by_name(): void
+    /**
+     * مرزِ باقی‌مانده بعد از رفتنِ بستهٔ مرکزی: نامِ خامِ جدولی که افزونه
+     * اعلام می‌کند **هیچ‌وقت** در دیتابیس نمی‌نشیند.
+     *
+     * این مرز پیش‌تر با مدلِ بستهٔ مرکزی سنجیده می‌شد (کلیدِ سخت‌افزاری با
+     * پیشوندِ `central_`). آن مدل دیگر در مسیر نیست، ولی قاعده عوض نشده:
+     * پیشوند از slug خودِ افزونه می‌آید، پس افزونه نه می‌تواند نامِ خامِ یک
+     * جدولِ هسته را اعلام کند و نه با نامِ اعلامی به جای داده‌های هسته می‌نشیند.
+     */
+    public function test_a_plugin_table_can_never_land_on_a_core_name(): void
     {
-        // برعکسِ بالا: جدول‌های **مرکزی** پیشوند `central_` دارند و افزونه
-        // نباید اسم خامشان را حدس بزند. `HardwareKey` خودش جدول پیشونددار را
-        // می‌داند، پس افزونه باید همین را ببیند.
-        $this->assertSame('central_operator_hardware_keys', (new HardwareKey)->getTable());
+        // جدولِ هسته‌ای که هنوز وجود دارد: اعلامش باید از همان دروازه رد شود،
+        // نه فقط اینکه اسمش در فهرست باشد.
+        $issues = PluginDbContract::check(['tables' => [['name' => 'tickets']]], 'demo');
+        $this->assertSame('db.table_collides_core', $issues[0]['code'] ?? null);
+
+        // و یک نامِ آزاد پذیرفته می‌شود، ولی فقط با پیشوندِ slug خودش.
+        $this->assertSame([], PluginDbContract::check(['tables' => [['name' => 'hardware_keys']]], 'demo'));
+        $this->assertSame('demo_hardware_keys', PluginDbContract::prefixed('demo', 'hardware_keys'));
+
+        // جدولِ هسته سرِ جایش است و جدولِ افزونه — تا اعلام نشود — وجود ندارد.
+        $this->assertTrue(Schema::hasTable('tickets'));
+        $this->assertFalse(Schema::hasTable('demo_hardware_keys'));
     }
 }

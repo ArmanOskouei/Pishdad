@@ -9,8 +9,8 @@ use App\Services\Plugins\DevModeUnlock;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-use Pishdad\Plugins\Central\Models\OperatorActivity;
 use Tests\TestCase;
 
 /**
@@ -56,6 +56,47 @@ class DevModeUnlockTest extends TestCase
             $taps->tap($user, '203.0.113.9', 'POST');
         }
         Carbon::setTestNow();
+    }
+
+    /**
+     * ردپای ممیزی حالا **کجا** می‌نشیند؟
+     *
+     * `DevModeAudit` دیگر مدلِ هیچ افزونه‌ای را صدا نمی‌زند؛ فقط
+     * `AuditTrail::record()` را می‌زند، و آن به هر `AuditSink` ثبت‌شده و
+     * **همیشه** به `Log::info('audit.event', …)` می‌نویسد. روی نصبِ بدون
+     * افزونهٔ ممیزی، لاگ تنها مقصد است — پس ادعای «باز کردن ثبت شد» باید
+     * همان‌جا سنجیده شود، نه روی یک جدولِ فرضی.
+     *
+     * اگر روزی مقصدِ دیگری برگردد، این helper چیزی برنمی‌گرداند و تست‌های
+     * پایین قرمز می‌شوند — دقیقاً همان کاری که `AuditSink` برای همین
+     * ساخته شده: هسته **می‌نویسد**، هرکس خواست **می‌خواند**.
+     *
+     * @return array{user_id: int|null, action: string, meta: array, ip: string|null, at: string}|null
+     */
+    private function auditEntry(string $action): ?array
+    {
+        $found = null;
+
+        // ماچر عمداً همهٔ `info`ها را می‌بیند و فقط رویدادِ خواسته‌شده را برمی‌دارد،
+        // پس لاگ‌های دیگرِ همان مسیر مزاحمش نمی‌شوند. خودِ فراخوانی هم یک
+        // assertion است: اگر هیچ ردیفی ننشسته باشد، Mockery همین‌جا می‌ترکد.
+        Log::shouldHaveReceived('info')->withArgs(
+            function ($message, $context = []) use ($action, &$found): bool {
+                if ($message !== 'audit.event' || ! is_array($context)) {
+                    return false;
+                }
+
+                if (($context['action'] ?? null) !== $action) {
+                    return false;
+                }
+
+                $found ??= $context;
+
+                return true;
+            }
+        );
+
+        return $found;
     }
 
     // ------------------------------------------------------------------ K4.1
@@ -261,18 +302,21 @@ class DevModeUnlockTest extends TestCase
     {
         $taps = app(DevModeTaps::class);
         $this->tapFiveTimes($taps);
+        Log::spy();
+
         $this->unlock()->unlock($this->user, '203.0.113.9', 'correct-horse', 'POST');
 
-        $row = OperatorActivity::query()->where('action', 'devmode.unlocked')->first();
-        $this->assertNotNull($row, 'باز کردن موفق باید ثبت شود.');
-        $this->assertSame($this->user->id, $row->user_id);
-        $this->assertSame('203.0.113.9', $row->ip);
+        $entry = $this->auditEntry('devmode.unlocked');
+        $this->assertNotNull($entry, 'باز کردن موفق باید ثبت شود.');
+        $this->assertSame($this->user->id, $entry['user_id']);
+        $this->assertSame('203.0.113.9', $entry['ip']);
     }
 
     public function test_a_failed_unlock_is_recorded_too(): void
     {
         $taps = app(DevModeTaps::class);
         $this->tapFiveTimes($taps);
+        Log::spy();
 
         try {
             $this->unlock()->unlock($this->user, '203.0.113.9', 'wrong-password', 'POST');
@@ -280,55 +324,60 @@ class DevModeUnlockTest extends TestCase
             // انتظار می‌رود.
         }
 
-        $row = OperatorActivity::query()->where('action', 'devmode.unlock_denied')->first();
+        $entry = $this->auditEntry('devmode.unlock_denied');
         $this->assertNotNull(
-            $row,
+            $entry,
             'تلاش ناموفق هم باید ثبت شود — وگرنه بعد از یک حملهٔ ناموفق هیچ ردی نمی‌ماند.'
         );
-        $this->assertSame('bad_password', $row->meta['reason'] ?? null);
+        $this->assertSame('bad_password', $entry['meta']['reason'] ?? null);
     }
 
     public function test_a_denied_gesture_is_recorded_with_its_reason(): void
     {
+        Log::spy();
+
         try {
             $this->unlock()->unlock($this->user, '203.0.113.9', 'correct-horse', 'POST');
         } catch (ValidationException) {
             // انتظار می‌رود.
         }
 
-        $row = OperatorActivity::query()->where('action', 'devmode.unlock_denied')->first();
-        $this->assertNotNull($row);
-        $this->assertSame('gesture_incomplete', $row->meta['reason'] ?? null);
+        $entry = $this->auditEntry('devmode.unlock_denied');
+        $this->assertNotNull($entry);
+        $this->assertSame('gesture_incomplete', $entry['meta']['reason'] ?? null);
     }
 
     public function test_locking_is_recorded(): void
     {
         $taps = app(DevModeTaps::class);
         $this->tapFiveTimes($taps);
-        $this->unlock()->unlock($this->user, '203.0.113.9', 'correct-horse', 'POST');
+        Log::spy();
 
+        $this->unlock()->unlock($this->user, '203.0.113.9', 'correct-horse', 'POST');
         $this->unlock()->lock($this->user, '203.0.113.9');
 
-        $this->assertNotNull(OperatorActivity::query()->where('action', 'devmode.locked')->first());
+        $this->assertNotNull($this->auditEntry('devmode.locked'));
     }
 
     /**
      * توکن نباید در ردپا لو برود.
      *
-     * `unlock_token` همان چیزی است که دروازهٔ آپلود را باز می‌کند. اگر در
-     * `operator_activities` بنشیند، هر کسی که به ردپا دسترسی دارد عملاً
-     * می‌تواند بستهٔ بدون امضا نصب کند.
+     * `unlock_token` همان چیزی است که دروازهٔ آپلود را باز می‌کند. اگر در ردپا
+     * بنشیند — چه در لاگ، چه در جدولِ افزونه‌ای که `AuditSink` وصل کرده — هر
+     * کسی که به آن دسترسی دارد عملاً می‌تواند بستهٔ بدون امضا نصب کند.
      */
     public function test_the_unlock_token_never_reaches_the_audit_log(): void
     {
         $taps = app(DevModeTaps::class);
         $this->tapFiveTimes($taps);
+        Log::spy();
+
         $result = $this->unlock()->unlock($this->user, '203.0.113.9', 'correct-horse', 'POST');
 
-        $serialized = json_encode(
-            OperatorActivity::query()->where('action', 'devmode.unlocked')->first()?->meta ?? []
-        );
+        $serialized = json_encode($entry = $this->auditEntry('devmode.unlocked'));
 
+        // بدون این، یک ردپای خالی هم «توکن در آن نیست» و تست ساکت سبز می‌شد.
+        $this->assertNotNull($entry, 'باز کردن موفق باید ثبت شود.');
         $this->assertStringNotContainsString(
             $result['unlock_token'],
             (string) $serialized,

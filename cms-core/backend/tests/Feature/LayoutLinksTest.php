@@ -9,8 +9,6 @@ use App\Models\User;
 use App\Services\Settings\CachedSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Pishdad\Plugins\Central\Models\Client;
-use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /**
@@ -58,23 +56,6 @@ class LayoutLinksTest extends TestCase
         return $page->fresh();
     }
 
-    private function subscribe(User $owner): void
-    {
-        $client = Client::query()->oldest('id')->first();
-        if ($client) {
-            $client->forceFill(['owner_user_id' => $owner->id])->save();
-        } else {
-            $client = Client::query()->create([
-                'name' => 'نصب تست', 'site_id' => 'site-test-'.uniqid(),
-                'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $owner->id,
-            ]);
-            Subscription::query()->create([
-                'client_id' => $client->id, 'site_id' => $client->site_id,
-                'status' => 'active', 'due_at' => now()->addDays(30),
-            ]);
-        }
-    }
-
     private function forgetChrome(User $owner): void
     {
         CachedSettings::forget('site_chrome', 'chrome-default-global');
@@ -83,7 +64,6 @@ class LayoutLinksTest extends TestCase
     public function test_nav_page_item_resolves_live_title_and_url(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $page = $this->page($user, 'about-us', 'درباره ما', 'published');
         $auth = $this->actingAs($user, 'sanctum');
 
@@ -116,7 +96,6 @@ class LayoutLinksTest extends TestCase
     public function test_old_label_href_shape_accepted_as_custom(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $auth = $this->actingAs($user, 'sanctum');
 
         $auth->putJson('/api/v1/admin/layouts/header', [
@@ -167,7 +146,6 @@ class LayoutLinksTest extends TestCase
     public function test_broken_page_item_skipped_gracefully_in_chrome(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $page = $this->page($user, 'temp-x', 'موقت', 'published');
         $auth = $this->actingAs($user, 'sanctum');
 
@@ -193,7 +171,6 @@ class LayoutLinksTest extends TestCase
     public function test_footer_links_resolve_and_columns_default_and_validate(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $page = $this->page($user, 'services-x', 'خدمات', 'published');
         $auth = $this->actingAs($user, 'sanctum');
 
@@ -234,7 +211,6 @@ class LayoutLinksTest extends TestCase
     public function test_theme_footer_defaults_apply_until_user_customizes(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $auth = $this->actingAs($user, 'sanctum');
 
         Theme::query()->create([

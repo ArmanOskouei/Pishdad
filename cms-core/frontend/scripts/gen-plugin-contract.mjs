@@ -15,7 +15,7 @@
  *   node scripts/gen-plugin-contract.mjs --check     → فقط گزارش drift
  *
  * حالت `--check` روی drift **غیرصفر** خارج می‌شود، پس در CI یا قبل از
- * commit می‌شود آن را دید. الگو عیناً همان `gen:types` است: یک آر��یفکت
+ * commit می‌شود آن را دید. الگو عیناً همان `gen:types` است: یک آرت‌یفکت
  * تولیدشده که **commit** می‌شود و مصرف‌کننده‌اش آن را import می‌کند —
  * نه hook داخل `next.config.ts`.
  *

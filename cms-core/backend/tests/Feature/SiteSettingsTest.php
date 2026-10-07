@@ -8,8 +8,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use Pishdad\Plugins\Central\Models\Client;
-use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** تسک ۲.۳ — DoD: خواندن/ذخیره تنظیمات سایت + شبکه‌ها (کش‌دار، اعتبارسنجی فارسی، ایزولاسیون). */
@@ -474,20 +472,6 @@ class SiteSettingsTest extends TestCase
             'name' => 'ت', 'email' => 'chrome'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'), 'role' => 'admin',
         ]);
-        // اشتراک پیش‌فرض نصب را به همین کاربر گره می‌زنیم تا مالک کروم پیدا شود.
-        $client = Client::query()->oldest('id')->first();
-        if ($client) {
-            $client->forceFill(['owner_user_id' => $user->id])->save();
-        } else {
-            $client = Client::query()->create([
-                'name' => 'نصب تست', 'site_id' => 'site-test',
-                'tier' => 'budget', 'status' => 'active', 'owner_user_id' => $user->id,
-            ]);
-            Subscription::query()->create([
-                'client_id' => $client->id, 'site_id' => $client->site_id,
-                'status' => 'active', 'due_at' => now()->addDays(30),
-            ]);
-        }
         $auth = $this->actingAs($user, 'sanctum');
 
         // پرایم کش کروم با مقدار قدیمی (کلید settings:site_chrome:chrome-default-{id}).

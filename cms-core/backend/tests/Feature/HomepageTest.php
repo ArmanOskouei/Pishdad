@@ -9,8 +9,6 @@ use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use Pishdad\Plugins\Central\Models\Client;
-use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** کار دوم — صفحه خانه: homepage_page_id در settings + حل عمومی /site/homepage. */
@@ -54,18 +52,6 @@ class HomepageTest extends TestCase
         }
 
         return $page->fresh();
-    }
-
-    private function subscribe(User $owner): void
-    {
-        $client = Client::query()->create([
-            'name' => 'مشتری', 'tier' => 'budget', 'status' => 'active',
-            'site_id' => 'site-'.uniqid(), 'owner_user_id' => $owner->id,
-        ]);
-        Subscription::query()->create([
-            'client_id' => $client->id, 'site_id' => $client->site_id,
-            'status' => Subscription::ACTIVE, 'due_at' => now()->addDays(30),
-        ]);
     }
 
     public function test_homepage_setting_accepts_published_page(): void
@@ -114,7 +100,6 @@ class HomepageTest extends TestCase
     public function test_public_homepage_prefers_setting_then_home_slug_then_latest(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $auth = $this->actingAs($user, 'sanctum');
 
         $home = $this->page($user, 'home', 'published');
@@ -190,7 +175,6 @@ class HomepageTest extends TestCase
     public function test_chrome_exposes_homepage_slug(): void
     {
         $user = $this->user();
-        $this->subscribe($user);
         $page = $this->page($user, 'landing-x', 'published');
 
         $this->actingAs($user, 'sanctum')->putJson('/api/v1/admin/settings/site', [
