@@ -4,30 +4,35 @@ import { useCallback, useMemo, useState } from "react";
 import { saveConfig, testConnection, type SetupInput, type TestResult } from "./actions";
 
 /**
- * نصب‌کنندهٔ وبِ فرانت.
+ * نصب‌کنندهٔ وبِ فرانت (E54) — پاسِ نهایی.
+ *
+ * ## ⚠️ درسی که این فایل را بازنویسی کرد
+ *
+ * نسخهٔ قبلی با کلاس‌های **Tailwind** نوشته شده بود (`rounded-2xl`,
+ * `border-neutral-200`, `text-neutral-500`, …). این پروژه هرگز Tailwind
+ * نداشته: نه dependency، نه `tailwind.config.*`، نه `@tailwind`، نه postcss.
+ * پس هر `className` فقط یک رشته بود و صفحه به HTMLِ **بی‌استایل** تبدیل می‌شد.
+ *
+ * حالا استایل از کلاس‌های معناییِ `globals.css` (`.card`، `.field`، `.input`،
+ * `.btn`، `.alert`، `.badge`، `.dot`، …) به‌همراه بلوکِ `.setup-*` می‌آید که
+ * همان توکن‌های رنگِ پروژه را می‌خوانند. پس در هر قالب/جهتِ روشنی درست دیده
+ * می‌شود و هیچ فریم‌ورکِ CSS یا CDNای در میان نیست.
  *
  * ## اصولِ چیدمان (چرا این‌طور و نه آن‌طور)
  *
  * ۱. **دو ستون، نه یک ستونِ بلند.** فرم در ستونِ اصلی است و راهنما و کنش‌ها در
- *    ستونِ کناریِ **چسبان**. پیش‌تر راهنما بالای فرم بود و با دوازده دکمه فرم را
- *    زیرِ خودش خفه می‌کرد؛ کاربر نمی‌فهمید کجا باید چه کند. جدا کردنِ «مرجع» از
+ *    ستونِ **چسبانِ** کناری؛ در موبایل روی هم می‌افتند. جداکردنِ «مرجعِ کار» از
  *    «کاری که باید بکنی» همان چیزی است که صفحه را خوانا می‌کند.
- *
- * ۲. **راهنما دو دکمه است، نه دوازده.** به‌جای دکمه در هر ردیف، دو پیش‌تنظیم
- *    («لوکال» و «سرور») کلِّ فرم را یک‌جا پر می‌کنند. بقیهٔ کارِ راهنما فقط
- *    *نشان دادن* است، نه دکمه‌داشتن.
- *
- * ۳. **یک کارت برای هر موضوع**، با تیترِ کوتاه و یک خط توضیح — به‌جای
- *    `fieldset`های تودرتو.
- *
- * ۴. **کنش‌ها همیشه در دسترس.** دکمهٔ اصلی در ستونِ چسبان است، پس در هر جای
- *    صفحه که باشی می‌بینی‌اش و لازم نیست اسکرول کنی.
+ * ۲. **راهنما دو دکمه است، نه دوازده.** «لوکال»/«سرور» کلِ فرم را یک‌جا پر
+ *    می‌کنند؛ بقیهٔ کارِ راهنما فقط *نشان‌دادن* است، نه دکمه‌داشتن.
+ * ۳. **نتیجه کنارِ دکمه.** پاسخِ آزمون/ذخیره همان‌جا زیرِ دکمه‌ها می‌آید، نه
+ *    جایی که چشم نیست.
  *
  * ## قیدهای پروژه که رعایت شده
  *
- * - **هیچ `setState`/بارگذاری‌ای در بدنهٔ رندر نیست** (قانون: خطای React #301 =
+ * - **هیچ `setState`/بارگذاری‌ای در بدنهٔ رندر نیست** (قانونِ ضدِ React #301 =
  *   حلقهٔ رندر و کرش). همه‌چیز رویدادمحور است، پس `useEffect` هم لازم نیست.
- * - **هیچ CDN خارجی**: آیکون‌ها SVG درون‌خطی‌اند.
+ * - **هیچ CDN/فریم‌ورکِ CSS**: آیکون‌ها SVGِ درون‌خطی‌اند.
  * - RTL و متنِ فارسی؛ مقدارهای لاتین `dir="ltr"`.
  */
 
@@ -53,91 +58,146 @@ const PRESETS: Record<PresetId, Pick<SetupInput, "apiUrl" | "internalApiUrl" | "
   },
 };
 
-/** برچسب‌های خوانا برای نمایشِ مقدارهای پیش‌تنظیم. */
-const PRESET_LABELS: Array<{ key: keyof typeof PRESETS.local; label: string; dir?: "ltr" }> = [
-  { key: "apiUrl", label: "نشانیِ API", dir: "ltr" },
-  { key: "internalApiUrl", label: "نشانیِ داخلی", dir: "ltr" },
-  { key: "siteUrl", label: "نشانیِ سایت", dir: "ltr" },
-  { key: "mediaUrl", label: "رسانه", dir: "ltr" },
-  { key: "locales", label: "زبان‌ها", dir: "ltr" },
-  { key: "primaryLocale", label: "زبانِ پایه", dir: "ltr" },
+/** برچسب‌های خوانای ردیف‌های مرجع + نامِ کلیدِ `.env` متناظرشان. */
+const REF_ROWS: Array<{ key: keyof (typeof PRESETS)["local"]; label: string; env: string }> = [
+  { key: "apiUrl", label: "نشانیِ API", env: "CMS_PUBLIC_API_URL" },
+  { key: "internalApiUrl", label: "نشانیِ داخلی", env: "CMS_INTERNAL_API_URL" },
+  { key: "siteUrl", label: "نشانیِ سایت", env: "CMS_SITE_URL" },
+  { key: "mediaUrl", label: "رسانه", env: "CMS_PUBLIC_MEDIA_URL" },
+  { key: "locales", label: "زبان‌ها", env: "CMS_SITE_LOCALES" },
+  { key: "primaryLocale", label: "زبانِ پایه", env: "CMS_SITE_PRIMARY_LOCALE" },
 ];
 
-const INPUT =
-  "block w-full rounded-xl border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/10 disabled:bg-neutral-100";
-const LABEL = "flex items-baseline gap-2 text-sm font-medium text-neutral-900";
-const HINT = "mt-1.5 text-xs leading-5 text-neutral-500";
+/**
+ * نگاشتِ فیلدِ فرم به کلیدِ `.env` — یک جا، تا هم بلوکِ `.env` و هم «کپیِ
+ * راهنما» از آن بسازند و دو فهرستِ موازی کهنه نشود.
+ */
+const ENV_KEYS: Array<[keyof SetupInput, string]> = [
+  ["apiUrl", "CMS_PUBLIC_API_URL"],
+  ["internalApiUrl", "CMS_INTERNAL_API_URL"],
+  ["siteUrl", "CMS_SITE_URL"],
+  ["locales", "CMS_SITE_LOCALES"],
+  ["primaryLocale", "CMS_SITE_PRIMARY_LOCALE"],
+  ["mediaUrl", "CMS_PUBLIC_MEDIA_URL"],
+  ["revalidateSecret", "REVALIDATE_SECRET"],
+  ["vapidPublicKey", "CMS_PUBLIC_VAPID_PUBLIC_KEY"],
+  ["siteId", "CMS_SITE_ID"],
+];
 
 /* ── آیکون‌های درون‌خطی (هیچ CDN) ───────────────────────────────── */
 
-const svg = "shrink-0";
-const stroke = { stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+const STROKE = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.8,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
 
-function IconCheck(props: { className?: string }) {
+function IconCheck() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`${svg} ${props.className ?? "h-4 w-4"}`}>
-      <path d="M4 10.5l4 4 8-8" {...stroke} />
+    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M4 10.5l4 4 8-8" {...STROKE} />
     </svg>
   );
 }
 
-function IconAlert(props: { className?: string }) {
+function IconAlert() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`${svg} ${props.className ?? "h-4 w-4"}`}>
-      <path d="M10 3.2l7.5 13.3h-15L10 3.2z" {...stroke} />
-      <path d="M10 8.2v3.6M10 14.2v.6" {...stroke} />
+    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M10 3.2l7.5 13.3h-15L10 3.2z" {...STROKE} />
+      <path d="M10 8.2v3.6M10 14.2v.6" {...STROKE} />
     </svg>
   );
 }
 
-function IconCopy(props: { className?: string }) {
+function IconEye({ off = false }: { off?: boolean }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`${svg} ${props.className ?? "h-4 w-4"}`}>
-      <rect x="7" y="7" width="9" height="9" rx="2" {...stroke} />
-      <path d="M13 7V5.6A1.6 1.6 0 0011.4 4H5.6A1.6 1.6 0 004 5.6v5.8A1.6 1.6 0 005.6 13H7" {...stroke} />
+    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M2.5 10S5.5 4.8 10 4.8 17.5 10 17.5 10 14.5 15.2 10 15.2 2.5 10 2.5 10z" {...STROKE} />
+      <circle cx="10" cy="10" r="2.4" {...STROKE} />
+      {off ? <path d="M3.5 3.5l13 13" {...STROKE} /> : null}
     </svg>
   );
 }
 
-function IconEye(props: { off?: boolean; className?: string }) {
+function IconChevron() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`${svg} ${props.className ?? "h-4 w-4"}`}>
-      <path d="M2.5 10S5.5 4.8 10 4.8 17.5 10 17.5 10 14.5 15.2 10 15.2 2.5 10 2.5 10z" {...stroke} />
-      <circle cx="10" cy="10" r="2.4" {...stroke} />
-      {props.off && <path d="M3.5 3.5l13 13" {...stroke} />}
-    </svg>
-  );
-}
-
-function IconChevron(props: { open: boolean; className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      aria-hidden="true"
-      className={`${svg} transition-transform ${props.open ? "rotate-180" : ""} ${props.className ?? "h-4 w-4"}`}
-    >
-      <path d="M5.5 8l4.5 4.5L14.5 8" {...stroke} />
+    <svg className="setup-chev" width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M5.5 8l4.5 4.5L14.5 8" {...STROKE} />
     </svg>
   );
 }
 
 /* ── اجزای کوچک ─────────────────────────────────────────────────── */
 
-/** کارتِ یک موضوع از فرم. */
-function Card({ step, title, lead, children }: { step: number; title: string; lead?: string; children: React.ReactNode }) {
+/** فیلدِ فرم: برچسبِ `for`دار + نشانهٔ لازم/اختیاری + پیامِ خطا/هشدار + راهنما. */
+function Field({
+  id,
+  label,
+  required = false,
+  optional = false,
+  hint,
+  error,
+  warn,
+  children,
+}: {
+  id: string;
+  label: string;
+  required?: boolean;
+  optional?: boolean;
+  /** راهنما یک خطِ کوتاه است؛ شناسه‌اش برای `aria-describedby` ثابت است. */
+  hint: React.ReactNode;
+  error?: string;
+  warn?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-6">
-      <header className="mb-5 flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-neutral-900 text-[11px] font-bold text-white"
-        >
+    <div className="field">
+      <label htmlFor={id}>
+        {label}
+        {required ? (
+          <span className="setup-req" aria-hidden="true">
+            *
+          </span>
+        ) : null}
+        {optional ? <span className="setup-opt">اختیاری</span> : null}
+      </label>
+      {children}
+      {error ? (
+        <p id={`${id}-err`} className="setup-field-error">
+          {error}
+        </p>
+      ) : null}
+      {!error && warn ? <p className="setup-field-warn">{warn}</p> : null}
+      <p id={`${id}-hint`} className="hint">
+        {hint}
+      </p>
+    </div>
+  );
+}
+
+/** سرِ یک بخشِ شماره‌دار. */
+function Section({
+  step,
+  title,
+  lead,
+  children,
+}: {
+  step: number;
+  title: string;
+  lead: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="card card-pad">
+      <header className="setup-card-head">
+        <span className="setup-step" aria-hidden="true">
           {step}
         </span>
         <div>
-          <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
-          {lead && <p className="mt-0.5 text-xs leading-5 text-neutral-500">{lead}</p>}
+          <h2>{title}</h2>
+          <p>{lead}</p>
         </div>
       </header>
       {children}
@@ -145,25 +205,44 @@ function Card({ step, title, lead, children }: { step: number; title: string; le
   );
 }
 
-/** یک مقدارِ مرجع در ستونِ کناری، با دکمهٔ کپی. */
-function RefRow({ label, value, onCopy, copied }: { label: string; value: string; onCopy: () => void; copied: boolean }) {
-  return (
-    <div className="group flex items-center gap-2 py-1.5">
-      <span className="w-20 shrink-0 text-[11px] text-neutral-500">{label}</span>
-      <code className="flex-1 truncate text-[11px] text-neutral-800" dir="ltr" title={value}>
-        {value}
-      </code>
-      <button
-        type="button"
-        onClick={onCopy}
-        title={`کپیِ ${label}`}
-        aria-label={`کپیِ ${label}`}
-        className="rounded-md p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
-      >
-        {copied ? <IconCheck className="h-3.5 w-3.5 text-emerald-600" /> : <IconCopy className="h-3.5 w-3.5" />}
-      </button>
-    </div>
-  );
+/* ── اعتبارسنجیِ سبکِ کلاینت ─────────────────────────────────────── */
+
+function isHttpUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * فقط برای نشان‌دادنِ زودهنگامِ فیلدِ مشکل‌دار (`aria-invalid` + پیامِ کنارِ
+ * همان فیلد). **منبعِ حقیقت همان `actions.ts` است** — اینجا فهرستِ زبان‌های
+ * مجاز تکرار نمی‌شود (تکرار یعنی دو حقیقت که یکی کهنه می‌شود)؛ خطاهای مربوط به
+ * «زبانِ ناشناخته» از پاسخِ سرور در جعبهٔ نتایج دیده می‌شوند.
+ */
+function clientErrors(form: SetupInput): Partial<Record<keyof SetupInput, string>> {
+  const errors: Partial<Record<keyof SetupInput, string>> = {};
+
+  if (!isHttpUrl(form.apiUrl)) errors.apiUrl = "نشانی باید با http:// یا https:// شروع شود.";
+  if (form.internalApiUrl.trim() && !isHttpUrl(form.internalApiUrl)) errors.internalApiUrl = "نشانیِ داخلی معتبر نیست.";
+  if (form.siteUrl.trim() && !isHttpUrl(form.siteUrl)) errors.siteUrl = "نشانیِ سایت معتبر نیست.";
+  if (form.mediaUrl.trim() && !isHttpUrl(form.mediaUrl)) errors.mediaUrl = "نشانیِ رسانه معتبر نیست.";
+
+  const locales = form.locales
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (locales.length === 0) errors.locales = "حداقل یک زبان لازم است.";
+
+  const primary = form.primaryLocale.trim();
+  if (!primary) errors.primaryLocale = "زبانِ پایه را وارد کنید.";
+  else if (locales.length > 0 && !locales.includes(primary)) errors.primaryLocale = "زبانِ پایه باید یکی از زبان‌های فعال باشد.";
+
+  if (!form.revalidateSecret.trim()) errors.revalidateSecret = "رازِ revalidate لازم است.";
+
+  return errors;
 }
 
 /* ── فرمِ اصلی ──────────────────────────────────────────────────── */
@@ -175,12 +254,13 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
   const [saving, setSaving] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
   const [save, setSave] = useState<{ ok: boolean; message: string; errors?: string[] } | null>(null);
+  const [attempted, setAttempted] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showEnv, setShowEnv] = useState(false);
   const [revealSecret, setRevealSecret] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  // ⚠️ همهٔ `setState`ها داخلِ رویداد هستند — هیچ‌کدام در بدنهٔ رندر صدا زده
+  // ⚠️ همهٔ `setState`ها داخلِ رویدادند — هیچ‌کدام در بدنهٔ رندر صدا زده
   // نمی‌شوند (قانونِ ضدِ React #301).
   const set = useCallback(<K extends keyof SetupInput>(key: K, value: SetupInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -198,13 +278,10 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
   }, []);
 
   /** پر کردنِ کلِ فرم از یک پیش‌تنظیم. */
-  const applyPreset = useCallback(
-    (id: PresetId) => {
-      setPreset(id);
-      setForm((prev) => ({ ...prev, ...PRESETS[id] }));
-    },
-    [],
-  );
+  const applyPreset = useCallback((id: PresetId) => {
+    setPreset(id);
+    setForm((prev) => ({ ...prev, ...PRESETS[id] }));
+  }, []);
 
   const onTest = useCallback(async () => {
     setTesting(true);
@@ -213,7 +290,8 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
     try {
       const result = await testConnection(form);
       setTest(result);
-      // نشانیِ تصحیح‌شده را می‌نشانیم تا کاربر نداند اشتباه نوشته بوده.
+      // نشانیِ تصحیح‌شده را می‌نشانیم تا کاربر نفهمد اشتباه نوشته بوده — و
+      // همان را در فرم می‌گذاریم تا ذخیره با نشانیِ کارآمد انجام شود.
       if (result.ok && result.apiUrl && result.apiUrl !== form.apiUrl.trim().replace(/\/+$/, "")) {
         set("apiUrl", result.apiUrl);
       }
@@ -223,6 +301,11 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
   }, [form, set]);
 
   const onSave = useCallback(async () => {
+    // خطاها را زودتر نشان بده و از یک درخواستِ بی‌ثمر جلوگیری کن؛ اعتبارسنجیِ
+    // نهایی همچنان سمتِ سرور است.
+    setAttempted(true);
+    if (Object.keys(clientErrors(form)).length > 0) return;
+
     setSaving(true);
     setSave(null);
     setTest(null);
@@ -235,10 +318,14 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
     }
   }, [form]);
 
+  const errors = useMemo(() => clientErrors(form), [form]);
+  /** خطا فقط پس از نخستین تلاشِ ذخیره نشان داده می‌شود (نه هنگامِ تایپ). */
+  const shown = useCallback((key: keyof SetupInput) => (attempted ? errors[key] : undefined), [attempted, errors]);
+
   const done = Boolean(save?.ok);
   const busy = testing || saving;
 
-  /** پیشنهادِ پایهٔ رسانه از روی نشانیِ API، وقتی با هم نمی‌خوانند. */
+  /** پیشنهادِ ریشهٔ رسانه از روی نشانیِ API، وقتی با هم نمی‌خوانند. */
   const suggestedMedia = useMemo(() => {
     let origin = "";
     try {
@@ -249,82 +336,91 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
     return origin !== "" && origin !== form.mediaUrl.trim().replace(/\/+$/, "") ? origin : "";
   }, [form.apiUrl, form.mediaUrl]);
 
-  const envBlock = useMemo(() => {
-    const rows: Array<[string, string]> = [
-      ["CMS_PUBLIC_API_URL", form.apiUrl],
-      ["CMS_INTERNAL_API_URL", form.internalApiUrl],
-      ["CMS_SITE_URL", form.siteUrl],
-      ["CMS_SITE_LOCALES", form.locales],
-      ["CMS_SITE_PRIMARY_LOCALE", form.primaryLocale],
-      ["CMS_PUBLIC_MEDIA_URL", form.mediaUrl],
-      ["REVALIDATE_SECRET", form.revalidateSecret],
-      ["CMS_PUBLIC_VAPID_PUBLIC_KEY", form.vapidPublicKey],
-      ["CMS_SITE_ID", form.siteId],
-    ];
-    return rows
-      .filter(([, v]) => v.trim())
-      .map(([k, v]) => `${k}=${v.trim()}`)
-      .join("\n");
-  }, [form]);
+  const envBlock = useMemo(
+    () =>
+      ENV_KEYS.map(([key, name]) => [name, form[key].trim()] as const)
+        .filter(([, value]) => value !== "")
+        .map(([name, value]) => `${name}=${value}`)
+        .join("\n"),
+    [form],
+  );
+
+  const caseEnv = useMemo(
+    () => REF_ROWS.map((row) => `${row.env}=${PRESETS[preset][row.key]}`).join("\n"),
+    [preset],
+  );
 
   const activePreset = PRESETS[preset];
+  const apiErr = shown("apiUrl") ?? (test && !test.ok ? "اتصال برقرار نشد." : undefined);
+  const mediaMissing = form.mediaUrl.trim() === "";
+
+  /**
+   * `aria-describedby`/`aria-invalid` برای یک ورودی. هر فیلد یک راهنما دارد،
+   * پس شناسهٔ راهنما همیشه هست؛ شناسهٔ خطا فقط وقتی خطایی هست.
+   */
+  const aria = (id: string, err?: string) => ({
+    "aria-describedby": err ? `${id}-err ${id}-hint` : `${id}-hint`,
+    "aria-invalid": err ? true : undefined,
+  });
 
   return (
-    <div dir="rtl" className="min-h-screen bg-neutral-50 text-neutral-900">
-      {/* ── سرصفحه ─────────────────────────────────────────────── */}
-      <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 sm:flex-row sm:items-center sm:justify-between">
+    <div className="setup" dir="rtl">
+      <div className="setup-wrap">
+        {/* ── سرصفحه ─────────────────────────────────────────────── */}
+        <header className="setup-head">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">نصبِ فرانت‌اند</p>
-            <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">اتصالِ سایت به بک‌اند</h1>
-            <p className="mt-1.5 max-w-xl text-sm leading-6 text-neutral-600">
+            <p className="setup-eyebrow">نصبِ فرانت‌اند</p>
+            <h1>اتصالِ سایت به بک‌اند</h1>
+            <p className="setup-lead">
               فقط اطلاعاتِ بک‌اند را وارد کنید. پس از ذخیره، همین نسخهٔ بیلدشده بدونِ بازسازی با تنظیماتِ شما کار می‌کند.
             </p>
           </div>
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs text-neutral-600">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true" />
-            در انتظارِ تنظیم
+          <span className={done ? "setup-status ok" : "setup-status"}>
+            <span className={done ? "dot ok" : "dot warn"} aria-hidden="true" />
+            {done ? "نصب کامل شد" : "در انتظارِ تنظیم"}
           </span>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        {/* ══ ستونِ اصلی: فرم ═══════════════════════════════════ */}
-        <form className="space-y-5" onSubmit={(e) => e.preventDefault()} noValidate>
-          {!writable && (
-            <div className="flex gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900" role="alert">
-              <IconAlert />
-              <div>
-                <p className="font-semibold">فایلِ تنظیمات قابلِ نوشتن نیست.</p>
-                <p className="mt-1 leading-6">
-                  ذخیره از این صفحه ممکن نیست. فرم را پر کنید و با «مقادیرِ <code>.env</code>» در ستونِ کنار، مقدارها را
-                  بردارید.
-                </p>
+        {/* ستونِ اصلی = فرم، ستونِ کناری = راهنما/کنش‌ها. `onSubmit` کلیدِ Enter
+            در فیلدها را به «ذخیره» وصل می‌کند. */}
+        <form
+          className="setup-grid"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            void onSave();
+          }}
+        >
+          {/* ══ ستونِ اصلی ═══════════════════════════════════════════ */}
+          <div className="setup-main">
+            {!writable ? (
+              <div className="alert a-amber" role="alert">
+                <IconAlert />
+                <div>
+                  <strong>فایلِ تنظیمات قابلِ نوشتن نیست.</strong>
+                  <p className="setup-hint">
+                    ذخیره از این صفحه ممکن نیست. فرم را پر کنید و مقدارها را از «مقادیرِ .env» در ستونِ کنار بردارید.
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            ) : null}
 
-          {done && (
-            <div className="flex gap-3 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900" role="status">
-              <IconCheck />
-              <div>
-                <p className="font-semibold">نصب کامل شد.</p>
-                <p className="mt-1">در حال رفتن به سایت…</p>
-              </div>
-            </div>
-          )}
-
-          {/* ── کارتِ ۱: اتصال ─────────────────────────────────── */}
-          <Card step={1} title="اتصال به بک‌اند" lead="آدرسی که مرورگرِ کاربران و سرورِ شما برای رسیدن به API استفاده می‌کنند.">
-            <div className="space-y-5">
-              <div>
-                <label className={LABEL} htmlFor="apiUrl">
-                  نشانیِ عمومیِ API
-                  <span className="text-red-600" aria-hidden="true">*</span>
-                </label>
+            {/* ── بخشِ ۱: اتصال ──────────────────────────────────── */}
+            <Section step={1} title="اتصال به بک‌اند" lead="نشانی‌هایی که مرورگرِ کاربران و سرورِ شما با آن‌ها به API می‌رسند.">
+              <Field
+                id="apiUrl"
+                label="نشانیِ عمومیِ API"
+                required
+                error={apiErr}
+                hint={
+                  <>
+                    باید از اینترنت در دسترس باشد. اگر <code>/api</code> را ننویسید، «آزمونِ اتصال» خودش پیدایش می‌کند.
+                  </>
+                }
+              >
                 <input
                   id="apiUrl"
-                  className={`${INPUT} mt-2`}
+                  className="input"
                   dir="ltr"
                   inputMode="url"
                   autoComplete="off"
@@ -332,32 +428,20 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
                   placeholder="https://api.example.com/api"
                   value={form.apiUrl}
                   onChange={(e) => set("apiUrl", e.target.value)}
+                  {...aria("apiUrl", apiErr)}
                 />
-                <p className={HINT}>
-                  باید از اینترنت در دسترس باشد. اگر <code className="rounded bg-neutral-100 px-1">/api</code> را
-                  ننویسید، «آزمونِ اتصال» خودش پیدایش می‌کند.
-                </p>
-              </div>
+              </Field>
 
-              <div>
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <label className={LABEL} htmlFor="internalApiUrl">
-                    نشانیِ داخلیِ API
-                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-normal text-neutral-500">
-                      اختیاری
-                    </span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => set("internalApiUrl", form.apiUrl)}
-                    className="text-[11px] text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
-                  >
-                    همان نشانیِ عمومی
-                  </button>
-                </div>
+              <Field
+                id="internalApiUrl"
+                label="نشانیِ داخلیِ API"
+                optional
+                error={shown("internalApiUrl")}
+                hint="برای رندرِ سمتِ سرور. در داکر نامِ سرویس است تا ترافیک از اینترنت دور بزند — اگر خالی بماند از نشانیِ عمومی استفاده می‌شود."
+              >
                 <input
                   id="internalApiUrl"
-                  className={`${INPUT} mt-2`}
+                  className="input"
                   dir="ltr"
                   inputMode="url"
                   autoComplete="off"
@@ -365,23 +449,26 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
                   placeholder="http://backend:8080/api"
                   value={form.internalApiUrl}
                   onChange={(e) => set("internalApiUrl", e.target.value)}
+                  {...aria("internalApiUrl", shown("internalApiUrl"))}
                 />
-                <p className={HINT}>برای رندرِ سمتِ سرور. در داکر نامِ سرویس است تا ترافیک از اینترنت دور بزند.</p>
-              </div>
-            </div>
-          </Card>
+                <button type="button" className="setup-linkbtn" onClick={() => set("internalApiUrl", form.apiUrl)}>
+                  همان نشانیِ عمومی
+                </button>
+              </Field>
+            </Section>
 
-          {/* ── کارتِ ۲: هویتِ سایت ───────────────────────────── */}
-          <Card step={2} title="هویتِ سایت" lead="نشانیِ عمومیِ سایت و جایی که تصویرها از آن سرو می‌شوند.">
-            <div className="space-y-5">
-              <div>
-                <label className={LABEL} htmlFor="siteUrl">
-                  نشانیِ عمومیِ سایت
-                  <span className="text-red-600" aria-hidden="true">*</span>
-                </label>
+            {/* ── بخشِ ۲: هویتِ سایت ─────────────────────────────── */}
+            <Section step={2} title="هویتِ سایت" lead="نشانیِ عمومیِ سایت و جایی که تصویرها از آن سرو می‌شوند.">
+              <Field
+                id="siteUrl"
+                label="نشانیِ عمومیِ سایت"
+                required
+                error={shown("siteUrl")}
+                hint="در canonical، Open Graph، sitemap و llms.txt استفاده می‌شود."
+              >
                 <input
                   id="siteUrl"
-                  className={`${INPUT} mt-2`}
+                  className="input"
                   dir="ltr"
                   inputMode="url"
                   autoComplete="off"
@@ -389,24 +476,33 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
                   placeholder="https://example.com"
                   value={form.siteUrl}
                   onChange={(e) => set("siteUrl", e.target.value)}
+                  {...aria("siteUrl", shown("siteUrl"))}
                 />
-                <p className={HINT}>در canonical، Open Graph، sitemap و llms.txt استفاده می‌شود.</p>
-              </div>
+              </Field>
 
               {/*
-                ⚠️ این خانه از «پیشرفته» بیرون آمده و اینجا مانده است. نبودش
-                **گالری** را خالی می‌کند و علتش از بیرون قابلِ حدس نیست، پس باید
-                جلوی چشم باشد نه در یک بخشِ تاشو.
+                ⚠️ این فیلد عمداً بیرون از بخشِ «پیشرفته» و همین‌جا است. تصویرها و
+                آپلودها روی **بک‌اند** ذخیره می‌شوند و نشانی‌شان از این پایه ساخته
+                می‌شود؛ خالی‌بودنش **گالری** را بی‌سروصدا خالی می‌کند و علتش از
+                بیرون قابلِ حدس نیست. پس باید جلوی چشم باشد.
               */}
-              <div>
-                <label className={LABEL} htmlFor="mediaUrl">
-                  نشانیِ دارایی‌های رسانه‌ای
-                  <span className="text-red-600" aria-hidden="true">*</span>
-                </label>
-                <div className="mt-2 flex gap-2">
+              <Field
+                id="mediaUrl"
+                label="نشانیِ دارایی‌های رسانه‌ای"
+                required
+                error={shown("mediaUrl")}
+                warn={mediaMissing ? "این مقدار خالی است — گالری و تصویرهای آپلودی خالی می‌مانند." : undefined}
+                hint={
+                  <>
+                    تصویرها و فایل‌های آپلودی روی <strong>بک‌اند</strong> ذخیره می‌شوند، پس ریشهٔ بک‌اند است — بدونِ{" "}
+                    <code>/api</code>. <strong>خالی بماند، گالری و تصاویر خالی می‌مانند.</strong>
+                  </>
+                }
+              >
+                <div className="setup-input-row">
                   <input
                     id="mediaUrl"
-                    className={INPUT}
+                    className="input"
                     dir="ltr"
                     inputMode="url"
                     autoComplete="off"
@@ -414,75 +510,81 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
                     placeholder="http://localhost:8080"
                     value={form.mediaUrl}
                     onChange={(e) => set("mediaUrl", e.target.value)}
+                    {...aria("mediaUrl", shown("mediaUrl"))}
                   />
-                  {suggestedMedia && (
+                  {suggestedMedia ? (
                     <button
                       type="button"
+                      className="setup-suggest"
                       onClick={() => set("mediaUrl", suggestedMedia)}
-                      className="shrink-0 whitespace-nowrap rounded-xl border border-neutral-300 px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+                      title="ریشهٔ بک‌اند از روی نشانیِ API"
                     >
                       بگذار {suggestedMedia}
                     </button>
-                  )}
+                  ) : null}
                 </div>
-                <p className={HINT}>
-                  تصویرها و فایل‌های آپلودی روی <strong className="font-medium">بک‌اند</strong> ذخیره می‌شوند، پس
-                  ریشهٔ بک‌اند است — بدونِ <code className="rounded bg-neutral-100 px-1">/api</code>.{" "}
-                  <strong className="font-medium">خالی بمانَد، گالری و تصاویر خالی می‌مانند.</strong>
-                </p>
-              </div>
-            </div>
-          </Card>
+              </Field>
+            </Section>
 
-          {/* ── کارتِ ۳: زبان و امنیت ─────────────────────────── */}
-          <Card step={3} title="زبان و امنیت" lead="زبان‌های سایت و کلیدِ مشترکی که با بک‌اند پاک‌سازیِ کش را امضا می‌کند.">
-            <div className="space-y-5">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label className={LABEL} htmlFor="locales">
-                    زبان‌های فعال
-                    <span className="text-red-600" aria-hidden="true">*</span>
-                  </label>
+            {/* ── بخشِ ۳: زبان و امنیت ───────────────────────────── */}
+            <Section step={3} title="زبان و امنیت" lead="زبان‌های سایت و کلیدِ مشترکی که با بک‌اند پاک‌سازیِ کش را امضا می‌کند.">
+              <div className="form-grid">
+                <Field
+                  id="locales"
+                  label="زبان‌های فعال"
+                  required
+                  error={shown("locales")}
+                  hint="جداشده با کاما، مثل fa,en."
+                >
                   <input
                     id="locales"
-                    className={`${INPUT} mt-2`}
+                    className="input"
                     dir="ltr"
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="fa,en"
                     value={form.locales}
                     onChange={(e) => set("locales", e.target.value)}
+                    {...aria("locales", shown("locales"))}
                   />
-                  <p className={HINT}>جداشده با کاما.</p>
-                </div>
-                <div>
-                  <label className={LABEL} htmlFor="primaryLocale">
-                    زبانِ پایه
-                    <span className="text-red-600" aria-hidden="true">*</span>
-                  </label>
+                </Field>
+                <Field
+                  id="primaryLocale"
+                  label="زبانِ پایه"
+                  required
+                  error={shown("primaryLocale")}
+                  hint="بدونِ پیشوند در URL می‌آید."
+                >
                   <input
                     id="primaryLocale"
-                    className={`${INPUT} mt-2`}
+                    className="input"
                     dir="ltr"
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="fa"
                     value={form.primaryLocale}
                     onChange={(e) => set("primaryLocale", e.target.value)}
+                    {...aria("primaryLocale", shown("primaryLocale"))}
                   />
-                  <p className={HINT}>بدونِ پیشوند در URL می‌آید.</p>
-                </div>
+                </Field>
               </div>
 
-              <div>
-                <label className={LABEL} htmlFor="revalidateSecret">
-                  رازِ revalidate
-                  <span className="text-red-600" aria-hidden="true">*</span>
-                </label>
-                <div className="relative mt-2">
+              <Field
+                id="revalidateSecret"
+                label="رازِ revalidate"
+                required
+                error={shown("revalidateSecret")}
+                hint={
+                  <>
+                    در <code>.env</code> بک‌اند، کلیدِ <code>REVALIDATE_SECRET</code>. باید دقیقاً یکی باشد تا پاک‌سازیِ کش کار
+                    کند. <strong>هرگز به مرورگر فرستاده نمی‌شود.</strong>
+                  </>
+                }
+              >
+                <div className="setup-input-row">
                   <input
                     id="revalidateSecret"
-                    className={`${INPUT} pl-10`}
+                    className="input"
                     dir="ltr"
                     type={revealSecret ? "text" : "password"}
                     autoComplete="new-password"
@@ -490,195 +592,198 @@ export function SetupForm({ defaults, writable }: { defaults: SetupInput; writab
                     placeholder="همان REVALIDATE_SECRET بک‌اند"
                     value={form.revalidateSecret}
                     onChange={(e) => set("revalidateSecret", e.target.value)}
+                    {...aria("revalidateSecret", shown("revalidateSecret"))}
                   />
                   <button
                     type="button"
+                    className="setup-icon-btn"
                     onClick={() => setRevealSecret((v) => !v)}
-                    aria-label={revealSecret ? "پنهان کردنِ راز" : "نمایشِ راز"}
-                    className="absolute inset-y-0 left-2 my-auto grid h-7 w-7 place-items-center rounded-md text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
+                    aria-label={revealSecret ? "پنهان‌کردنِ راز" : "نمایشِ راز"}
                   >
                     <IconEye off={revealSecret} />
                   </button>
                 </div>
-                <p className={HINT}>
-                  در <code className="rounded bg-neutral-100 px-1">.env</code> بک‌اند، کلیدِ{" "}
-                  <code className="rounded bg-neutral-100 px-1">REVALIDATE_SECRET</code>. باید دقیقاً یکی باشد تا
-                  پاک‌سازیِ کش کار کند. <strong className="font-medium">هرگز به مرورگر فرستاده نمی‌شود.</strong>
-                </p>
-              </div>
+              </Field>
 
-              <div className="border-t border-neutral-200 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((v) => !v)}
-                  aria-expanded={showAdvanced}
-                  className="flex w-full items-center justify-between gap-2 py-2 text-sm font-medium text-neutral-700"
-                >
-                  <span>تنظیماتِ پیشرفته (اختیاری)</span>
-                  <IconChevron open={showAdvanced} />
-                </button>
-
-                {showAdvanced && (
-                  <div className="mt-3 space-y-5">
-                    <div>
-                      <label className={LABEL} htmlFor="vapidPublicKey">
-                        کلیدِ عمومیِ Web Push
-                      </label>
-                      <input
-                        id="vapidPublicKey"
-                        className={`${INPUT} mt-2`}
-                        dir="ltr"
-                        autoComplete="off"
-                        spellCheck={false}
-                        value={form.vapidPublicKey}
-                        onChange={(e) => set("vapidPublicKey", e.target.value)}
-                      />
-                      <p className={HINT}>برای اعلان‌های مرورگر. خالی بمانَد، اعلان‌ها خاموش می‌مانند.</p>
-                    </div>
-                    <div>
-                      <label className={LABEL} htmlFor="siteId">
-                        شناسهٔ سایت
-                      </label>
-                      <input
-                        id="siteId"
-                        className={`${INPUT} mt-2`}
-                        dir="ltr"
-                        autoComplete="off"
-                        spellCheck={false}
-                        value={form.siteId}
-                        onChange={(e) => set("siteId", e.target.value)}
-                      />
-                      <p className={HINT}>فقط در نصب‌های چندسایتی.</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        </form>
-
-        {/* ══ ستونِ کناری: راهنما + کنش‌ها ═══════════════════════ */}
-        <aside className="space-y-5 lg:sticky lg:top-6">
-          {/* راهنمای سریع: دو پیش‌تنظیم، نه دوازده دکمه */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-neutral-900">راهنمای سریع</h2>
-            <p className="mt-1 text-xs leading-5 text-neutral-500">
-              وضعیتِ خودت را بزن تا کلِ فرم یک‌جا پر شود؛ بعد فقط رازِ revalidate را بگذار.
-            </p>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {(["local", "server"] as const).map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => applyPreset(id)}
-                  aria-pressed={preset === id}
-                  className={
-                    preset === id
-                      ? "rounded-xl bg-neutral-900 px-3 py-2.5 text-xs font-semibold text-white"
-                      : "rounded-xl border border-neutral-300 px-3 py-2.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50"
-                  }
-                >
-                  {id === "local" ? "اجرای لوکال" : "اجرای روی سرور"}
-                </button>
-              ))}
-            </div>
-
-            <dl className="mt-3 divide-y divide-neutral-100 border-t border-neutral-100">
-              {PRESET_LABELS.map((row) => (
-                <RefRow
-                  key={row.key}
-                  label={row.label}
-                  value={activePreset[row.key]}
-                  copied={copied === `ref:${row.key}`}
-                  onCopy={() => void copy(activePreset[row.key], `ref:${row.key}`)}
-                />
-              ))}
-            </dl>
-
-            <p className="mt-3 rounded-xl bg-neutral-50 p-3 text-[11px] leading-5 text-neutral-600">
-              {preset === "local"
-                ? "همه‌چیز روی همین ماشین است."
-                : "داخلِ کانتینر، localhost خودِ کانتینر است نه میزبان؛ از host.docker.internal یا نامِ سرویس استفاده کنید."}
-            </p>
-          </section>
-
-          {/* کنش‌ها + نتیجه‌ها */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <button
-              type="button"
-              onClick={() => void onSave()}
-              disabled={busy || !writable || done}
-              className="w-full rounded-xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50"
-            >
-              {saving ? "در حالِ ذخیره…" : "ذخیره و پایانِ نصب"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void onTest()}
-              disabled={busy}
-              className="mt-2 w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50 disabled:opacity-50"
-            >
-              {testing ? "در حالِ آزمون…" : "آزمونِ اتصال"}
-            </button>
-
-            <p className="mt-3 text-[11px] leading-5 text-neutral-500">
-              پیش از ذخیره، اتصال واقعاً آزموده می‌شود؛ اگر برقرار نشود چیزی نوشته نمی‌شود.
-            </p>
-
-            {/* نتیجه‌ها همین‌جا، کنارِ دکمه‌ای که زده شد — نه پایینِ صفحه. */}
-            <div aria-live="polite" className="mt-4 space-y-3">
-              {test && (
-                <div
-                  className={`flex gap-2 rounded-xl border p-3 text-xs leading-5 ${
-                    test.ok ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-red-300 bg-red-50 text-red-900"
-                  }`}
-                  role={test.ok ? "status" : "alert"}
-                >
-                  {test.ok ? <IconCheck /> : <IconAlert />}
-                  <span>{test.message}</span>
-                </div>
-              )}
-
-              {save && !save.ok && (
-                <div className="flex gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-xs leading-5 text-red-900" role="alert">
-                  <IconAlert />
-                  <div>
-                    <p className="font-semibold">{save.message}</p>
-                    {save.errors && save.errors.length > 0 && (
-                      <ul className="mt-1.5 list-inside list-disc space-y-0.5">
-                        {save.errors.map((e) => (
-                          <li key={e}>{e}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 border-t border-neutral-200 pt-3">
+              {/* افشاگرِ پیشرفته — `aria-expanded` + `aria-controls` برای کیبورد/صفحه‌خوان. */}
               <button
                 type="button"
-                onClick={() => setShowEnv((v) => !v)}
-                aria-expanded={showEnv}
-                className="text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
+                className="setup-disclosure"
+                aria-expanded={showAdvanced}
+                aria-controls="setup-advanced"
+                onClick={() => setShowAdvanced((v) => !v)}
               >
-                {showEnv ? "پنهان کردنِ مقادیرِ .env" : "نمایشِ مقادیرِ .env"}
+                <span>تنظیماتِ پیشرفته (اختیاری)</span>
+                <IconChevron />
               </button>
-              {showEnv && (
-                <pre
-                  className="mt-3 max-h-64 overflow-auto rounded-xl bg-neutral-900 p-3 text-[11px] leading-6 text-neutral-100"
-                  dir="ltr"
+
+              {showAdvanced ? (
+                <div id="setup-advanced">
+                  <Field
+                    id="vapidPublicKey"
+                    label="کلیدِ عمومیِ Web Push"
+                    optional
+                    hint="برای اعلان‌های مرورگر. خالی بماند، اعلان‌ها خاموش می‌مانند."
+                  >
+                    <input
+                      id="vapidPublicKey"
+                      className="input"
+                      dir="ltr"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={form.vapidPublicKey}
+                      onChange={(e) => set("vapidPublicKey", e.target.value)}
+                      {...aria("vapidPublicKey")}
+                    />
+                  </Field>
+                  <Field
+                    id="siteId"
+                    label="شناسهٔ سایت"
+                    optional
+                    hint="فقط در نصب‌های چندسایتی."
+                  >
+                    <input
+                      id="siteId"
+                      className="input"
+                      dir="ltr"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={form.siteId}
+                      onChange={(e) => set("siteId", e.target.value)}
+                      {...aria("siteId")}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+            </Section>
+          </div>
+
+          {/* ══ ستونِ کناری: راهنما + کنش‌ها ═══════════════════════ */}
+          <aside className="setup-side">
+            {/* راهنمای سریع: دو پیش‌تنظیم، نه دوازده دکمه */}
+            <section className="card card-pad">
+              <h2 className="card-title">راهنمای سریع</h2>
+              <p className="setup-hint">
+                وضعیتت را انتخاب کن تا کلِ فرم یک‌جا پر شود؛ بعد فقط رازِ revalidate را بگذار.
+              </p>
+
+              <div className="setup-presets" role="group" aria-label="انتخابِ وضعیتِ نصب">
+                {(["local", "server"] as const).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={preset === id ? "setup-preset on" : "setup-preset"}
+                    aria-pressed={preset === id}
+                    onClick={() => applyPreset(id)}
+                  >
+                    {id === "local" ? "اجرای لوکال" : "اجرای روی سرور"}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                {REF_ROWS.map((row) => (
+                  <div className="setup-ref" key={row.key}>
+                    <span className="setup-ref-label">{row.label}</span>
+                    <code dir="ltr" title={activePreset[row.key]}>
+                      {activePreset[row.key]}
+                    </code>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                className="setup-linkbtn"
+                onClick={() => void copy(caseEnv, "case")}
+                title="کپیِ همهٔ مقدارها به شکلِ خطوطِ .env"
+              >
+                {copied === "case" ? "کپی شد ✓" : "کپیِ همهٔ این مقدارها"}
+              </button>
+
+              <p className="setup-note">
+                {preset === "local"
+                  ? "همه‌چیز روی همین ماشین است؛ از localhost استفاده کن."
+                  : "داخلِ کانتینر، localhost خودِ کانتینر است نه میزبان. برای نشانیِ داخلی از نامِ سرویس (مثل backend) یا host.docker.internal استفاده کن."}
+              </p>
+            </section>
+
+            {/* کنش‌ها + نتیجه‌ها */}
+            <section className="card card-pad">
+              <div className="setup-actions">
+                <button type="submit" className="btn btn-primary btn-block" disabled={busy || !writable || done}>
+                  {saving ? "در حالِ ذخیره…" : "ذخیره و پایانِ نصب"}
+                </button>
+                <button type="button" className="btn btn-ghost btn-block" disabled={busy} onClick={() => void onTest()}>
+                  {testing ? "در حالِ آزمون…" : "آزمونِ اتصال"}
+                </button>
+              </div>
+
+              <p className="setup-hint">
+                پیش از ذخیره، اتصال واقعاً آزموده می‌شود؛ اگر برقرار نشود چیزی نوشته نمی‌شود.
+              </p>
+
+              {/* نتیجه‌ها همین‌جا، کنارِ دکمه‌ای که زده شد — نه پایینِ صفحه. */}
+              <div className="setup-results" aria-live="polite">
+                {done ? (
+                  <div className="alert a-green" role="status">
+                    <IconCheck />
+                    <div>
+                      <strong>نصب کامل شد.</strong>
+                      <p className="setup-hint">در حال رفتن به سایت…</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {test ? (
+                  <div className={test.ok ? "alert a-green" : "alert a-red"} role={test.ok ? "status" : "alert"}>
+                    {test.ok ? <IconCheck /> : <IconAlert />}
+                    <span>{test.message}</span>
+                  </div>
+                ) : null}
+
+                {save && !save.ok ? (
+                  <div className="alert a-red" role="alert">
+                    <IconAlert />
+                    <div>
+                      <strong>{save.message}</strong>
+                      {save.errors && save.errors.length > 0 ? (
+                        <ul className="setup-errors">
+                          {save.errors.map((e) => (
+                            <li key={e}>{e}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="setup-env-toggle">
+                <button
+                  type="button"
+                  className="setup-linkbtn"
+                  aria-expanded={showEnv}
+                  aria-controls="setup-env"
+                  onClick={() => setShowEnv((v) => !v)}
                 >
-                  {envBlock}
-                </pre>
-              )}
-            </div>
-          </section>
-        </aside>
-      </main>
+                  {showEnv ? "پنهان‌کردنِ مقادیرِ .env" : "نمایشِ مقادیرِ .env"}
+                </button>
+                {showEnv ? (
+                  <div>
+                    <pre id="setup-env" className="setup-env" dir="ltr">
+                      {envBlock || "# هیچ مقداری وارد نشده"}
+                    </pre>
+                    <button type="button" className="setup-linkbtn" onClick={() => void copy(envBlock, "env")}>
+                      {copied === "env" ? "کپی شد ✓" : "کپیِ مقادیرِ .env"}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          </aside>
+        </form>
+      </div>
     </div>
   );
 }

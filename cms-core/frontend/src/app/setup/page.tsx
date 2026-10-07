@@ -70,42 +70,54 @@ export default async function SetupPage() {
 
   if (installed) {
     return (
-      <div className="mx-auto w-full max-w-2xl px-4 py-16" dir="rtl">
-        <div className="rounded-2xl border border-neutral-200 p-8">
-          <h1 className="text-2xl font-bold text-neutral-900">این فرانت قبلاً نصب شده است</h1>
-          <p className="mt-3 text-sm leading-6 text-neutral-600">
-            برای جلوگیری از بازتنظیمِ سایت توسط هر کسی که به این نشانی می‌رسد، نصب‌کننده قفل است. برای نصبِ دوباره،
-            فایلِ تنظیمات را پاک کنید و این صفحه را دوباره باز کنید.
-          </p>
+      <div className="setup" dir="rtl">
+        <div className="setup-wrap setup-wrap-narrow">
+          <header className="setup-head">
+            <div>
+              <p className="setup-eyebrow">نصبِ فرانت‌اند</p>
+              <h1>این فرانت قبلاً نصب شده است</h1>
+              <p className="setup-lead">
+                برای جلوگیری از بازتنظیمِ سایت توسط هر کسی که به این نشانی می‌رسد، نصب‌کننده قفل است. برای نصبِ دوباره،
+                فایلِ تنظیمات را پاک کنید و این صفحه را دوباره باز کنید.
+              </p>
+            </div>
+            <span className="setup-status ok">
+              <span className="dot ok" aria-hidden="true" />
+              نصب‌شده
+            </span>
+          </header>
 
-          <dl className="mt-6 space-y-3 text-sm">
-            <div>
-              <dt className="text-neutral-500">فایلِ تنظیمات</dt>
-              <dd className="mt-0.5 break-all font-mono text-xs text-neutral-800">{configFilePath()}</dd>
-            </div>
-            <div>
-              <dt className="text-neutral-500">نشانیِ API</dt>
-              <dd className="mt-0.5 break-all font-mono text-xs text-neutral-800">{config.apiUrl}</dd>
-            </div>
-            <div>
-              <dt className="text-neutral-500">زمانِ نصب</dt>
-              <dd className="mt-0.5 text-neutral-800">{config.installedAt}</dd>
-            </div>
-            <div>
-              <dt className="text-neutral-500">زبان‌ها</dt>
-              <dd className="mt-0.5 text-neutral-800">
-                {config.locales ?? DEFAULT_PUBLIC_LOCALE}
-                {config.primaryLocale ? ` (پایه: ${config.primaryLocale})` : ""}
-              </dd>
-            </div>
-          </dl>
+          <section className="card card-pad">
+            <dl className="setup-kv">
+              <div>
+                <dt>فایلِ تنظیمات</dt>
+                <dd>
+                  <code>{configFilePath()}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>نشانیِ API</dt>
+                <dd>
+                  <code>{config.apiUrl}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>زمانِ نصب</dt>
+                <dd>{config.installedAt}</dd>
+              </div>
+              <div>
+                <dt>زبان‌ها</dt>
+                <dd>
+                  {config.locales ?? DEFAULT_PUBLIC_LOCALE}
+                  {config.primaryLocale ? ` (پایه: ${config.primaryLocale})` : ""}
+                </dd>
+              </div>
+            </dl>
 
-          <Link
-            href="/"
-            className="mt-8 inline-block rounded-lg bg-neutral-900 px-5 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-          >
-            رفتن به سایت
-          </Link>
+            <Link className="btn btn-primary" href="/">
+              رفتن به سایت
+            </Link>
+          </section>
         </div>
       </div>
     );

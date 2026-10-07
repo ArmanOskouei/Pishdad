@@ -1320,4 +1320,146 @@ mark.search-hl { background: var(--primary-soft, var(--surface-2)); color: var(-
 .theme-guide-doc hr { border: 0; border-block-start: 1px solid var(--border); margin-block: 16px; }
 .theme-guide-doc a { color: var(--primary); }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   E54 — نصب‌کنندهٔ وبِ فرانت (`/setup`) — پاسِ نهایی
+   ───────────────────────────────────────────────────────────────────────────
+   ⚠️ **چرا این بلوک اینجاست و نه یک فایلِ CSSِ جدا.**
+
+   چرخهٔ قبلی این صفحه با کلاس‌های **Tailwind** نوشته شده بود (`rounded-2xl`,
+   `border-neutral-200`, …) ولی این پروژه هرگز Tailwind نداشته: نه dependency،
+   نه `tailwind.config.*`، نه `@tailwind`، نه postcss. پس هر `className` صرفاً
+   یک رشتهٔ بی‌اثر بود و صفحه به HTMLِ **بی‌استایل** تبدیل می‌شد — دقیقاً همان
+   شکایتی که این پاس می‌بندد. حالا سبک از همین توکن‌های `globals.css` می‌آید:
+   همهٔ رنگ‌ها `var(--…)` (پس قالب‌های روشن هم کار می‌کنند) و همهٔ فاصله‌ها
+   **منطقی**‌اند (یک چیدمان برای RTL و LTR). پیشوندِ `setup-` تا با کلاس‌های
+   پوستهٔ پنل قاطی نشود.
+
+   ✅ دلیلِ ماندن در همین فایل: این فایل از قبل در `layout.tsx` import شده، پس
+   استایل **قطعاً** به مرورگر می‌رسد. یک فایلِ جدید یعنی یک import که ممکن است
+   جا بیفتد و همان باگِ «بی‌استایل» برگردد.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.setup {
+  min-block-size: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+}
+.setup-wrap {
+  max-inline-size: 1080px;
+  margin-inline: auto;
+  padding-block: 32px 72px;
+  padding-inline: 20px;
+}
+.setup-wrap-narrow { max-inline-size: 640px; }
+.setup-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-block-end: 24px;
+}
+.setup-head h1 { margin: 0; font-size: 22px; }
+.setup-eyebrow { margin: 0 0 4px; color: var(--text-muted); font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; }
+.setup-lead { margin: 6px 0 0; max-inline-size: 60ch; color: var(--text-muted); font-size: 13.5px; line-height: 1.9; }
+.setup-status {
+  display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-muted); font-size: 12.5px;
+}
+.setup-status.ok { border-color: var(--success); color: var(--success); }
+
+/* دو ستون: کار در ستونِ اصلی، مرجع و کنش‌ها در ستونِ **چسبانِ** کناری.
+   در موبایل روی هم می‌افتند (یک ستون). */
+.setup-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.setup-main { display: flex; flex-direction: column; gap: 16px; min-inline-size: 0; }
+.setup-side { display: flex; flex-direction: column; gap: 16px; position: sticky; inset-block-start: 24px; }
+@media (max-width: 900px) {
+  .setup-grid { grid-template-columns: 1fr; }
+  .setup-side { position: static; }
+}
+
+/* سرِ هر بخش: شمارهٔ گِرد + تیتر + یک خط توضیح. */
+.setup-card-head { display: flex; align-items: flex-start; gap: 12px; margin-block-end: 16px; }
+.setup-step {
+  flex: 0 0 auto; inline-size: 26px; block-size: 26px; margin-block-start: 2px;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--primary); color: var(--primary-text); font-size: 12px; font-weight: 800;
+}
+.setup-card-head h2 { margin: 0; font-size: 15px; }
+.setup-card-head p { margin: 2px 0 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.8; }
+.setup-req { color: var(--danger); margin-inline-start: 4px; }
+.setup-opt { display: inline-block; margin-inline-start: 6px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted); font-size: 10.5px; font-weight: 400; }
+.setup-linkbtn { border: 0; background: none; padding: 0; color: var(--text-muted); font-family: inherit; font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.setup-linkbtn:hover { color: var(--text); }
+
+/* ردیفِ ورودی + کنشِ کنارش (نمایش راز / پیشنهادِ رسانه). */
+.setup-input-row { display: flex; align-items: center; gap: 8px; }
+.setup-input-row .input { flex: 1 1 auto; min-inline-size: 0; }
+.setup-icon-btn {
+  flex: 0 0 auto; inline-size: 44px; block-size: 44px; display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text-muted); cursor: pointer;
+}
+.setup-suggest {
+  flex: 0 0 auto; white-space: nowrap; min-block-size: 44px; padding-inline: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+@media (hover: hover) {
+  .setup-icon-btn:hover { color: var(--text); background: var(--surface-2); }
+  .setup-suggest:hover { border-color: var(--primary); color: var(--primary); }
+}
+.setup-field-error { margin: 0; color: var(--danger); font-size: 12px; }
+.setup-field-warn { margin: 0; color: var(--warning); font-size: 12px; }
+.setup-errors { margin: 6px 0 0; padding-inline-start: 18px; display: grid; gap: 2px; font-size: 12.5px; }
+/* کدهای درون‌خطیِ راهنما فقط داخلِ همین صفحه استایل می‌گیرند تا صفحه‌های دیگر
+   دست‌نخورده بمانند. */
+.setup .hint code {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0 5px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px;
+}
+
+/* افشاگرِ «پیشرفته» — کلیدِ کیبوردپذیر با `aria-expanded`. */
+.setup-disclosure {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  inline-size: 100%; padding-block: 10px; padding-inline: 0;
+  border: 0; border-block-start: 1px solid var(--border); background: none;
+  color: var(--text); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.setup-chev { transition: transform 0.18s ease; }
+.setup-disclosure[aria-expanded="true"] .setup-chev { transform: rotate(180deg); }
+
+.setup-actions { display: flex; flex-direction: column; gap: 8px; }
+.setup-hint { margin: 0; color: var(--text-muted); font-size: 11.5px; line-height: 1.9; }
+.setup-results { display: flex; flex-direction: column; gap: 10px; margin-block-start: 12px; }
+.setup-env-toggle { margin-block-start: 12px; padding-block-start: 12px; border-block-start: 1px solid var(--border); }
+.setup-env {
+  margin-block: 12px 0; margin-inline: 0; padding: 10px 12px; max-block-size: 260px; overflow: auto;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface-2); color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px; line-height: 1.9; white-space: pre;
+}
+
+/* راهنمای سریع: دو دکمه، نه دکمه در هر ردیف. */
+.setup-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.setup-preset {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-block-size: 44px; padding-block: 8px; padding-inline: 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface-2); color: var(--text);
+  font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.setup-preset.on { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
+.setup-ref { display: flex; align-items: center; gap: 8px; padding-block: 7px; border-block-end: 1px dashed var(--border); }
+.setup-ref:last-child { border-block-end: 0; }
+.setup-ref-label { flex: 0 0 78px; color: var(--text-muted); font-size: 11.5px; }
+.setup-ref code { flex: 1 1 auto; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+.setup-note { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-2); color: var(--text-muted); font-size: 11.5px; line-height: 1.9; }
+
+/* صفحهٔ «قبلاً نصب شده» — همان قاب، بدون فرم. */
+.setup-kv { display: grid; gap: 12px; margin: 0 0 20px; }
+.setup-kv dt { color: var(--text-muted); font-size: 12.5px; margin-block-end: 2px; }
+.setup-kv dd { margin: 0; color: var(--text); font-size: 13px; overflow-wrap: anywhere; }
+.setup-kv code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 6px; }
+
 
