@@ -21,3 +21,8 @@ Schedule::command('pages:publish-scheduled')->everyMinute()->withoutOverlapping(
 // (ایمیل/تلگرام) که فقط برای کاربرانِ opt-in فرستاده می‌شود. `withoutOverlapping`
 // چون اجرای دوباره روی نصبِ کند، دو خلاصه نمی‌سازد (dedupe روزانه هم هست).
 Schedule::command('notifications:digest')->dailyAt('08:00')->withoutOverlapping();
+
+// E75 — تخلیهٔ صفِ تحویل. بدونِ این، سطرهای outbox (از جمله تلگرامِ فوریِ
+// `ticket.created`) هیچ‌وقت ارسال نمی‌شوند: روی نصبِ زنده هیچ tick بیرونی
+// نبود و ایمیل‌های صف‌شده هم می‌ماندند. `withoutOverlapping` مثل بقیه.
+Schedule::command('outbox:drain')->everyMinute()->withoutOverlapping();

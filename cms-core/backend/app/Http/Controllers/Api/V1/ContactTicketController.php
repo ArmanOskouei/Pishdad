@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\MailTemplates;
 use App\Models\Ticket;
 use App\Models\User;
-use App\Notifications\ContactTicketNotification;
+use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Outbox\Outbox;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,15 +94,16 @@ class ContactTicketController extends Controller
             $admins = User::query()->whereIn('role', ['owner', 'admin'])->get();
 
             if ($admins->isNotEmpty()) {
-                $notification = new ContactTicketNotification(
-                    $validated['name'],
-                    $validated['email'],
-                    $validated['subject'],
-                    (int) $ticket->id,
-                );
-
+                // E75 — به‌جای اعلانِ دستی، از دیسپچرِ کاتالوگ: همان سطرِ
+                // دیتابیس (حالا با کلید و لینکِ اقدام) + تلگرامِ فوری برای
+                // مدیرانی که کانالش را روشن دارند. ایمیل از مسیرِ پایینِ همین
+                // تابع می‌رود، پس در کلیدِ کاتالوگ نیست تا دو بار نرود.
                 foreach ($admins as $admin) {
-                    $admin->notify($notification);
+                    NotificationDispatcher::send($admin, 'ticket.created', [
+                        $validated['name'],
+                        $validated['email'],
+                        $validated['subject'],
+                    ]);
                 }
             } else {
                 Log::warning('فرم تماس تیکت ساخت اما هیچ سوپرادمینی برای اطلاع‌رسانی پیدا نشد.', $context);

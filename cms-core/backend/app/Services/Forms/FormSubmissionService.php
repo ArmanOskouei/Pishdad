@@ -6,7 +6,7 @@ use App\Models\Form;
 use App\Models\FormSubmission;
 use App\Models\Ticket;
 use App\Models\User;
-use App\Notifications\ContactTicketNotification;
+use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Outbox\Outbox;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -93,14 +93,14 @@ class FormSubmissionService
         $admins = User::query()->whereIn('role', ['owner', 'admin'])->get();
 
         if ($admins->isNotEmpty() && $email !== null) {
-            $notification = new ContactTicketNotification(
-                $name ?? 'بازدیدکننده',
-                $email,
-                $form->name,
-                (int) $ticket->id,
-            );
+            // E75 — مثل مسیرِ فرمِ تماس: سطرِ دیتابیس با کلیدِ کاتالوگ +
+            // تلگرامِ فوری برای مدیرانی که کانالش را روشن دارند.
             foreach ($admins as $admin) {
-                $admin->notify($notification);
+                NotificationDispatcher::send($admin, 'ticket.created', [
+                    $name ?? 'بازدیدکننده',
+                    $email,
+                    $form->name,
+                ]);
             }
         }
 

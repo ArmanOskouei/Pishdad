@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Mail\OutboundEmail;
 use App\Models\Ticket;
 use App\Models\User;
-use App\Notifications\ContactTicketNotification;
+use App\Notifications\CatalogNotification;
+use App\Services\Notifications\TelegramSender;
 use Illuminate\Contracts\Notifications\Dispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Mockery;
@@ -26,6 +28,11 @@ class ContactFormNoticeTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * E75 — حالا از دیسپچرِ کاتالوگ: همان یک سطرِ دیتابیس (با کلید و لینکِ
+     * اقدام) + تلگرامِ فوری در همان تراکنش. ایمیل از مسیرِ پایینِ کنترلر
+     * می‌رود، پس در کلید نیست تا دو بار نرود.
+     */
     public function test_a_new_contact_ticket_notifies_every_admin(): void
     {
         $admin = $this->user(['role' => 'admin', 'name' => 'مدیر']);
@@ -45,14 +52,51 @@ class ContactFormNoticeTest extends TestCase
 
         foreach ([$admin, $admin2] as $superAdmin) {
             $notification = $superAdmin->notifications()->sole();
-            $this->assertSame(ContactTicketNotification::class, $notification->type);
-            $this->assertSame('پیام جدید از فرم تماس', $notification->data['title']);
-            $this->assertStringContainsString('زهرا', $notification->data['body']);
-            $this->assertStringContainsString('درخواست همکاری', $notification->data['body']);
+            $this->assertSame(CatalogNotification::class, $notification->type);
+            $this->assertSame('ticket.created', $notification->data['catalog_key']);
+            $this->assertSame('ticket.created', $notification->catalog_key);
+            $this->assertContains('زهرا', $notification->data['values']);
+            $this->assertContains('درخواست همکاری', $notification->data['values']);
         }
 
         // مدیر عادی نباید اعلانِ مالیِ مشتری را ببیند.
         $this->assertSame(0, $plain->notifications()->count());
+    }
+
+    /**
+     * E75 — پیامِ فرم تماس همان لحظه در صفِ تلگرام می‌نشیند (نه فقط در
+     * خلاصهٔ روزانه): مدیرِ دارای chat_id + رباتِ تنظیم‌شده ⇒ سطرِ pending.
+     */
+    public function test_a_new_contact_ticket_is_queued_to_telegram_instantly(): void
+    {
+        TelegramSender::setToken('1234567890:'.str_repeat('A', 30));
+        $this->user(['role' => 'admin', 'email' => 'admin1@example.com', 'telegram_chat_id' => '111']);
+
+        $this->postJson('/api/v1/contact/tickets', [
+            'name' => 'زهرا',
+            'email' => 'zahra@example.com',
+            'subject' => 'درخواست همکاری',
+            'body' => 'سلام.',
+        ])->assertCreated();
+
+        $row = DB::table('notification_deliveries')->where('channel', 'telegram')->sole();
+        $this->assertSame('111', $row->recipient);
+        $this->assertSame('pending', $row->status);
+    }
+
+    public function test_no_chat_or_no_bot_means_no_telegram_row(): void
+    {
+        // نه chat_id، نه توکن: هیچ سطری نباید ساخته شود (fail-soft، نه سطرِ مرده).
+        $this->user(['role' => 'admin', 'email' => 'admin1@example.com']);
+
+        $this->postJson('/api/v1/contact/tickets', [
+            'name' => 'زهرا',
+            'email' => 'zahra@example.com',
+            'subject' => 'درخواست همکاری',
+            'body' => 'سلام.',
+        ])->assertCreated();
+
+        $this->assertSame(0, DB::table('notification_deliveries')->where('channel', 'telegram')->count());
     }
 
     public function test_the_form_still_answers_201_when_the_notice_pipeline_throws(): void
