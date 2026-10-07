@@ -45,12 +45,16 @@ Thumbs.db
 # این‌ها خروجی یا وضعیتِ ماشینِ توسعه‌اند، نه محصول. اگر track شوند، بستهٔ خام
 # آن‌ها را با خود می‌برد و نصب‌کننده چیزی می‌گیرد که به او مربوط نیست.
 dist-pishdad/
+dist-pishdad-backend/
+dist-pishdad-frontend/
 dist-public/
 .opencode/
 cms-core/frontend/.local-serve.err
 cms-core/frontend/.local-serve.out
 cms-core/backend/storage/install/
 dist-offline/
+dist-offline-backend/
+dist-offline-frontend/
 
 # E43 — پیکربندیِ نصبِ فرانت. نصب‌کنندهٔ وب این را می‌نویسد و رازِ revalidate
 # داخلش است، پس هرگز نباید commit شود.

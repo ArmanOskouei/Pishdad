@@ -183,9 +183,20 @@ export type MediaTag = {
  * اولویت با `m.url` است — بک‌اند آن را بر پایهٔ **دیسکِ خودِ فایل** می‌سازد
  * (`s3` ⇒ MinIO، `public` ⇒ `/storage`). بدون آن، همه با پایهٔ S3 آدرس
  * می‌گرفتند و فایل‌های دیسکِ public (تصاویرِ SVG محتوا) ۴۰۴/ORB می‌شدند.
+ *
+ * E71 — ولی `url` نسبی (`/storage/…` از دیسکِ `public`) همان‌طور که هست
+ * برنمی‌گردد: مرورگرِ پنل آن را نسبت به میزبانِ **فرانت** باز می‌کند و ۴۰۴
+ * می‌گیرد (پیش‌نمایشِ `/admin/media` و آدرسِ جزئیات دقیقاً همین‌طور شکستند).
+ * پس نشانیِ نسبی با پایهٔ رسانهٔ زمانِ اجرا مطلق می‌شود؛ مطلق (MinIO/S3) و
+ * `//host` دست‌نخورده می‌مانند. پایهٔ خالی یعنی رفتارِ قبلی.
  */
 export function mediaUrl(m: Pick<MediaItem, "path"> & { url?: string | null }): string {
-  if (typeof m.url === "string" && m.url) return m.url;
+  const url = typeof m.url === "string" && m.url ? m.url : null;
+  if (url) {
+    if (!url.startsWith("/") || url.startsWith("//")) return url;
+    const base = publicConfig().mediaUrl;
+    return base ? `${base}${url}` : url;
+  }
   const base = publicConfig().mediaUrl;
   return `${base}/${m.path.replace(/^\/+/, "")}`;
 }

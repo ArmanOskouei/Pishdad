@@ -16,6 +16,7 @@ import {
 } from "@/lib/domain";
 import {
   applyAssetBase,
+  applyMediaBase,
   normalizeAssetBase,
   rebaseBlockMedia,
   resolveAssetBase,
@@ -25,7 +26,7 @@ import { blogFeedHref } from "@/lib/blog";
 import { DEFAULT_PUBLIC_LOCALE, isPublicLocale, type PublicLocale } from "@/lib/i18n/public";
 import { effectiveValue } from "./site-config.ts";
 
-export { applyAssetBase, normalizeAssetBase, resolveAssetBase } from "@/lib/asset-base";
+export { applyAssetBase, applyMediaBase, normalizeAssetBase, resolveAssetBase } from "@/lib/asset-base";
 
 const UPSTREAM =
   effectiveValue("INTERNAL_API_URL", "") ||
@@ -211,7 +212,7 @@ function rebaseBlogMedia(items: BlogPostItem[]): BlogPostItem[] {
   const base = assetBaseUrl(null);
   if (!base) return items;
   return items.map((item) =>
-    typeof item.image_url === "string" ? { ...item, image_url: applyAssetBase(base, item.image_url) } : item,
+    typeof item.image_url === "string" ? { ...item, image_url: applyMediaBase(base, item.image_url) } : item,
   );
 }
 
@@ -397,7 +398,7 @@ function rebasePageMedia(page: SitePage | null): SitePage | null {
   if (meta && typeof meta === "object" && !Array.isArray(meta)) {
     const copy: Record<string, unknown> = { ...(meta as Record<string, unknown>) };
     if (typeof copy.og_image_url === "string") {
-      copy.og_image_url = applyAssetBase(base, copy.og_image_url);
+      copy.og_image_url = applyMediaBase(base, copy.og_image_url);
     }
     meta = copy;
   }
@@ -461,14 +462,16 @@ export async function fetchSiteChrome(): Promise<SiteChrome> {
     footer: live.footer?.widgets ? live.footer : CHROME_DEFAULTS.footer,
     socials: Array.isArray(live.socials) ? live.socials : [],
   };
-  // WF-M13 — دارایی‌های محلیِ برند (لوگو/فاوآیکون/OG) روی دامنهٔ دارایی سرو شوند.
-  // فقط نشانی‌های محلی (شروع با `/`) بازنویسی می‌شوند؛ MinIO/S3 دست‌نخورده است.
+  // WF-M13 — دارایی‌های رسانه‌ایِ برند (لوگو/فاوآیکون/OG) روی پایه سرو شوند.
+  // E71 — فقط `/storage/…` (رسانهٔ بک‌اند) پایه می‌گیرد؛ داراییِ فرانت
+  // (`/pishdad-logo.png`، `/favicon.ico`) روی خودِ فرانت سرو می‌شود و بردن‌شان
+  // به میزبانِ بک‌اند ۴۰۴ می‌داد. MinIO/S3 مطلق دست‌نخورده است.
   const base = assetBaseUrl(merged);
   return {
     ...merged,
-    logo_url: applyAssetBase(base, merged.logo_url ?? null),
-    favicon_url: applyAssetBase(base, merged.favicon_url ?? null),
-    og_image_url: applyAssetBase(base, merged.og_image_url ?? null),
+    logo_url: applyMediaBase(base, merged.logo_url ?? null),
+    favicon_url: applyMediaBase(base, merged.favicon_url ?? null),
+    og_image_url: applyMediaBase(base, merged.og_image_url ?? null),
   };
 }
 

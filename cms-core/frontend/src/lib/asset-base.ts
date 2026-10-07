@@ -37,12 +37,33 @@ export function applyAssetBase<T extends string | null | undefined>(
 }
 
 /**
+ * E71 — فقط نشانیِ رسانهٔ **بک‌اند** (`/storage/…`) با پایه ساخته می‌شود.
+ *
+ * درسِ E64 که زیادی تعمیم داده شده بود: `applyAssetBase` هر نشانیِ محلی را
+ * می‌ساخت، از جمله دارایی‌های خودِ فرانت (`/pishdad-logo.png`،
+ * `/favicon.ico`). آن‌ها روی فرانت سرو می‌شوند و بردن‌شان به میزبانِ بک‌اند
+ * ۴۰۴ می‌داد — لوگوی سایت دقیقاً همین‌طور شکست. بک‌اند برای رسانهٔ محلی فقط
+ * مسیرِ `/storage/…` می‌فرستد (`Storage::url()` روی دیسکِ `public`)، پس همان
+ * پیشوند تنها چیزی است که به پایهٔ رسانه نیاز دارد؛ بقیهٔ مسیرهای محلی متعلق
+ * به فرانت‌اند و دست‌نخورده می‌مانند.
+ */
+export function applyMediaBase<T extends string | null | undefined>(
+  base: string | null,
+  url: T,
+): T {
+  if (!base || typeof url !== "string" || !url.startsWith("/storage/")) return url;
+  return `${base}${url}` as T;
+}
+
+/**
  * E64 — همان کارِ `applyAssetBase` روی یک `srcset`.
  *
  * `srcset` یک رشته است با چند نشانیِ جداشده با کاما که هرکدام اختیاراً یک
  * توصیف‌گرِ عرض/چگالی دارد (`/a.webp 640w, /b.webp 1280w`). پس نمی‌شود کل رشته
  * را به‌عنوان یک نشانی چسباند؛ هر بخش جدا ساخته می‌شود و توصیف‌گرها حفظ
  * می‌شوند. ورودیِ غیرِرشته یا خالی دست‌نخورده برمی‌گردد.
+ *
+ * E71 — هر بخش با `applyMediaBase` ساخته می‌شود، نه `applyAssetBase`.
  */
 export function applySrcsetBase(base: string | null, raw: unknown): unknown {
   if (!base || typeof raw !== "string" || raw.trim() === "") return raw;
@@ -56,7 +77,7 @@ export function applySrcsetBase(base: string | null, raw: unknown): unknown {
       const url = space === -1 ? trimmed : trimmed.slice(0, space);
       const descriptor = space === -1 ? "" : ` ${trimmed.slice(space).trim()}`;
 
-      return `${applyAssetBase(base, url)}${descriptor}`;
+      return `${applyMediaBase(base, url)}${descriptor}`;
     })
     .filter((part) => part !== "")
     .join(", ");
@@ -111,7 +132,7 @@ export function rebaseBlockMedia<T>(base: string | null, blocks: T): T {
 
     for (const [key, value] of Object.entries(next)) {
       if (typeof value === "string" && MEDIA_URL_KEY.test(key)) {
-        const fixed = applyAssetBase(base, value);
+        const fixed = applyMediaBase(base, value);
         if (fixed !== value) {
           next[key] = fixed;
           changed = true;

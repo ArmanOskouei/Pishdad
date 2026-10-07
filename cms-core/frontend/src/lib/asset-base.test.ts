@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   applyAssetBase,
+  applyMediaBase,
   applySrcsetBase,
   normalizeAssetBase,
   rebaseBlockMedia,
@@ -124,4 +125,42 @@ test("بدون پایه، بلوک‌ها دقیقاً همان ورودی بر�
   assert.equal(rebaseBlockMedia(null, input), input);
   // ورودیِ غیرِآرایه بی‌خطر برمی‌گردد (بک‌اند می‌تواند blocks ندهد).
   assert.equal(rebaseBlockMedia("http://x", null), null);
+});
+
+/**
+ * E71 — فقط `/storage/…` پایه می‌گیرد؛ داراییِ فرانت نه.
+ *
+ * رگرسیونِ ثبت‌شده: `applyAssetBase` هر نشانیِ محلی را می‌ساخت و لوگوی سایت
+ * (`/pishdad-logo.png` که روی خودِ فرانت سرو می‌شود) به میزبانِ بک‌اند رفت و
+ * ۴۰۴ گرفت. `applyMediaBase` فقط پیشوندِ رسانهٔ بک‌اند را لمس می‌کند.
+ */
+test("پایهٔ رسانه فقط /storage/ را می‌سازد", () => {
+  const base = "http://localhost:8080";
+  assert.equal(applyMediaBase(base, "/storage/media/shared/a.svg"), `${base}/storage/media/shared/a.svg`);
+  assert.equal(applyMediaBase(base, "/pishdad-logo.png"), "/pishdad-logo.png", "دارایی فرانت باید نسبی بماند");
+  assert.equal(applyMediaBase(base, "/favicon.ico"), "/favicon.ico");
+  assert.equal(applyMediaBase(base, "/icons/icon-512.png"), "/icons/icon-512.png");
+  assert.equal(applyMediaBase(base, "https://minio.example/a.svg"), "https://minio.example/a.svg");
+  assert.equal(applyMediaBase(base, "//cdn.example/a.svg"), "//cdn.example/a.svg");
+  assert.equal(applyMediaBase(null, "/storage/a.svg"), "/storage/a.svg");
+});
+
+test("بلوک‌ها: داراییِ فرانت در کلیدِ رسانه هم دست‌نخورده می‌ماند", () => {
+  const base = "http://localhost:8080";
+  const input = [
+    { type: "image", data: { url: "/storage/media/shared/a.svg" } },
+    { type: "hero", data: { url: "/pishdad-logo.png" } },
+  ];
+
+  const out = rebaseBlockMedia(base, input);
+
+  assert.equal(out[0].data.url, `${base}/storage/media/shared/a.svg`);
+  assert.equal(out[1].data.url, "/pishdad-logo.png");
+});
+
+test("srcset مختلط: فقط بخشِ /storage/ ساخته می‌شود", () => {
+  assert.equal(
+    applySrcsetBase("http://localhost:8080", "/pishdad-logo.png 1x, /storage/a-640.webp 640w"),
+    "/pishdad-logo.png 1x, http://localhost:8080/storage/a-640.webp 640w",
+  );
 });
