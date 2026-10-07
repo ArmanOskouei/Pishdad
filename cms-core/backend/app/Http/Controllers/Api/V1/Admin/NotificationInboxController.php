@@ -10,6 +10,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * F4.2.B — صندوق و ترجیحاتِ اعلان.
@@ -124,6 +126,93 @@ class NotificationInboxController extends Controller
             'message' => 'تنظیمات کانال‌ها ذخیره شد.',
             'data' => ['settings' => $this->settings($user->fresh())],
         ]);
+    }
+
+    /**
+     * `GET /v1/admin/notification-preferences/telegram-bot` — وضعیتِ رباتِ نصب.
+     *
+     * E73 — توکنِ ربات پیش‌تر فقط در `.env` بود و در پنل هیچ راهی برای دیدن یا
+     * عوض‌کردنش نبود؛ کاربر chat_id می‌داد ولی پیامی نمی‌رفت و نمی‌فهمید چرا.
+     * توکنِ کامل **هرگز** به مرورگر نمی‌رود — فقط شکلِ ماسک‌شده برای اینکه
+     * مدیر بفهمد کدام ربات وصل است. مسیر `perm:settings.edit` دارد چون رازِ
+     * نصب است، نه تنظیمِ شخصی (برخلاف chat_id که مالِ خودِ کاربر است).
+     *
+     * @return array{configured: bool, masked: string|null}
+     */
+    public function botSettings(): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'configured' => TelegramSender::configured(),
+                'masked' => TelegramSender::masked(),
+            ],
+        ]);
+    }
+
+    /**
+     * `PUT /v1/admin/notification-preferences/telegram-bot` — ذخیره/پاک‌سازیِ توکن.
+     *
+     * خالی/`null` یعنی پاک‌سازی (برگشت به `.env`). `.env` اگر پر باشد همیشه
+     * برنده است و با این مسیر عوض نمی‌شود — چیزی که اپراتور در محیط قفل کرده
+     * نباید با یک کلیک در پنل عوض شود.
+     */
+    public function updateBotToken(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'token' => ['sometimes', 'nullable', 'string', 'max:256'],
+        ]);
+
+        $token = array_key_exists('token', $validated) ? trim((string) $validated['token']) : null;
+
+        if ($token !== null && $token !== '' && preg_match(TelegramSender::TOKEN_PATTERN, $token) !== 1) {
+            throw ValidationException::withMessages([
+                'token' => 'شکل توکن معتبر نیست. توکن را از @BotFather بگیرید (مثل 123456:ABC-DEF...).',
+            ]);
+        }
+
+        TelegramSender::setToken($token === '' ? null : $token);
+
+        return response()->json([
+            'message' => 'توکن ربات تلگرام ذخیره شد.',
+            'data' => [
+                'configured' => TelegramSender::configured(),
+                'masked' => TelegramSender::masked(),
+            ],
+        ]);
+    }
+
+    /**
+     * `POST /v1/admin/notification-preferences/telegram-bot/test` — پیامِ آزمایشی.
+     *
+     * مقصد: `chat_id` داده‌شده، وگرنه chat_id خودِ کاربر. بدونِ هیچ‌کدام ۴۲۲ —
+     * نمی‌شود به «هیچ‌کجا» پیام داد. خطای provider (توکن غلط، ربات بلاک‌شده،
+     * قطعی) هم ۴۲۲ با همان پیام می‌دهد تا کاربر بداند کجای زنجیره خراب است.
+     */
+    public function testBotToken(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'chat_id' => ['sometimes', 'nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9_@.-]+$/'],
+        ], [
+            'chat_id.regex' => 'شناسهٔ گفتگوی تلگرام نامعتبر است.',
+        ]);
+
+        $chat = isset($validated['chat_id']) ? trim((string) $validated['chat_id']) : '';
+        if ($chat === '') {
+            $own = $request->user()->telegram_chat_id;
+            $chat = is_string($own) ? trim($own) : '';
+        }
+
+        if ($chat === '') {
+            return response()->json(['message' => 'اول شناسهٔ گفتگوی تلگرام را ذخیره کنید، بعد پیام آزمایشی بفرستید.'], 422);
+        }
+
+        try {
+            TelegramSender::send($chat, 'پیام آزمایشی پیشداد — ربات وصل است.');
+        } catch (Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['message' => 'پیام آزمایشی فرستاده شد؛ تلگرام را ببینید.']);
     }
 
     /**

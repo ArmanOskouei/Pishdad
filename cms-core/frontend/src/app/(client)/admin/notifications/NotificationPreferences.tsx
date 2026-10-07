@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { authed } from "@/lib/auth";
+import { ApiError, authed } from "@/lib/auth";
 import { useLang } from "@/lib/i18n";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -11,6 +11,7 @@ import {
   type NotificationChannelSettings,
   type PrefMatrix,
   type PrefResponse,
+  type TelegramBotStatus,
 } from "@/lib/notifications";
 import { Alert, Skeleton } from "@/components/ui/primitives";
 
@@ -70,6 +71,15 @@ export function NotificationPreferences() {
   const [chatId, setChatId] = useState("");
   const [digest, setDigest] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  /**
+   * E73 — رباتِ تلگرامِ نصب. `null` = هنوز خوانده نشده؛ `hidden` یعنی ۴۰۳
+   * (مدیر این پرمیشن را ندارد) و کارت کلاً رندر نمی‌شود — fail-closed، چون
+   * نبودِ پرمیشن نباید شکلِ «توکن ذخیره نشد» بگیرد.
+   */
+  const [bot, setBot] = useState<TelegramBotStatus | null>(null);
+  const [botHidden, setBotHidden] = useState(false);
+  const [botToken, setBotToken] = useState("");
+  const [botBusy, setBotBusy] = useState(false);
 
   const applySettings = useCallback((s: NotificationChannelSettings) => {
     setSettings(s);
@@ -90,6 +100,14 @@ export function NotificationPreferences() {
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("inbox.loadError"));
+    }
+    // E73 — وضعیتِ ربات جدا خوانده می‌شود چون پرمیشنش جداست (`settings.edit`):
+    // خطای آن نباید کلِ صفحه را قرمز کند و ۴۰۳ یعنی کارت پنهان می‌شود.
+    try {
+      const b = await authed<TelegramBotStatus>("/v1/admin/notification-preferences/telegram-bot");
+      setBot({ configured: b?.configured === true, masked: typeof b?.masked === "string" ? b.masked : null });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 403) setBotHidden(true);
     }
   }, [applySettings, t]);
 
@@ -116,8 +134,51 @@ export function NotificationPreferences() {
     [applySettings, toast, t],
   );
 
-  const write = useCallback(
-    async (group: string, channel: Channel, enabled: boolean) => {
+  /**
+   * E73 — ذخیره/پاک‌سازیِ توکنِ ربات. خالی یعنی پاک‌سازی (برگشت به `.env`).
+   * پاسخ، وضعیتِ تازه را می‌دهد و همان state می‌شود — نه حدسِ محلی.
+   */
+  const saveBotToken = useCallback(
+    async (token: string | null) => {
+      setBotBusy(true);
+      try {
+        const json = await authed<TelegramBotStatus>("/v1/admin/notification-preferences/telegram-bot", {
+          method: "PUT",
+          body: { token },
+        });
+        setBot({ configured: json?.configured === true, masked: typeof json?.masked === "string" ? json.masked : null });
+        if (token) setBotToken("");
+        toast(t("inbox.telegramBotSaved"), "ok");
+      } catch (e) {
+        toast(e instanceof Error ? e.message : t("inbox.telegramBotFailed"), "err");
+      } finally {
+        setBotBusy(false);
+      }
+    },
+    [toast, t],
+  );
+
+  const testBotToken = useCallback(async () => {
+    const chat = chatId.trim();
+    if (!chat) {
+      toast(t("inbox.telegramBotNeedChat"), "err");
+      return;
+    }
+    setBotBusy(true);
+    try {
+      await authed("/v1/admin/notification-preferences/telegram-bot/test", {
+        method: "POST",
+        body: { chat_id: chat },
+      });
+      toast(t("inbox.telegramBotTestOk"), "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t("inbox.telegramBotTestFailed"), "err");
+    } finally {
+      setBotBusy(false);
+    }
+  }, [chatId, toast, t]);
+
+  const write = useCallback(    async (group: string, channel: Channel, enabled: boolean) => {
       setSaving(`${group}|${channel}`);
       // خوش‌بینانه: UI بی‌درنگ واکنش نشان می‌دهد و اگر سرور رد کرد، پاسخِ
       // تازه برمی‌گردد و کاربر می‌بیند واقعاً اعمال نشده.
@@ -234,6 +295,62 @@ export function NotificationPreferences() {
               />
             </label>
             <div className="muted" style={{ fontSize: 12 }}>{t("inbox.dailyDigestHint")}</div>
+          </div>
+        </div>
+      ) : null}
+
+      {!botHidden && bot ? (
+        <div className="card card-pad" style={{ marginBlockStart: 12 }}>
+          <b>{t("inbox.telegramBotTitle")}</b>
+          <div className="muted" style={{ fontSize: 12, marginBlockStart: 4 }}>
+            {t("inbox.telegramBotHint")}
+          </div>
+          <div style={{ marginBlockStart: 8, fontSize: 13 }}>
+            {bot.configured && bot.masked ? (
+              <span>{t("inbox.telegramBotConnected", { masked: bot.masked })}</span>
+            ) : (
+              <Alert tone="amber">{t("inbox.telegramNotConfigured")}</Alert>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBlockStart: 12 }}>
+            <input
+              id="tg-bot-token"
+              className="input"
+              dir="ltr"
+              type="password"
+              autoComplete="new-password"
+              value={botToken}
+              placeholder={t("inbox.telegramBotTokenPlaceholder")}
+              aria-label={t("inbox.telegramBotToken")}
+              onChange={(e) => setBotToken(e.target.value)}
+              style={{ flex: 1, minInlineSize: 200 }}
+            />
+            <button
+              type="button"
+              className="btn"
+              disabled={botBusy}
+              onClick={() => void saveBotToken(botToken.trim() || null)}
+            >
+              {t("inbox.telegramBotSave")}
+            </button>
+            {bot.configured ? (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={botBusy}
+                onClick={() => void saveBotToken(null)}
+              >
+                {t("inbox.telegramBotClear")}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={botBusy || !bot.configured}
+              onClick={() => void testBotToken()}
+            >
+              {t("inbox.telegramBotTest")}
+            </button>
           </div>
         </div>
       ) : null}

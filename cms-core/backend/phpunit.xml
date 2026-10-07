@@ -169,6 +169,7 @@
             <file>tests/Feature/SiteThemeApiTest.php</file>
             <file>tests/Feature/SiteThemeResolverTest.php</file>
             <file>tests/Feature/SmsRequestHonestyTest.php</file>
+            <file>tests/Feature/TelegramBotSettingsTest.php</file>
             <file>tests/Feature/TestSuiteIntegrityTest.php</file>
             <file>tests/Feature/ThemeMakeTest.php</file>
             <file>tests/Feature/ThemesTest.php</file>

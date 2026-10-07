@@ -256,6 +256,28 @@ test("پاک‌سازی در مسیر خواندن است، نه command جدا"
   );
 });
 
+test("کارتِ ربات از مسیرِ خودش می‌خواند و توکنِ کامل هرگز رندر نمی‌شود (E73)", () => {
+  // توکنِ ربات پیش‌تر فقط در `.env` بود و پنل هیچ راهی نداشت؛ حالا سه مسیر
+  // هست و هر سه باید از همین‌جا صدا زده شوند، نه از مسیرِ حدسی.
+  for (const p of [
+    "/v1/admin/notification-preferences/telegram-bot",
+    "/v1/admin/notification-preferences/telegram-bot/test",
+  ]) {
+    assert.ok(PREFS.includes(p), `مسیر «${p}» باید از کارتِ ربات صدا زده شود.`);
+  }
+  assert.match(PREFS, /masked/, "فقط شکلِ ماسک‌شده نمایش داده می‌شود.");
+  // ورودی `password` است و هیچ‌جا مقدارِ توکن به‌عنوان متن رندر نمی‌شود.
+  assert.match(PREFS, /type="password"/, "فیلدِ توکن باید password باشد.");
+  assert.equal(/\{botToken\}[^<]*<\/(div|span|p|b)>/.test(PREFS), false, "توکن نباید به‌عنوان متن رندر شود.");
+});
+
+test("کارتِ ربات بدون پرمیشن پنهان می‌شود، نه خراب (E73)", () => {
+  // رازِ نصب پشت `settings.edit` است؛ ۴۰۳ یعنی کارت نیست، نه خطای قرمز.
+  assert.match(PREFS, /ApiError/, "خطای ۴۰۳ باید از بدنه قابلِ تشخیص باشد.");
+  assert.match(PREFS, /status === 403/, "فقط ۴۰۳ پنهان می‌کند، نه هر خطایی.");
+  assert.match(PREFS, /botHidden/, "وضعیتِ پنهانی باید صریح باشد.");
+});
+
 test("پاپ‌اور از جدِ برنده فرار می‌کند (E72)", () => {
   // ریشهٔ باگ: popover قبلاً absolute داخل bell-wrap بود ولی topbar-actions
   // (جدِ آن) overflow-x:auto دارد و هر overflow غیرvisible نوادگانِ مطلق

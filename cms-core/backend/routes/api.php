@@ -366,6 +366,15 @@ Route::prefix('v1')->group(function () {
             Route::put('notification-preferences', [NotificationInboxController::class, 'updatePreferences']);
             // WF-M15 — تنظیماتِ کانالِ کاربر (chat_id تلگرام + خلاصهٔ روزانه).
             Route::put('notification-preferences/settings', [NotificationInboxController::class, 'updateSettings']);
+            // E73 — رباتِ تلگرامِ نصب (توکن). رازِ نصب است نه تنظیمِ شخصی، پس
+            // مثل K6.7 همان مجوزی را می‌خواهد که UI ادعا می‌کند: settings.edit.
+            // توکنِ کامل هیچ‌وقت به مرورگر نمی‌رود (فقط masked).
+            Route::get('notification-preferences/telegram-bot', [NotificationInboxController::class, 'botSettings'])
+                ->middleware('perm:settings.edit');
+            Route::put('notification-preferences/telegram-bot', [NotificationInboxController::class, 'updateBotToken'])
+                ->middleware('perm:settings.edit');
+            Route::post('notification-preferences/telegram-bot/test', [NotificationInboxController::class, 'testBotToken'])
+                ->middleware('perm:settings.edit');
             // K6.7 — تنظیمات افزونه‌ها: اسکیما + مقادیر.
             //
             // `perm:*` دارد، برخلاف `plugins/menu` و `plugins/pages`. دلیل فرق

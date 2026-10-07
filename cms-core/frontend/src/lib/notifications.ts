@@ -48,6 +48,12 @@ export type NotificationChannelSettings = {
   telegram_configured: boolean;
 };
 
+/** E73 — وضعیتِ رباتِ نصب (توکنِ کامل هرگز به مرورگر نمی‌آید). */
+export type TelegramBotStatus = {
+  configured: boolean;
+  masked: string | null;
+};
+
 export type PrefResponse = {
   groups: Record<string, string>;
   channels: string[];

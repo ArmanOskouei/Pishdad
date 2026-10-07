@@ -21,6 +21,10 @@ return [
 
     /*
     | توکن ربات. خالی یعنی «کانال تلگرام غیرفعال».
+    |
+    | E73 — این فقط منبعِ اول است: اگر خالی بود، `TelegramSender::token()`
+    | سراغِ تنظیمِ پنل (`settings`: group `integrations`) می‌رود. اولویت با
+    | همین `.env` است.
     */
     'bot_token' => env('TELEGRAM_BOT_TOKEN'),
 

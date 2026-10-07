@@ -262,13 +262,13 @@ final class DependencyChecker
     public function telegram(): DependencyStatus
     {
         if (TelegramSender::configured()) {
-            return DependencyStatus::ok('telegram', 'تلگرام (WF-M15)', 'TELEGRAM_BOT_TOKEN تنظیم شده؛ ارسال از طریق Bot API فعال است.');
+            return DependencyStatus::ok('telegram', 'تلگرام (WF-M15)', 'توکن ربات تنظیم شده (.env یا پنل)؛ ارسال از طریق Bot API فعال است.');
         }
 
         return DependencyStatus::warn(
             'telegram', 'تلگرام (WF-M15)',
             'TELEGRAM_BOT_TOKEN تنظیم نشده؛ هیچ اعلانی از طریق تلگرام فرستاده نمی‌شود. (کانالِ اختیاری — سایت سالم است.)',
-            'برای فعال‌سازی، یک ربات بسازید و TELEGRAM_BOT_TOKEN را در .env مقدار دهید.',
+            'برای فعال‌سازی، یک ربات بسازید و توکنش را یا در .env (TELEGRAM_BOT_TOKEN) بگذارید یا در پنل، صفحهٔ «ترجیحات اعلان»، بخشِ ربات تلگرام وارد کنید.',
         );
     }
 
