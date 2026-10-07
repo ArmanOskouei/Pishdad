@@ -70,7 +70,6 @@ cms-core/
     tests/                   489 tests across 67 files
   frontend/    Next.js 16, App Router
     src/app/(client)/admin   client panel
-    src/app/(central)/central central panel
     src/app/[...path]        public site
     src/types/api.d.ts       generated, do not hand-edit
 ```
@@ -244,7 +243,6 @@ cms-core/
     tests/                   ۴۸۹ تست در ۶۷ فایل
   frontend/    Next.js 16، App Router
     src/app/(client)/admin   پنل مشتری
-    src/app/(central)/central پنل مرکزی
     src/app/[...path]        سایت عمومی
     src/types/api.d.ts       تولیدشده، دستی ویرایش نکنید
 ```
