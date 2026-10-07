@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyAssetBase, normalizeAssetBase, resolveAssetBase } from "./asset-base.ts";
+import {
+  applyAssetBase,
+  applySrcsetBase,
+  normalizeAssetBase,
+  rebaseBlockMedia,
+  resolveAssetBase,
+} from "./asset-base.ts";
 
 /**
  * WF-M13 — دامنهٔ دارایی/CDN: فقط فایل‌های ایستای محلی را می‌سازد.
@@ -34,4 +40,88 @@ test("نشانی مطلق منبع دیگر دست‌نخورده می‌مان�
 test("بدون دامنه، همه‌چیز دست‌نخورده می‌ماند", () => {
   assert.equal(applyAssetBase(null, "/favicon.ico"), "/favicon.ico");
   assert.equal(applyAssetBase(null, null), null);
+});
+
+/** E64 — `//host` منبعِ دیگری است؛ چسباندنِ پایه به آن میزبانِ ناشناس می‌سازد. */
+test("نشانیِ protocol-relative هرگز بازنویسی نمی‌شود", () => {
+  assert.equal(applyAssetBase("https://cdn.example.ir", "//evil.example/x.png"), "//evil.example/x.png");
+});
+
+/** E64 — `srcset` چند نشانی با توصیف‌گر دارد؛ هر بخش باید جدا ساخته شود. */
+test("srcset بازنویسی می‌شود و توصیف‌گرها حفظ می‌شوند", () => {
+  assert.equal(
+    applySrcsetBase(
+      "http://localhost:8080",
+      "/storage/a.webp 640w, /storage/b.webp 1280w",
+    ),
+    "http://localhost:8080/storage/a.webp 640w, http://localhost:8080/storage/b.webp 1280w",
+  );
+  // نشانیِ مطلقِ MinIO/S3 و توصیف‌گرِ چگالی دست‌نخورده می‌مانند.
+  assert.equal(
+    applySrcsetBase("http://localhost:8080", "https://minio.example/a.avif 2x"),
+    "https://minio.example/a.avif 2x",
+  );
+  // بدون پایه، رفتار قبلی (بدون تغییر).
+  assert.equal(applySrcsetBase(null, "/a.webp 640w"), "/a.webp 640w");
+  assert.equal(applySrcsetBase("http://localhost:8080", ""), "");
+});
+
+/**
+ * E64 — بازنویسیِ پیلود بلوک: فقط کلیدهای رسانه لمس می‌شوند.
+ * `href`/`slug` نشانیِ سایتِ فرانت‌اند، نه بک‌اند؛ بازنویسی‌شان لینک را می‌شکند.
+ */
+test("بلوک‌ها: رسانه بازنویسی می‌شود، لینک/slug نه", () => {
+  const base = "http://localhost:8080";
+  const input = [
+    {
+      type: "image",
+      data: {
+        media_id: 1,
+        url: "/storage/media/shared/a.svg",
+        srcset: "/storage/a-640.webp 640w, /storage/a-1280.webp 1280w",
+        sources: [{ type: "image/avif", srcset: "/storage/a-640.avif 640w" }],
+        alt: "توضیح",
+      },
+    },
+    {
+      type: "gallery",
+      data: {
+        media_ids: [1, 2],
+        url_0: "/storage/media/shared/a.svg",
+        url_1: "https://minio.example/b.svg",
+        focal_x_0: 0.5,
+      },
+    },
+    { type: "cta", data: { label: "برو", href: "/about", slug: "about" } },
+    { type: "video", data: { poster_url: "/storage/media/shared/p.jpg" } },
+  ];
+
+  const out = rebaseBlockMedia(base, input);
+
+  assert.equal(out[0].data.url, `${base}/storage/media/shared/a.svg`);
+  assert.equal(
+    out[0].data.srcset,
+    `${base}/storage/a-640.webp 640w, ${base}/storage/a-1280.webp 1280w`,
+  );
+  assert.equal(out[0].data.sources[0].srcset, `${base}/storage/a-640.avif 640w`);
+  assert.equal(out[0].data.alt, "توضیح");
+
+  assert.equal(out[1].data.url_0, `${base}/storage/media/shared/a.svg`);
+  assert.equal(out[1].data.url_1, "https://minio.example/b.svg", "مطلقِ MinIO نباید لمس شود");
+
+  assert.equal(out[2].data.href, "/about", "لینک باید دست‌نخورده بماند");
+  assert.equal(out[2].data.slug, "about");
+
+  assert.equal(out[3].data.poster_url, `${base}/storage/media/shared/p.jpg`);
+
+  // ورودی نباید تغییر کند (بدون mutation، برای امنیتِ کش/رندر).
+  assert.equal(input[0].data.url, "/storage/media/shared/a.svg");
+  assert.equal(input[1].data.url_0, "/storage/media/shared/a.svg");
+});
+
+test("بدون پایه، بلوک‌ها دقیقاً همان ورودی برمی‌گردند", () => {
+  const input = [{ type: "image", data: { url: "/storage/a.svg" } }];
+  assert.equal(rebaseBlockMedia(null, input), input);
+  // ورودیِ غیرِآرایه بی‌خطر برمی‌گردد (بک‌اند می‌تواند blocks ندهد).
+  assert.equal(rebaseBlockMedia("http://x", null), null);
 });

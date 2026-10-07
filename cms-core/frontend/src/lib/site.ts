@@ -9,11 +9,17 @@ import {
   asPaginator,
   type LayoutData,
   type Paginator,
+  type SidebarData,
   type SitePage,
   type SiteStatus,
   type SocialItem,
 } from "@/lib/domain";
-import { applyAssetBase, normalizeAssetBase, resolveAssetBase } from "@/lib/asset-base";
+import {
+  applyAssetBase,
+  normalizeAssetBase,
+  rebaseBlockMedia,
+  resolveAssetBase,
+} from "@/lib/asset-base";
 import { buildRssFeed, type FeedItem } from "@/lib/public/rss-feed";
 import { blogFeedHref } from "@/lib/blog";
 import { DEFAULT_PUBLIC_LOCALE, isPublicLocale, type PublicLocale } from "@/lib/i18n/public";
@@ -68,7 +74,9 @@ async function get<T>(path: string, tags: string[], fresh = false): Promise<T | 
 /** صفحه منتشرشده (فقط published — تضمین سمت بک‌اند). F4.5: locale اختیاری. */
 export function fetchSitePage(slug: string, locale?: string): Promise<SitePage | null> {
   const qs = locale ? `?locale=${encodeURIComponent(locale)}` : "";
-  return get<SitePage>(`/v1/site/pages/${encodeURIComponent(slug)}${qs}`, [SITE_TAG, `page:${slug}`]);
+  return get<SitePage>(`/v1/site/pages/${encodeURIComponent(slug)}${qs}`, [SITE_TAG, `page:${slug}`]).then(
+    rebasePageMedia,
+  );
 }
 
 /**
@@ -198,6 +206,15 @@ export type BlogPostItem = {
   updated_at?: string | null;
 };
 
+/** E64 — `image_url` محلیِ کارت‌های بلاگ را با پایهٔ رسانه مطلق می‌کند. */
+function rebaseBlogMedia(items: BlogPostItem[]): BlogPostItem[] {
+  const base = assetBaseUrl(null);
+  if (!base) return items;
+  return items.map((item) =>
+    typeof item.image_url === "string" ? { ...item, image_url: applyAssetBase(base, item.image_url) } : item,
+  );
+}
+
 /** فهرست صفحه‌بندی‌شدهٔ نوشته‌های بلاگ (فقط published — تضمین سمت بک‌اند). */
 export function fetchBlogPosts(
   locale: string,
@@ -208,9 +225,9 @@ export function fetchBlogPosts(
   if (opts.perPage) params.set("per_page", String(opts.perPage));
   if (opts.category) params.set("category", opts.category);
   if (opts.tag) params.set("tag", opts.tag);
-  return get<unknown>(`/v1/site/blog?${params.toString()}`, [SITE_TAG, BLOG_TAG]).then((v) =>
-    asPaginator<BlogPostItem>(v),
-  );
+  return get<unknown>(`/v1/site/blog?${params.toString()}`, [SITE_TAG, BLOG_TAG])
+    .then((v) => asPaginator<BlogPostItem>(v))
+    .then((page) => ({ ...page, data: rebaseBlogMedia(page.data) }));
 }
 
 /**
@@ -306,7 +323,9 @@ export function fetchHomepage(locale?: string): Promise<SitePage | null> {
   if (siteId) params.set("site_id", siteId);
   if (locale) params.set("locale", locale);
   const qs = params.toString();
-  return get<SitePage>(`/v1/site/homepage${qs ? `?${qs}` : ""}`, [SITE_TAG, "site-homepage"]);
+  return get<SitePage>(`/v1/site/homepage${qs ? `?${qs}` : ""}`, [SITE_TAG, "site-homepage"]).then(
+    rebasePageMedia,
+  );
 }
 
 /**
@@ -334,9 +353,65 @@ export function siteBaseUrl(chrome: Pick<SiteChrome, "site_url"> | null): string
 /**
  * WF-M13 — دامنهٔ دارایی/CDN. اول تنظیمات (`asset_domain`)، بعد
  * `NEXT_PUBLIC_ASSET_URL` به‌عنوان fallbackِ محیطی. خالی ⇒ null (بدون CDN).
+ *
+ * E64 — اگر هیچ‌کدام نبود، **پایهٔ رسانهٔ زمانِ اجرا** می‌آید. بدونِ این،
+ * نشانی‌های محلیِ `/storage/…` که بک‌اند می‌فرستد به میزبانِ فرانت می‌چسبیدند
+ * و ۴۰۴ می‌دادند؛ این همان چیزی است که `domain.ts::mediaUrl` از قبل درست
+ * انجام می‌داد و این‌جا هم باید یکی باشد.
  */
 export function assetBaseUrl(chrome: Pick<SiteChrome, "asset_domain"> | null): string | null {
-  return resolveAssetBase(chrome) ?? normalizeAssetBase(effectiveValue("CMS_ASSET_URL", process.env.NEXT_PUBLIC_ASSET_URL));
+  return (
+    resolveAssetBase(chrome) ??
+    normalizeAssetBase(effectiveValue("CMS_ASSET_URL", process.env.NEXT_PUBLIC_ASSET_URL)) ??
+    mediaBaseUrl()
+  );
+}
+
+/**
+ * E64 — پایهٔ زمانِ اجرا برای رسانهٔ محلی (`/storage/…` که بک‌اند سرو می‌کند).
+ *
+ * همان مقداری که `runtime-config.ts` در `__CMS_CONFIG__.mediaUrl` تزریق می‌کند
+ * و `domain.ts::mediaUrl` مصرف می‌کند. این‌جا هم از مسیرِ نصب (`runtime.json`)
+ * و سپس محیط خوانده می‌شود تا رندرِ **سمتِ سرور** (که به `window` دسترسی
+ * ندارد) هم پایه را بداند.
+ */
+export function mediaBaseUrl(): string | null {
+  return normalizeAssetBase(
+    effectiveValue("CMS_PUBLIC_MEDIA_URL", process.env.NEXT_PUBLIC_MEDIA_URL),
+  );
+}
+
+/**
+ * E64 — بلوک‌ها و متا/سایدبارِ یک صفحه را با پایهٔ رسانه مطلق می‌کند.
+ *
+ * چرا این‌جا و نه در رندرر: `BlockRenderer` سمتِ سرور رندر می‌شود و پایهٔ
+ * زمانِ اجرا (نصب ← `CMS_PUBLIC_MEDIA_URL`) را نمی‌داند؛ این لایه هم آن را
+ * می‌بیند و هم پیش از sanitizer اجرا می‌شود.
+ */
+function rebasePageMedia(page: SitePage | null): SitePage | null {
+  if (!page) return page;
+  const base = assetBaseUrl(null);
+  if (!base) return page;
+
+  let meta = page.meta;
+  if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+    const copy: Record<string, unknown> = { ...(meta as Record<string, unknown>) };
+    if (typeof copy.og_image_url === "string") {
+      copy.og_image_url = applyAssetBase(base, copy.og_image_url);
+    }
+    meta = copy;
+  }
+
+  const sidebars = page.sidebars
+    ? { left: rebaseSidebar(page.sidebars.left, base), right: rebaseSidebar(page.sidebars.right, base) }
+    : page.sidebars;
+
+  return { ...page, blocks: rebaseBlockMedia(base, page.blocks), meta, sidebars };
+}
+
+function rebaseSidebar(sb: SidebarData | null | undefined, base: string): SidebarData | null | undefined {
+  if (!sb) return sb;
+  return { ...sb, blocks: rebaseBlockMedia(base, sb.blocks) };
 }
 
 /** WF-M13 — lazy-load تصاویر سایت روشن است مگر صریحاً خاموش شود. */
