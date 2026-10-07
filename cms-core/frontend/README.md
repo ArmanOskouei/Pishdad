@@ -1,4 +1,4 @@
-# فرانت‌اند CMS — F1→F3 کامل (پنل مشتری + پنل مرکزی + سایت عمومی ISR)
+# فرانت‌اند CMS — پنل مشتری + سایت عمومی ISR
 
 Next.js 15 + App Router + TypeScript strict. قرارداد مرجع: `../backend/openapi/openapi.yaml` نسخه 1.6.0.
 
@@ -59,7 +59,7 @@ docker compose up   # web-front روی 3100 (پورت 3000/3001 روی هاست 
 2. JS هرگز توکن را نمی‌بیند (فقط `useAuth` وضعیت لاگین/چالش را نگه می‌دارد).
 3. فراخوانی‌های احرازهویت‌شده از کلاینت به `/api/proxy/...` می‌روند؛ Route Handler توکن را از کوکی
    می‌خواند و با `Authorization: Bearer` به بک‌اند پروکسی می‌کند.
-4. `middleware` روت‌های `/admin/*` و `/central/*` را بدون کوکی به `/login` می‌فرستد.
+4. `middleware` روت‌های `/admin/*` را بدون کوکی به `/login` می‌فرستد.
 5. `refresh`: بک‌اند دارد (`POST /v1/auth/refresh`)؛ فرانت F1 روی 401 به لاگین می‌فرستد (TODO: refresh خودکار).
 
 فلو لاگین دقیقِ بک‌اند: `login` → اگر `two_factor_required` → `challenge` (۱۰ دقیقه) → `verify-2fa`
@@ -73,16 +73,15 @@ src/app/layout.tsx            # fa/rtl + Vazirmatn + ضد FOUC + پروایدر�
 src/app/globals.css           # توکن‌ها (sahar/amaliyat/presets/radius/density/font-size) + شل + کامپوننت‌ها
 src/app/(auth)/login          # ورود دوعاملی (۱.۱)
 src/app/(client)/admin        # شل سپیده + dashboard (۱.۲) + appearance (۱.۱۴)
-src/app/(central)/central     # شل عملیات + وایر stats مرکزی
 src/app/api/auth|proxy        # Route Handlers کوکی httpOnly + پروکسی
 src/components/ui             # DataTable/Modal/Drawer/ConfirmDialog/EmptyState/SaveBar/StatCard/Badge/Alert/Stepper/Toast/Skeleton
 src/components/layout         # Sidebar/Topbar/BottomNav/Shell
 src/lib                       # api.ts (fetch wrapper + 401) / auth.tsx / theme.tsx / fa.ts (شمسی) / menu.ts
 src/types/api.d.ts            # تولیدشده با npm run gen:types
-src/middleware.ts             # محافظ admin/central
+src/middleware.ts             # محافظ admin
 ```
 
-## F3 — تکمیل فرانت (صفحات مشتری ۱.۳/۱.۴/۱.۷–۱.۱۳ + مرکزی ۲.۱/۲.۳/۲.۵–۲.۷ + سایت عمومی)
+## F3 — تکمیل فرانت (صفحات مشتری ۱.۳/۱.۴/۱.۷–۱.۱۳ + سایت عمومی)
 
 ```
 src/app/(client)/admin/managers      # ۱.۳ تب مدیران/نقش‌ها + ماتریس دسترسی
@@ -94,12 +93,7 @@ src/app/(client)/admin/plugins       # ۱.۱۰ لیست + آپلود ZIP + سو�
 src/app/(client)/admin/header-footer # ۱.۱۱ تب + DragDropList + تنظیمات JSON ویجت
 src/app/(client)/admin/blocks        # ۱.۱۲ تب نوع صفحه + درگ + _enabled + JSON خام
 src/app/(client)/admin/themes        # ۱.۱۳ گالری + آپلود + فعال‌سازی (+revalidate) + پیش‌نمایش
-src/app/(central)/central/dashboard  # ۲.۱ stats + نمودار SVG خالص (بدون lib)
-src/app/(central)/central/chabokan   # ۲.۳ کیف پول + سرویس‌ها + ConfirmStepper + reconciliation
-src/app/(central)/central/monitoring # ۲.۵ گرید سلامت + لاگ + نوار آپتایم
-src/app/(central)/central/updates    # ۲.۶ نصب‌ها + رول‌اوت پلکانی + rollback
-src/app/(central)/central/operator   # ۲.۷ 2FA سخت‌افزاری + توکن + Kill-Switch + لاگ
-src/app/[...path]                    # سایت عمومی ISR (revalidate=300، تگ pages) + تعلیق خودکار + سئو
+src/app/[...path]                    # سایت عمومی ISR (revalidate=300، تگ pages) + سئو
 src/app/api/revalidate               # تأیید HMAC+nonce+timestamp (منطق RevalidateSigner) + مسیر local ادمین
 src/components/site                  # BlockRenderer (sanitize allowlist) + ContactForm (honeypot)
 cache-handler.mjs                    # کش ISR روی Redis با fallback حافظه (پیش‌فرض خاموش)
@@ -109,7 +103,7 @@ cache-handler.mjs                    # کش ISR روی Redis با fallback حا�
 
 | متغیر | کاربرد | عمومی؟ |
 |---|---|---|
-| `NEXT_PUBLIC_SITE_ID` | شناسه نصب برای بررسی تعلیق در سایت عمومی (خالی = بدون بررسی) | بله |
+| `NEXT_PUBLIC_SITE_ID` | شناسه نصب (برای سئو و متادیتا؛ خالی = بدون شناسه) | بله |
 | `NEXT_PUBLIC_MEDIA_URL` | بیس MinIO برای رندر مستقیم مدیا | بله |
 | `REVALIDATE_SECRET` | سکرت مشترک HMAC با بک‌اند — **سرور-only** | **خیر** |
 | `REDIS_URL` / `CMS_CACHE_PREFIX` | فعال‌سازی cacheHandler روی Redis | خیر |
@@ -137,9 +131,9 @@ npm i redis
 - `GET /v1/themes/panel` (از F1) و WebAuthn واقعی کلید سخت‌افزاری (TODO خود بک‌اند).
 - refresh خودکار توکن روی 401 (فعلاً ریدایرکت به لاگین).
 
-## TODO مرحله بعد (حلقه پول — scope-creep نکردیم)
+## TODO مرحله بعد (scope-creep نکردیم)
 
-- صفحات اشتراک/Billing/مشتریان/صفحات + DataTable سمت سرور + MediaPicker/SchemaForm/DragDropList/ThemeCard کامل
-- refresh خودکار توکن روی 401 + صفحه تعلیق (`suspension_mode`) + سوییچ پنل مشتری/مرکزی در Topbar
+- DataTable سمت سرور + MediaPicker/SchemaForm/DragDropList/ThemeCard کامل
+- refresh خودکار توکن روی 401 (فعلاً ریدایرکت به لاگین)
 - `GET /v1/themes/panel` (در قرارداد DEV-TASKS ۲.۴ هست ولی بک‌اند فعلی ندارد) — فعلاً ۵ جهت هاردکد از DESIGN-DIRECTIONS
 - cacheHandler روی Redis + prewarm (یافته PLAN.md) هنگام ISR سایت عمومی

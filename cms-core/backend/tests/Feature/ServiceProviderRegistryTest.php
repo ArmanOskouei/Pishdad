@@ -6,7 +6,6 @@ use App\Models\Plugin;
 use App\Models\User;
 use App\Services\Billing\PaymentGatewayInterface;
 use App\Services\Billing\ManualBillingDriver;
-use App\Services\Chabokan\ChabokanClientInterface;
 use App\Services\Plugins\PluginPackageContract;
 use App\Services\Plugins\ServiceProviderRegistry;
 use Illuminate\Contracts\Container\Container;
@@ -139,7 +138,6 @@ class ServiceProviderRegistryTest extends TestCase
             app(PaymentGatewayInterface::class),
             'بدون افزونه باید درایور پیش‌فرض هسته برگردد.'
         );
-        $this->assertInstanceOf(ChabokanClientInterface::class, app(ChabokanClientInterface::class));
     }
 
     public function test_active_approved_plugin_can_override_a_core_interface(): void

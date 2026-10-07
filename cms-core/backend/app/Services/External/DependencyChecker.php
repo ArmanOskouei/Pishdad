@@ -2,7 +2,6 @@
 
 namespace App\Services\External;
 
-use App\Services\Chabokan\ChabokanDriverFactory;
 use App\Services\Notifications\TelegramSender;
 use App\Services\Outbox\Outbox;
 use App\Services\Sms\SmsDriverFactory;
@@ -44,7 +43,6 @@ final class DependencyChecker
             $this->mail(),
             $this->sms(),
             $this->telegram(),
-            $this->chabokan(),
             $this->storage(),
             $this->redis(),
             $this->pluginDdl(),
@@ -272,37 +270,6 @@ final class DependencyChecker
             'TELEGRAM_BOT_TOKEN تنظیم نشده؛ هیچ اعلانی از طریق تلگرام فرستاده نمی‌شود. (کانالِ اختیاری — سایت سالم است.)',
             'برای فعال‌سازی، یک ربات بسازید و TELEGRAM_BOT_TOKEN را در .env مقدار دهید.',
         );
-    }
-
-    // ------------------------------------------------------------- چابکان (E4)
-
-    public function chabokan(): DependencyStatus
-    {
-        $driver = strtolower(trim((string) config('chabokan.driver', 'stub')));
-        $missing = ChabokanDriverFactory::missingKeys($driver);
-
-        if ($missing !== []) {
-            return DependencyStatus::missing(
-                'chabokan', 'چابکان (E4)',
-                sprintf('CHABOKAN_DRIVER=api انتخاب شده اما %s تنظیم نشده است.', implode('، ', $missing)),
-                $missing,
-                'کلید(های) بالا را در .env پر کنید، یا CHABOKAN_DRIVER=stub بگذارید (داده‌های نمایشی، بدون هیچ تماسی).',
-            );
-        }
-
-        return match ($driver) {
-            'api' => DependencyStatus::ok('chabokan', 'چابکان (E4)', 'CHABOKAN_DRIVER=api و توکن/آدرس کامل است.'),
-            'stub' => DependencyStatus::warn(
-                'chabokan', 'چابکان (E4)',
-                'CHABOKAN_DRIVER=stub است؛ موجودی و وضعیت سرویس‌ها نمایشی‌اند و هیچ زیرساختی واقعی کنترل نمی‌شود.',
-                'با گرفتن توکن، CHABOKAN_DRIVER=api بگذارید.',
-            ),
-            default => DependencyStatus::warn(
-                'chabokan', 'چابکان (E4)',
-                sprintf('CHABOKAN_DRIVER=%s ناشناخته است؛ به درایور بی‌خطر `stub` برگشت.', $driver),
-                'مقادیر معتبر: stub، api.',
-            ),
-        };
     }
 
     // ------------------------------------------------------------- فضای ذخیره‌سازی

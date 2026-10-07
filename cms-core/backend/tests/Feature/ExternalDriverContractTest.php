@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use App\Mail\OutboundEmail;
-use App\Services\Chabokan\ChabokanDriverFactory;
-use App\Services\Chabokan\StubChabokanDriver;
 use App\Services\External\DependencyChecker;
 use App\Services\External\DependencyStatus;
 use App\Services\External\MissingCredentialException;
@@ -374,65 +372,6 @@ class ExternalDriverContractTest extends TestCase
         return false;
     }
 
-    // ----------------------------------------------------------------- چابکان (E4)
-
-    public function test_chabokan_defaults_to_the_stub_driver(): void
-    {
-        config(['chabokan.driver' => 'stub']);
-
-        $client = ChabokanDriverFactory::make();
-
-        $this->assertInstanceOf(StubChabokanDriver::class, $client);
-        $this->assertSame('stub', $client->driverName());
-    }
-
-    public function test_chabokan_api_without_token_fails_closed_naming_the_exact_keys(): void
-    {
-        config([
-            'chabokan.driver' => 'api',
-            'chabokan.api_token' => null,
-            'chabokan.api_base' => null,
-        ]);
-
-        $this->assertSame(
-            ['CHABOKAN_API_TOKEN', 'CHABOKAN_API_BASE'],
-            ChabokanDriverFactory::missingKeys(),
-        );
-
-        try {
-            ChabokanDriverFactory::make();
-            $this->fail('درایور api بدون توکن باید exception بدهد.');
-        } catch (MissingCredentialException $e) {
-            $this->assertStringContainsString('CHABOKAN_API_TOKEN', $e->getMessage());
-            $this->assertStringContainsString('CHABOKAN_API_BASE', $e->getMessage());
-            $this->assertMatchesRegularExpression('/[\x{0600}-\x{06FF}]/u', $e->getMessage());
-        }
-    }
-
-    public function test_chabokan_placeholder_api_base_counts_as_missing(): void
-    {
-        // پیش‌فرضِ قبلیِ `api_base` یک آدرسِ `*.example` بود. اگر آن را
-        // «مقداردار» حساب کنیم، DNS به جای ناموجود می‌رود و خطای گمراه‌کننده
-        // می‌گیریم به‌جای «کلید را ندادی».
-        config([
-            'chabokan.driver' => 'api',
-            'chabokan.api_token' => 'a-real-looking-token',
-            'chabokan.api_base' => 'https://api.chabakan.example/v1',
-        ]);
-
-        $this->assertSame(
-            ['CHABOKAN_API_BASE'],
-            ChabokanDriverFactory::missingKeys(),
-            'آدرسِ placeholder نباید «تنظیم‌شده» حساب شود.',
-        );
-    }
-
-    public function test_an_unknown_chabokan_driver_falls_back_to_stub(): void
-    {
-        config(['chabokan.driver' => 'real']);
-
-        $this->assertInstanceOf(StubChabokanDriver::class, ChabokanDriverFactory::make());
-    }
 
     // ------------------------------------------------------------- گزارشِ doctor
 
@@ -444,7 +383,7 @@ class ExternalDriverContractTest extends TestCase
         );
 
         // هر هشت موردی که چک‌لیستِ E2/E3/E4 + زیرساخت خواسته بود.
-        foreach (['mail', 'sms', 'chabokan', 'storage', 'redis', 'plugin-ddl', 'seal-keys', 'outbox'] as $expected) {
+        foreach (['mail', 'sms', 'storage', 'redis', 'plugin-ddl', 'seal-keys', 'outbox'] as $expected) {
             $this->assertContains($expected, $keys, "گزارشِ doctor باید «{$expected}» را شامل شود.");
         }
     }
@@ -470,11 +409,11 @@ class ExternalDriverContractTest extends TestCase
 
     public function test_doctor_treats_offline_drivers_as_warn_not_missing(): void
     {
-        config(['sms.driver' => 'null', 'chabokan.driver' => 'stub']);
+        config(['sms.driver' => 'null']);
 
         $statuses = app(DependencyChecker::class)->all();
 
-        foreach (['sms', 'chabokan'] as $key) {
+        foreach (['sms'] as $key) {
             $status = collect($statuses)->firstWhere('key', $key);
             $this->assertSame(DependencyStatus::WARN, $status->state, "«{$key}» باید warn باشد نه MISSING.");
             $this->assertFalse($status->isBlocking(), 'خاموشیِ آگاهانه نباید دیپلوی را متوقف کند.');
@@ -483,7 +422,7 @@ class ExternalDriverContractTest extends TestCase
 
     public function test_doctor_command_exits_zero_when_only_offline_drivers_are_configured(): void
     {
-        config(['sms.driver' => 'null', 'chabokan.driver' => 'stub']);
+        config(['sms.driver' => 'null']);
 
         $this->artisan('pishdad:doctor')->assertSuccessful();
     }
@@ -511,7 +450,7 @@ class ExternalDriverContractTest extends TestCase
         $this->assertIsArray($payload, 'خروجیِ --json باید JSON معتبر باشد تا پایشِ خودکار بتواند آن را بخواند.');
 
         $keys = array_column($payload, 'key');
-        foreach (['mail', 'sms', 'chabokan', 'outbox'] as $expected) {
+        foreach (['mail', 'sms', 'outbox'] as $expected) {
             $this->assertContains($expected, $keys);
         }
 

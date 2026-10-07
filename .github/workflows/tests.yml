@@ -105,15 +105,13 @@ jobs:
         working-directory: cms-core/backend
         run: php artisan registry:check
 
-      # E2-E4/U1 - `pishdad:doctor` is the only thing in the repo that knows
-      # whether the external wiring is actually configured: mail, SMS, Chabokan,
-      # S3/MinIO, Redis and the plugin DDL role. Nothing else in this workflow
-      # would notice one of them going MISSING, because the suite runs against
-      # fakes and a stubbed Chabokan answers just fine.
+      # E2-E3/U1 - `pishdad:doctor` is the only thing in the repo that knows about
+      # SMTP, SMS, S3/MinIO, Redis and the plugin DDL role. Nothing else in this
+      # workflow would notice one of them going MISSING, because the rest of the
+      # suite runs against fakes and offline drivers.
       #
       # This gate is deliberately NOT `--strict`. `--strict` promotes `warn` to a
-      # failure, and five of the eight checks are `warn` in a healthy CI by
-      # design: no real SMTP, no SMS gateway, CHABOKAN_DRIVER=stub,
+      # failure, and several of the checks are `warn` in a healthy CI because of
       # FILESYSTEM_DISK=local and unset seal keys. Gating on `--strict` would be
       # a permanently red build, and a build that is always red is a build people
       # stop reading. What has to be red is `MISSING`: a dependency that is

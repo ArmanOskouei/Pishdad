@@ -12,8 +12,6 @@ use App\Services\Audit\AuditTrail;
 use App\Services\Billing\PaymentGatewayInterface;
 use App\Services\Billing\ZarinpalGatewayDriver;
 use App\Services\Billing\ManualBillingDriver;
-use App\Services\Chabokan\ChabokanClientInterface;
-use App\Services\Chabokan\ChabokanDriverFactory;
 // بدون این `use`، PHP این نام را داخل `App\Providers` حل می‌کرد و کل اپ
 // با BindingResolutionException بالا نمی‌آمد (کلاس در `App\Services\Plugins` است).
 use App\Services\Plugins\PluginAutoloader;
@@ -94,19 +92,6 @@ class AppServiceProvider extends ServiceProvider
 
                 return new ManualBillingDriver;
             }
-        );
-
-        // چابکان مرکزی (تسک ۳.۳ / E4): انتخابِ درایور از روی `CHABOKAN_DRIVER`.
-        //
-        // پیش از این اینجا `new StubChabokanDriver` هاردکد بود، یعنی حتی با
-        // `CHABOKAN_DRIVER=api` هم stub برمی‌گشت و تنظیمِ اپراتور بی‌اثر بود.
-        // حالا `ChabokanDriverFactory` نام را از کانفیگ می‌خواند و — اگر کسی
-        // `api` را انتخاب کرده باشد ولی `CHABOKAN_API_TOKEN` نداده باشد —
-        // exception می‌دهد با پیامِ فارسی که **نامِ دقیقِ کلید** را می‌گوید.
-        // یعنی حالتِ «فکر می‌کنم وصل است ولی نیست» دیگر ممکن نیست.
-        $registry->bind(
-            ChabokanClientInterface::class,
-            fn () => ChabokanDriverFactory::make()
         );
 
         // کانال پیامک (E3). هم از رجیستری، پس یک افزونه می‌تواند درگاهِ خودش را

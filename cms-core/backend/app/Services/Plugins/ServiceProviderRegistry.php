@@ -5,7 +5,6 @@ namespace App\Services\Plugins;
 use App\Models\Plugin;
 use App\Search\SearchableProvider;
 use App\Services\Billing\PaymentGatewayInterface;
-use App\Services\Chabokan\ChabokanClientInterface;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Facades\Log;
 
@@ -14,9 +13,8 @@ use Illuminate\Support\Facades\Log;
  *
  * این کلاس همان چیزی است که اجازه می‌دهد یک پلاگین **پیاده‌سازی** یک
  * interface هسته را جایگزین کند، بدون اینکه هسته حتی نام پلاگین را بداند.
- * تا پیش از آن، `PaymentGatewayInterface` و `ChabokanClientInterface` در
- * `AppServiceProvider` به‌صورت singleton هاردکد به درایور Stub وصل بودند
- * و هیچ راهی برای تعویضشان نبود.
+ * تا پیش از آن، `PaymentGatewayInterface` در `AppServiceProvider` به‌صورت
+ * singleton هاردکد به درایور Stub وصل بود و هیچ راهی برای تعویضش نبود.
  *
  * چرا binding در سرویس است و نه در provider:
  * پلاگین‌ها در `AppServiceProvider::register()` بارگذاری نمی‌شوند (K5.3

@@ -7,7 +7,7 @@
  * بازتولید:    `npm run gen:plugin-contract`
  * بررسی drift: `npm run gen:plugin-contract:check`  ← روی drift غیرصفر می‌دهد
  *
- * اثر انگشت قرارداد: `eab8849bf96185e2`
+ * اثر انگشت قرارداد: `c538c27ebe1d094b`
  * (روی تغییر معنایی قرارداد عوض می‌شود؛ روی تغییر کامنت نه)
  */
 
@@ -114,7 +114,7 @@ export interface PluginPackageContractData {
 }
 
 export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
-  contractFingerprint: "eab8849bf96185e2",
+  contractFingerprint: "c538c27ebe1d094b",
   source: "cms-core/backend/app/Services/Plugins/PluginPackageContract.php",
   package: {
     manifestName: "manifest.json",
@@ -199,7 +199,6 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
   ],
   overridableInterfaces: [
     "App\\Services\\Billing\\PaymentGatewayInterface",
-    "App\\Services\\Chabokan\\ChabokanClientInterface",
     "App\\Search\\SearchableProvider"
   ],
   grammar: {

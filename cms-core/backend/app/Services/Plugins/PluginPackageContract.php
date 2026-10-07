@@ -4,7 +4,6 @@ namespace App\Services\Plugins;
 
 use App\Search\SearchableProvider;
 use App\Services\Billing\PaymentGatewayInterface;
-use App\Services\Chabokan\ChabokanClientInterface;
 use Illuminate\Support\Str;
 
 /**
@@ -217,7 +216,6 @@ final class PluginPackageContract
      */
     public const OVERRIDABLE_INTERFACES = [
         PaymentGatewayInterface::class,
-        ChabokanClientInterface::class,
         SearchableProvider::class,
     ];
 
