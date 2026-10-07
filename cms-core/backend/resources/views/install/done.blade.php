@@ -12,6 +12,20 @@
 @endif
 <p>{{ __('install.done.next') }}</p>
 
+{{-- E59 + E60 — دو نکته‌ای که کاربر باید همین حالا بداند، پیش از آنکه اطلاعات را
+     ببیند: این صفحه خودش PDF می‌گیرد، و اطلاعاتش دو ساعت بعد پاک می‌شود. --}}
+<div class="hint" style="border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;padding:12px 14px;margin-top:14px;">
+  <p style="margin:0 0 6px;"><strong>{{ __('install.done.expiry_title', ['hours' => $infoTtlHours ?? 2]) }}</strong></p>
+  <p style="margin:0 0 6px;">{{ __('install.done.expiry_body') }}</p>
+  <p style="margin:0;">{{ __('install.done.pdf_body') }}</p>
+</div>
+
+@if (! empty($infoExpired))
+  <div class="hint" style="border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:10px;padding:12px 14px;margin-top:14px;">
+    {{ __('install.done.expired_notice', ['hours' => $infoTtlHours ?? 2]) }}
+  </div>
+@endif
+
 {{-- ── E22: برگهٔ اطلاعات + PDF + لینک‌ها ─────────────────────────── --}}
 <style>
   #recap { border:2px solid var(--brand); border-radius:12px; padding:16px; margin-top:20px; }
@@ -70,4 +84,31 @@
     <button class="btn ghost no-print" type="button" onclick="window.print()">{{ __('install.done.print_pdf') }}</button>
   </div>
 </section>
+
+{{--
+    E60 — PDF خودکار.
+
+    همان لحظه که این صفحه باز می‌شود، پنجرهٔ چاپ هم باز می‌شود تا کاربر اطلاعات
+    را از دست ندهد. یک‌بار در هر نشست (`sessionStorage`) تا رفرش‌کردن، دیالوگ را
+    مدام باز نکند.
+
+    ⚠️ صادقانه: این «چاپ ← ذخیره به‌صورت PDF» است، نه دانلودِ بی‌صدای یک فایل.
+    دانلودِ واقعیِ خودکار یعنی تولیدِ PDF در **سرور** (مثل dompdf) که یک وابستگیِ
+    تازه به بستهٔ منتشرشده اضافه می‌کند. این راه صفر وابستگی دارد و همین کار را
+    برای کاربر انجام می‌دهد.
+--}}
+<script>
+  (function () {
+    var key = 'pishdad.done.printed';
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch (e) {
+      // حالتِ خصوصیِ مرورگر دسترسی نمی‌دهد؛ به‌جای چشم‌پوشی از چاپ، انجامش بده.
+    }
+    window.addEventListener('load', function () {
+      window.setTimeout(function () { window.print(); }, 400);
+    });
+  })();
+</script>
 @endsection

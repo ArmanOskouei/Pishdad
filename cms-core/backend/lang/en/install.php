@@ -477,6 +477,10 @@ return [
         'submit' => 'Finish installation',
     ],
     'done' => [
+        'expiry_title' => 'This page holds its information for :hours hours, then it is deleted automatically.',
+        'expiry_body' => 'The admin password and the database details are not kept for security. Save this page as a PDF now, or copy the values somewhere safe.',
+        'pdf_body' => 'The print dialog opens by itself - choose Save as PDF in it.',
+        'expired_notice' => 'This information is older than :hours hours and has been deleted automatically. If you did not save the admin password, change it from your profile.',
         'admin_pass_shown' => 'Admin password - save it somewhere safe now:',
         'admin_pass_once' => 'This password is shown once and disappears on refresh. Change it from your profile whenever you like.',
         'frontend_title' => 'Frontend installation (the public site)',

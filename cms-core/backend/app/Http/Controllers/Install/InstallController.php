@@ -717,12 +717,20 @@ class InstallController extends Controller
         InstallJournal::markStepDone('finalize');
         InstallJournal::writeLock(['email' => InstallJournal::get('superadmin')['email'] ?? null]);
 
+        // E59 — زمانِ اتمامِ نصب، برای انقضای اطلاعاتِ صفحهٔ پایانی.
+        // صفحهٔ پایانی رمزِ مدیر و مشخصاتِ دیتابیس را نشان میدهد؛ این‌ها نباید
+        // برای همیشه در ژورنال بمانند. `done()` بعد از دو ساعت پاکشان می‌کند.
+        InstallJournal::put('install_done_at', ['at' => now()->toIso8601String()]);
+
         if ($request->wantsJson()) {
             return response()->json(['message' => __('install.msgs.install_done'), 'data' => ['next' => route('install.done')]]);
         }
 
         return redirect()->route('install.done');
     }
+
+    /** چند ساعت اطلاعاتِ صفحهٔ پایانی زنده می‌ماند، بعد پاک می‌شود (E59). */
+    public const INFO_TTL_HOURS = 2;
 
     /**
      * نشانیِ عمومیِ سایتِ فرانت — **یک** منبعِ حقیقت برای صفحهٔ پایانی و صفحهٔ ریشه.
@@ -757,6 +765,28 @@ class InstallController extends Controller
             abort(404);
         }
 
+        /*
+         * E59 — انقضای اطلاعاتِ صفحهٔ پایانی پس از دو ساعت.
+         *
+         * این صفحه رمزِ مدیر و مشخصاتِ دیتابیس را نشان می‌دهد. ماندنِ همیشگیِ
+         * این‌ها در ژورنال یعنی هر کسی که بعداً به آن فایل دسترسی پیدا کند همه را
+         * می‌بیند، در حالی که کاربر پس از نصب دیگر نیازی به دیدنشان ندارد.
+         *
+         * ⚠️ پاک‌سازی **تنبل** (lazy) است: نه cron لازم دارد و نه زمان‌بند، چون
+         * همین صفحه تنها مصرف‌کنندهٔ این داده است. به‌محضِ بازدیدِ پس از موعد،
+         * پاک می‌شود.
+         */
+        $doneAtRaw = (string) (InstallJournal::get('install_done_at')['at'] ?? '');
+        $expiresAt = $doneAtRaw !== ''
+            ? \Illuminate\Support\Carbon::parse($doneAtRaw)->addHours(self::INFO_TTL_HOURS)
+            : null;
+        $infoExpired = $expiresAt !== null && \Illuminate\Support\Carbon::now()->greaterThanOrEqualTo($expiresAt);
+
+        if ($infoExpired) {
+            InstallJournal::put('db', []);
+            InstallJournal::put('superadmin_password', []);
+        }
+
         $frontend = self::siteUrl();
 
         /*
@@ -780,6 +810,10 @@ class InstallController extends Controller
             // اطلاعاتی که برای نصبِ فرانت لازم است تا کاربر دنبالشان نگردد.
             'apiUrl' => rtrim((string) config('app.url'), '/').'/api',
             'revalidateSecret' => (string) config('revalidate.secret'),
+            // E59 — انقضای اطلاعاتِ این صفحه.
+            'infoTtlHours' => self::INFO_TTL_HOURS,
+            'infoExpiresAt' => $expiresAt?->toIso8601String(),
+            'infoExpired' => $infoExpired,
             'step' => 'finalize',
         ]);
     }
