@@ -52,8 +52,13 @@ console.log(`tracked files: ${tracked.length}`);
  * ⚠️ سیاست عمداً **سفید** است: هر چیزی که اینجا نیاید، در بسته نیست.
  * این برعکسِ روش «همه را بگیر و سیاه‌لیست کن» است که دقیقاً همان
  * چیزی است که یک secret را لو می‌دهد.
+ *
+ * E24 — بستهٔ عمومی فقط کدِ اجرایی است: `docs/` (مستندات توسعه)، `Run/`
+ * (ابزارهای محلی اجرا)، `scripts/` (ابزارهای توسعه/بیلد) و `Logo/` (آرشیو
+ * گرافیک؛ هیچ‌کدام در کد ارجاع نشده‌اند — فاوآیکون/لوگوی واقعی در
+ * `cms-core/frontend/public/` است) منتشر نمی‌شوند.
  */
-const INCLUDE_ROOTS = ["cms-core/", "docs/", "Run/", "scripts/", ".github/", "Logo/"];
+const INCLUDE_ROOTS = ["cms-core/", ".github/"];
 
 /** فایل‌های قانونی که بدون‌شان بسته ناقص یا بی‌معنی است. */
 const REQUIRED = [
@@ -172,9 +177,44 @@ for (const rel of included) {
 
 process.stdout.write(`\r  copied ${copied}/${included.length}\n`);
 
-/* ── ۴. فایل‌های کمکی ─────────────────────────────────────────────────── */
+/* ── ۴. اسنادِ عمومیِ ریشه ────────────────────────────────────────────────── */
 
-const keep = ["cms-core/backend", "cms-core/frontend", "docs", "Run", "scripts"];
+/**
+ * E25 — اسنادِ عمومی در ریشهٔ مخزن‌اند، نه زیر `cms-core/`، پس فیلترِ
+ * `INCLUDE_ROOTS` آن‌ها را نمی‌بیند و بسته **بدون README و بدون LICENSE**
+ * ساخته می‌شد — یعنی بسته‌ای که نه خواندنی است و نه از نظر حقوقی
+ * معتبر. `REQUIRED` هم آن را نمی‌دید چون فقط فایل کد را می‌سنجید.
+ *
+ * پس اینجا صریح و جدا کپی می‌شوند. فهرست باز هم **سفید** است: هر سندی که
+ * اینجا نباشد، در بسته نیست.
+ */
+const PUBLIC_ROOT_DOCS = [
+  "README.md",
+  "README.fa.md",
+  "LICENSE",
+  "CONTRIBUTING.md",
+  "SECURITY.md",
+  "COMPARISON.md",
+  "llms.txt",
+];
+
+const missingDocs = PUBLIC_ROOT_DOCS.filter((f) => !tracked.includes(f));
+
+if (missingDocs.length) {
+  console.error(`\n✗ public document(s) exist but are NOT tracked — the package would ship without them:`);
+  missingDocs.forEach((f) => console.error(`    ${f}`));
+  process.exit(1);
+}
+
+for (const f of PUBLIC_ROOT_DOCS) {
+  cpSync(resolve(ROOT, f), join(OUT, f));
+}
+
+console.log(`public docs copied: ${PUBLIC_ROOT_DOCS.length}`);
+
+/* ── ۵. فایل‌های کمکی ─────────────────────────────────────────────────── */
+
+const keep = ["cms-core/backend", "cms-core/frontend"];
 
 for (const entry of readFileSync(resolve(ROOT, ".gitignore"), "utf8").split(/\r?\n/)) {
   const line = entry.trim();
@@ -255,6 +295,7 @@ const manifest = {
   copied_files: copied,
   shipped_files: shippedFiles,
   shipped_bytes: shippedBytes,
+  public_docs: PUBLIC_ROOT_DOCS,
   excluded: {
     reason: "untracked by design — see scripts/build-distribution.mjs",
     items: [
@@ -264,6 +305,10 @@ const manifest = {
       "cms-core/backend/plugins/central/ (private plugin)",
       "cms-core/backend/plugins/subscription/ (private plugin)",
       "cms-core/backend/plugins/_quarantine/ (quarantined plugins + remote subscription layer)",
+      "docs/ (dev documentation, not needed at runtime)",
+      "Run/ (local run helpers, dev-only)",
+      "scripts/ (dev/build tooling, dev-only)",
+      "Logo/ (graphic archive; none referenced by code — runtime logo/favicon live in cms-core/frontend/public/)",
       "build output (.next/, out/, dist-*)",
     ],
   },

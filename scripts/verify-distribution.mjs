@@ -243,6 +243,21 @@ for (const f of all) {
 
 /* ── ۴. فایل‌های لازم ──────────────────────────────────────────────────── */
 
+/**
+ * E25 — اسنادِ عمومی هم «لازم»‌اند، نه فقط فایل کد. بسته‌ای که README یا
+ * LICENSE ندارد نه خواندنی است و نه از نظر حقوقی قابل استناد؛ و چون
+ * `REQUIRED` قبلاً فقط کد را می‌سنجید، ممیزی از کنارشان رد می‌شد.
+ */
+const PUBLIC_DOCS = [
+  "README.md",
+  "README.fa.md",
+  "LICENSE",
+  "CONTRIBUTING.md",
+  "SECURITY.md",
+  "COMPARISON.md",
+  "llms.txt",
+];
+
 const REQUIRED = [
   "cms-core/backend/composer.json",
   "cms-core/backend/.env.example",
@@ -262,6 +277,18 @@ const REQUIRED = [
 
 for (const f of REQUIRED) {
   if (!all.includes(f)) problems.push(`missing required file: ${f}`);
+}
+
+/* اسنادِ عمومی — جدا از REQUIRED گزارش می‌شوند تا وقتی جا افتادند،
+   پیامشان صریحاً بگوید «سند عمومی» است، نه «فایل لازم». */
+const missingDocs = PUBLIC_DOCS.filter((f) => !all.includes(f));
+
+if (missingDocs.length) {
+  problems.push(
+    `${missingDocs.length} public document(s) missing from the package — a release without ` +
+      `them is unreadable and legally meaningless:\n` +
+      missingDocs.map((f) => `      ${f}`).join("\n"),
+  );
 }
 
 /* ── ۵. manifest ───────────────────────────────────────────────────────── */
@@ -325,8 +352,7 @@ const SOURCE_DIRS = [
   "cms-core/frontend/src",
   "cms-core/frontend/public",
   "cms-core/installer",
-  "scripts",
-  "Run",
+  // E24 — `scripts` و `Run` دیگر منبعِ بسته نیستند (dev-only)، پس اینجا هم نیستند.
 ];
 
 const NOT_SOURCE =
