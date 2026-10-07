@@ -8,7 +8,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use Pishdad\Plugins\Central\Models\Client;
 use Tests\TestCase;
 
 /**
@@ -126,46 +125,23 @@ class MediaQuotaTest extends TestCase
     }
 
     /**
-     * تیرِ مشتری، سقف را عوض می‌کند — وگرنه «tier-based» فقط یک کلمه در کامنت است.
+     * سقف، مقدارِ ثابتِ همین نصب است — نه چیزی که از دادهٔ بیرونی بیاید.
      *
-     * این تست به افزونهٔ مرکزی نیاز دارد، پس ردیفش را خودش می‌سازد.
+     * پیش‌تر اینجا تستی بود که می‌گفت تیرِ `enterprise` سقفِ ۲۰GB می‌گیرد.
+     * آن تست با رفتنِ لایهٔ اشتراک حذف شد: دیگر تیرِ مشتری وجود ندارد، پس
+     * سقف هم نمی‌تواند از بیرون بالا برود. این تست همان ادعا را از سمتِ
+     * مخالف می‌سنجد و قرارداد را پین می‌کند.
      */
-    public function test_a_higher_tier_gets_a_higher_cap(): void
+    public function test_the_cap_is_the_fixed_installation_default(): void
     {
         Storage::fake('s3');
-        $this->serveCentralPlugin();
         $user = $this->user();
-
-        Client::query()->create([
-            'site_id' => 'site-'.$user->id,
-            'name' => 'مشتری تست',
-            'tier' => 'enterprise',
-            'status' => 'active',
-            'owner_user_id' => $user->id,
-        ]);
 
         $this->actingAs($user, 'sanctum')
             ->getJson('/api/v1/admin/media/usage')
             ->assertOk()
-            ->assertJsonPath('data.tier', 'enterprise')
-            ->assertJsonPath('data.quota_bytes', 20 * self::GIB);
-
-        // سقفِ enterprise پر شده، ولی یک فایل کوچک هنوز جا می‌شود.
-        $this->fill(20 * self::GIB - 5);
-
-        $this->actingAs($user, 'sanctum')->postJson('/api/v1/admin/media/presign', [
-            'filename' => 'tiny.jpg',
-            'mime' => 'image/jpeg',
-            'size' => 1,
-        ])->assertCreated();
-
-        $this->fill(20 * self::GIB);
-
-        $this->actingAs($user, 'sanctum')->postJson('/api/v1/admin/media/presign', [
-            'filename' => 'tiny.jpg',
-            'mime' => 'image/jpeg',
-            'size' => 1,
-        ])->assertStatus(422);
+            ->assertJsonPath('data.tier', 'budget')
+            ->assertJsonPath('data.quota_bytes', self::GIB);
     }
 
     private function user(): User

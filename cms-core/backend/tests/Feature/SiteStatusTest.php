@@ -2,122 +2,74 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
+use App\Models\Setting;
+use App\Services\Settings\CachedSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
-use Pishdad\Plugins\Central\Models\Client;
-use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
-/** تسک ۴.۳ — DoD: وضعیت عمومی سبک (active|suspended + پیام برند) از تک‌منبع اشتراک مرحله ۱. */
+/**
+ * وضعیت عمومی سایت (تسک ۴.۳) — سبک، بدون احراز هویت.
+ *
+ * ⚠️ این نصب هیچ لایهٔ صورت‌حسابی ندارد، پس هیچ حالتی جز «فعال» وجود ندارد.
+ * نقطهٔ پایانی و شکلِ پاسخش عمداً نگه داشته شده‌اند چون لایهٔ کش و CDN روی
+ * همان‌ها حساب کرده‌اند؛ ولی منطقِ وضعیت ساده شده و دیگر به هیچ منبعِ
+ * بیرونی وابسته نیست.
+ */
 class SiteStatusTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function user(): User
+    protected function setUp(): void
     {
-        return User::query()->create([
-            'name' => 'مشتری تست',
-            'email' => 'u'.uniqid().'@example.com',
-            'password' => Hash::make('Secret!123'),
-            'role' => 'admin',
-        ]);
-    }
+        parent::setUp();
 
-    private function subscription(string $status = Subscription::ACTIVE): Subscription
-    {
-        $client = Client::query()->create([
-            'name' => 'سایت تست', 'tier' => 'budget', 'status' => $status === Subscription::SUSPENDED ? 'suspended' : 'active',
-            'site_id' => 'site-'.uniqid(),
-        ]);
-
-        return Subscription::query()->create([
-            'client_id' => $client->id, 'site_id' => $client->site_id,
-            'status' => $status, 'due_at' => now()->addDays(30),
-            'suspended_at' => $status === Subscription::SUSPENDED ? now() : null,
-        ]);
+        // متنِ وضعیت کش می‌شود؛ بین تست‌ها باید پاک شود وگرنه عنوانِ یک تست
+        // به تستِ بعدی نشت می‌کند.
+        CachedSettings::forget('site_status', 'site-default');
+        CachedSettings::forget('site', 'global');
     }
 
     public function test_public_status_is_active_without_auth(): void
     {
-        $sub = $this->subscription();
-
-        $res = $this->getJson("/api/v1/site/status?site_id={$sub->site_id}");
+        $res = $this->getJson('/api/v1/site/status');
 
         $res->assertOk()
             ->assertJsonPath('data.status', 'active');
+
         $this->assertNotEmpty($res->json('data.message'));
         $this->assertStringContainsString('max-age=60', $res->headers->get('Cache-Control'));
     }
 
-    public function test_suspended_subscription_reports_suspended(): void
+    /**
+     * شناسهٔ ناشناس هم ۲۰۰ می‌گیرد.
+     *
+     * پیش‌تر این مسیر برای `site_id` ناشناس ۴۰۴ می‌داد، چون از جدولِ مشتریان
+     * می‌خواند. آن جدول دیگر وجود ندارد و وضعیت به مشتری گره نخورده، پس
+     * «سایت پیدا نشد» هم معنایی ندارد.
+     */
+    public function test_any_site_id_resolves_to_active(): void
     {
-        $sub = $this->subscription(Subscription::SUSPENDED);
-
-        $this->getJson("/api/v1/site/status?site_id={$sub->site_id}")
-            ->assertOk()
-            ->assertJsonPath('data.status', 'suspended');
-    }
-
-    public function test_default_resolves_single_install_without_site_id(): void
-    {
-        $this->subscription();
-
-        $this->getJson('/api/v1/site/status')
+        $this->getJson('/api/v1/site/status?site_id=nope')
             ->assertOk()
             ->assertJsonPath('data.status', 'active');
     }
 
-    public function test_unknown_site_is_404(): void
+    public function test_brand_message_uses_the_site_title(): void
     {
-        $this->getJson('/api/v1/site/status?site_id=nope')->assertNotFound();
+        Setting::set('site', 'global', ['title' => 'فروشگاه آرمان']);
+
+        $res = $this->getJson('/api/v1/site/status')->assertOk();
+
+        $this->assertStringContainsString('فروشگاه آرمان', (string) $res->json('data.message'));
     }
 
-    /**
-     * L-B4 — مسیر عمومی سایت بدون جداول مرکزی نباید ۵۰۰ بدهد.
-     *
-     * رگرسیونِ ثبت‌شده: با `ALTER TABLE central_subscriptions RENAME` (شبیه‌سازی
-     * نصبِ مشتری بدون مرکز) صفحهٔ خانه ۵۰۰ می‌داد. حالا منبعِ اشتراک خودش
-     * `tablesExist()` را می‌سنجد و «نمی‌دانیم» برمی‌گرداند. اینجا جدول فقط
-     * **تغییر نام** می‌دهد (نه drop) تا FKهای مرکزی نشکنند؛ همان شبیه‌سازیِ
-     * دقیقِ باگ.
-     */
-    public function test_public_site_fails_soft_when_central_tables_are_missing(): void
+    /** بدون عنوانِ سایت، پیام باید جملهٔ کاملی بماند — نه « فعال است.» */
+    public function test_brand_message_falls_back_when_there_is_no_title(): void
     {
-        $table = (new Subscription)->getTable();
-        Schema::rename($table, $table.'_lb4_missing');
+        Setting::set('site', 'global', []);
 
-        foreach ([
-            '/api/v1/site/status',
-            '/api/v1/site/chrome',
-            '/api/v1/site/homepage',
-            '/api/v1/site/pages',
-        ] as $uri) {
-            $res = $this->getJson($uri);
+        $message = (string) $this->getJson('/api/v1/site/status')->assertOk()->json('data.message');
 
-            $this->assertNotSame(500, $res->status(), "{$uri} بدون جدول مرکزی نباید ۵۰۰ بدهد.");
-        }
-    }
-
-    public function test_brand_message_uses_site_title(): void
-    {
-        $user = $this->user();
-        $sub = Subscription::query()->create([
-            'client_id' => Client::query()->create([
-                'name' => 'من', 'tier' => 'budget', 'status' => 'suspended',
-                'owner_user_id' => $user->id, 'site_id' => 'site-'.$user->id,
-            ])->id,
-            'site_id' => 'site-'.$user->id,
-            'status' => Subscription::SUSPENDED,
-            'suspended_at' => now(),
-        ]);
-
-        $this->actingAs($user, 'sanctum')->putJson('/api/v1/admin/settings/site', [
-            'title' => 'فروشگاه آرمان',
-        ])->assertOk();
-
-        $res = $this->getJson("/api/v1/site/status?site_id={$sub->site_id}")->assertOk();
-        $this->assertStringContainsString('فروشگاه آرمان', $res->json('data.message'));
+        $this->assertStringContainsString('وب‌سایت ما', $message);
     }
 }

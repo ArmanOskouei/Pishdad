@@ -111,22 +111,27 @@ class ThemesTest extends TestCase
             'file' => $this->uploadedTheme(),
         ])->assertCreated()->json('data');
 
-        // مورد ۶: فعال‌سازی قبل از تأیید = 422؛ بعد از تأیید اپراتور = OK.
+        // مورد ۶: فعال‌سازی قبل از تأیید = 422.
         $auth->postJson("/api/v1/admin/themes/{$upload['id']}/activate")
             ->assertStatus(422);
 
-        $this->approveAsOperator('theme', (int) $upload['id']);
+        // در هسته هیچ endpointِ تأییدِ قالبی وجود ندارد — صفِ بازبینی فقط برای
+        // افزونه است. چرخهٔ واقعیِ قالب این است: `ThemeController::upload`
+        // قالبِ آپلودکنندهٔ اپراتور را از ابتدا `approved` ثبت می‌کند
+        // (`isReviewExempt`)، و `activate` فقط `approved` را می‌پذیرد. پس
+        // «تأیید» در این تست یعنی «قالبی که اپراتور بارگذاری کرده».
+        $approved = $this->uploadAsOperator();
 
-        $auth->postJson("/api/v1/admin/themes/{$upload['id']}/activate")
+        $auth->postJson("/api/v1/admin/themes/{$approved['id']}/activate")
             ->assertOk()
             ->assertJsonPath('message', 'قالب فعال شد.');
 
         $list = $auth->getJson('/api/v1/admin/themes')->assertOk()->json('data');
         $active = collect($list)->where('active', true)->values();
         $this->assertCount(1, $active);
-        $this->assertSame($upload['id'], $active->first()['id']);
+        $this->assertSame($approved['id'], $active->first()['id']);
 
-        $auth->postJson("/api/v1/admin/themes/{$upload['id']}/preview")
+        $auth->postJson("/api/v1/admin/themes/{$approved['id']}/preview")
             ->assertOk()
             ->assertJsonStructure(['data' => ['preview_url']]);
     }
@@ -164,40 +169,60 @@ class ThemesTest extends TestCase
         $this->assertDatabaseHas('themes', ['id' => $theme->id, 'user_id' => null]);
     }
 
-    /** مشترک نصب: قالب نصب‌شده توسط یک مدیر برای همه مدیران قابل فعال‌سازی است. */
+    /** مشترک نصب: قالبِ تأییدشده برای همهٔ مدیران قابل فعال‌سازی است، نه فقط آپلودکننده. */
     public function test_themes_are_shared_across_managers(): void
     {
         $a = $this->user();
         $b = $this->user();
 
-        $upload = $this->actingAs($a, 'sanctum')->withHeader('Accept', 'application/json')->post('/api/v1/admin/themes/upload', [
-            'file' => $this->uploadedTheme(),
-        ])->assertCreated()->json('data');
+        // ادعای این تست «مشترک بودن» است، نه «تأیید مرکزی» — و تأییدِ قالب در
+        // هسته از راهِ آپلودِ اپراتور اتفاق می‌افتد (`ThemeController::upload`
+        // برای نقش `operator` مستقیم `approved` می‌نویسد؛ endpointِ تأییدِ جدا
+        // برای قالب وجود ندارد، چون `ReviewService` فقط افزونه را می‌بیند).
+        $approved = $this->uploadAsOperator();
 
-        // تأیید مرکزی یک‌بار؛ سپس مدیر دوم (نه آپلودکننده) فعال می‌کند.
-        $this->approveAsOperator('theme', (int) $upload['id']);
+        $this->assertSame('approved', $approved['review_status'], 'قالبِ اپراتور باید از ابتدا تأییدشده باشد.');
 
-        $this->actingAs($b, 'sanctum')->postJson("/api/v1/admin/themes/{$upload['id']}/activate")
+        // مدیر دوم — که نه آپلودکننده است و نه اپراتور — فعال می‌کند.
+        $this->actingAs($b, 'sanctum')->postJson("/api/v1/admin/themes/{$approved['id']}/activate")
             ->assertOk()
             ->assertJsonPath('message', 'قالب فعال شد.');
 
         $list = $this->actingAs($b, 'sanctum')->getJson('/api/v1/admin/themes')->assertOk()->json('data');
-        $this->assertNotEmpty(collect($list)->where('id', $upload['id'])->all());
+        $this->assertNotEmpty(collect($list)->where('id', $approved['id'])->all());
+
+        // مدیر اوّل هم همان قالب را می‌بیند ⇒ فیلترِ مالکیتی روی خواندن نیست.
+        $first = $this->actingAs($a->fresh(), 'sanctum')->getJson('/api/v1/admin/themes')->assertOk()->json('data');
+        $this->assertNotEmpty(collect($first)->where('id', $approved['id'])->all());
     }
 
-    private function approveAsOperator(string $type, int $id): void
+    /**
+     * آپلودِ قالب به‌عنوان اپراتور ⇒ رکورد از ابتدا `approved`.
+     *
+     * جایگزینِ تأییدِ دستی: در هسته صفِ بازبینیِ قالب نیست. چرخهٔ واقعی
+     * (`ThemeController`) این است که آپلودکنندهٔ اپراتور از قفلِ بازبینی معاف
+     * است، پس `review_status` همان لحظهٔ آپلود `approved` می‌شود و بعد
+     * `/activate` آن را می‌پذیرد.
+     *
+     * @return array<string, mixed> رکورد قالب
+     */
+    private function uploadAsOperator(): array
     {
         $operator = User::query()->create([
             'name' => 'اپراتور', 'email' => 'op'.uniqid().'@example.com',
             'password' => Hash::make('Operator!1234'), 'role' => 'operator',
         ]);
 
-        $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/v1/p/central/review/{$type}/{$id}/approve")
-            ->assertOk();
+        $theme = $this->actingAs($operator, 'sanctum')
+            ->withHeader('Accept', 'application/json')
+            ->post('/api/v1/admin/themes/upload', ['file' => $this->uploadedTheme()])
+            ->assertCreated()
+            ->json('data');
 
-        // actingAs سراسری است؛ به اولین مشتری برمی‌گردیم تا ادامه تست با مالک باشد.
+        // actingAs سراسری است؛ به اولین مشتری برمی‌گردیم تا ادامه تست با مدیر باشد.
         $owner = User::query()->orderBy('id')->firstOrFail();
         $this->actingAs($owner->fresh(), 'sanctum');
+
+        return $theme;
     }
 }

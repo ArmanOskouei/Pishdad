@@ -6,38 +6,18 @@ use App\Models\User;
 use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
-/** دسته UIUX — اپراتور: صدور secret برای ثبت کلید با QR + آواتار مدیران. */
+/**
+ * دسته UIUX — آواتارِ مدیران در payload فهرست.
+ *
+ * ⚠️ این تنها تستِ باقی‌ماندهٔ این فایل است. تستِ کنارش (صدورِ secret برای ثبتِ
+ * کلیدِ سخت‌افزاریِ اپراتور با QR) روی مسیرهای افزونهٔ «پنل مرکزی» بود و با
+ * حذفِ آن افزونه رفت.
+ */
 class OperatorHardwareSetupTest extends TestCase
 {
     use RefreshDatabase;
-
-    private function operator(): User
-    {
-        return User::query()->create([
-            'name' => 'اپراتور', 'email' => uniqid().'@example.com',
-            'password' => Hash::make('Operator!1'), 'role' => 'operator',
-        ]);
-    }
-
-    public function test_hardware_setup_returns_secret_and_otpauth(): void
-    {
-        $auth = $this->actingAs($this->operator(), 'sanctum');
-
-        $data = $auth->getJson('/api/v1/p/central/operator/2fa/hardware/setup')
-            ->assertOk()->json('data');
-
-        $this->assertNotEmpty($data['secret']);
-        $this->assertStringStartsWith('otpauth://', $data['otpauth_url']);
-
-        // secret واقعی باید با کد TOTP همان لحظه قابل ثبت باشد.
-        $code = (new Google2FA)->getCurrentOtp($data['secret']);
-        $auth->postJson('/api/v1/p/central/operator/2fa/hardware', [
-            'name' => 'کلید QR', 'secret' => $data['secret'], 'code' => $code,
-        ])->assertCreated()->assertJsonPath('message', 'کلید سخت‌افزاری ثبت شد.');
-    }
 
     public function test_manager_payload_includes_avatar_keys(): void
     {

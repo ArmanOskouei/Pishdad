@@ -62,7 +62,6 @@ class PluginRouterTest extends TestCase
         //
         // رکوردش از migration باقی است، و این تست‌ها باید فقط دربارهٔ چیزی
         // باشند که خودشان می‌سازند.
-        $this->withoutBundledCentralPlugin();
 
         $this->table = app(PluginRouteTable::class);
         $this->table->flush();

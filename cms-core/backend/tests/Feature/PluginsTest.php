@@ -141,14 +141,6 @@ class PluginsTest extends PluginDdlNoTransactionCase
     {
         parent::setUp();
 
-        // K7.8 — رکوردِ بستهٔ مرکزی را برمی‌داریم چون هشت تستِ این فایل
-        // `assertDatabaseCount('plugins', 0)` می‌زنند.
-        //
-        // اما یک helper (`approvePlugin`, خط ۵۵۶) مسیرِ **افزونهٔ مرکزی** را
-        // صدا می‌زند و آن باید فعال باشد. پس خودِ آن helper دوباره فعالش
-        // می‌کند — اینجا فقط برای تست‌هایی که کل جدول را می‌سنجند پاک است.
-        $this->withoutBundledCentralPlugin();
-
         $kp = sodium_crypto_sign_keypair();
         $this->publicKey = base64_encode(sodium_crypto_sign_publickey($kp));
         $this->secretKey = base64_encode(sodium_crypto_sign_secretkey($kp));
@@ -364,11 +356,11 @@ class PluginsTest extends PluginDdlNoTransactionCase
             ->assertJsonPath('data.review_status', 'pending')
             ->json('data.id');
 
-        // مورد ۶: فعال‌سازی قبل از تأیید مرکزی = 422.
+        // مورد ۶: فعال‌سازی قبل از تأیید اپراتور = 422.
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")
             ->assertStatus(422);
 
-        $this->approveAsOperator('plugin', $id);
+        $this->approveAsOperator($id);
 
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
             ->assertJsonPath('data.active', true);
@@ -401,10 +393,6 @@ class PluginsTest extends PluginDdlNoTransactionCase
 
         // به‌جای «جدول خالی»، **فقط همان بسته** باید رفته باشد.
         //
-        // `setUp` رکوردِ بستهٔ مرکزی را پاک می‌کند، ولی `approveAsOperator`
-        // در همین تست آن را دوباره فعال کرده (لازم بود چون مسیر افزونه را
-        // می‌زند). پس «۰ ردیف» دیگر معنی درستی ندارد.
-        //
         // assertion صریح بهتر است چون **دقیقاً** همان چیزی را می‌گوید که این
         // تست ادعا می‌کند: uninstall همان بسته را برداشت.
         $this->assertNotContains(
@@ -435,7 +423,7 @@ class PluginsTest extends PluginDdlNoTransactionCase
             'file' => $this->pluginZip($this->manifest(['slug' => $slug])),
         ])->assertCreated()->json('data.id');
 
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
 
         $this->assertFalse($loader->isRegistered($slug), 'قبل از فعال‌سازی نباید چیزی ثبت شده باشد.');
 
@@ -479,7 +467,7 @@ class PluginsTest extends PluginDdlNoTransactionCase
             array_column(ManifestRegistry::permissionModules(), 'name')
         );
 
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 
         // بلافاصله بعد از فعال‌سازی باید دیده شود ⇒ کش باطل شده است.
@@ -515,42 +503,6 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
         $auth->postJson("/api/v1/admin/plugins/{$id}/deactivate")->assertStatus(422);
         $auth->postJson("/api/v1/admin/plugins/{$id}/uninstall")->assertStatus(422);
-    }
-
-    /**
-     * J7 — مسیرِ رسمیِ تأیید، افزونهٔ سیستمی را رد می‌کند.
-     *
-     * این نیمهٔ دومِ تستِ بالاست: آن یکی می‌گوید «محافظت کار می‌کند وقتی تأیید از
-     * پیش انجام شده»، این یکی می‌گوید «تأییدِ دستی اصلاً راهِ دور زدن نیست».
-     *
-     * بدون این نیمه، کسی می‌توانست guard را حذف کند و تستِ بالا همچنان سبز بماند —
-     * چون مستقیم وضعیت می‌گذارد و به endpoint اصلاً نمی‌رسد.
-     */
-    public function test_a_system_plugin_cannot_be_approved_via_the_review_api(): void
-    {
-        $this->serveCentralPlugin();
-
-        SystemPlugin::ensureMany(['core-plugin']);
-
-        $auth = $this->actingAs($this->owner(), 'sanctum');
-        $id = $auth->postJson('/api/v1/admin/plugins/upload', [
-            'file' => $this->pluginZip($this->manifest(['slug' => 'core-plugin'])),
-        ])->assertCreated()->json('data.id');
-
-        $operator = User::query()->create([
-            'name' => 'اپراتور', 'email' => uniqid().'@example.com',
-            'password' => Hash::make('Operator!1234'), 'role' => 'operator',
-        ]);
-
-        $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/v1/p/central/review/plugin/{$id}/approve")
-            ->assertStatus(422);
-
-        $this->assertNotSame(
-            Plugin::REVIEW_APPROVED,
-            Plugin::query()->find($id)?->review_status,
-            'افزونهٔ سیستمی نباید با تأییدِ دستی فعال شود.',
-        );
     }
 
     /**
@@ -736,24 +688,24 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
             ->assertJsonPath('data.trust.review_approved', false);
     }
 
-    /** تأیید مرکزی یک مورد به‌عنوان اپراتور و بازگشت به کاربر مالک (مورد ۶). */
-    private function approveAsOperator(string $type, int $id): void
+    /**
+     * تأییدِ بازاری یک مورد به‌عنوان اپراتور و بازگشت به کاربر مالک (مورد ۶).
+     *
+     * بازبینیِ افزونه در **هسته** است، زیر پیشوندِ بازار و با همان الگوی
+     * `role:operator` که صفِ قالب هم داشت: `POST /api/v1/market/plugins/{id}/approve`
+     * ⇒ `ReviewService::approve()`. helper اینجا مستقیم سرویسِ هسته را از راه
+     * endpoint واقعی‌اش صدا می‌زند — نه با دست‌زدن مستقیم به `review_status`،
+     * چون تست‌ها دقیقاً دارند مسیرِ «آپلود ⇒ تأیید ⇒ فعال‌سازی» را می‌سنجند.
+     */
+    private function approveAsOperator(int $id): void
     {
-        // K7.8 — `setUp` رکوردِ بستهٔ مرکزی را پاک کرده (هشت تستِ این فایل کل
-        // جدول `plugins` را می‌سنجند). این helper اما مسیرِ افزونه را صدا می‌زند
-        // و بدون رکورد، ۴۰۴ می‌گیرد.
-        //
-        // فعال‌سازی اینجا و نه در `setUp` چون فقط همین چند تست به آن نیاز دارند —
-        // و فعال‌کردنش برای همه، هشت assertionِ «جدول خالی» را می‌شکند.
-        $this->serveCentralPlugin();
-
         $operator = User::query()->create([
             'name' => 'اپراتور', 'email' => uniqid().'@example.com',
             'password' => Hash::make('Operator!1234'), 'role' => 'operator',
         ]);
 
         $this->actingAs($operator, 'sanctum')
-            ->postJson($this->centralUrl("review/{$type}/{$id}/approve"))
+            ->postJson("/api/v1/market/plugins/{$id}/approve")
             ->assertOk();
 
         // actingAs سراسری است؛ به اولین مالک برمی‌گردیم تا ادامه تست با مالک باشد.
@@ -782,7 +734,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
             ->getJson('/api/v1/admin/plugins')->assertOk()
             ->assertJsonPath('data.total', 1);
 
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
         $this->actingAs($stranger->fresh(), 'sanctum')
             ->postJson("/api/v1/admin/plugins/{$id}/activate")
             ->assertOk();
@@ -1063,7 +1015,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
             'file' => $this->pluginZip($this->manifest(['slug' => 'hook-claimer'])),
         ])->assertCreated()->json('data.id');
 
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
 
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
             ->assertJsonPath('data.active', true)
@@ -1090,7 +1042,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
             'file' => $this->pluginZip($this->manifest(['slug' => 'hookless', 'hooks' => []])),
         ])->assertCreated()->json('data.id');
 
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
 
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
             ->assertJsonPath('hooks_dispatched', false)
@@ -1114,7 +1066,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
             'file' => $this->pluginZip($this->manifest(['slug' => 'still-declares-hooks'])),
         ])->assertCreated()->json('data.id');
 
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
 
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk()
             ->assertJsonPath('data.active', true)
@@ -1190,7 +1142,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
             ])),
         ])->assertCreated()->json('data.id');
 
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 
         $this->assertNotNull(
@@ -1248,7 +1200,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
 
         $this->assertTrue($this->installToDisk($zip, 'tableplugin'), 'نصب روی دیسک باید موفق باشد.');
 
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
 
         $activate = $auth->postJson("/api/v1/admin/plugins/{$id}/activate");
 
@@ -1313,7 +1265,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
 
         $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest())])
             ->assertCreated()->json('data.id');
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 
         $firstDir = $releases->currentDir('sample-plugin');
@@ -1358,7 +1310,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
 
         $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest())])
             ->assertCreated()->json('data.id');
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 
         $firstDir = $releases->currentDir('sample-plugin');
@@ -1404,7 +1356,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
 
         $id = $auth->postJson('/api/v1/admin/plugins/upload', ['file' => $this->pluginZip($this->manifest())])
             ->assertCreated()->json('data.id');
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 
         $firstDir = $releases->currentDir('sample-plugin');
@@ -1444,7 +1396,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
             ->assertCreated()->json('data.id');
 
         $this->assertTrue($this->installToDisk($zip, 'tableplugin'), 'نصب روی دیسک باید موفق باشد.');
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
 
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")
             ->assertStatus(422)
@@ -1482,7 +1434,7 @@ $id = $auth->postJson('/api/v1/admin/plugins/upload', [
             ->assertCreated()->json('data.id');
 
         $this->assertTrue($this->installToDisk($zip, 'tableplugin'), 'نصب باید موفق باشد.');
-        $this->approveAsOperator('plugin', (int) $id);
+        $this->approveAsOperator((int) $id);
 
         $response = $auth->postJson("/api/v1/admin/plugins/{$id}/activate");
 

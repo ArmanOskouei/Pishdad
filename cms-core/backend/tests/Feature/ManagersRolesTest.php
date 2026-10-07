@@ -140,8 +140,11 @@ class ManagersRolesTest extends PluginDdlTestCase
             'name' => 'اپراتور', 'email' => uniqid().'@example.com',
             'password' => Hash::make('Operator!1234'), 'role' => 'operator',
         ]);
+        // بازبینیِ افزونه در **هسته** است: `POST /api/v1/market/plugins/{id}/approve`
+        // با `role:operator` ⇒ `ReviewService::approve()`. آپلود از مالک بوده ⇒
+        // `review_status=pending`، پس approve گاردِ خودش را رد نمی‌کند.
         $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/v1/p/central/review/plugin/{$id}/approve")->assertOk();
+            ->postJson("/api/v1/market/plugins/{$id}/approve")->assertOk();
         $auth = $this->actingAs($owner->fresh(), 'sanctum');
         $auth->postJson("/api/v1/admin/plugins/{$id}/activate")->assertOk();
 

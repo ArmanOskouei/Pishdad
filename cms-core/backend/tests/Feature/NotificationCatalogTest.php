@@ -72,7 +72,7 @@ class NotificationCatalogTest extends TestCase
     public function test_the_catalog_is_not_empty(): void
     {
         $this->assertGreaterThanOrEqual(5, count(Catalog::keys()));
-        $this->assertCount(5, Catalog::GROUPS, 'F4.2.U: پنج کارت، نه بیست‌تا.');
+        $this->assertCount(4, Catalog::GROUPS, 'هر گروه باید دقیقاً یک کارت باشد، نه بیست‌تا.');
     }
 
     // ------------------------------------------------------------------
@@ -237,8 +237,8 @@ class NotificationCatalogTest extends TestCase
         $u = $this->user();
         Mail::fake();
 
-        NotificationDispatcher::send($u, 'billing.suspended', []);
-        $this->assertSame('/admin/subscription', $this->lastHref($u), 'precondition');
+        NotificationDispatcher::send($u, 'resources.quota_warning', ['900 MB']);
+        $this->assertSame('/admin/media', $this->lastHref($u), 'precondition');
 
         DB::table('notifications')->update(['action_href' => 'https://evil.example']);
 
@@ -411,7 +411,7 @@ class NotificationCatalogTest extends TestCase
         $u = $this->user();
         Mail::fake();
 
-        NotificationDispatcher::send($u, 'billing.invoice_pending', ['INV-7']);
+        NotificationDispatcher::send($u, 'resources.quota_warning', ['900 MB']);
 
         $notificationId = $u->notifications()->sole()->id;
         $row = DB::table('notification_deliveries')->first();

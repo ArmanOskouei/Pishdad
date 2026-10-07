@@ -27,7 +27,6 @@ class PluginMakeTest extends TestCase
 
         // اعتبارسنجی امضا یک کلید عمومی می‌خواهد؛ بدون آن، خطای امضا تنها چیزی است
         // که می‌تواند تست را بی‌دلیل قرمز کند.
-        $this->withoutBundledCentralPlugin();
     }
 
     protected function tearDown(): void

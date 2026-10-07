@@ -52,17 +52,6 @@
             <file>tests/Feature/BlockTypesTest.php</file>
             <file>tests/Feature/BlogArchiveTest.php</file>
             <file>tests/Feature/CachePurgeTest.php</file>
-            <file>tests/Feature/CentralBillingTest.php</file>
-            <file>tests/Feature/CentralBoundaryTest.php</file>
-            <file>tests/Feature/CentralClientSearchTest.php</file>
-            <file>tests/Feature/CentralClientsTest.php</file>
-            <file>tests/Feature/CentralDashboardTest.php</file>
-            <file>tests/Feature/CentralOpenCasesTest.php</file>
-            <file>tests/Feature/CentralPluginRouteTest.php</file>
-            <file>tests/Feature/CentralTablePrefixTest.php</file>
-            <file>tests/Feature/CentralZeroFootprintTest.php</file>
-            <file>tests/Feature/ChabokanExtrasTest.php</file>
-            <file>tests/Feature/ChabokanTest.php</file>
             <file>tests/Feature/ClientDashboardExtrasTest.php</file>
             <file>tests/Feature/ClientDashboardTest.php</file>
             <file>tests/Feature/ContactFormNoticeTest.php</file>
@@ -70,7 +59,6 @@
             <file>tests/Feature/ContentPublishedNotifierTest.php</file>
             <file>tests/Feature/CoreRequirementCheckerTest.php</file>
             <file>tests/Feature/CuratedRegistryTest.php</file>
-            <file>tests/Feature/DashboardSubscriptionCardOwnershipTest.php</file>
             <file>tests/Feature/DefaultPagesSeederTest.php</file>
             <file>tests/Feature/DevModeGateTest.php</file>
             <file>tests/Feature/DevModeUnlockTest.php</file>
@@ -78,11 +66,8 @@
             <file>tests/Feature/ExternalDriverContractTest.php</file>
             <file>tests/Feature/FaqBlockTest.php</file>
             <file>tests/Feature/FormBuilderTest.php</file>
-            <file>tests/Feature/GatewayConnectionTest.php</file>
             <file>tests/Feature/HomepageTest.php</file>
             <file>tests/Feature/InstallTest.php</file>
-            <file>tests/Feature/InstallationLevelSubscriptionMigrationTest.php</file>
-            <file>tests/Feature/InvoiceRemindTest.php</file>
             <file>tests/Feature/LayoutLinksTest.php</file>
             <file>tests/Feature/LayoutsTest.php</file>
             <file>tests/Feature/LoginHistoryTest.php</file>
@@ -103,7 +88,6 @@
             <file>tests/Feature/MediaQuotaTest.php</file>
             <file>tests/Feature/MediaReplaceTest.php</file>
             <file>tests/Feature/MediaTest.php</file>
-            <file>tests/Feature/MonitoringExtrasTest.php</file>
             <file>tests/Feature/MonitoringTest.php</file>
             <file>tests/Feature/MultilingualPagesTest.php</file>
             <file>tests/Feature/NestedLinksTest.php</file>
@@ -112,8 +96,6 @@
             <file>tests/Feature/NotificationServiceTest.php</file>
             <file>tests/Feature/OpenApiSpecHonestyTest.php</file>
             <file>tests/Feature/OperatorHardwareSetupTest.php</file>
-            <file>tests/Feature/OperatorLogTest.php</file>
-            <file>tests/Feature/OperatorTest.php</file>
             <file>tests/Feature/OutboundWebhookTest.php</file>
             <file>tests/Feature/OutboxDrainTest.php</file>
             <file>tests/Feature/PageBulkActionsTest.php</file>
@@ -159,7 +141,6 @@
             <file>tests/Feature/PluginRouteRegistrationTest.php</file>
             <file>tests/Feature/PluginRouterTest.php</file>
             <file>tests/Feature/PluginSettingsTest.php</file>
-            <file>tests/Feature/PluginSubscriptionSourceBindingTest.php</file>
             <file>tests/Feature/PluginToolsTest.php</file>
             <file>tests/Feature/PluginTrustStoreTest.php</file>
             <file>tests/Feature/PluginUpdateBadgeTest.php</file>
@@ -167,15 +148,11 @@
             <file>tests/Feature/PluginsTest.php</file>
             <file>tests/Feature/ProfileExtrasTest.php</file>
             <file>tests/Feature/ProfileTest.php</file>
-            <file>tests/Feature/PublicInstallWithoutCentralPluginTest.php</file>
             <file>tests/Feature/PublicPageMediaUrlTest.php</file>
             <file>tests/Feature/PushOutboxChannelTest.php</file>
             <file>tests/Feature/PushSubscriptionApiTest.php</file>
             <file>tests/Feature/PushSubscriptionSurvivesQuarantineTest.php</file>
-            <file>tests/Feature/QuarantinedPluginsInvisibleTest.php</file>
             <file>tests/Feature/RedirectTest.php</file>
-            <file>tests/Feature/ReviewModerationTest.php</file>
-            <file>tests/Feature/ReviewSystemGuardTest.php</file>
             <file>tests/Feature/RobotsSettingsTest.php</file>
             <file>tests/Feature/RoleTwoFactorTest.php</file>
             <file>tests/Feature/SampleContentTest.php</file>
@@ -192,10 +169,6 @@
             <file>tests/Feature/SiteThemeApiTest.php</file>
             <file>tests/Feature/SiteThemeResolverTest.php</file>
             <file>tests/Feature/SmsRequestHonestyTest.php</file>
-            <file>tests/Feature/SubscriptionDaysRemainingTest.php</file>
-            <file>tests/Feature/SubscriptionFallbackTest.php</file>
-            <file>tests/Feature/SubscriptionPlansTest.php</file>
-            <file>tests/Feature/SubscriptionTest.php</file>
             <file>tests/Feature/TestSuiteIntegrityTest.php</file>
             <file>tests/Feature/ThemeMakeTest.php</file>
             <file>tests/Feature/ThemesTest.php</file>
@@ -203,9 +176,6 @@
             <file>tests/Feature/TicketsTest.php</file>
             <file>tests/Feature/UiSettingsTest.php</file>
             <file>tests/Feature/UnauthenticatedApiTest.php</file>
-            <file>tests/Feature/UniqueSiteIdSubscriptionsTest.php</file>
-            <file>tests/Feature/UpdatesExtrasTest.php</file>
-            <file>tests/Feature/UpdatesTest.php</file>
             <file>tests/Feature/WidgetHrefGuardTest.php</file>
             <file>tests/Feature/WidgetsSchemaTest.php</file>
             <file>tests/Feature/ZarinpalGatewayTest.php</file>

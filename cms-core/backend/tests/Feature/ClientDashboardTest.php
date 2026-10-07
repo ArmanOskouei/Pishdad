@@ -12,9 +12,6 @@ use Database\Seeders\RolesPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Pishdad\Plugins\Central\Models\Client;
-use Pishdad\Plugins\Central\Models\Invoice;
-use Pishdad\Plugins\Central\Models\Subscription;
 use Tests\TestCase;
 
 /** تسک ۲.۲ — DoD: آمار داشبورد + هشدارها + رجیستری خالی ویجت‌ها (تیکت = ۰ تا مرحله ۵). */
@@ -48,8 +45,7 @@ class ClientDashboardTest extends TestCase
         $res->assertOk()
             ->assertJsonPath('data.pages_count', 3)
             ->assertJsonPath('data.media_count', 1)
-            ->assertJsonPath('data.open_tickets', 0)
-            ->assertJsonPath('data.subscription.status', 'active');
+            ->assertJsonPath('data.open_tickets', 0);
     }
 
     public function test_stats_requires_auth(): void
@@ -57,47 +53,45 @@ class ClientDashboardTest extends TestCase
         $this->getJson('/api/v1/admin/dashboard/stats')->assertUnauthorized();
     }
 
-    public function test_alerts_reports_overdue_invoice(): void
+    /**
+     * هشدارِ فضای فایل — تنها هشدارِ مالی‌شکلی که این نصب دارد.
+     *
+     * سهمیه ثابت است (تیرِ `budget`) و روی ۸۰٪ هشدار می‌دهد. برای رد شدن از
+     * آستانه، یک ردیفِ سنگین کافی است؛ فایلِ واقعی لازم نیست چون جمعِ ستون
+     * `size` سنجیده می‌شود.
+     */
+    public function test_alerts_reports_storage_pressure(): void
     {
         $user = $this->user();
-        $client = Client::query()->create([
-            'name' => 'من', 'tier' => 'budget', 'status' => 'active',
-            'owner_user_id' => $user->id, 'site_id' => 'site-'.$user->id,
-        ]);
-        $sub = Subscription::query()->create([
-            'client_id' => $client->id, 'site_id' => $client->site_id,
-            'status' => Subscription::ACTIVE, 'due_at' => now()->addDays(30),
-        ]);
-        Invoice::query()->create([
-            'client_id' => $client->id, 'subscription_id' => $sub->id,
-            'amount' => 100000, 'status' => Invoice::PENDING, 'due_at' => now()->subDay(),
+
+        Media::query()->create([
+            'user_id' => $user->id, 'disk' => 'local', 'path' => 'big.bin',
+            'original_name' => 'big.bin', 'mime' => 'application/octet-stream',
+            'size' => 900 * 1024 * 1024, // ۹۰۰MB از سقفِ ۱GB ⇒ بالای ۸۰٪
         ]);
 
         $res = $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/alerts');
 
         $res->assertOk();
         $types = collect($res->json('data'))->pluck('type')->all();
-        $this->assertContains('overdue_invoice', $types);
+        $this->assertContains('storage', $types);
     }
 
-    public function test_alerts_reports_suspension(): void
+    /** زیرِ آستانه هیچ هشداری نیست — وگرنه هشدار همیشه روشن می‌ماند. */
+    public function test_alerts_is_empty_below_the_storage_threshold(): void
     {
         $user = $this->user();
-        $client = Client::query()->create([
-            'name' => 'من', 'tier' => 'budget', 'status' => 'suspended',
-            'owner_user_id' => $user->id, 'site_id' => 'site-'.$user->id,
-        ]);
-        Subscription::query()->create([
-            'client_id' => $client->id, 'site_id' => $client->site_id,
-            'status' => Subscription::SUSPENDED, 'due_at' => now()->subDays(2),
-            'suspended_at' => now()->subDays(2),
+
+        Media::query()->create([
+            'user_id' => $user->id, 'disk' => 'local', 'path' => 'small.bin',
+            'original_name' => 'small.bin', 'mime' => 'application/octet-stream',
+            'size' => 10 * 1024 * 1024, // ۱۰MB ⇒ حدود ۱٪
         ]);
 
-        $res = $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/alerts');
-
-        $res->assertOk();
-        $types = collect($res->json('data'))->pluck('type')->all();
-        $this->assertContains('suspended', $types);
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/admin/dashboard/alerts')
+            ->assertOk()
+            ->assertJsonPath('data', []);
     }
 
     public function test_widgets_returns_empty_registry_with_ready_structure(): void

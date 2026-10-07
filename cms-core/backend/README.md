@@ -62,9 +62,9 @@ docker compose exec app php artisan test
 امنیت ورود: پیام 401 یکسان برای همه حالت‌ها، قفل بروت‌فورس (۱۰ تلاش در ۱۵ دقیقه به‌ازای ایمیل+IP → ‏429)،
 توکن Sanctum + کوکی httpOnly آماده برای Next.js، تاریخ شمسی (`created_at_jalali`) در پاسخ‌ها.
 
-## API مرحله ۱ — حلقه پول (تسک‌های ۱.۱ تا ۱.۴)
+## API هسته
 
-قرارداد کامل در [`openapi/openapi.yaml`](openapi/openapi.yaml) (نسخه 1.4.0) — contract-first.
+قرارداد کامل در [`openapi/openapi.yaml`](openapi/openapi.yaml) — contract-first.
 
 - **صفحات** (`auth`، مشترک بین مدیران): `GET/POST /api/v1/admin/pages`، `GET/PUT /api/v1/admin/pages/{id}`،
   `POST .../publish` (revision + published + لاگ revalidate امضاشده HMAC+nonce)،
@@ -73,21 +73,10 @@ docker compose exec app php artisan test
   `GET /api/v1/admin/blocks/schema` (رجیستری `config/blocks.php`).
 - **فایل**: `GET /api/v1/admin/media`، `POST .../presign` (PUT امضاشده MinIO/S3، ۱۵ دقیقه)،
   `PUT/DELETE .../{id}` (سافت‌دیلیت = سطل زباله)، `POST .../restore`، `DELETE .../permanent`.
-- **اشتراک من**: `GET /api/v1/admin/subscription`، `GET .../invoices`،
-  `POST .../invoices/{id}/pay` (session درگاه Stub + `pay_url` سندباکس، بدون شارژ واقعی)،
-  `GET /api/v1/subscription-status?site_id=` (عمومی، سبک، polling).
-- **Billing مرکزی** (فقط `role=operator` یا سوپرادمین — میدل‌ویر `central.operator`):
-  CRUD `/api/central/plans`، `/api/central/invoices` + `PUT .../{id}/status`،
-  `GET /api/central/payments`، `GET /api/central/subscriptions/suspended` (با `days_remaining`)،
-  `POST .../{id}/suspend|resume|delete`، `GET/PUT /api/central/gateway-settings` (کلید ماسک‌شده).
-  (J10 — `POST /api/webhooks/payment` حذف شد: دورهٔ آزمایشی بدون درگاه.)
-- **مشتریان مرکزی**: CRUD `/api/central/clients` (فیلتر `tier/status/health`)، `GET .../{id}`،
-  `POST .../upgrade-tier` (فقط Budget→Standard→Enterprise + لاگ)،
-  `POST .../support-token` (خام فقط یک‌بار؛ ذخیره هش + TTL ۱۵ دقیقه) + `POST .../support-token/consume` (یکباره)،
-  `POST .../suspend|resume|delete`، `GET .../backups` + `POST .../backup|restore` (Stub).
-- **Cron مرکزی** (ثبت در `routes/console.php`، روزانه ۰۸:۰۰/۰۸:۱۵/۰۸:۳۰):
-  `billing:remind` (D-7..D-0، روزی یک‌بار برای هر اشتراک)، `billing:suspend` (به‌محض گذشتن لحظه سررسید)،
-  `billing:purge` (≥۷ روز تعلیق → حذف منطقی). رویدادها در `central_billing_events` قابل حسابرسی‌اند.
+  سقفِ فضای فایل ثابت و متعلق به همین نصب است.
+
+افزونه‌ها مسیرهای خودشان را در `manifest.json` اعلام می‌کنند و `PluginRouteTable` آن‌ها را
+زیر catch-allِ `v1/p/{slug}` ثبت می‌کند؛ سندِ هر افزونه جدا از این فایل است.
 
 ### فرمان‌های نگهداری
 
@@ -112,14 +101,6 @@ docker compose exec app php artisan test
   `MAIL_PASSWORD`، `MAIL_FROM_ADDRESS`، `MAIL_FROM_NAME` — همه در `.env.example` با توضیح.
 - **اعتبارنامهٔ واقعی در ریپو نیست** (تسک E2 همچنان `pending`). تا آن زمان هیچ ایمیلی
   به بیرون نمی‌رود؛ اعلان‌های داخل پنل (مثل پیام فرم تماس) از مسیر دیتابیس کار می‌کنند.
-
-### مالکیت جدول‌های مرکزی (همان Postgres، تفکیک منطقی)
-
-- پیشوند `central_*` = مالک ماژول مرکزی؛ نوشتن فقط از `/api/central/*` با نقش operator.
-- نصب مشتری فقط ردیف خودش را می‌خواند: تطبیق `central_clients.owner_user_id` / `site_id`؛
-  هیچ کوئری سمت مشتری بدون این فیلتر به جدول‌های مرکزی نمی‌زند.
-- کاربر عادی (`role=admin`) روی `/api/central/*` خطای 403 فارسی می‌گیرد؛
-  سوپرادمین مخفی (`is_hidden`) در هیچ لیستی نیست ولی گیت مرکزی را پاس می‌کند.
 
 ### Stubها و فرض‌ها (۱.۱–۱.۴)
 

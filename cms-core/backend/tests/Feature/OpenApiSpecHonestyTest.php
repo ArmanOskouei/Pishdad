@@ -31,12 +31,16 @@ class OpenApiSpecHonestyTest extends TestCase
     private const SPEC = 'openapi/openapi.yaml';
 
     /**
-     * مسیرهایی که هسته **مالکشان** است و سند باید مستندشان کند.
+     * مسیرهایی که هسته **قبلاً** مالکشان بود و به افزونه منتقل شدند.
      *
-     * ⚠️ عمداً فقط مالکیتِ هسته. مسیرهای `/api/v1/p/central/*` در سند هستند ولی
-     * **مالِ افزونه‌اند** (J5) و در `PluginRouteTable` سرو می‌شوند — پس نه
-     * می‌توان آن‌ها را در جدولِ route ایستای لارavel یافت، نه مالکِ سند هستند.
-     * دربارهٔ تصمیم به نگه‌داشتنشان در سند، توضیحِ خودِ `openapi.yaml` کافی است.
+     * ⚠️ عمداً فقط مالکیتِ هسته. مسیرهای زیر prefixِ افزونه (`api/v1/p/<slug>/*`)
+     * از راه catch-all سرو می‌شوند و در جدولِ route لاراول ثبتِ ایستا ندارند، پس
+     * نه می‌توان آن‌ها را آنجا یافت و نه مالکِ سندِ هسته‌اند.
+     *
+     * با حذفِ «پنل مرکزی» دیگر هیچ افزونه‌ای در `plugins/` نیست، پس نه prefixی
+     * برای افزونه می‌ماند و نه مسیری که سندِ هسته مالکش باشد. یعنی این فهرست
+     * حالا **همهٔ** موردِ قابل‌بررسی است: هر مسیری که سند از افزونه‌ها می‌گیرد
+     * باید در یکی از مانیفست‌ها باشد — و مانیفستی نیست.
      */
     private const CORE_OWNED = [
         'post' => '/api/v1/internal/heartbeat',
@@ -76,18 +80,52 @@ class OpenApiSpecHonestyTest extends TestCase
     }
 
     /**
-     * مسیرِ تازهٔ heartbeat باید **با** prefix افزونه مستند باشد.
+     * جهتِ مثبتِ تست‌های بالا: سند نباید **تهی** شود تا همه سبز شوند.
      *
-     * جهتِ مثبتِ تست بالا: فقط ثابت می‌کند چیزی نیست. این ثابت می‌کند جای درستش
-     * پر است — وگرنه کسی می‌توانست هر دو را پاک کند و «پاکیزگی» جای «دقت» بنشیند.
+     * «هیچ مسیرِ ناموجودی مستند نشده» با یک سندِ کاملاً خالی هم سبز است. پس باید
+     * ثابت کنیم سند هنوز **مسیرهایِ واقعی** را دارد، و آن مسیرها در جدولِ route
+     * هم وجود دارند — وگرنه یک نفر می‌توانست همه‌چیز را پاک کند و «پاکیزگی» را
+     * جای «دقت» بنشاند.
+     *
+     * ⚠️ این تست عمداً هیچ مسیرِ مشخصی را نام نمی‌برد. مسیرهایِ افزونه‌ای
+     * (`api/v1/p/<slug>/*`) در جدولِ route ثبتِ ایستا ندارند و با حذفِ «پنل مرکزی»
+     * دیگر افزونه‌ای هم برای افزودن به فهرست وجود ندارد. پس تنها مالکیتِ
+     * قابل‌بررسی، **هسته** است — و معیار، خودِ جدولِ route.
      */
-    public function test_the_new_heartbeat_route_is_documented_under_the_plugin_prefix(): void
+    public function test_the_spec_still_documents_live_core_routes(): void
     {
-        $this->assertContains(
-            '/api/v1/p/central/internal/heartbeat',
-            $this->specPaths(),
-            'مسیرِ رسمیِ heartbeat باید در سند باشد، وگرنه `gen:types` نوعی برای'
-            .' کنترلرِ مرکزی نمی‌سازد.',
+        $documented = array_map($this->normalise(...), $this->specPaths());
+
+        $this->assertNotEmpty(
+            $documented,
+            'سندِ هسته نباید خالی باشد. «هیچ مسیرِ ناموجودی مستند نشده» با سندِ خالی'
+            .' هم سبز می‌شود، و آن دیگر دقت نیست.'
+        );
+
+        $live = [];
+        foreach (\Illuminate\Support\Facades\Route::getRoutes() as $route) {
+            $live[] = $route->uri();
+        }
+
+        $matchers = array_map($this->patternToRegex(...), $live);
+
+        $backed = array_filter(
+            $documented,
+            static function (string $path) use ($matchers): bool {
+                foreach ($matchers as $matcher) {
+                    if (preg_match($matcher, $path) === 1) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        );
+
+        $this->assertNotEmpty(
+            $backed,
+            "هیچ‌کدام از مسیرهای مستندشده در جدولِ routeِ هسته نیستند:\n"
+            .implode("\n", $documented)
         );
     }
 

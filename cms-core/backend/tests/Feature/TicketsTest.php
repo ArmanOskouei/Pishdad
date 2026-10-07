@@ -130,10 +130,13 @@ class TicketsTest extends TestCase
             'name' => 'اپراتور', 'email' => uniqid().'@example.com',
             'password' => Hash::make('Operator!1'), 'role' => 'operator',
         ]);
+        // مسیرِ هسته گیتِ صریح دارد: اپراتور هم باید `tickets.edit` را داشته باشد.
+        // این تست **قبلاً** از مسیرِ افزونه رد می‌شد که همان گیت را نداشت.
+        $operator->givePermissionTo('tickets.edit');
 
-        $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/v1/p/central/tickets/{$ticket->id}/reply", ['body' => 'بررسی شد.'])
-            ->assertCreated()->assertJsonPath('message', 'پاسخ اپراتور ثبت شد.');
+        $this->actingAs($operator->fresh(), 'sanctum')
+            ->postJson("/api/v1/admin/tickets/{$ticket->id}/messages", ['body' => 'بررسی شد.'])
+            ->assertCreated()->assertJsonPath('message', 'پاسخ ثبت شد.');
 
         $this->assertDatabaseHas('notifications', [
             'notifiable_id' => $admin->id,

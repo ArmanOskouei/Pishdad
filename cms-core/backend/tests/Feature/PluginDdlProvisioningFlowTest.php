@@ -314,7 +314,10 @@ final class PluginDdlProvisioningFlowTest extends PluginDdlNoTransactionCase
     }
 
     /**
-     * تأییدِ مرکزی از راه اپراتور، سپس بازگشت به مالک.
+     * تأییدِ بازاری از راه اپراتور، سپس بازگشت به مالک.
+     *
+     * بازبینیِ افزونه در هسته است: `POST /api/v1/market/plugins/{id}/approve`
+     * با `role:operator` ⇒ `ReviewService::approve()`.
      *
      * `actingAs` سراسری است، پس اگر به مالک برنگردیم، ادامهٔ تست با اپراتور
      * اجرا می‌شود و `activate` شکست می‌خورد با خطایی که ربطی به K5.12 ندارد —
@@ -330,7 +333,7 @@ final class PluginDdlProvisioningFlowTest extends PluginDdlNoTransactionCase
         ]);
 
         $this->actingAs($operator, 'sanctum')
-            ->postJson("/api/v1/p/central/review/plugin/{$id}/approve")
+            ->postJson("/api/v1/market/plugins/{$id}/approve")
             ->assertOk();
 
         $owner = User::query()->where('role', 'admin')->orderBy('id')->firstOrFail();
