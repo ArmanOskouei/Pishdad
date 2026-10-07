@@ -8,7 +8,7 @@ import {
   parsePluginContract,
   type PluginPackageContract,
 } from "@/lib/plugin-contract";
-import { ThemeDeveloperGuide } from "@/components/ThemeDeveloperGuide";
+import { MarkdownDeveloperGuide } from "@/components/ThemeDeveloperGuide";
 
 /**
  * راهنمای توسعه‌دهنده پلاگین/قالب (مورد ۶) — بخش جمع‌شونده در صفحات
@@ -95,7 +95,6 @@ const errStyle = {
 
 export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
   const isPlugin = kind === "plugin";
-  const title = isPlugin ? "راهنمای توسعه‌دهنده پلاگین" : "راهنمای توسعه‌دهنده قالب";
 
   // قالب در قراردادِ بستهٔ پلاگین نیست ⇒ هیچ درخواستی هم نمی‌رود.
   const [contract, setContract] = useState<ContractState>({ status: "idle" });
@@ -134,7 +133,7 @@ export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
   const CONTRACT = contract.status === "ready" ? contract.value : null;
 
   // قالب: راهنمای کاملِ دوزبانه با خروجی PDF (بخش‌های دستیِ زیر مخصوص پلاگین‌اند).
-  if (!isPlugin) return <ThemeDeveloperGuide />;
+  if (!isPlugin) return <MarkdownDeveloperGuide kind="theme" />;
 
   const manifestSample = isPlugin
     ? `{
@@ -163,9 +162,21 @@ export function DeveloperGuide({ kind }: { kind: "plugin" | "theme" }) {
 }`;
 
   return (
-    <details className="card card-pad dev-guide" style={{ marginBlock: 12 }}>
+    <div style={{ display: "grid", gap: 12, marginBlock: 12 }}>
+      {/*
+       * E65 — سندِ کاملِ دوزبانه + PDF، دقیقاً هم‌ساختارِ راهنمای قالب
+       * (`/admin/themes?tab=zip`). محتوا از `public/plugin-guide.*.md` می‌آید.
+       */}
+      <MarkdownDeveloperGuide kind="plugin" />
+
+      {/*
+       * و بخشِ **زندهٔ همین نصب**: قراردادِ runtime که هیچ سندِ استاتیکی نمی‌داند
+       * (کدام نقاط اتصال در *این* نسخه واقعاً کار می‌کنند). شمارهٔ سقف‌ها هم از
+       * قرارداد خوانده می‌شود تا با افزودن یک رابط، سندِ راهنما دروغ نگوید.
+       */}
+      <details className="card card-pad dev-guide" style={{ marginBlock: 0 }}>
       <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
-        {title} <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 12.5 }}>— ساختار، مانیفست، امضا و بازبینی</span>
+        قراردادِ زندهٔ همین نصب <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 12.5 }}>— نقاط اتصال، سقف‌ها و اسکیمای بسته</span>
       </summary>
 
       <div className="print-guide" style={{ display: "grid", gap: 14, marginBlockStart: 12, fontSize: 13, lineHeight: 1.9 }}>
@@ -433,7 +444,8 @@ $manifest['signature'] = base64_encode(
         </section>
         )}
       </div>
-    </details>
+      </details>
+    </div>
   );
 }
 
