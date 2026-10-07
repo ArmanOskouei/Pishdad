@@ -161,6 +161,55 @@ class InstallTest extends TestCase
         }
     }
 
+    /**
+     * E33 — پیش‌فرضِ فرمِ گام ۲ `Pishdad` است، نه مقدارِ `.env`.
+     *
+     * رگرسیونِ ثبت‌شده: پیش‌پرکردن از `Preflight::dbConfig()` می‌آمد و آن
+     * `.env` را هم می‌خواند. پس روی هر محیطی که `.env` مقدار داشت (مثل
+     * `cms`/`cms_test`)، فرم همان را نشان می‌داد و `Pishdad` هرگز دیده
+     * نمی‌شد — یعنی کاربر باید نامِ دیتابیس را حدس می‌زد.
+     *
+     * `.env` منبعِ درستی برای این کار نیست: نصب‌کننده **خودش** `.env` را
+     * می‌نویسد. منبعِ درستِ «ادامه دادنِ نصبِ نیمه‌کاره» ژورنال است.
+     *
+     * تست، محیطِ آزمون را که `DB_DATABASE=cms_test` دارد به‌عنوان همان
+     * «محیطی با مقدارِ .env» استفاده می‌کند.
+     */
+    public function test_the_database_form_defaults_to_pishdad_not_the_env_value(): void
+    {
+        $this->markPriorSteps('preflight');
+
+        $html = $this->get('/install/database')->assertOk()->getContent();
+
+        foreach (['database', 'username'] as $field) {
+            $this->assertMatchesRegularExpression(
+                '/id="db-'.$field.'"[^>]*value="Pishdad"/',
+                $html,
+                "فیلد «{$field}» باید پیش‌فرضِ Pishdad داشته باشد، نه مقدارِ .env.",
+            );
+        }
+
+        // مقدارِ `.env` محیطِ آزمون نباید در فرم دیده شود.
+        $this->assertStringNotContainsString('cms_test', $html);
+        $this->assertDoesNotMatchRegularExpression('/id="db-username"[^>]*value="cms"/', $html);
+    }
+
+    /** ورودی‌های پنلِ زندهٔ راهنما هم باید همان پیش‌فرض را نشان دهند. */
+    public function test_the_live_guide_inputs_mirror_the_pishdad_default(): void
+    {
+        $this->markPriorSteps('preflight');
+
+        $html = $this->get('/install/database')->assertOk()->getContent();
+
+        foreach (['g-database', 'g-username'] as $field) {
+            $this->assertMatchesRegularExpression(
+                '/id="'.$field.'"[^>]*value="Pishdad"/',
+                $html,
+                "ورودیِ «{$field}» باید هم‌خوانِ فرم باشد.",
+            );
+        }
+    }
+
     // ─── journal / resume / lock ─────────────────────────────────
 
     public function test_start_redirects_to_first_incomplete_step(): void

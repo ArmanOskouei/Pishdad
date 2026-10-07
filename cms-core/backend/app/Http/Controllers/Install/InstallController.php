@@ -170,7 +170,7 @@ class InstallController extends Controller
         $this->ensureStepReachable('database');
 
         return view('install.database', [
-            'config' => $this->withDatabaseDefaults(Preflight::dbConfig()),
+            'config' => $this->databasePrefill(),
             'token' => InstallJournal::token(),
             'step' => 'database',
             'formError' => null,
@@ -179,10 +179,43 @@ class InstallController extends Controller
     }
 
     /**
+     * مقادیرِ اولیهٔ **فرمِ** گام ۲.
+     *
+     * ## چرا این از `.env` نمی‌خواند
+     *
+     * پیش از این، ورودیِ این متد `Preflight::dbConfig()` بود و آن `.env` را هم
+     * می‌خواند. نتیجه: روی هر محیطی که `.env` مقدارِ توسعه داشت (مثل `cms`)،
+     * فرم هم همان را نشان می‌داد و پیش‌فرضِ `Pishdad` هرگز دیده نمی‌شد.
+     *
+     * ولی `.env` منبعِ درستی برای پیش‌پرکردنِ فرم نیست: این نصب‌کننده **خودش**
+     * `.env` را می‌نویسد، پس مقداری که آنجاست یا از نصبِ قبلی مانده یا از
+     * فایلِ نمونه. منبعِ درستِ «ادامه دادنِ نصبِ نیمه‌کاره» ژورنال است.
+     *
+     * پس ترتیب این است: ژورنال (که کاربر خودش در همین نصب ذخیره کرده) ← وگرنه
+     * پیش‌فرضِ `Pishdad`. بررسی‌های گام ۱ همچنان `Preflight::dbConfig()` را
+     * می‌خوانند، چون آن‌ها **باید** `.env` را ببینند تا بگویند اتصالِ موجود
+     * سالم است یا نه.
+     *
+     * @param  array<string, string>  $submitted  مقادیرِ همین ارسال، وقتی اعتبارسنجی رد شده
+     */
+    private function databasePrefill(array $submitted = []): array
+    {
+        $journal = InstallJournal::get('db');
+
+        return $this->withDatabaseDefaults([
+            'host' => $submitted['host'] ?? $journal['host'] ?? '',
+            'port' => $submitted['port'] ?? $journal['port'] ?? '',
+            'database' => $submitted['database'] ?? $journal['database'] ?? '',
+            'username' => $submitted['username'] ?? $journal['username'] ?? '',
+            'password' => $submitted['password'] ?? $journal['password'] ?? '',
+        ]);
+    }
+
+    /**
      * پیش‌فرض‌های گام ۲ + رمزِ پیشنهادیِ همان لحظه.
      *
      * نام دیتابیس و کاربر هر دو `Pishdad` هستند تا کاربر لازم نباشد چیزی حدس
-     * بزند؛ اگر ژورنال یا `.env` مقدارِ واقعی داشته باشد، همان برنده است.
+     * بزند؛ اگر ژورنال مقدارِ واقعی داشته باشد، همان برنده است.
      *
      * رمز **در هر بارگذاریِ صفحه** تازه ساخته می‌شود و روی خودِ صفحه هم نمایش
      * داده می‌شود، پس «راز» نیست — ولی همین باعث می‌شود کاربر مجبور نباشد یک
@@ -237,7 +270,7 @@ class InstallController extends Controller
             }
 
             return $this->formFail('install.database', [
-                'config' => $this->withDatabaseDefaults(Preflight::dbConfig($request->only(['host', 'port', 'database', 'username', 'password']))),
+                'config' => $this->databasePrefill($request->only(['host', 'port', 'database', 'username', 'password'])),
                 'token' => InstallJournal::token(),
                 'step' => 'database',
             ], (string) $validator->errors()->first(), $this->safeOld($request));
@@ -256,7 +289,7 @@ class InstallController extends Controller
             }
 
             return $this->formFail('install.database', [
-                'config' => $this->withDatabaseDefaults($validated),
+                'config' => $this->databasePrefill($validated),
                 'token' => InstallJournal::token(),
                 'step' => 'database',
             ], $message, $this->safeOld($request));
