@@ -807,8 +807,19 @@ class InstallController extends Controller
             'frontend' => $frontend,
             'panel' => $frontend.'/admin/login',
             'adminPassword' => $adminPassword,
-            // اطلاعاتی که برای نصبِ فرانت لازم است تا کاربر دنبالشان نگردد.
-            'apiUrl' => rtrim((string) config('app.url'), '/').'/api',
+            /*
+             * ⚠️ نشانیِ عمومی از **خودِ درخواست** ساخته میشود، نه از `APP_URL`.
+             *
+             * `APP_URL` در `.env.example` مقدارِ `http://localhost` است (بدونِ
+             * پورت) و در php-fpm هم دیده نمیشود (E51). نتیجه‌اش این بود که
+             * صفحهٔ پایانی `http://localhost/api` را نشان میداد در حالی که
+             * بک‌اند روی `:8080` است — یعنی همان چیزی که کاربر دید.
+             *
+             * کسی که همین حالا این صفحه را می‌بیند، بک‌اند را روی همین نشانی در
+             * مرورگر باز کرده؛ پس معتبرترین منبعِ «بک‌اند کجا دیده می‌شود» خودِ
+             * درخواست است. `APP_URL` فقط راهِ دوم می‌ماند.
+             */
+            'apiUrl' => rtrim(request()->getSchemeAndHttpHost() ?: (string) config('app.url'), '/').'/api',
             'revalidateSecret' => (string) config('revalidate.secret'),
             // E59 — انقضای اطلاعاتِ این صفحه.
             'infoTtlHours' => self::INFO_TTL_HOURS,
