@@ -6,13 +6,19 @@ Everything needed to install this release **without downloading anything**.
 
 | Normally | Here |
 |---|---|
-| `composer install` (packagist) | `vendor/` travels in the bundle |
+| `composer install` (packagist) | `vendor/` travels as `offline/vendor.tar.gz` and the installer unpacks it |
 | `npm install` + `next build` | the frontend image is prebuilt and travels in the bundle |
 | `docker pull` for every service | six images are preloaded from `offline/images/*.tar` |
 | `docker compose build` | the compose files reference images by tag, with `pull_policy: never` |
 
 The only thing this bundle cannot carry is **Docker itself**. Install Docker
 Desktop (or Docker Engine) first — one time, on the machine.
+
+> Why `vendor/` is a tarball and not loose files: composer unpacks each package
+> file by file, and over a Windows bind mount that is slow enough to hit its own
+> 300 s timeout on a large dependency (`aws/aws-sdk-php`). Building it inside a
+> container and shipping one archive sidesteps that on both ends — the bundle
+> build and the install.
 
 ## Install
 

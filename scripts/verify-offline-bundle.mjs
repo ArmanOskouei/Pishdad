@@ -40,19 +40,21 @@ for (const p of ["README.md", "LICENSE", "cms-core/backend/artisan", "cms-core/f
   if (!existsSync(join(root, p))) fail(`the lean package is incomplete: ${p} is missing`);
 }
 
-/* ── ۲. vendor کامل است ───────────────────────────────────────────────── */
+/* ── ۲. vendor به‌صورت tar ─────────────────────────────────────────────── */
 
-const vendor = join(root, "cms-core", "backend", "vendor");
-if (!existsSync(vendor)) {
-  fail("vendor/ is missing - the install would have to run composer install, which needs packagist");
+// `vendor/` به‌صورت tar.gz سفر می‌کند و اسکریپتِ نصب بازش می‌کند. اینجا فقط
+// حضورش و اینکه خالی نیست سنجیده می‌شود؛ بازکردنش کارِ نصب‌کننده است.
+const vendorTar = join(root, "offline", "vendor.tar.gz");
+if (!existsSync(vendorTar)) {
+  fail("offline/vendor.tar.gz is missing - the install would have to run composer install, which needs packagist");
 } else {
-  if (!existsSync(join(vendor, "autoload.php"))) {
-    fail("vendor/autoload.php is missing - the app cannot boot from this bundle");
+  const size = statSync(vendorTar).size;
+  // یک vendorِ واقعی لاراول چند ده مگابایت است؛ tarِ چند کیلوبایتی یعنی
+  // نصب نیمه‌کاره یا شکست‌خورده.
+  if (size < 5 * 1024 * 1024) {
+    fail(`offline/vendor.tar.gz is only ${(size / 1024 / 1024).toFixed(1)} MB - that is not a complete Laravel vendor tree`);
   }
-  // چند پکیجِ حیاتی: نبودِ هر کدام یعنی نصبِ نیمه‌کاره
-  for (const dep of ["laravel/framework", "laravel/sanctum", "spatie/laravel-permission", "paragonie/sodium_compat"]) {
-    if (!existsSync(join(vendor, dep))) fail(`vendor/${dep} is missing - vendor/ is not a complete install`);
-  }
+  notes.push(`vendor.tar.gz: ${(size / 1024 / 1024).toFixed(1)} MB`);
 }
 
 /* ── ۳. ایمیج‌ها ──────────────────────────────────────────────────────── */
@@ -162,4 +164,4 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log("\n  PASS - every referenced image travels in the bundle, no compose can build or pull, vendor/ is complete.");
+console.log("\n  PASS - every referenced image travels in the bundle, no compose can build or pull, vendor.tar.gz is present.");

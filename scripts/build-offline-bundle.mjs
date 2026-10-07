@@ -143,27 +143,53 @@ for (const img of IMAGES) {
 
 /* ── ۲. vendor/ لاراول ─────────────────────────────────────────────────── */
 //
-// داخلِ یک کانتینرِ composer ساخته می‌شود تا به composer نصب‌شده روی هاست نیاز
-// نباشد و حداقلِ نسخهٔ PHP همان باشد که اپ اجرا می‌شود.
+// ## چرا روی volume و نه مستقیم روی پوشهٔ پروژه
+//
+// نسخهٔ اول `composer install` را با `-v <backend>:/app` و vendorِ خروجی روی همان
+// bind-mount می‌زد. روی ویندوز آن مسیر از virtiofs رد می‌شود و unzipِ هر بسته
+// فایل‌به‌فایل انجام می‌شود: `aws/aws-sdk-php` از timeoutِ ۳۰۰ ثانیه‌ای composer
+// گذشت و کلِ بیلد مرد.
+//
+// حالا نصب روی یک volumeِ داخلیِ کانتینر انجام می‌شود (فایل‌سیستمِ خودِ دیمن،
+// سریع) و بعد **یک‌بار** به‌صورت tar بیرون کشیده می‌شود. کاربر هم در زمانِ نصب
+// همان tar را باز می‌کند که چند مرتبه از unzipِ فایل‌به‌فایل سریع‌تر است.
 
-console.log("\n── backend vendor/ ──");
-const VENDOR_OUT = join(OUT, "cms-core", "backend", "vendor");
-mkdirSync(dirname(VENDOR_OUT), { recursive: true });
+console.log("\n── backend vendor/ (into a container volume, then tarred out) ──");
+const VENDOR_VOLUME = "pishdad-offline-vendor";
+const VENDOR_TAR = "vendor.tar.gz";
+
+run("docker", ["volume", "rm", "-f", VENDOR_VOLUME], { stdio: "ignore" });
+run("docker", ["volume", "create", VENDOR_VOLUME], { stdio: "ignore" });
 
 const COMPOSER_IMAGE = "composer:2";
 if (!imageExists(COMPOSER_IMAGE)) run("docker", ["pull", COMPOSER_IMAGE]);
 
 run("docker", [
   "run", "--rm",
-  "-v", `${BACKEND}:/app`,
-  "-v", `${VENDOR_OUT}:/app/vendor`,
+  "-v", `${BACKEND}:/app:ro`,
+  "-v", `${VENDOR_VOLUME}:/vendor`,
   "-w", "/app",
+  // COMPOSER_VENDOR_DIR به‌جای `composer config vendor-dir` که composer.json را
+  // دست می‌زد — سورس باید دست‌نخورده بماند.
+  "-e", "COMPOSER_VENDOR_DIR=/vendor",
+  // بسته‌های بزرگ روی بعضی شبکه‌ها از ۳۰۰ ثانیه می‌گذرند؛ پیش‌فرض را بالا می‌بریم.
+  "-e", "COMPOSER_PROCESS_TIMEOUT=1800",
   COMPOSER_IMAGE,
   "sh", "-lc",
-  // `--no-dev` چون بستهٔ منتشرشده محیطِ production است و phpunit/pint هیچ‌وقت
-  // روی ماشینِ کاربر اجرا نمی‌شوند. حجمش تقریباً نصف می‌شود.
+  // `--no-dev`: بستهٔ منتشرشده محیطِ production است و phpunit/pint هیچ‌وقت روی
+  // ماشینِ کاربر اجرا نمی‌شوند.
   "composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader",
 ]);
+
+mkdirSync(join(OUT, "offline"), { recursive: true });
+run("docker", [
+  "run", "--rm",
+  "-v", `${VENDOR_VOLUME}:/vendor:ro`,
+  "-v", `${join(OUT, "offline")}:/out`,
+  "alpine:3.24",
+  "tar", "-czf", `/out/${VENDOR_TAR}`, "-C", "/vendor", ".",
+]);
+run("docker", ["volume", "rm", "-f", VENDOR_VOLUME], { stdio: "ignore" });
 
 /* ── ۳. بستهٔ سبک + اسکریپت‌ها ─────────────────────────────────────────── */
 
@@ -171,9 +197,12 @@ console.log("\n── lean package + installers ──");
 for (const entry of readdirSync(LEAN)) {
   cpSync(join(LEAN, entry), join(OUT, entry), { recursive: true });
 }
-// vendor را روی نسخهٔ کپی‌شده می‌گذاریم (بستهٔ سبک آن را ندارد)
-cpSync(VENDOR_OUT, join(OUT, "cms-core", "backend", "vendor"), { recursive: true });
-rmSync(VENDOR_OUT, { recursive: true, force: true });
+// vendor به‌صورت tar در `offline/` می‌رود (نه به‌عنوان پوشه زیر cms-core).
+// اسکریپتِ نصب بازش می‌کند؛ دلیلش در بخشِ ۲ توضیح داده شده.
+if (!existsSync(join(OUT, "offline", VENDOR_TAR))) {
+  console.error(`✗ ${VENDOR_TAR} ساخته نشد`);
+  process.exit(1);
+}
 
 // نصب‌کننده‌ها و راهنما: فایل‌های ایستا زیر `scripts/offline/` هستند (نه رشتهٔ
 // درونِ این اسکریپت) تا `${...}` پاورشل با template literal جاوااسکریپت قاطی نشود.

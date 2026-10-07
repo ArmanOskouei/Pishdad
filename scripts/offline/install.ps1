@@ -41,7 +41,28 @@ Write-Host "Images loaded." -ForegroundColor Green
 
 if ($LoadOnly) { Write-Host "`n-LoadOnly given, stopping here."; exit 0 }
 
-# --- 3. Bring the stacks up --------------------------------------------------
+# --- 3. Unpack vendor/ -------------------------------------------------------
+# It travels as a tarball rather than as loose files: composer's per-file unzip
+# over a Windows bind mount is slow enough to time out on large packages, and
+# extracting one archive is far quicker than writing tens of thousands of files
+# one at a time.
+$vendorTar = Join-Path $root 'offline\vendor.tar.gz'
+$vendorDir = Join-Path $root 'cms-core\backend\vendor'
+if (Test-Path $vendorTar) {
+    if (Test-Path $vendorDir) {
+        Write-Host "vendor/ already present, leaving it alone." -ForegroundColor DarkGray
+    } else {
+        Write-Host "Unpacking vendor/ ..." -ForegroundColor Cyan
+        New-Item -ItemType Directory -Force -Path $vendorDir | Out-Null
+        # Windows 10+ ships bsdtar; -xzf handles the gzip stream.
+        tar -xzf $vendorTar -C $vendorDir
+        if ($LASTEXITCODE -ne 0) { Fail "failed to unpack offline\vendor.tar.gz" }
+    }
+} else {
+    Fail "offline\vendor.tar.gz is missing - the backend would need composer install (network)."
+}
+
+# --- 4. Bring the stacks up --------------------------------------------------
 # Ports are passed through the same variables the offline compose reads, so the
 # published ports and the URLs printed below cannot drift apart.
 $env:PISHDAD_WEB_PORT = "$ApiPort"

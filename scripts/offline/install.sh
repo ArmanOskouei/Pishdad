@@ -53,7 +53,25 @@ if [ "$LOAD_ONLY" -eq 1 ]; then
   exit 0
 fi
 
-# --- 3. Bring the stacks up --------------------------------------------------
+# --- 3. Unpack vendor/ -------------------------------------------------------
+# It travels as a tarball rather than as loose files: composer's per-file unzip
+# over a bind mount is slow enough to time out on large packages, and extracting
+# one archive is far quicker than writing tens of thousands of files.
+VENDOR_TAR="$ROOT/offline/vendor.tar.gz"
+VENDOR_DIR="$ROOT/cms-core/backend/vendor"
+if [ -f "$VENDOR_TAR" ]; then
+  if [ -d "$VENDOR_DIR" ]; then
+    echo "vendor/ already present, leaving it alone."
+  else
+    echo "Unpacking vendor/ ..."
+    mkdir -p "$VENDOR_DIR"
+    tar -xzf "$VENDOR_TAR" -C "$VENDOR_DIR" || fail "failed to unpack offline/vendor.tar.gz"
+  fi
+else
+  fail "offline/vendor.tar.gz is missing - the backend would need composer install (network)."
+fi
+
+# --- 4. Bring the stacks up --------------------------------------------------
 # The ports are exported with the same names the offline compose reads, so the
 # published ports and the URLs printed below cannot drift apart.
 export PISHDAD_WEB_PORT="$API_PORT"
