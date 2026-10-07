@@ -98,10 +98,10 @@ class PluginPageRegistryTest extends TestCase
 
     public function test_path_outside_admin_is_rejected(): void
     {
-        // بدون این قاعده یک افزونه می‌توانست `/central/...` را ثبت کند و خودش
-        // را جای پنل مرکزی جا بزند.
+        // بدون این قاعده یک افزونه می‌توانست مسیری بیرون از `/admin/` را ثبت کند و
+        // خودش را جای بخش دیگری جا بزند.
         $this->plugin(['pages' => [
-            'bad' => ['path' => '/central/evil', 'title_fa' => 'بد'],
+            'bad' => ['path' => '/outside/evil', 'title_fa' => 'بد'],
             'bad2' => ['path' => 'admin/relative', 'title_fa' => 'نسبی'],
         ]]);
 
@@ -112,7 +112,7 @@ class PluginPageRegistryTest extends TestCase
     public function test_traversal_in_path_is_rejected(): void
     {
         $this->plugin(['pages' => [
-            'x' => ['path' => '/admin/../central/evil', 'title_fa' => 'Traversal'],
+            'x' => ['path' => '/admin/../outside/evil', 'title_fa' => 'Traversal'],
         ]]);
 
         $auth = $this->actingAs($this->manager(), 'sanctum');

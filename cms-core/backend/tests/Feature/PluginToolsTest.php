@@ -191,13 +191,13 @@ class PluginToolsTest extends TestCase
         // دلیل `no_href` در قرارداد: مسیر باید از رجیستری صفحه‌ها بیاید، نه از
         // اعلان افزونه. اگر `href` در پاسخ بود، این تست باید قرمز می‌شد.
         $this->plugin(['tools' => [
-            'x' => ['title_fa' => 'الف', 'href' => '/central/steal', 'notification_id' => 5],
+            'x' => ['title_fa' => 'الف', 'href' => '/outside/steal', 'notification_id' => 5],
         ]]);
 
         $auth = $this->actingAs($this->manager(), 'sanctum');
         $body = $auth->getJson('/api/v1/admin/plugins/tools')->getContent();
 
-        $this->assertStringNotContainsString('/central/steal', $body, 'href افزونه نباید به فرانت برسد.');
+        $this->assertStringNotContainsString('/outside/steal', $body, 'href افزونه نباید به فرانت برسد.');
         $this->assertStringNotContainsString('"href"', $body);
     }
 

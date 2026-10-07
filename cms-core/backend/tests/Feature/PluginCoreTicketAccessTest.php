@@ -16,11 +16,10 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * K7.13 — آیا افزونهٔ مرکزی می‌تواند `operatorReply` را بگیرد؟
+ * K7.13 — آیا یک افزونه می‌تواند `operatorReply` را بگیرد؟
  *
- * محصول تصمیم گرفت `operatorReply` به افزونه برود (سازگار با K7.9 که گفت
- * مرکز یک افزونهٔ معمولی است). این تست‌ها **پیش‌شرط‌های** آن تصمیم را می‌سنجند،
- * نه خودِ انتقال را — چون افزونهٔ مرکزی هنوز ساخته نشده.
+ * محصول تصمیم گرفت `operatorReply` به افزونه برود. این تست‌ها **پیش‌شرط‌های**
+ * آن تصمیم را می‌سنجند، نه خودِ انتقال را.
  *
  * ## چرا مهم است
  *
@@ -43,9 +42,9 @@ class PluginCoreTicketAccessTest extends TestCase
         // این تست فقط به «یک افزونهٔ فعال با namespace ثبت‌شده» نیاز دارد، نه به
         // مانیفست خودش — پس رکورد موجود دقیقاً همان چیزی است که لازم دارد.
         $p = Plugin::query()->firstOrCreate(
-            ['slug' => 'central'],
+            ['slug' => 'sample'],
             [
-                'name' => 'مرکز',
+                'name' => 'افزونه نمونه',
                 'version' => '1.0.0',
                 'manifest' => [],
                 'active' => true,
@@ -56,7 +55,7 @@ class PluginCoreTicketAccessTest extends TestCase
         // افزونه نمی‌تواند namespace دلخواهش را انتخاب کند.
         //
         // ⚠️ ریشه اینجا عمداً یک پوشهٔ **خالی** در temp است، نه
-        // `plugins/central/Laravel/src`. تست می‌خواهد ثابت کند بارگذار
+        // `plugins/sample/Laravel/src`. تست می‌خواهد ثابت کند بارگذار
         // namespace را ثبت می‌کند و کلاسِ `App\Models` هنوز در دسترس است —
         // پس به کدِ افزونه نیازی ندارد، و مسیرِ واقعی فقط آن را به تست
         // وابسته می‌کرد.
@@ -66,16 +65,16 @@ class PluginCoreTicketAccessTest extends TestCase
         // وقتی چیزی ثبت نشده.
         $loader = app(PluginAutoloader::class);
 
-        if (! $loader->isRegistered('central')) {
-            $root = sys_get_temp_dir().'/plugin-central';
+        if (! $loader->isRegistered('sample')) {
+            $root = sys_get_temp_dir().'/plugin-sample';
             if (! is_dir($root)) {
                 mkdir($root, 0o777, true);
             }
 
             $loader->register(
-                'central',
+                'sample',
                 $root,
-                PluginAutoloader::NAMESPACE_ROOT.Str::studly('central').'\\',
+                PluginAutoloader::NAMESPACE_ROOT.Str::studly('sample').'\\',
             );
         }
 
@@ -90,7 +89,7 @@ class PluginCoreTicketAccessTest extends TestCase
 
         $this->assertTrue(
             class_exists(Ticket::class),
-            'افزونهٔ مرکزی باید بتواند Ticket هسته را resolve کند.',
+            'افزونه باید بتواند Ticket هسته را resolve کند.',
         );
         $this->assertTrue(class_exists(TicketMessage::class));
         $this->assertTrue(class_exists(PluginNotification::class));
@@ -264,11 +263,9 @@ class PluginCoreTicketAccessTest extends TestCase
     }
 
     /**
-     * مرزِ باقی‌مانده بعد از رفتنِ بستهٔ مرکزی: نامِ خامِ جدولی که افزونه
+     * مرزِ باقی‌مانده: نامِ خامِ جدولی که افزونه
      * اعلام می‌کند **هیچ‌وقت** در دیتابیس نمی‌نشیند.
      *
-     * این مرز پیش‌تر با مدلِ بستهٔ مرکزی سنجیده می‌شد (کلیدِ سخت‌افزاری با
-     * پیشوندِ `central_`). آن مدل دیگر در مسیر نیست، ولی قاعده عوض نشده:
      * پیشوند از slug خودِ افزونه می‌آید، پس افزونه نه می‌تواند نامِ خامِ یک
      * جدولِ هسته را اعلام کند و نه با نامِ اعلامی به جای داده‌های هسته می‌نشیند.
      */

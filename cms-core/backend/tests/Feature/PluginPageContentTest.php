@@ -165,14 +165,14 @@ class PluginPageContentTest extends TestCase
 
     public function test_a_path_outside_admin_is_rejected(): void
     {
-        $codes = $this->codes(['x' => $this->goodPage(['path' => '/central/billing'])]);
+        $codes = $this->codes(['x' => $this->goodPage(['path' => '/outside/billing'])]);
 
         $this->assertContains('pages.path_not_allowed', $codes);
     }
 
     public function test_a_traversal_in_the_path_is_rejected(): void
     {
-        $codes = $this->codes(['x' => $this->goodPage(['path' => '/admin/../central'])]);
+        $codes = $this->codes(['x' => $this->goodPage(['path' => '/admin/../outside'])]);
 
         $this->assertContains('pages.path_not_allowed', $codes);
     }

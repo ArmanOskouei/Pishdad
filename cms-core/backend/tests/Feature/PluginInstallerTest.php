@@ -930,7 +930,7 @@ class PluginInstallerTest extends TestCase
         ];
 
         $local = '';
-        $central = '';
+        $directory = '';
         $offset = 0;
 
         foreach ($entries as [$name, $body]) {
@@ -946,7 +946,7 @@ class PluginInstallerTest extends TestCase
                 .pack('v', $nameLen).pack('v', 0)
                 .$name;
 
-            $central .= "PK\x01\x02"
+            $directory .= "PK\x01\x02"
                 .pack('v', 20).pack('v', 20)  // version made by / needed
                 .pack('v', 0).pack('v', 0)    // flags / method: store
                 .pack('v', 0).pack('v', 0x21)
@@ -966,10 +966,10 @@ class PluginInstallerTest extends TestCase
         $end = "PK\x05\x06"
             .pack('v', 0).pack('v', 0)
             .pack('v', count($entries)).pack('v', count($entries))
-            .pack('V', strlen($central)).pack('V', strlen($local))
+            .pack('V', strlen($directory)).pack('V', strlen($local))
             .pack('v', 0);
 
-        file_put_contents($path, $local.$central.$end);
+        file_put_contents($path, $local.$directory.$end);
 
         // نگهبانِ خودِ کمک‌کار: اگر `ZipArchive` این فایل را با تعدادِ ورودیِ
         // کمتر باز کند، رکوردِ تکراری از قلم افتاده و تستِ کنترلِ تکرار هرگز

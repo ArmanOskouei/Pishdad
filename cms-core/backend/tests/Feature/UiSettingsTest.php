@@ -97,7 +97,7 @@ class UiSettingsTest extends TestCase
     {
         Sanctum::actingAs($this->makeUser('bottom-nav-invalid@example.com'));
 
-        $this->putJson('/api/v1/ui-settings', ['bottom_nav' => ['/central/dashboard']])
+        $this->putJson('/api/v1/ui-settings', ['bottom_nav' => ['/outside/dashboard']])
             ->assertStatus(422)
             ->assertJsonValidationErrors('bottom_nav.0');
     }

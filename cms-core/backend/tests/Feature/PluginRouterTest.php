@@ -408,8 +408,8 @@ class PluginRouterTest extends TestCase
      * پرمیشنِ **خودِ همین افزونه** را می‌پذیرد، چون شکل نامی را
      * `ManifestRegistry::manifestPermissions()` می‌سازد.
      *
-     * `devmode.gate` و `central.operator` **در `bootstrap/app.php` ثبت شده‌اند**
-     * و باز هم رد می‌شوند: فهرستِ مجاز عمداً از «هر alias هسته» باریک‌تر است.
+     * `devmode.gate` در `bootstrap/app.php` ثبت شده
+     * و باز هم رد می‌شود: فهرستِ مجاز عمداً از «هر alias هسته» باریک‌تر است.
      * چیزی که هسته برای مسیرهای خودش لازم دارد، مجوز افزونه نیست.
      */
     public function test_only_core_owned_middleware_is_accepted(): void
@@ -443,19 +443,11 @@ class PluginRouterTest extends TestCase
         $this->plugin('bad8', [
             ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad8\\Http\\A@show', 'middleware' => ['devmode.gate']],
         ]);
-        // K7.8 — `central.operator` دیگر «مالکِ ناشناخته» نیست.
+        // aliasِ حذف‌شده: اگر نامِ قدیمی برگردد، همین تست می‌افتد.
         //
-        // پیش از K7.8 رد می‌شد و این تست همان را می‌سنجید. حالا در
-        // `MIDDLEWARE_ALIASES` است چون بستهٔ مرکزیِ واقعی به آن نیاز دارد.
-        //
-        // نکتهٔ امنیتی: این alias **دروازهٔ تازه‌ای باز نکرد**.
-        // `EnsureCentralOperator` خودش فقط `is_super_admin` یا نقش `operator`
-        // را می‌پذیرد و هیچ ورودیِ افزونه‌ای را نمی‌خواند — پس یک بستهٔ بازاری
-        // هم قبل و هم بعد می‌تواند بگوید «مرکزی» و تفاوتی در دسترسی نمی‌بیند.
-        // L-B12 — alias قدیمی دیگر وجود ندارد. نگهبانِ نقش حالا **عمومی** است
+        // نکتهٔ امنیتی: نگهبانِ نقش حالا **عمومی** است
         // (`role:<role>`) تا افزونهٔ بعدی بدون ویرایش هسته، routeهای خودش را
-        // محافظت کند — و تا هستهٔ منتشرشده نامِ افزونهٔ خصوصی را در خود نگه ندارد.
-        //
+        // محافظت کند.
         // همین‌جا چهار حالتِ مرزی قفل می‌شود؛ اگر کسی اعتبارسنجی را شل کند،
         // هر کدام یک راهِ دور زدن است.
         $this->plugin('bad9', [
@@ -475,7 +467,7 @@ class PluginRouterTest extends TestCase
         $this->plugin('bad9d', [
             // aliasِ قدیمی. حذف شد تا نامِ افزونهٔ خصوصی در build عمومی نباشد؛
             // اگر برگردد، همین تست می‌افتد.
-            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9d\\Http\\A@show', 'middleware' => ['central.operator']],
+            ['method' => 'get', 'path' => 'a', 'handler' => 'Pishdad\\Plugins\\Bad9d\\Http\\A@show', 'middleware' => ['retired.operator']],
         ]);
         // یک میدلور خراب کل routeهای آن افزونه را می‌برد، نه فقط خودش را.
         $this->plugin('bad10', [

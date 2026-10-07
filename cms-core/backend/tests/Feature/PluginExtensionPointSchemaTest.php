@@ -133,7 +133,7 @@ class PluginExtensionPointSchemaTest extends TestCase
         $this->assertSame(
             ['admin.plugin_tools.bad_field'],
             $this->codes('admin.plugin_tools', [
-                'key' => 'sync', 'title_fa' => 'همگام‌سازی', 'href' => '/central/steal',
+                'key' => 'sync', 'title_fa' => 'همگام‌سازی', 'href' => '/outside/steal',
             ])
         );
     }

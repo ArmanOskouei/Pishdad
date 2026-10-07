@@ -197,20 +197,19 @@ class PluginDbContractTest extends TestCase
     }
 
     /**
-     * جدول‌های مرکزی با قاعدهٔ پیشوند رد می‌شوند، نه با فهرست.
+     * نامِ ازپیش‌پیشونددار با قاعدهٔ پیشوند رد می‌شود، نه با فهرست.
      *
-     * اگر روزی کسی فهرست را به اسم تک‌تک جدول‌ها برگرداند، این تست قرمز می‌شود:
-     * جدول مرکزیِ تازه‌ای که یادش نرفت دیگر سوراخ امنیتی خاموش باز نمی‌کند.
+     * اگر روزی کسی این قاعده را به «فهرستِ نام‌های ممنوع» برگرداند، هر نامی که
+     * یادش برود سوراخِ بی‌صدا باز می‌کند. این تست همان قاعدهٔ مکانیکی را از
+     * زاویهٔ نامِ هسته می‌سنجد: `demo_users` حتی اگر `users` در فهرست نبود، باز
+     * هم باید رد شود.
      */
-    public function test_central_tables_are_rejected_by_prefix_not_by_list(): void
+    public function test_prefixed_core_looking_names_are_rejected_by_prefix_mechanics(): void
     {
-        $this->assertSame('central_', PluginDbContract::CENTRAL_PREFIX);
-
-        // نامی که در هیچ فهرستی نیست ولی پیشوند مرکزی دارد.
         $this->assertSame(
-            ['db.table_collides_core'],
-            $this->codes($this->goodDb([['name' => 'central_anything_at_all']])),
-            'هر نامی با پیشوند مرکزی باید رد شود، حتی اگر تازه باشد.'
+            ['db.table_already_prefixed'],
+            $this->codes($this->goodDb([['name' => 'demo_users']])),
+            'نامِ ازپیش‌پیشونددار باید با قاعدهٔ پیشوند رد شود، حتی اگر نامِ هسته باشد.'
         );
     }
 
@@ -249,7 +248,7 @@ class PluginDbContractTest extends TestCase
      *
      * توجه: برخی جدول‌های اپ ممکن است در اسکیمای تست نباشند. برای همین تست
      * وجودِ هر جدولِ فهرست را **در دیتابیس** می‌سنجد، و برعکسِ آن را می‌پرسد که
-     * آیا جدولی در دیتابیس هست که نه در فهرست باشد و نه `central_` یا `pishdad_`.
+     * آیا جدولی در دیتابیس هست که نه در فهرست باشد و نه `pishdad_`.
      */
     public function test_the_deny_list_matches_the_real_schema(): void
     {
@@ -264,7 +263,6 @@ class PluginDbContractTest extends TestCase
         $uncovered = array_values(array_filter(
             $tables,
             static fn (string $t) => ! str_starts_with($t, 'pishdad_')
-                && ! str_starts_with($t, PluginDbContract::CENTRAL_PREFIX)
                 && ! in_array($t, PluginDbContract::CORE_TABLES, true)
         ));
 
