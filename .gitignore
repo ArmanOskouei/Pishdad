@@ -50,3 +50,4 @@ dist-public/
 cms-core/frontend/.local-serve.err
 cms-core/frontend/.local-serve.out
 cms-core/backend/storage/install/
+dist-offline/

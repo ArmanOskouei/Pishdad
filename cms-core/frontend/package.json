@@ -9,7 +9,6 @@
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.test.ts\"",
-    "check:client-build": "node scripts/check-client-only-build.mjs",
     "gen:types": "node scripts/gen-types.mjs",
     "gen:plugin-contract": "node scripts/gen-plugin-contract.mjs",
     "gen:plugin-contract:check": "node scripts/gen-plugin-contract.mjs --check"

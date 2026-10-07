@@ -1,66 +1,55 @@
 name: cms-core-frontend
 
-# اجرای dev: docker compose up (پورت هاست 3100 → کانتینر 3000، با volume mount)
-# تصمیم: compose جدا — ساده‌ترین راه قابل اجرا. به شبکه بک‌اند وصل نمی‌شود
-# چون ارتباط فقط HTTP از مرورگر/کانتینر به http://localhost:8080 است.
-# روی ویندوز host.docker.internal به هاست می‌رسد؛ روی لینوکس در صورت نیاز
-# extra_hosts را فعال کنید (خط کامنت زیر).
+# API host: the backend compose publishes the API on 8080 of the host.
+# `NEXT_PUBLIC_API_URL` is baked into the client bundle at BUILD time, so it is a
+# build arg here, not an environment value. `INTERNAL_API_URL` is read at run
+# time by server components and must reach the backend from inside the frontend
+# container — the host gateway, not localhost.
 services:
+  # Production image: built from ./, served by `node server.js`.
   web-front:
-    build: .
+    build:
+      context: .
+      args:
+        # Override when the API is published somewhere other than 8080:
+        #   docker compose build --build-arg NEXT_PUBLIC_API_URL=http://localhost:8090/api
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api}
+        NEXT_PUBLIC_SITE_ID: ${NEXT_PUBLIC_SITE_ID:-}
+    image: cms-core-frontend:latest
     container_name: cms-web-front
     restart: unless-stopped
     ports:
-      - "3100:3000"
+      - "${FRONTEND_PORT:-3100}:3000"
+    environment:
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://host.docker.internal:8080/api}
+    extra_hosts:
+      # Without this, `host.docker.internal` does not resolve on Linux and every
+      # server-side fetch fails while the container still looks healthy.
+      - "host.docker.internal:host-gateway"
+
+  # Development server with hot reload. Opt in explicitly:
+  #   docker compose --profile dev up web-front-dev
+  #
+  # It bind-mounts the source and overrides the node_modules/.next paths with
+  # anonymous volumes so the container's own install is not shadowed by the
+  # host's (a missing host node_modules would otherwise blank the app out).
+  web-front-dev:
+    build:
+      context: .
+      target: deps
+    container_name: cms-web-front-dev
+    profiles: ["dev"]
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_DEV_PORT:-3100}:3100"
     volumes:
       - ./:/app
       - /app/node_modules
       - /app/.next
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080/api
-      INTERNAL_API_URL: http://host.docker.internal:8080/api
-      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api}
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://host.docker.internal:8080/api}
+      PORT: 3100
     command: npm run dev
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
-
-  # J3 — بیلد مشتری بدون `(central)`: docker compose --profile client up web-front-client
-  # J3 — «فقط مشتری» یعنی بدون پوشهٔ `(central)` در **لایهٔ ایمیج**:
-  # `docker compose --profile client up web-front-client` (پورت ۳۱۰۱).
-  #
-  # `target: client` یعنی مرحله‌ای که `COPY --exclude='src/app/(central)'` دارد. یعنی
-  # ۲۱۴۷ خط TSXِ مرکزی نه فقط از باندل، که از روی دیسکِ مشتری هم بیرون است.
-  #
-  # ⚠️ پرچمِ runtime جدا از build-arg است و عمداً: اگر کسی `target` را عوض کند،
-  # پاسخِ `/central` باز هم توضیح می‌دهد «عمداً نیست» به‌جای یک ۴۰۴ِ مبهم.
-  web-front-client:
-    build:
-      context: .
-      target: client
-    container_name: cms-web-front-client
-    restart: unless-stopped
-    profiles: ["client"]
-    ports:
-      - "3101:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080/api
-      INTERNAL_API_URL: http://host.docker.internal:8080/api
-      PORT: 3000
-      CMS_CLIENT_ONLY_BUILD: "1"
-
-  # J3 — بیلدِ مرکزی (با پنل): `docker compose --profile central up web-front-central`
-  # (پورت ۳۱۰۲).
-  web-front-central:
-    build:
-      context: .
-      target: central
-    container_name: cms-web-front-central
-    restart: unless-stopped
-    profiles: ["central"]
-    ports:
-      - "3102:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080/api
-      INTERNAL_API_URL: http://host.docker.internal:8080/api
-      PORT: 3000
-      CMS_CLIENT_ONLY_BUILD: "0"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
