@@ -82,9 +82,9 @@ export function serverPublicConfig(): PublicConfig {
 }
 
 /** همان مقدارها به‌صورت یک اسنیپتِ JSON برای تزریق در HTML. */
-export function publicConfigScript(): string {
+export function publicConfigScript(config: PublicConfig = serverPublicConfig()): string {
   // `<` به `\u003c` تبدیل می‌شود تا مقدار نتواند تگِ `</script>` را ببندد.
-  const json = JSON.stringify(serverPublicConfig()).replace(/</g, "\\u003c");
+  const json = JSON.stringify(config).replace(/</g, "\\u003c");
 
   return `window.${PUBLIC_CONFIG_KEY}=${json};`;
 }

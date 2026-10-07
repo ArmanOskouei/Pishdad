@@ -1,6 +1,6 @@
 /** تایپ‌های دامنه F2 — شکل واقعی پاسخ‌های بک‌اند (OpenAPI 1.7.0 + کنترلرها). */
 
-import { publicConfig } from "./runtime-config";
+import { publicConfig } from "./runtime-config.ts";
 
 export type Paginator<T> = {
   data: T[];

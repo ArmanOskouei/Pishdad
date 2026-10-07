@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { REVALIDATE_LEEWAY, isAllowedLocalTag } from "@/lib/revalidate";
+import { effectiveValue } from "@/lib/site-config";
 
 /**
  * Next 16 changed the signature: `revalidateTag(tag)` is gone and the second
@@ -26,7 +27,7 @@ const EXPIRE_NOW = { expire: 0 };
  * allowlistشده را باطل کند — برای دکمه «فعال‌سازی قالب» در پنل.
  */
 
-const SECRET = process.env.REVALIDATE_SECRET ?? "";
+const SECRET = effectiveValue("REVALIDATE_SECRET", process.env.REVALIDATE_SECRET);
 // L-B8/F0.7 — سیاستِ allowlist در `lib/revalidate.ts` است (آزمون‌پذیر).
 const LEEWAY = REVALIDATE_LEEWAY;
 

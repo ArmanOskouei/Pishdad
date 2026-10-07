@@ -31,7 +31,7 @@ const MANAGED = [
   "CMS_TEST_BLANK",
 ];
 
-let saved = {};
+let saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
   saved = {};

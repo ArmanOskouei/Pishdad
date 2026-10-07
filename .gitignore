@@ -51,3 +51,8 @@ cms-core/frontend/.local-serve.err
 cms-core/frontend/.local-serve.out
 cms-core/backend/storage/install/
 dist-offline/
+
+# E43 — پیکربندیِ نصبِ فرانت. نصب‌کنندهٔ وب این را می‌نویسد و رازِ revalidate
+# داخلش است، پس هرگز نباید commit شود.
+cms-core/frontend/config/runtime.json
+cms-core/frontend/.setup-probe/

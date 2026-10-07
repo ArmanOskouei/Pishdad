@@ -19,7 +19,7 @@
  */
 
 import { API_BASE } from './api';
-import { publicConfig } from './runtime-config';
+import { publicConfig } from './runtime-config.ts';
 
 const OPT_OUT_KEY = 'pishdad:push-opted-out';
 

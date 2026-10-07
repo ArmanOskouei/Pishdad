@@ -11,7 +11,7 @@ import {
   SITE_LOCALES_HEADER,
   SITE_PRIMARY_LOCALE_HEADER,
 } from "@/lib/public-routing";
-import { RUNTIME_VARS, runtimeValue } from "./lib/runtime-config";
+import { effectiveValue } from "./lib/site-config.ts";
 
 /**
  * محافظت روت‌های پنل (F1) — سخت‌شده در K6.6.
@@ -24,6 +24,13 @@ import { RUNTIME_VARS, runtimeValue } from "./lib/runtime-config";
  * راستی‌آزمایی می‌کند. این لایه فقط دروازهٔ اولیهٔ پوستهٔ پنل است.
  */
 export async function proxy(req: NextRequest, event: NextFetchEvent) {
+  // ⚠️ مسیرهای سیستمی **پیش از هر چیز** کنار می‌روند.
+  //
+  // `/setup` نباید به زبان بازنویسی شود: اگر بشود، به `/{locale}/setup` می‌رود و
+  // روتِ واقعیِ `app/setup` هرگز اجرا نمی‌شود ⇒ نصب‌کننده ۴۰۴ می‌شد. همچنین
+  // نباید قاعدهٔ ریدایرکتِ سایت (که ممکن است روی همان مسیر باشد) آن را بدزدد.
+  if (SYSTEM_PATHS.has(firstSegment(req.nextUrl.pathname))) return NextResponse.next();
+
   // WF-C2 — ریدایرکت‌های سایت پیش از هر چیز (پیش از بازنویسیِ زبان).
   //
   // مسیرِ ورودی باید **پیش از** `siteLocale` تطبیق داده شود، وگرنه مسیرِ
@@ -73,7 +80,7 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
  * نادیده گرفته می‌شود (fail-closed).
  */
 function panelRoots(): Set<string> {
-  const raw = runtimeValue("CMS_PANEL_ROOTS", process.env.NEXT_PUBLIC_PANEL_ROOTS);
+  const raw = effectiveValue("CMS_PANEL_ROOTS", process.env.NEXT_PUBLIC_PANEL_ROOTS);
   const extra = raw
     .split(",")
     .map((s) => s.trim().replace(/^\/+|\/+$/g, ""))
@@ -84,6 +91,14 @@ function panelRoots(): Set<string> {
 function firstSegment(pathname: string): string {
   return pathname.split("/").filter(Boolean)[0] ?? "";
 }
+
+/**
+ * مسیرهایی که به هیچ زبانی تعلّق ندارند و باید دست‌نخورده به روتِ خودشان برسند.
+ *
+ * `setup` تنها عضوش است: نصب‌کنندهٔ وبِ فرانت. بقیهٔ مسیرهای غیرِسایتی
+ * (`/api`, `/_next`, `/robots.txt`, …) را خودِ `isPublicSitePath` کنار می‌گذارد.
+ */
+const SYSTEM_PATHS = new Set(["setup"]);
 
 /* ── WF-C2 — ریدایرکت‌های سایت (۳۰۱/۳۰۲) ─────────────────────────────────
  * فهرستِ فعال از بک‌اند با TTL کوتاه کش می‌شود تا هر درخواست یک fetch نگیرد.
@@ -98,9 +113,9 @@ let redirectInflight: Promise<RedirectRule[]> | null = null;
 function apiBase(): string {
   // ترتیب: مقدارِ زندهٔ عمومی → مقدارِ زندهٔ داخلی → مقدارِ زمانِ بیلد → پیش‌فرض.
   return (
-    runtimeValue(RUNTIME_VARS.apiUrl, "") ||
-    runtimeValue("INTERNAL_API_URL", "") ||
-    runtimeValue("CMS_INTERNAL_API_URL", "") ||
+    effectiveValue("CMS_PUBLIC_API_URL", "") ||
+    effectiveValue("INTERNAL_API_URL", "") ||
+    effectiveValue("CMS_INTERNAL_API_URL", "") ||
     (process.env.NEXT_PUBLIC_API_URL ?? "").trim() ||
     "http://localhost:8080/api"
   ).replace(/\/+$/, "");
@@ -198,9 +213,9 @@ function siteLocale(req: NextRequest): NextResponse {
   const pathname = req.nextUrl.pathname;
   if (!isPublicSitePath(pathname)) return NextResponse.next();
 
-  const locales = parseLocalesHeader(runtimeValue("CMS_SITE_LOCALES", process.env.NEXT_PUBLIC_SITE_LOCALES));
+  const locales = parseLocalesHeader(effectiveValue("CMS_SITE_LOCALES", process.env.NEXT_PUBLIC_SITE_LOCALES));
   const primary =
-    parseLocalesHeader(runtimeValue("CMS_SITE_PRIMARY_LOCALE", process.env.NEXT_PUBLIC_SITE_PRIMARY_LOCALE))[0] ??
+    parseLocalesHeader(effectiveValue("CMS_SITE_PRIMARY_LOCALE", process.env.NEXT_PUBLIC_SITE_PRIMARY_LOCALE))[0] ??
     DEFAULT_PUBLIC_LOCALE;
   const effective = locales.length > 0 ? locales : [primary];
   const decision = resolveLocaleRoute(pathname, effective, primary);

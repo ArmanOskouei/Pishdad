@@ -1,27 +1,35 @@
 name: cms-core-frontend
 
 # API host: the backend compose publishes the API on 8080 of the host.
-# `NEXT_PUBLIC_API_URL` is baked into the client bundle at BUILD time, so it is a
-# build arg here, not an environment value. `INTERNAL_API_URL` is read at run
-# time by server components and must reach the backend from inside the frontend
-# container — the host gateway, not localhost.
+#
+# ⚠️ `NEXT_PUBLIC_API_URL` دیگر **لازم نیست**: مقدارهای عمومی در زمانِ اجرا به
+# HTML تزریق می‌شوند (`src/lib/runtime-config.ts`)، پس همان ایمیجِ بیلدشده روی
+# هر سروری با هر نشانیِ API کار می‌کند. نصب‌کنندهٔ وب (`/setup`) تنظیمات را در
+# `config/runtime.json` می‌نویسد و بی‌درنگ اعمال می‌شود.
+#
+# `--build-arg NEXT_PUBLIC_API_URL` فقط به‌عنوان **fallbackِ زمانِ بیلد** مانده —
+# اگر بخواهید نصب از ابتدا پر باشد، بدهید؛ وگرنه خالی بگذارید و از `/setup` نصب کنید.
 services:
   # Production image: built from ./, served by `node server.js`.
   web-front:
     build:
       context: .
       args:
-        # Override when the API is published somewhere other than 8080:
-        #   docker compose build --build-arg NEXT_PUBLIC_API_URL=http://localhost:8090/api
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
         NEXT_PUBLIC_SITE_ID: ${NEXT_PUBLIC_SITE_ID:-}
     image: cms-core-frontend:latest
     container_name: cms-web-front
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3100}:3000"
+    volumes:
+      # پیکربندیِ نصب. نصب‌کنندهٔ وب اینجا می‌نویسد و میدل‌ور و رندر همان لحظه
+      # می‌خوانند — بدونِ توقفِ کانتینر و بدونِ بازسازی.
+      # ⚠️ روی دیسکِ میزبان می‌ماند تا با هر `up` تازه باقی بماند.
+      - ${CMS_CONFIG_DIR:-./config}:/app/config
     environment:
       INTERNAL_API_URL: ${INTERNAL_API_URL:-http://host.docker.internal:8080/api}
+      CMS_CONFIG_FILE: /app/config/runtime.json
     extra_hosts:
       # Without this, `host.docker.internal` does not resolve on Linux and every
       # server-side fetch fails while the container still looks healthy.

@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { runtimeValue } from "./runtime-config";
+import { effectiveValue } from "./site-config.ts";
 
 /**
  * فراخوانی سمت سرور به بک‌اند (برای Server Components لیست‌ها).
@@ -7,8 +7,8 @@ import { runtimeValue } from "./runtime-config";
  * خروجی خام برمی‌گردد تا هر صفحه با asPaginator/asList نرمال کند.
  */
 const UPSTREAM =
-  runtimeValue("INTERNAL_API_URL", "") ||
-  runtimeValue("CMS_PUBLIC_API_URL", "") ||
+  effectiveValue("INTERNAL_API_URL", "") ||
+  effectiveValue("CMS_PUBLIC_API_URL", "") ||
   (process.env.NEXT_PUBLIC_API_URL ?? "").trim() ||
   "http://localhost:8080/api";
 
