@@ -5,6 +5,12 @@
 @section('content')
 <h2>{{ __('install.database.heading') }}</h2>
 
+{{-- E51 — داخلِ کانتینر، `127.0.0.1` یعنی خودِ کانتینر، نه دیتابیس. این راهنما
+     فقط وقتی دیده می‌شود که پیش‌فرض‌های داکری اعمال شده باشند. --}}
+@if (file_exists('/.dockerenv'))
+  <div class="notice" role="note">{{ __('install.database.docker_notice') }}</div>
+@endif
+
 @if (! empty($formError ?? null))
   <div class="err" role="alert">{{ $formError }}</div>
 @endif

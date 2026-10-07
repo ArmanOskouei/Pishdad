@@ -245,6 +245,10 @@ class InstallTest extends TestCase
      *
      * تست، محیطِ آزمون را که `DB_DATABASE=cms_test` دارد به‌عنوان همان
      * «محیطی با مقدارِ .env» استفاده می‌کند.
+     *
+     * E51 — ولی داخلِ کانتینرِ داکر پیش‌فرض‌ها داکری‌اند (`db`/`cms`)، چون
+     * `127.0.0.1` آنجا یعنی خودِ کانتینر. پس انتظار بر اساسِ `/.dockerenv`
+     * شاخه‌بندی می‌شود تا در هر دو محیط سبز بماند.
      */
     public function test_the_database_form_defaults_to_pishdad_not_the_env_value(): void
     {
@@ -252,29 +256,36 @@ class InstallTest extends TestCase
 
         $html = $this->get('/install/database')->assertOk()->getContent();
 
+        // E51: داخلِ کانتینر پیش‌فرضِ داکری، بیرون پیش‌فرضِ ساده.
+        $expected = file_exists('/.dockerenv') ? 'cms' : 'Pishdad';
+
         foreach (['database', 'username'] as $field) {
             $this->assertMatchesRegularExpression(
-                '/id="db-'.$field.'"[^>]*value="Pishdad"/',
+                '/id="db-'.$field.'"[^>]*value="'.$expected.'"/',
                 $html,
-                "فیلد «{$field}» باید پیش‌فرضِ Pishdad داشته باشد، نه مقدارِ .env.",
+                "فیلد «{$field}» باید پیش‌فرضِ {$expected} داشته باشد، نه مقدارِ .env.",
             );
         }
 
         // مقدارِ `.env` محیطِ آزمون نباید در فرم دیده شود.
         $this->assertStringNotContainsString('cms_test', $html);
-        $this->assertDoesNotMatchRegularExpression('/id="db-username"[^>]*value="cms"/', $html);
+        if ($expected !== 'cms') {
+            $this->assertDoesNotMatchRegularExpression('/id="db-username"[^>]*value="cms"/', $html);
+        }
     }
 
-    /** ورودی‌های پنلِ زندهٔ راهنما هم باید همان پیش‌فرض را نشان دهند. */
+    /** ورودی‌های پنلِ زندهٔ راهنما هم باید همان پیش‌فرض را نشان دهند (E51: داکرآگاه). */
     public function test_the_live_guide_inputs_mirror_the_pishdad_default(): void
     {
         $this->markPriorSteps('preflight');
 
         $html = $this->get('/install/database')->assertOk()->getContent();
 
+        $expected = file_exists('/.dockerenv') ? 'cms' : 'Pishdad';
+
         foreach (['g-database', 'g-username'] as $field) {
             $this->assertMatchesRegularExpression(
-                '/id="'.$field.'"[^>]*value="Pishdad"/',
+                '/id="'.$field.'"[^>]*value="'.$expected.'"/',
                 $html,
                 "ورودیِ «{$field}» باید هم‌خوانِ فرم باشد.",
             );

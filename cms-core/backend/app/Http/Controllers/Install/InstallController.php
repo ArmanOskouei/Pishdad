@@ -217,6 +217,18 @@ class InstallController extends Controller
      * نام دیتابیس و کاربر هر دو `Pishdad` هستند تا کاربر لازم نباشد چیزی حدس
      * بزند؛ اگر ژورنال مقدارِ واقعی داشته باشد، همان برنده است.
      *
+     * E51 — ولی پیش‌فرضِ هاستِ `127.0.0.1` داخلِ کانتینر یعنی «خودِ کانتینر» و
+     * اتصال همیشه refused می‌شد (دومین برخوردِ کاربر: فرم با `127.0.0.1` و
+     * `Pishdad` پر می‌آمد در حالی که دیتابیسِ داکر `db`/`cms` بود). `/.dockerenv`
+     * فقط داخلِ کانتینرِ داکر هست، پس این تشخیص امن است و روی نصبِ ساده هیچ
+     * اثری ندارد. مقادیرِ داکری همان پیش‌فرض‌های `docker-compose.yml` هستند
+     * (`db`/`cms`/`cms`/`cmssecret`)؛ اگر کاربر `POSTGRES_*` را عوض کرده باشد،
+     * پروبِ واقعی خطا می‌دهد و خودش تایپ می‌کند.
+     *
+     * عمداً `clear_env = no` نمی‌گذاریم: نصب‌کننده هر پنج کلیدِ `DB_*` را در
+     * `.env` می‌نویسد، در حالی که کامپوز چهارتایشان را در محیطِ پروسه هم دارد —
+     * پس محیطِ پروسه انتخابِ کاربر در فرم را خنثی می‌کرد (همان درسِ E63، بدتر).
+     *
      * رمز **در هر بارگذاریِ صفحه** تازه ساخته می‌شود و روی خودِ صفحه هم نمایش
      * داده می‌شود، پس «راز» نیست — ولی همین باعث می‌شود کاربر مجبور نباشد یک
      * رمزِ خوب از خودش دربیاورد و همان را در فرمان‌های SQL هم کپی کند.
@@ -225,12 +237,14 @@ class InstallController extends Controller
      */
     private function withDatabaseDefaults(array $config): array
     {
+        $inContainer = file_exists('/.dockerenv');
+
         return [
-            'host' => ($config['host'] ?? '') !== '' ? (string) $config['host'] : '127.0.0.1',
+            'host' => ($config['host'] ?? '') !== '' ? (string) $config['host'] : ($inContainer ? 'db' : '127.0.0.1'),
             'port' => ($config['port'] ?? '') !== '' ? (string) $config['port'] : '5432',
-            'database' => ($config['database'] ?? '') !== '' ? (string) $config['database'] : 'Pishdad',
-            'username' => ($config['username'] ?? '') !== '' ? (string) $config['username'] : 'Pishdad',
-            'password' => ($config['password'] ?? '') !== '' ? (string) $config['password'] : self::suggestedPassword(),
+            'database' => ($config['database'] ?? '') !== '' ? (string) $config['database'] : ($inContainer ? 'cms' : 'Pishdad'),
+            'username' => ($config['username'] ?? '') !== '' ? (string) $config['username'] : ($inContainer ? 'cms' : 'Pishdad'),
+            'password' => ($config['password'] ?? '') !== '' ? (string) $config['password'] : ($inContainer ? 'cmssecret' : self::suggestedPassword()),
         ];
     }
 

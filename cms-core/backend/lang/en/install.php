@@ -258,6 +258,7 @@ return [
         'password' => 'Password',
         'submit' => 'Test connection & continue',
         'hint' => 'A real connection and a real CREATE COLLATION privilege are probed; the password is never sent back.',
+        'docker_notice' => 'The installer seems to run inside Docker: the host default is db and the database/user default is cms (the docker-compose defaults). If you changed POSTGRES_*, type those instead.',
     ],
     'guides' => [
         'title' => 'How to create the database — step by step for your system',

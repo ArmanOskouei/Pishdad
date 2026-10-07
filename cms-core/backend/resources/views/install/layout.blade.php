@@ -56,6 +56,7 @@
   .btn:disabled{ background:#9ca3af; cursor:not-allowed; }
   .err { background:#fee2e2; border:1px solid #fecaca; color:var(--fail); border-radius:8px; padding:10px 12px; font-size:14px; margin:12px 0; }
   .okmsg { background:#dcfce7; border:1px solid #bbf7d0; color:var(--ok); border-radius:8px; padding:10px 12px; font-size:14px; margin:12px 0; }
+  .notice { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px; padding:10px 12px; font-size:14px; margin:12px 0; line-height:1.9; }
   .hint { color:var(--muted); font-size:13px; margin-top:8px; }
   .actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 </style>
