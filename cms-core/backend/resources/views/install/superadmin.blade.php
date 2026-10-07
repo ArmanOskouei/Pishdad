@@ -21,6 +21,13 @@
   <label class="f" for="sa-email">{{ __('install.superadmin.email') }}</label>
   <input class="f" dir="ltr" id="sa-email" name="email" type="email" required maxlength="255" value="{{ $old['email'] ?? '' }}">
 
+  {{-- E57 — سروری که همین حالا در آن هستید فقط بک‌اند است، پس نشانیِ سایتِ
+       فرانت را کاربر می‌دهد. همین مقدار است که لینک‌های صفحهٔ پایانی را
+       درست می‌کند («ورود به سایت» و «ورود به پنل»). --}}
+  <label class="f" for="sa-frontend">{{ __('install.superadmin.frontend_url') }}</label>
+  <input class="f" dir="ltr" id="sa-frontend" name="frontend_url" type="url" maxlength="255" placeholder="https://example.com" value="{{ $old['frontend_url'] ?? ($frontendUrl ?? '') }}">
+  <p class="hint">{{ __('install.superadmin.frontend_url_hint') }}</p>
+
   <label class="f" for="sa-password">{{ __('install.superadmin.password') }}</label>
   <input class="f" dir="ltr" id="sa-password" name="password" type="password" required minlength="8" autocomplete="new-password" value="">
 

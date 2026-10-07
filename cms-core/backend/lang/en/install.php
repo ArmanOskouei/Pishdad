@@ -456,6 +456,8 @@ return [
         'submit' => 'Run migrations & continue',
     ],
     'superadmin' => [
+        'frontend_url' => 'Frontend site address',
+        'frontend_url_hint' => 'This server only runs the backend. Enter the address users will visit, so the final page can build correct open-site and open-panel links. e.g. https://example.com',
         'title' => 'Step 5 — Superadmin',
         'heading' => 'Step 5 — Superadmin account',
         'intro' => 'The site’s top admin account. There is no hidden or undeletable account; every admin is a normal account whose access comes from role/permission. Any admin can enable two-factor from their own profile.',
@@ -475,6 +477,11 @@ return [
         'submit' => 'Finish installation',
     ],
     'done' => [
+        'admin_pass_shown' => 'Admin password - save it somewhere safe now:',
+        'admin_pass_once' => 'This password is shown once and disappears on refresh. Change it from your profile whenever you like.',
+        'frontend_title' => 'Frontend installation (the public site)',
+        'frontend_lead' => 'Put these values in the frontend:',
+        'frontend_setup_hint' => 'Easiest: open :url and enter only the backend address - the installer does the rest.',
         'title' => 'Installation complete',
         'heading' => 'Installation complete ✓',
         'locked' => 'Install lock written; install routes are no longer available.',

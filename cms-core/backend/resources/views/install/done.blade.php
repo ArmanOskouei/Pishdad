@@ -47,7 +47,22 @@
   <table class="checks">
     <tr><th>{{ __('install.done.f_email') }}</th><td dir="ltr">{{ $email !== '' ? $email : '—' }}</td></tr>
   </table>
-  <p class="hint">{{ __('install.done.admin_pass_note') }}</p>
+
+  {{-- E56 — رمز فقط یک بار اینجا نشان داده می‌شود: `done()` بعد از رندر پاکش
+       می‌کند، پس با رفرش دیگر دیده نمی‌شود. --}}
+  @if (($adminPassword ?? '') !== '')
+    <p class="hint">{{ __('install.done.admin_pass_shown') }}</p>
+    <p><code dir="ltr" style="display:inline-block;font-size:15px;padding:5px 12px;border-radius:8px;background:#0f172a;color:#e2e8f0;">{{ $adminPassword }}</code></p>
+    <p class="hint">{{ __('install.done.admin_pass_once') }}</p>
+  @else
+    <p class="hint">{{ __('install.done.admin_pass_note') }}</p>
+  @endif
+
+  {{-- E56 — اطلاعاتِ نصبِ فرانت، آمادهٔ کپی تا کاربر دنبالشان نگردد. --}}
+  <h4>{{ __('install.done.frontend_title') }}</h4>
+  <p class="hint">{{ __('install.done.frontend_lead') }}</p>
+  <pre dir="ltr" style="overflow-x:auto;background:#0f172a;color:#e2e8f0;padding:12px;border-radius:10px;font-size:12px;line-height:1.9;">{{ 'CMS_PUBLIC_API_URL=' . ($apiUrl ?? '') . "\n" . 'CMS_INTERNAL_API_URL=' . ($apiUrl ?? '') . "\n" . 'CMS_SITE_URL=' . $frontend . "\n" . 'CMS_SITE_LOCALES=fa' . "\n" . 'CMS_SITE_PRIMARY_LOCALE=fa' . "\n" . 'REVALIDATE_SECRET=' . ($revalidateSecret ?? '') }}</pre>
+  <p class="hint">{{ __('install.done.frontend_setup_hint', ['url' => $frontend.'/setup']) }}</p>
 
   <div class="recap-links">
     <a class="btn" href="{{ $panel }}" target="_blank" rel="noopener">{{ __('install.done.panel') }}</a>

@@ -619,6 +619,9 @@ class InstallController extends Controller
 
         return view('install.superadmin', [
             'token' => InstallJournal::token(),
+            // E57 — پیشفرضِ نشانیِ سایت: همان مقداری که `siteUrl()` میدهد
+            // (فرم → محیط → پیشفرض)، تا کاربر فقط تأییدش کند.
+            'frontendUrl' => self::siteUrl(),
             'step' => 'superadmin',
             'formError' => null,
             'old' => [],
@@ -635,6 +638,10 @@ class InstallController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+            // E57 — سروری که اینجا اجرا می‌شود فقط بک‌اند است، پس نشانیِ سایتِ
+            // فرانت را باید کاربر بدهد. اختیاری است تا نصبِ فقط-بک‌اند نشکند؛
+            // اگر خالی بماند `siteUrl()` به `FRONTEND_URL` و بعد پیش‌فرض می‌افتد.
+            'frontend_url' => ['nullable', 'url', 'max:255'],
         ], [
             'email.unique' => __('install.validation.email_unique'),
             'password.min' => __('install.validation.password_min'),
@@ -653,7 +660,20 @@ class InstallController extends Controller
         $validated = $validator->validated();
 
         $user = self::createFirstAdmin($validated['name'], $validated['email'], $validated['password']);
-        InstallJournal::put('superadmin', ['email' => $user->email, 'id' => $user->id]);
+
+        InstallJournal::put('superadmin', [
+            'email' => $user->email,
+            'id' => $user->id,
+            // E57 — نشانیِ سایتِ فرانت، تا صفحهٔ پایانی و صفحهٔ ریشه لینک‌های
+            // درست بسازند.
+            'frontend_url' => rtrim((string) ($validated['frontend_url'] ?? ''), '/'),
+        ]);
+
+        // E56 — رمزِ خام فقط تا لحظهٔ نمایش در صفحهٔ پایانی نگه داشته می‌شود و
+        // همان‌جا پاک می‌شود (نگاه کنید به `done()`). پیش از این هرگز ذخیره
+        // نمی‌شد و کاربر باید خودش یادش می‌ماند.
+        InstallJournal::put('superadmin_password', ['value' => $validated['password']]);
+
         InstallJournal::markStepDone('superadmin');
 
         // E30 — محتوای ازپیش‌ساختهٔ سایت (صفحه‌ها + تصویرها) همین حالا ساخته
@@ -704,6 +724,31 @@ class InstallController extends Controller
         return redirect()->route('install.done');
     }
 
+    /**
+     * نشانیِ عمومیِ سایتِ فرانت — **یک** منبعِ حقیقت برای صفحهٔ پایانی و صفحهٔ ریشه.
+     *
+     * ترتیب: مقداری که کاربر در گامِ اطلاعاتِ مدیریت وارد کرده → `FRONTEND_URL`
+     * از محیط → پیش‌فرض.
+     *
+     * ⚠️ چرا فرم بر محیط مقدم است: `env()` در مسیرِ php-fpm قابلِ اتکا نیست.
+     * فایلِ pool هیچ `clear_env` ندارد، پس پیش‌فرضِ بستهٔ php-fpm محیطِ ورکرها را
+     * پاک می‌کند (E51) و `FRONTEND_URL` هرگز دیده نمی‌شود. نتیجه‌اش این بود که
+     * روی یک سرورِ واقعی هم همیشه `http://localhost:3000` می‌ماند و لینک‌های
+     * صفحهٔ پایانی غلط بودند. حالا مقداری که کاربر **در فرم** داده برنده است و
+     * `getenv` هم به‌عنوان راهِ دوم پرسیده می‌شود.
+     */
+    public static function siteUrl(): string
+    {
+        $fromForm = trim((string) (InstallJournal::get('superadmin')['frontend_url'] ?? ''));
+        if ($fromForm !== '') {
+            return rtrim($fromForm, '/');
+        }
+
+        $fromEnv = trim((string) (getenv('FRONTEND_URL') ?: env('FRONTEND_URL', '')));
+
+        return rtrim($fromEnv !== '' ? $fromEnv : 'http://localhost:3000', '/');
+    }
+
     public function done(): View
     {
         $this->resolveLocale(request());
@@ -711,16 +756,30 @@ class InstallController extends Controller
         if (! InstallJournal::isInstalled()) {
             abort(404);
         }
-        // E22 — خلاصهٔ قابل‌ذخیره: مشخصات دیتابیس (از ژورنال) + ایمیل مدیر +
-        // لینک سایت و پنل. رمز ادمین هرگز ذخیره نمی‌شود (فقط هش)، پس همان
-        // «رمزی که خودتان در گام ۵ دادید» یادآوری می‌شود.
-        $frontend = rtrim((string) (env('FRONTEND_URL', 'http://localhost:3000')), '/');
+
+        $frontend = self::siteUrl();
+
+        /*
+         * ⚠️ رمزِ مدیر **یک بار** اینجا نشان داده می‌شود و همان لحظه پاک می‌شود.
+         *
+         * نگه‌داشتنش یعنی یک رمزِ خام روی دیسک می‌ماند؛ پاک‌کردنش یعنی اگر کاربر
+         * صفحه را رفرش کند دیگر نمی‌بیندش. آن معاوضه عمدی است و به نفعِ امنیت
+         * تمام می‌شود: رمز روی کاغذِ کاربر است، نه در فایلِ سرور.
+         */
+        $adminPassword = (string) (InstallJournal::get('superadmin_password')['value'] ?? '');
+        if ($adminPassword !== '') {
+            InstallJournal::put('superadmin_password', []);
+        }
 
         return view('install.done', [
             'email' => InstallJournal::get('superadmin')['email'] ?? '',
             'db' => InstallJournal::get('db'),
             'frontend' => $frontend,
             'panel' => $frontend.'/admin/login',
+            'adminPassword' => $adminPassword,
+            // اطلاعاتی که برای نصبِ فرانت لازم است تا کاربر دنبالشان نگردد.
+            'apiUrl' => rtrim((string) config('app.url'), '/').'/api',
+            'revalidateSecret' => (string) config('revalidate.secret'),
             'step' => 'finalize',
         ]);
     }
