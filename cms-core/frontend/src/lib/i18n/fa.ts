@@ -65,7 +65,6 @@ export const fa = {
 
   // ── ترجمهٔ گروه‌های کاتالوگ (کلید = group_key بک‌اند) ──
   "inbox.group.security": "امنیت و ورود",
-  "inbox.group.billing": "صورتحساب و اشتراک",
   "inbox.group.plugins": "افزونه‌ها و به‌روزرسانی",
   "inbox.group.content": "محتوا و سایت",
   "inbox.group.system": "پایش و نگهداری",
@@ -95,7 +94,6 @@ export const fa = {
   "menu.notifications": "اعلان‌ها",
   "menu.profile": "پروفایل من",
   "menu.group.finance": "مالی",
-  "menu.subscription": "اشتراک من",
   "menu.group.appearance": "ظاهر و محتوا",
   "menu.headerFooter": "هدر و فوتر",
   "menu.blocks": "بلوک‌های سایت",
@@ -108,14 +106,11 @@ export const fa = {
   "menu.socials": "شبکه‌های اجتماعی",
   // گروه افزونه‌ها و منوی تعلیق
   "menu.group.plugins": "افزونه‌ها",
-  "menu.group.suspended": "تعلیق — فقط پرداخت",
-  "menu.subscriptionPay": "اشتراک من (پرداخت)",
 
   // ── پوستهٔ پنل — تکمیلِ I1-b ──
   "shell.mainNav": "ناوبری اصلی",
   "shell.bottomNav": "ناوبری موبایل",
   "shell.brandLogoAlt": "لوگوی {name}",
-  "shell.lockedHint": "در حالت تعلیق قفل است — فقط اشتراک",
   "shell.managerFallback": "مدیر",
   "shell.panelSwitch": "سوییچ پنل",
   "shell.customerPanel": "مشتری",

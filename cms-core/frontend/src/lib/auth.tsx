@@ -59,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // قلب ۰.۲: DB مرجع نهایی است — فقط تم سرور را بکش.
     // عمداً sync (push) نمی‌کنیم تا پیش‌فرض‌های localStorage مرورگر تازه روی DB بازنویسی نشود.
     await pullFromServer(r.token);
-    // حالت معلق → مستقیم اشتراک (۱.۱): مسیریابی در صفحه لاگین با subscription.status
   }, [pullFromServer]);
 
   const login = useCallback(async (email: string, password: string) => {

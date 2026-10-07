@@ -31,7 +31,6 @@ class UiSettingsController extends Controller
         '/admin/settings',
         '/admin/managers',
         '/admin/profile',
-        '/admin/subscription',
         '/admin/blocks',
         '/admin/themes',
         '/admin/appearance',

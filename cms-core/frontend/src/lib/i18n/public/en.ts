@@ -18,10 +18,6 @@ export const publicEn: Record<PublicMessageKey, string> = {
   "home.emptyHint": "No page has been published yet. Site content will appear here soon.",
   "home.login": "Sign in to the admin panel",
 
-  // ── Suspended ──
-  "suspended.title": "The site is temporarily unavailable",
-  "suspended.support": "Contact support: support@example.ir",
-
   // ── Search ──
   "search.pageTitle": "Search the site",
   "search.queryTitle": "Search: {q}",

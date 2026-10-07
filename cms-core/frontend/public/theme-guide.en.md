@@ -13,7 +13,7 @@ Two distinct tracks exist and must not be confused:
 | Location | `cms-core/frontend/src/themes/{slug}/` with `theme.json` + `index.tsx` | A ZIP uploaded in the panel, stored on the `local` disk at `themes/shared/{slug}_{rand}.zip` |
 | Registry | `src/themes/manifests.ts` (known slugs: `minimal`, `editorial`, `commerce`) + `src/themes/registry.tsx` (components) | The backend `themes` table; only `manifest.json` is read from inside the ZIP (`ThemeController::readManifest`) |
 | Structural impact | Full — the component builds its own header/footer/sidebars | **None** — only tokens (`globals`), footer defaults (`footer`), and metadata. Site structure comes from the component of the active slug; an unknown slug falls back to `DEFAULT_THEME_SLUG = "minimal"` |
-| Flow | Source is compiled with the frontend; no ZIP install/signing | Upload → central review (`pending` → `approved`; super admin/operator exempt) → activation |
+| Flow | Source is compiled with the frontend; no ZIP install/signing | Upload → activation (`review_status` follows the uploader: an operator's upload is `approved`, a normal admin's is `pending`) |
 
 **How is the active theme chosen?** The backend, in `GET /v1/site/chrome`, returns `theme.slug` from `SiteThemeResolver::activeSlug()`: first the install-wide selection in the `site_theme_settings` table (`user_id = 0`, `key = 'default'`), then the `themes.active` column (the ZIP track), finally `FALLBACK_THEME = 'minimal'`. The frontend picks the component via `resolveTheme(slug)`; **any unknown slug falls back to minimal and never throws or white-screens** — this is the ECO1 contract, locked by `manifests.test.ts`.
 
@@ -241,8 +241,7 @@ All **public and unauthenticated** (prefix `/api/v1`):
 | `GET /site/pages/{path}?locale=` | `SitePage` \| 404 | Published only |
 | `GET /site/theme/{slug}` | `SiteThemeTokens` \| 404 | `name, slug, version, layout, globals, builtin, layout_tokens, colorways[{key,name,light,dark}], default_colorway` — the basis of `/preview/{slug}` |
 | `GET /site/search?q=&per_page=` | `{data, meta:{q,total,per_page}}` | `q` required, 2..200 chars; `per_page` ≤50; throttle `site-search` |
-| `GET /site/status?site_id=` | `{status: "active"\|"suspended", message}` | The suspended-page gate |
-| `GET /subscription-status` | Install subscription status | Consumed internally by the suspension flow |
+| `GET /site/status?site_id=` | `{status: "active", message}` | Lightweight public site status; the message carries the site brand |
 | `POST /contact/tickets` | `{ticket_id}` | Public contact form (honeypot + rate limit) — invoked by `ContactForm`, not by themes |
 
 Rule: the theme reads only through the wrappers in `src/lib/site.ts`. Admin routes (`/v1/admin/themes/*`) sit behind Sanctum and are never called from the public site.
@@ -271,8 +270,8 @@ Rule: the theme reads only through the wrappers in `src/lib/site.ts`. Admin rout
 
 **B) ZIP package:**
 1. Build a ZIP with `manifest.json` at the **root** of the ZIP (max 20 MB).
-2. Panel → `/admin/themes` → the ZIP tab → upload → `POST /v1/admin/themes/upload` (field `file`). 201 response; if you are not super admin/operator: `pending` ("Activation becomes possible after approval by the designer and CMS architect", 3-day review SLA).
-3. After central approval → the activate button → `POST /v1/admin/themes/{id}/activate`. Activation: the previous theme is deactivated, the `site_chrome` cache (120 s), the token cache (`SiteThemeResolver::flush`), and the frontend ISR (`site-theme`, `theme`, `site-chrome` tags) are invalidated. If the slug is a built-in skin, the resolver is synced too (colorway/mode are preserved).
+2. Panel → `/admin/themes` → the ZIP tab → upload → `POST /v1/admin/themes/upload` (field `file`). 201 response. A theme uploaded by a normal admin is stored as `pending` and cannot be activated; a theme uploaded by an operator is stored as `approved`. The `review_status` is therefore a property of who uploaded it, not a separate approval step.
+3. Activate → `POST /v1/admin/themes/{id}/activate`. Activation: the previous theme is deactivated, the `site_chrome` cache (120 s), the token cache (`SiteThemeResolver::flush`), and the frontend ISR (`site-theme`, `theme`, `site-chrome` tags) are invalidated. If the slug is a built-in skin, the resolver is synced too (colorway/mode are preserved).
 4. Preview button → `POST /v1/admin/themes/{id}/preview` → `preview_url = /preview/{slug}`. The `/preview/{slug}` page renders with that theme's tokens and the resolved component (`force-dynamic`, noindex); inactive themes are previewable too. The public `/preview` page also shows the active theme.
 5. The active theme cannot be deleted; `DELETE /v1/admin/themes/{id}` works only for inactive ones.
 

@@ -51,12 +51,11 @@ use Throwable;
  *
  * **405 هرگز.** متدِ نخواندن هم 404 است، چون نگفتنِ آن بهتر از گفتنِ آن است.
  *
- * **K7.11 — این‌جا ۵۰۱ نبود.** تا آن روز مسیر درست **۵۰۱** برمی‌گرداند چون
+ * **این‌جا ۵۰۱ نبود.** تا آن روز مسیر درست **۵۰۱** برمی‌گرداند چون
  * `PluginRouteTable` اعلان را می‌خواند ولی `PluginAutoloader` به هیچ چرخهٔ حیاتی
  * وصل نبود و `dispatch()` وجود نداشت. یعنی افزونه می‌توانست مسیر **اعلام** کند و
- * هیچ مسیری **اجرا** نمی‌شد — و K7.8/K7.9 (انتقال ۶۱ route مرکزی) روی زیرساختی
- * نوشته می‌شدند که هرگز اجرا نمی‌شد. اجرای واقعی حالا در
- * `PluginDispatcher::dispatch()` است و guardهای امنیتی‌اش همان‌جاست.
+ * هیچ مسیری **اجرا** نمی‌شد. اجرای واقعی حالا در `PluginDispatcher::dispatch()`
+ * است و guardهای امنیتی‌اش همان‌جاست.
  *
  * بدنهٔ پاسخ ۴۰۴ قبلاً شامل هندلر/میدلورها/پارامترها بود تا مسیر قابل تشخیص
  * باشد؛ با اجرا شدن dispatch دیگر لازم نیست و **حذف شد** — چون دیگر پاسخی نیست
@@ -89,10 +88,10 @@ class PluginRouter extends Controller
     private const UNAUTHENTICATED = 'Unauthenticated.';
 
     /**
-     * `central.operator` → کلاس واقعیِ میان‌افزار.
+     * یک ورودیِ middleware مانیفست را به شیءِ قابل‌فراخوانی تبدیل می‌کند.
      *
-     * رشتهٔ مانیفست **alias** است نه کلاس. `Container::make('central.operator')`
-     * خطای `Target class [central.operator] does not exist` می‌دهد.
+     * رشتهٔ مانیفست **alias** است نه کلاس. `Container::make('role:operator')`
+     * خطای `Target class [role:operator] does not exist` می‌دهد.
      *
      * نگاشت از رجیستررِ `Illuminate\Routing\Router` خوانده می‌شود، نه از یک
      * آرایهٔ محلی — وگرنه دو تعریفِ alias داشتیم و تغییر یکی جای دیگر را
@@ -101,9 +100,6 @@ class PluginRouter extends Controller
      * اگر alias در رجیسترر نبود، **کلاس** فرض می‌شود — چون مانیفستِ یک بستهٔ
      * بازاری ممکن است نام کلاس بدهد و `compileMiddleware` اجازه‌اش می‌دهد.
      * هر دو حالت به همان `Container::make` می‌رسند، پس تفاوتی در مسیر ندارد.
-     */
-    /**
-     * یک ورودیِ middleware مانیفست را به شیءِ قابل‌فراخوانی تبدیل می‌کند.
      *
      * ## چرا آرگومان را جدا می‌کنیم (L-B12)
      *
@@ -168,14 +164,13 @@ class PluginRouter extends Controller
     {
         $method = strtoupper($request->getMethod());
 
-        // K7.8 — متد به `resolve()` داده می‌شود. پیش از این `resolve()` اولین
+        // متد به `resolve()` داده می‌شود. پیش از این `resolve()` اولین
         // regex هم‌خوان را برمی‌گرداند و مقایسهٔ متد **بعد** انجام می‌شد، پس هر
         // مسیری که هم `GET` و هم `POST` داشت فقط به متدِ اول جواب می‌داد:
-        // `POST /clients` ۴۰۴ می‌داد در حالی که `GET /clients` کار می‌کرد.
+        // `POST /orders` ۴۰۴ می‌داد در حالی که `GET /orders` کار می‌کرد.
         //
-        // این باگ تا K7.8 پنهان بود چون تنها بستهٔ آزمایشیِ افزونه (K7.13) روی
-        // هر مسیر **یک** متد داشت. اولین بستهٔ واقعی، اولین افزونهٔ کاملِ
-        // REST-شکل، آن را لو داد.
+        // این باگ پنهان بود چون تنها بستهٔ آزمایشیِ افزونه روی هر مسیر **یک**
+        // متد داشت. اولین بستهٔ واقعی، اولین افزونهٔ کاملِ REST-شکل، آن را لو داد.
         $route = $this->routes->resolve($slug, (string) $any, $method);
 
         if ($route === null) {
@@ -206,15 +201,15 @@ class PluginRouter extends Controller
 
         // K5.4 — میان‌افزارهای route **اجرا** می‌شوند.
         //
-        // ⚠️ این تا K7.8 اجرا **نمی‌شدند**. `PluginRouteTable::compileMiddleware()`
+        // ⚠️ این اجرا **نمی‌شدند**. `PluginRouteTable::compileMiddleware()`
         // رشته‌ها را اعتبارسنجی و در جدول ذخیره می‌کرد، ولی هیچ‌کس آن‌ها را به
         // pipeline نمی‌داد. یعنی هر افزونه‌ای که `auth:sanctum` اعلام می‌کرد
         // **بدون احراز هویت** سرو می‌شد.
         //
-        // چرا پنهان بود: تنها افزونهٔ آزمایشیِ آن زمان (K7.13) هیچ middleware
+        // چرا پنهان بود: تنها افزونهٔ آزمایشیِ آن زمان هیچ middleware
         // اعلام نمی‌کرد و خودش دستی `$request->user()` را چک می‌کرد. اولین
-        // افزونهٔ واقعی که `auth:sanctum` + `central.operator` اعلام کرد
-        // (`test_non_operator_is_forbidden`: انتظار ۴۰۳، دریافت ۲۰۰) آن را لو داد.
+        // افزونهٔ واقعی که `auth:sanctum` + `role:operator` اعلام کرد
+        // (انتظار ۴۰۳، دریافت ۲۰۰) آن را لو داد.
         //
         // این یعنی یک افزونهٔ بازاری می‌توانست با اعلام `auth:sanctum` فکر کند
         // خودش را محافظت کرده، و در واقع بی‌احراز هویت سرو می‌شد.
@@ -259,7 +254,7 @@ class PluginRouter extends Controller
         //
         // `Illuminate\Pipeline\Pipeline` مخصوصِ زنجیره‌ای است که هر میان‌افزار
         // `$next($request)` می‌گیرد و **Request** را برمی‌گرداند. ولی
-        // `EnsureCentralOperator::handle` نوعِ بازگشتی‌اش `Response` است و
+        // `RequireUserRole::handle` نوعِ بازگشتی‌اش `Response` است و
         // `return $next($request)` می‌کند.
         //
         // نتیجه: `Pipeline` مقدارِ `$request` را با آن Response جایگزین کرد و
@@ -273,20 +268,11 @@ class PluginRouter extends Controller
         // Response جدا می‌کنیم. اگر چیزی غیر از Request برگشت، میان‌افزار
         // دارد پاسخ می‌دهد (مثل ۴۰۳) و باید همان برگردد.
         //
-        // ⚠️ `Container::make('central.operator')` هم کار نمی‌کند: رشتهٔ
+        // ⚠️ `Container::make('role:operator')` هم کار نمی‌کند: رشتهٔ
         // مانیفست **alias** است نه کلاس، و resolve‌اش
-        // `Target class [central.operator] does not exist` می‌دهد. نگاشت
+        // `Target class [role:operator] does not exist` می‌دهد. نگاشت
         // alias→کلاس از خودِ `Router` خوانده می‌شود تا تعریفِ دومی نسازیم.
         // ۲. بقیهٔ میان‌افزارها، به‌ترتیبِ اعلان.
-        //
-        // زنجیره **دستی** ساخته می‌شود نه با `Illuminate\Pipeline\Pipeline`:
-        // آن مخصوصِ زنجیره‌ای است که هر میان‌افزار `$next($request)` می‌گیرد و
-        // **Request** برمی‌گرداند، ولی `EnsureCentralOperator::handle` نوعِ
-        // بازگشتی‌اش `Response` است و `return $next($request)` می‌کند.
-        //
-        // با `Pipeline` مقدارِ `$request` با آن Response جایگزین می‌شد و گام
-        // بعدی به‌جای درخواست، پاسخ می‌گرفت — یعنی `dispatch()` روی یک
-        // `JsonResponse` اجرا می‌شد.
         $pipes = array_values(array_filter(
             $route['middleware'],
             static fn (string $entry): bool => ! str_starts_with($entry, 'auth:'),
@@ -306,12 +292,12 @@ class PluginRouter extends Controller
             $request = $result;
         }
 
-        // K7.11 — پیش از این، هر مسیر درست ۵۰۱ برمی‌گرداند چون
+        // پیش از این، هر مسیر درست ۵۰۱ برمی‌گرداند چون
         // `PluginAutoloader` به هیچ چرخهٔ حیاتی وصل نبود.
         try {
             return $this->dispatcher->dispatch($request, $route);
         } catch (ValidationException $e) {
-            // K7.13 — استثناهای «پاسخ‌دادنی» هسته باید برسند، نه لاگ و نه ۵۰۰.
+            // استثناهای «پاسخ‌دادنی» هسته باید برسند، نه لاگ و نه ۵۰۰.
             //
             // `ValidationException` یعنی هندلر `validate()` را صدا زد و شکست
             // خورد. این یعنی **ورودی بد بود، نه افزونهٔ خراب** — و پاسخ درست

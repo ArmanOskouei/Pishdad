@@ -312,7 +312,6 @@ final class NotificationDispatcher
     {
         return match ($group) {
             'security' => 'warning',
-            'billing' => 'warning',
             default => 'info',
         };
     }

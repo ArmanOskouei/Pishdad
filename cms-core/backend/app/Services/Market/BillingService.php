@@ -44,8 +44,8 @@ class BillingService
     }
 
     /**
-     * Manual payment confirmation (no gateway). The buyer or a central
-     * operator confirms; writes sale/fee/share ledger rows + ensures license.
+     * Manual payment confirmation (no gateway). The buyer or an operator
+     * confirms; writes sale/fee/share ledger rows + ensures license.
      */
     public function payOrder(MarketOrder $order, User $actor): MarketOrder
     {

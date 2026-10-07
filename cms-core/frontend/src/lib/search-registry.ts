@@ -153,7 +153,6 @@ const CORE_STATIC_PAGES: StaticPageEntry[] = [
   { title: "اعلان‌ها", path: "/admin/notifications", icon: "◔", group: "other", subtitle: "اعلان‌های امنیتی، صورتحساب و افزونه‌ها", capabilities: ["صندوق اعلان", "خوانده‌نشده", "اعلان امنیتی"] },
   { title: "ترجیحات اعلان", path: "/admin/notifications/preferences", icon: "◑", group: "other", subtitle: "کانال هر گروه: ایمیل، پیامک، پوش", capabilities: ["ترجیح اعلان", "کانال اعلان", "پوش", "پیامک", "ایمیل"] },
   { title: "پروفایل من", path: "/admin/profile", icon: "◌", group: "other", subtitle: "نام، رمز و ورود دوعاملی", capabilities: ["تغییر رمز", "ورود دوعاملی", "اطلاعات کاربری"] },
-  { title: "اشتراک من", path: "/admin/subscription", icon: "◈", group: "other", subtitle: "پلن، فاکتور و پرداخت", capabilities: ["فاکتور", "پرداخت", "تمدید اشتراک", "ارتقای پلن"] },
   { title: "هدر و فوتر", path: "/admin/header-footer", icon: "☰", group: "content", subtitle: "ویجت‌های سربرگ و پاصفحه", capabilities: ["منوی سایت", "لوگوی هدر", "ویجت فوتر"] },
   { title: "بلوک‌های سایت", path: "/admin/blocks", icon: "▦", group: "content", subtitle: "بلوک‌های پیش‌فرض انواع صفحه", capabilities: ["بلوک صفحه", "چیدمان صفحه"] },
   { title: "قالب سایت", path: "/admin/themes", icon: "◫", group: "content", subtitle: "انتخاب و فعال‌سازی قالب", capabilities: ["قالب جدید", "فعال‌سازی قالب", "پیش‌نمایش قالب"] },
@@ -164,9 +163,6 @@ const CORE_STATIC_PAGES: StaticPageEntry[] = [
 ];
 
 const CORE_CAPABILITIES = ["جستجوی پنل", "میانبر صفحات", "راهنمای قابلیت‌ها"];
-
-/** فقط صفحه پرداخت در حالت تعلیق مجاز است (همان منطق ADMIN_MENU_LOCKED). */
-export const LOCKED_VISIBLE_PATHS = ["/admin/subscription"];
 
 /* ── تطبیق ── */
 
@@ -207,11 +203,6 @@ function staticToHit(e: StaticPageEntry, plugin: string): SearchHit {
     group: e.group,
   };
 }
-
-/* ── سورس‌های داینامیک داخلی (کش ۶۰ثانیه‌ای سمت کلاینت) ── */
-
-const dynCache = new Map<string, { at: number; data: SearchHit[] }>();
-const DYN_TTL = 60_000;
 
 /* ── dogfood: ثبت سورس‌های داخلی از همین رجیستری ── */
 
@@ -262,8 +253,6 @@ export async function fetchServerSearch(q: string, perPage = 10): Promise<Search
 /* ── موتور جستجو ── */
 
 export type RunSearchOpts = {
-  /** true = حالت تعلیق: فقط صفحه پرداخت + بدون سورس داینامیک. */
-  locked?: boolean;
   /** سقف نتایج (دراپ‌داون ۸، صفحه نتایج نامحدود). */
   limit?: number;
   /** شامل داینامیک‌ها هم بشود؟ (پیش‌فرض true) */
@@ -274,20 +263,19 @@ export async function runSearch(rawQuery: string, opts: RunSearchOpts = {}): Pro
   ensureBuiltInSources();
   const tokens = queryTokens(rawQuery);
   if (tokens.length === 0) return [];
-  const { locked = false, limit = 50, dynamic = true } = opts;
+  const { limit = 50, dynamic = true } = opts;
   const sources = getSearchSources();
 
   const scored: Array<{ hit: SearchHit; score: number }> = [];
   for (const s of sources) {
     for (const p of s.pages ?? []) {
-      if (locked && !LOCKED_VISIBLE_PATHS.some((lp) => p.path === lp || p.path.startsWith(`${lp}/`))) continue;
       const score = scoreStatic(p, tokens);
       if (score > 0) scored.push({ hit: staticToHit(p, s.plugin), score });
     }
   }
 
   let dyn: SearchHit[] = [];
-  if (dynamic && !locked && rawQuery.trim().length >= 2) {
+  if (dynamic && rawQuery.trim().length >= 2) {
     // B5: یک درخواست به سرور، به‌جای یکی به‌ازای هر سورس. سرور providerهای
     // ثبت‌شده (از جمله provider افزونه) را اجرا و ادغام می‌کند.
     dyn = await fetchServerSearch(rawQuery.trim(), limit).catch(() => [] as SearchHit[]);
@@ -302,22 +290,6 @@ export async function runSearch(rawQuery: string, opts: RunSearchOpts = {}): Pro
     }
   }
   return merged.slice(0, limit);
-}
-
-/** وضعیت تعلیق سمت کلاینت (کش ۶۰ثانیه‌ای) — همان منبع SuspensionGuard در layout. */
-let lockCache: { at: number; locked: boolean } | null = null;
-
-export async function getSubscriptionLock(): Promise<boolean> {
-  const now = Date.now();
-  if (lockCache && now - lockCache.at < DYN_TTL) return lockCache.locked;
-  try {
-    const { authed } = await import("./auth");
-    const sub = await authed<{ status?: string }>("/v1/admin/subscription");
-    lockCache = { at: now, locked: sub?.status === "suspended" };
-  } catch {
-    lockCache = { at: now, locked: false };
-  }
-  return lockCache.locked;
 }
 
 // ─────────────────────────────────────────────────────────────

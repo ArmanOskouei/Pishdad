@@ -1,11 +1,10 @@
 import { Shell } from "@/components/layout/Shell";
 import { AdminFavicon } from "@/components/layout/AdminFavicon";
-import { SuspensionGuard } from "@/components/layout/SuspensionGuard";
 import { Onboarding } from "@/components/layout/Onboarding";
-import { ADMIN_MENU, ADMIN_MENU_LOCKED, mergePluginMenu, type PluginMenuDeclaration } from "@/lib/menu";
+import { ADMIN_MENU, mergePluginMenu, type PluginMenuDeclaration } from "@/lib/menu";
 import { filterMenuByPlugins } from "@/lib/menu-plugin-visibility";
 import { serverOne } from "@/lib/server-api";
-import type { MySubscription, ProfileData, SiteSettings } from "@/lib/domain";
+import type { ProfileData, SiteSettings } from "@/lib/domain";
 
 /**
  * K6.1 — آیتم‌های `admin.menu` که افزونه‌های فعال اعلام کرده‌اند.
@@ -30,9 +29,9 @@ type PluginMenuResponse = { items?: PluginMenuDeclaration[]; active_slugs?: stri
  * منوی افزونه‌ها + فهرستِ افزونه‌های **فعال**.
  *
  * ⭐ چرا `active_slugs` هم لازم است: `items` فقط چیزی را می‌دهد که افزونه
- * *اعلام* کرده. ولی منوی **هسته** هم آیتم‌هایی دارد که متعلق به افزونه‌اند
- * (مثل «اشتراک من») — گزارشِ کاربر همین بود: با غیرفعال‌شدنِ افزونهٔ اشتراک،
- * آیتمش در منو ماند و به صفحه‌ای لینک می‌کرد که دیگر وجود نداشت.
+ * *اعلام* کرده. ولی منوی **هسته** هم می‌تواند آیتم‌هایی داشته باشد که متعلق به
+ * افزونه‌اند — گزارشِ کاربر همین بود: با غیرفعال‌شدنِ افزونه، آیتمش در منو ماند
+ * و به صفحه‌ای لینک می‌کرد که دیگر وجود نداشت.
  *
  * برمی‌گرداند: اعلان‌ها، و `Set` اسلاگ‌های فعال. `null` برای یعنی «نمی‌دانیم»
  * — و فیلتر، fail-closed عمل می‌کند یعنی آیتم‌های افزونه‌ای را پنهان
@@ -62,20 +61,18 @@ async function loadPluginMenu(): Promise<{
   }
 }
 
-/** لایه‌بندی پنل مشترک (جهت سپیده) + قفل تعلیق (بنر + منوی محدود) + لوگو/فاوآیکون سایت. */
+/** لایه‌بندی پنل مشترک (جهت سپیده) + منوی افزونه‌ها + لوگو/فاوآیکون سایت. */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  // این چهار قبلاً پشت‌سرهم `await` می‌شدند، یعنی هر صفحهٔ پنل چهار
+  // این سه قبلاً پشت‌سرهم `await` می‌شدند، یعنی هر صفحهٔ پنل سه
   // رفت‌وبرگشت سریال تحمل می‌کرد. `allSettled` هم‌زمان اجا می‌کند و در عین
   // حال ایزوله‌بودن خطا را نگه می‌دارد: هر کدام جداگانه به `null` تبدیل
   // می‌شود.
-  const [subRes, siteRes, profileRes, menuRes] = await Promise.allSettled([
-    serverOne<MySubscription>("/v1/admin/subscription"),
+  const [siteRes, profileRes, menuRes] = await Promise.allSettled([
     serverOne<SiteSettings>("/v1/admin/settings/site"),
     serverOne<ProfileData>("/v1/admin/profile"),
     loadPluginMenu(),
   ]);
 
-  const sub: MySubscription | null = subRes.status === "fulfilled" ? subRes.value : null;
   // هویت بصری پنل از settings/site (نام/لوگو/فاوآیکون واقعی کاربر — بدون هاردکد).
   const site: SiteSettings | null = siteRes.status === "fulfilled" ? siteRes.value : null;
   // تسک ۵: آواتار و نام مدیر جاری برای سایدبار/تاپ‌بار (به‌جای حرف ثابت).
@@ -97,19 +94,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // بدترین حالت ممکن است.
   const permissions = profile?.permissions ?? [];
 
-  const suspended = sub?.status === "suspended";
-  const pastDue = sub?.status === "past_due";
   // ادغام منو **قبل از** props و روی سرور انجام می‌شود، پس `Sidebar` و
   // `BottomNav` بدون یک بایت تغییر، آیتم‌های افزونه را می‌بینند.
-  //
-  // منوی تعلیق عمداً ادغام نمی‌شود: `SuspensionGuard` (پایین همین فایل) فقط
-  // صفحهٔ پرداخت را باز می‌گذارد و افزودن آیتم به آن قفل را دور می‌زد.
-  const menu = suspended
-    ? ADMIN_MENU_LOCKED
-    : filterMenuByPlugins(
-        mergePluginMenu(ADMIN_MENU, pluginMenu, permissions).groups,
-        activePluginSlugs,
-      );
+  const menu = filterMenuByPlugins(
+    mergePluginMenu(ADMIN_MENU, pluginMenu, permissions).groups,
+    activePluginSlugs,
+  );
 
   return (
     <Shell
@@ -127,18 +117,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminFavicon href={site?.favicon_url ?? null} />
       {/* E8 — آنبوردینگ اولین ورود: فقط یک‌بار، skip در localStorage خودِ کامپوننت. */}
       <Onboarding />
-      {pastDue && !suspended ? (
-        <div className="lock-banner" role="alert" style={{ background: "var(--warning-soft)", borderColor: "var(--warning)" }}>
-          <span>فاکتور سررسید گذشته دارید — تا {sub?.days_remaining ?? "—"} روز دیگر پنل معلق می‌شود.</span>
-          <a className="btn btn-primary btn-sm" href="/admin/subscription" style={{ marginInlineStart: "auto" }}>مشاهده فاکتور</a>
-        </div>
-      ) : null}
-      {suspended ? (
-        <div className="lock-banner" role="alert">
-          <span>اشتراک معلق است — فقط صفحه «اشتراک من» فعال است.</span>
-        </div>
-      ) : null}
-      <SuspensionGuard locked={suspended}>{children}</SuspensionGuard>
+      {children}
     </Shell>
   );
 }

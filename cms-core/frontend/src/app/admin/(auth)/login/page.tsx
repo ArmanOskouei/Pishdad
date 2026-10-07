@@ -1,10 +1,10 @@
 "use client";
 
-/** صفحه لاگین دوعاملی (تسک ۲.۱): رمز → 2FA → داشبورد؛ حالت معلق → مستقیم اشتراک. */
+/** صفحه لاگین دوعاملی (تسک ۲.۱): رمز → 2FA → داشبورد. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, authed } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import { Stepper, Alert, Skeleton } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
@@ -66,15 +66,8 @@ export default function LoginPage() {
     inputs.current[0]?.focus();
   }, [busy, step]);
 
-  const afterAuth = useCallback(async () => {
-    // حالت معلق → مستقیم اشتراک (۱.۱): وضعیت اشتراک را می‌خوانیم
-    try {
-      const s = await authed<{ status: string }>("/v1/admin/subscription");
-      const status = (s as unknown as { subscription?: { status?: string } })?.subscription?.status ?? (s as unknown as { status?: string })?.status;
-      router.replace(status === "suspended" ? "/admin/subscription" : "/admin/dashboard");
-    } catch {
-      router.replace("/admin/dashboard");
-    }
+  const afterAuth = useCallback(() => {
+    router.replace("/admin/dashboard");
   }, [router]);
 
   // ⭐ اگر نشستِ معتبری هست، فرم ورود اصلاً نباید دیده شود.
@@ -107,7 +100,7 @@ export default function LoginPage() {
         setStep(2);
         toast("کد تأیید دومرحله‌ای را وارد کنید.");
       }
-      else if (!need2faSetup) { toast("خوش آمدید.", "ok"); await afterAuth(); }
+      else if (!need2faSetup) { toast("خوش آمدید.", "ok"); afterAuth(); }
     } catch (err) {
       setError(err instanceof Error ? err.message : "اعتبار ورود نامعتبر است.");
     } finally { setBusy(false); }
@@ -126,7 +119,7 @@ export default function LoginPage() {
     try {
       await verify2fa(normalizedCode);
       toast("ورود موفق.", "ok");
-      await afterAuth();
+      afterAuth();
     } catch (err) {
       setError(err instanceof Error ? err.message : "اعتبار ورود نامعتبر است.");
       focusAfterError.current = true;

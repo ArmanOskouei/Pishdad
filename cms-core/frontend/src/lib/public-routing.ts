@@ -26,7 +26,6 @@ const NON_SITE_SEGMENTS = new Set([
   "admin",
   "api",
   "preview",
-  "suspended",
   "_next",
   "favicon.ico",
   "robots.txt",

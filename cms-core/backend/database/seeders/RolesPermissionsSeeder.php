@@ -18,7 +18,7 @@ class RolesPermissionsSeeder extends Seeder
 {
     public const MODULES = [
         'pages', 'media', 'settings', 'tickets', 'plugins',
-        'themes', 'layouts', 'users', 'subscription',
+        'themes', 'layouts', 'users',
     ];
 
     public const ACTIONS = ['view', 'edit', 'delete'];

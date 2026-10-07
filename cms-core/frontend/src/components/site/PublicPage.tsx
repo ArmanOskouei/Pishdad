@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { LOGIN_PATH } from "@/lib/login-path";
-import { fetchSiteStatus, siteBaseUrl, type SiteChrome } from "@/lib/site";
+import { siteBaseUrl, type SiteChrome } from "@/lib/site";
 import { resolveTheme } from "@/themes/registry";
 import type { SitePage } from "@/lib/domain";
 import {
@@ -19,33 +19,6 @@ import {
  * زبان از URL می‌رسد. این فایل مسیرِ زبان پایه (`app/page.tsx`) و مسیرِ زبان
  * دوم (`app/[locale]/...`) را یکی نگه می‌دارد تا ترجمه یک‌جا زندگی کند.
  */
-
-/** نمایشِ صفحهٔ تعلیق ۱.۱۶ — برند + پیام + تماس، بدون هیچ لینک پنل. */
-export function SuspendedSite({ message, locale }: { message: string; locale: PublicLocale }) {
-  return (
-    <div className="site" data-mode="dark">
-      <main style={{ minBlockSize: "100vh", display: "grid", placeItems: "center", padding: 24, background: "var(--bg)", color: "var(--text)" }}>
-        <div className="card card-pad" style={{ maxInlineSize: 520, inlineSize: "100%", textAlign: "center" }}>
-          <div style={{ fontSize: 44 }} aria-hidden>⛔</div>
-          <h1 style={{ fontSize: 19, marginBlock: "8px 4px" }}>{publicT(locale, "suspended.title")}</h1>
-          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>{message}</p>
-          <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{publicT(locale, "suspended.support")}</p>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-/** نوار وضعیت اشتراک — خروجی `null` یعنی ادامهٔ رندرِ صفحه. */
-export async function suspendedNotice(locale: PublicLocale) {
-  const siteId = process.env.NEXT_PUBLIC_SITE_ID ?? "";
-  if (!siteId) return null;
-  const st = await fetchSiteStatus(siteId).catch(() => null);
-  if (st?.status === "suspended") {
-    return <SuspendedSite message={st.message} locale={locale} />;
-  }
-  return null;
-}
 
 /** صفحهٔ خنثی «سایت در حال آماده‌سازی» — نه ۴۰۴ خشک. */
 export function PreparingSite({ chrome, locale }: { chrome: SiteChrome | null; locale: PublicLocale }) {

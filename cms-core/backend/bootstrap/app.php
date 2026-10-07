@@ -26,13 +26,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            // L-B12 — این alias قبلاً `central.operator` بود و به کلاسی می‌رفت که
-            // نامش نامِ افزونهٔ خصوصی را لو می‌داد و `operator` را ثابت چک می‌کرد.
-            // حالا عمومی است: هر افزونه‌ای می‌تواند بگوید «این route فقط برای نقشِ
-            // X»، بدون اینکه هسته را ویرایش کند.
+            // این alias عمومی است: هر افزونه‌ای می‌تواند بگوید «این route فقط برای
+            // نقشِ X»، بدون اینکه هسته را ویرایش کند.
             //
             // ⚠️ نامِ alias هم عمداً عمومی است، چون رشتهٔ alias در مانیفست افزونه
-            // می‌آید و همان در build عمومی دیده می‌شد.
+            // می‌آید و همان در build عمومی دیده می‌شود.
             'role' => RequireUserRole::class,
             'perm' => EnsurePermission::class,
             'devmode.gate' => GateDevModeUpload::class,

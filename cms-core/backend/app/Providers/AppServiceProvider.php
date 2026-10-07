@@ -25,10 +25,6 @@ use App\Services\RevalidateSigner;
 use App\Services\Settings\SecuritySettings;
 use App\Services\Sms\SmsDriverFactory;
 use App\Services\Sms\SmsSenderInterface;
-use App\Services\Subscription\NullSubscriptionResolver;
-use App\Services\Subscription\NullSubscriptionSource;
-use App\Services\Subscription\SubscriptionResolverInterface;
-use App\Services\Subscription\SubscriptionSource;
 use App\Validation\NoMarkup;
 use App\Validation\SafeUrl;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -120,43 +116,6 @@ class AppServiceProvider extends ServiceProvider
             SmsSenderInterface::class,
             fn () => SmsDriverFactory::make()
         );
-
-        // K7.3 — منبعِ وضعیتِ اشتراک هم از همین رجیستری می‌آید.
-        //
-        // پیش از این، `ClientSubscriptionResolver` افزونهٔ مرکزی را با یک
-        // `class_exists` هاردکد صدا می‌زد. نتیجه: افزونهٔ سومی **هیچ راهی**
-        // برای اعلامِ وضعیتِ اشتراک نداشت، حتی اگر کاملاً سالم بود. حالا همان
-        // نقطهٔ اتصالِ K5.0 اینجا هم فعال است و پیش‌فرض همیشه
-        // `NullSubscriptionSource` است — یعنی «سایت فعالِ بی‌اشتراک».
-        $registry->bind(
-            SubscriptionSource::class,
-            fn () => new NullSubscriptionSource
-        );
-
-        // J12 — resolverِ دادهٔ اشتراک.
-        //
-        // پیش‌فرض عمداً `NullSubscriptionResolver` است: نسخهٔ رایگان هیچ مسیرِ
-        // کدِ اشتراکِ دور ندارد و نصبِ تازه نباید هیچ چیزی برای نمایش داشته باشد.
-        // انتخابِ پیاده‌سازی به **binding** منتقل شد (نه به شرطِ `remote_url` در
-        // هسته)، پس فردا با `SUBSCRIPTION_RESOLVER` یا rebind می‌شود روشنش کرد —
-        // بدون اینکه هسته نامِ هیچ کلاسِ قرنطینه‌شده‌ای را بداند.
-        $this->app->bind(SubscriptionResolverInterface::class, function () {
-            $class = config('subscription.resolver');
-
-            if (is_string($class) && $class !== '' && class_exists($class)
-                && is_a($class, SubscriptionResolverInterface::class, true)) {
-                try {
-                    return new $class;
-                } catch (\Throwable $e) {
-                    Log::warning('subscription.resolver_unresolvable', [
-                        'class' => $class,
-                        'reason' => $e->getMessage(),
-                    ]);
-                }
-            }
-
-            return new NullSubscriptionResolver;
-        });
     }
 
     public function boot(): void
@@ -284,20 +243,13 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * K7.8 — ثبت PSR-4 افزونه‌های داخلی، در هر درخواست.
+     * ثبت PSR-4 افزونه‌های داخلی، در هر درخواست.
      *
      * ## چرا اینجا و نه فقط کنار dispatcher
      *
      * `PluginDispatcher` بارگذار را **تنبل** صدا می‌زند: فقط وقتی خواسته‌ای به
-     * مسیر افزونه می‌رسد. ولی پس از انتقال مرکز، کدِ هسته هم مدل‌های مرکزی را
-     * صدا می‌زند — `PaymentWebhookController` روی جدول فاکتور می‌نویسد،
-     * `HeartbeatController` به جدول مشتریان می‌خواند، و
-     * `SubscriptionStatusController` به جدول اشتراک‌ها.
-     *
-     * آن مسیرها هرگز از `PluginDispatcher` رد نمی‌شوند، پس namespace افزونه
-     * هنوز ثبت نشده بود و کلاس پیدا نمی‌شد. نتیجه یک `Error: Class not found`
-     * در **heartbeat نصب‌ها** و **callback درگاه** بود — یعنی دقیقاً دو جایی که
-     * نباید بشکنند.
+     * مسیر افزونه می‌رسد. ولی مسیرهایی که از dispatcher رد نمی‌شوند اصلاً
+     * namespaceِ افزونه را ندارند و کلاس پیدا نمی‌شود.
      *
      * ثبت زودهنگام این مشکل را حل می‌کند و برای افزونهٔ داخلی **درست** است: این
      * بسته با `git pull` می‌آید، قابل غیرفعال‌سازی نیست، و هرگز در جدول
@@ -343,12 +295,11 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * J11 — فهرستِ بسته‌های داخلیِ قابل بارگذاری.
+     * فهرستِ بسته‌های داخلیِ قابل بارگذاری.
      *
-     * منبعِ اصلی `plugins/{slug}` است (رفتارِ تولید). ولی در **محیط تست**
-     * بسته‌های قرنطینه‌شدهٔ `plugins/_quarantine/{slug}` هم مثل بستهٔ داخلی
-     * بارگذاری می‌شوند تا مجموعهٔ تستِ خصوصیِ همین مخزن رفتارِ قبلی‌اش را حفظ
-     * کند. این شاخه هرگز در تولید اجرا نمی‌شود (`runningUnitTests()`).
+     * منبعِ اصلی `plugins/{slug}` است. بستهٔ بازاری تنبل بارگذاری می‌شود، ولی
+     * بستهٔ داخلی زودهنگام ثبت می‌شود: با `git pull` می‌آید، قابل غیرفعال‌سازی
+     * نیست و در `system_plugins` هم نمی‌نشیند چون اصلاً نصب نمی‌شود.
      *
      * @return array<string, array{root: string, dir: string}>
      */
@@ -365,39 +316,18 @@ class AppServiceProvider extends ServiceProvider
             }
         }
 
-        if (! $this->app->runningUnitTests()) {
-            return $out;
-        }
-
-        foreach (glob(base_path('plugins/_quarantine/*'), GLOB_ONLYDIR) ?: [] as $dir) {
-            $slug = basename($dir);
-
-            if (isset($out[$slug]) || preg_match('/^[a-z0-9][a-z0-9._-]{1,39}$/', $slug) !== 1) {
-                continue;
-            }
-
-            $root = $dir.'/'.PluginPackageContract::BACKEND_ROOT.'/src';
-
-            if (is_dir($root)) {
-                $out[$slug] = ['root' => $root, 'dir' => $dir];
-            }
-        }
-
         return $out;
     }
 
     /**
-     * J5 — افزونه‌ای که جدولِ لاگِ ممیزیِ خودش را دارد، می‌تواند آن را وصل کند.
+     * افزونه‌ای که جدولِ لاگِ ممیزیِ خودش را دارد، می‌تواند آن را وصل کند.
      *
      * ## چرا این هم عمومی است
      *
-     * پیش‌تر `DevModeAudit` مستقیم `Central\Models\OperatorActivity` را صدا
-     * می‌زد و در `KNOWN_VIOLATIONS` استثنا شده بود. آن استثنا یعنی «هسته می‌داند
-     * افزونهٔ مرکزی کلاسِ ممیزی دارد» — دقیقاً همان وابستگی‌ای که این فاز
-     * حذفش می‌کند.
-     *
-     * حالا هر افزونه می‌تواند یک `AuditSink` اعلام کند و هسته فقط می‌نویسد.
-     * قرارداد در `manifest.json` است، نه در کدِ هسته.
+     * قرارداد در `manifest.json` است، نه در کدِ هسته: هر افزونه می‌تواند یک
+     * `AuditSink` اعلام کند و هسته فقط می‌نویسد. اگر کدِ هسته به کلاسِ
+     * افزونه‌ای خاص اشاره کند، آن افزونه ناچار است برای داشتن لاگِ ممیزی
+     * هسته را ویرایش کند.
      *
      * نکته: کلاس اگر وجود نداشته باشد `instanceof` شکست می‌خورد و بی‌صدا رد
      * می‌شود. یک افزونهٔ ناقص نباید سایت را بالا نیاورد، ولی لاگِ ممیزیِ
@@ -405,7 +335,7 @@ class AppServiceProvider extends ServiceProvider
      */
     private function registerBundledAuditSink(string $slug): void
     {
-        $class = 'Pishdad\\Plugins\\'.Str::studly($slug).'\\Audit\\OperatorActivitySink';
+        $class = 'Pishdad\\Plugins\\'.Str::studly($slug).'\\Audit\\ActivitySink';
 
         try {
             if (! class_exists($class)) {

@@ -63,7 +63,7 @@ class MarketReviewController extends Controller
         ], 201);
     }
 
-    /** GET v1/market/reviews (central moderation queue). */
+    /** GET v1/market/reviews (reviewer moderation queue). */
     public function queue(Request $request): JsonResponse
     {
         return response()->json([

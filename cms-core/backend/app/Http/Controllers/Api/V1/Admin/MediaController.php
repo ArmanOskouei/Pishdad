@@ -10,7 +10,6 @@ use App\Models\MediaTag;
 use App\Services\Audit\ActivityLogger;
 use App\Services\Media\ImageOptimizer;
 use App\Services\RevalidateDispatcher;
-use App\Services\Subscription\ClientSubscriptionResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -408,26 +407,19 @@ class MediaController extends Controller
     }
 
     /**
-     * تنها منبع حقیقتِ سقف: تیرِ کاربر، مجموع مصرف، و سقفِ همان تیر.
+     * تنها منبع حقیقتِ سقف: مجموع مصرف و سقفِ همین نصب.
      *
-     * نصب عمومی مشترک اشتراکی ندارد، پس تیری وجود ندارد؛ `budget` همان
-     * پیش‌فرضی است که resolver برای مشتری تازه می‌سازد.
+     * این نصب تیرِ کاربر ندارد، پس سقف ثابت و برابرِ `DEFAULT_TIER` است. کلیدِ
+     * `tier` در پاسخ نگه داشته شد چون UI آن را می‌خواند.
      *
      * @return array{tier: string, used_bytes: int, quota_bytes: int}
      */
     private function quotaState(Request $request): array
     {
-        $resolved = ClientSubscriptionResolver::forUser($request->user());
-        $client = $resolved[0] ?? null;
-
-        $tier = is_string($client?->tier ?? null) && isset(self::TIER_QUOTAS[$client->tier])
-            ? $client->tier
-            : self::DEFAULT_TIER;
-
         return [
-            'tier' => $tier,
+            'tier' => self::DEFAULT_TIER,
             'used_bytes' => (int) Media::query()->sum('size'),
-            'quota_bytes' => self::TIER_QUOTAS[$tier],
+            'quota_bytes' => self::TIER_QUOTAS[self::DEFAULT_TIER],
         ];
     }
 

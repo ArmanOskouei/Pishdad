@@ -157,14 +157,3 @@ test("واژگانِ قالبِ سایت (ROLES) هنوز کامل نگاشت م
   const missing = ROLES.filter((r) => !mapped.has(r));
   assert.deepEqual(missing, [], "این نقش‌ها از قالب می‌آیند ولی scopeِ سایت آن‌ها را نمی‌خواند: " + missing.join("، "));
 });
-
-test("صفحهٔ تعلیقِ عمومی هم داخل scopeِ سایت است", () => {
-  // رگرسیونِ مشخص: `SuspendedSite` کارتِ `.card card-pad` را بیرونِ هر `.site`
-  // رندر می‌کرد، پس کلِ صفحه تمِ پنلِ مدیر را می‌گرفت.
-  //
-  // ECO2 — این کامپوننت به پوستهٔ مشترکِ صفحات عمومی (`PublicPage.tsx`) منتقل
-  // شد تا روتِ هر دو زبان یکی شود؛ نگهبان همان ادعا را روی محلِ تازه می‌سنجد.
-  const page = read("src/components/site/PublicPage.tsx");
-  const fn = page.slice(page.indexOf("function SuspendedSite"));
-  assert.match(fn, /className="site"/, "SuspendedSite باید داخل `.site` باشد — وگرنه توکن‌های پنل به بازدیدکننده نشت می‌کند.");
-});

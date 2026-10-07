@@ -17,10 +17,6 @@ export const publicFa = {
   "home.emptyHint": "هنوز صفحه‌ای منتشر نشده است. به‌زودی محتوای سایت اینجا نمایش داده می‌شود.",
   "home.login": "ورود به پنل مدیریت",
 
-  // ── تعلیق ──
-  "suspended.title": "سایت موقتاً در دسترس نیست",
-  "suspended.support": "تماس با پشتیبانی: support@example.ir",
-
   // ── جستجو ──
   "search.pageTitle": "جستجو در سایت",
   "search.queryTitle": "جستجو: {q}",

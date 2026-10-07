@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { serverOne } from "@/lib/server-api";
 import { decidePluginPage, normalizePluginPages, type PluginPageEntry } from "@/lib/plugin-page-registry";
 import { PLUGIN_ADMIN_ROOT } from "@/lib/plugin-admin-path";
@@ -57,10 +57,18 @@ export default async function PluginAdminPage({ params }: Props) {
   if (decision.kind === "not-registered") notFound();
 
   if (decision.kind === "forbidden") {
-    // ۴۰۳ به‌جای ۴۰۴ عمدی است *فقط* وقتی صفحه ثبت شده — و این خودش یک
-    // افشای کوچک است (وجود صفحه لو می‌رود)، ولی بدون آن کاربر نمی‌فهمد مشکل
-    // از دسترسی است یا از آدرس. هسته برای همین صفحه descriptor ندارد.
-    redirect(`${PLUGIN_ADMIN_ROOT}/subscription?denied=1`);
+    // ۴۰۳ عمدی است، نه ۴۰۴ — ولی درونِ همین صفحه رندر می‌شود و به صفحهٔ
+    // دیگری redirect نمی‌کند. دلیلش این است که صفحه **ثبت شده** و کاربر باید
+    // بفهمد مشکل از دسترسی است نه از آدرس؛ و هسته برای همین صفحه descriptor
+    // ندارد. پیام عمداً نامِ افزونه یا نقشِ لازم را نمی‌گوید.
+    return (
+      <div className="page-head">
+        <div>
+          <h1>دسترسی مجاز نیست</h1>
+          <p>این صفحه در پنل وجود دارد، ولی حساب شما به آن دسترسی ندارد.</p>
+        </div>
+      </div>
+    );
   }
 
   // descriptor از رجیستری می‌آید و هسته رندرش می‌کند. `pageId` یعنی «از دیتابیس

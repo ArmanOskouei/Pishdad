@@ -17,10 +17,10 @@ const DRAWER_BREAKPOINT = 1100;
 
 /** شل مشترک F1: سایدبار + تاپ‌بار + BottomNav + Drawer موبایل. */
 export function Shell({
-  groups, brand, crumbs, children, suspended, user, profile,
+  groups, brand, crumbs, children, user, profile,
 }: {
   groups: MenuGroup[]; brand: { name: string; sub: string; logoUrl?: string | null }; crumbs: string[];
-  children: React.ReactNode; suspended?: boolean;
+  children: React.ReactNode;
   user?: { name: string; avatarUrl: string | null } | null;
   // K6.2 — برای دروازهٔ پرمیشن ابزارهای افزونه در هدر لازم است.
   profile?: ProfileData | null;
@@ -47,7 +47,7 @@ export function Shell({
 
   return (
     <div className={`app${collapsed ? " collapsed" : ""}${drawer ? " drawer-open" : ""}`}>
-      <Sidebar groups={localized} brand={brand} suspended={suspended} collapsed={collapsed} user={user} />
+      <Sidebar groups={localized} brand={brand} collapsed={collapsed} user={user} />
       <div className="main">
         <Topbar
           crumbs={activeCrumbs} user={user} profile={profile} groups={localized}

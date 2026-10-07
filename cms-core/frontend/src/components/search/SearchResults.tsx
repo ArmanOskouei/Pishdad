@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   SEARCH_GROUP_FA,
   SEARCH_GROUP_ORDER,
-  getSubscriptionLock,
   runSearch,
   type SearchGroup,
   type SearchHit,
@@ -29,8 +28,7 @@ export function SearchResults({ initialQ }: { initialQ: string }) {
       return;
     }
     const t = setTimeout(async () => {
-      const locked = await getSubscriptionLock().catch(() => false);
-      const res = await runSearch(query, { locked, limit: 100 });
+      const res = await runSearch(query, { limit: 100 });
       if (alive) setHits(res);
     }, 150);
     return () => {
@@ -67,7 +65,7 @@ export function SearchResults({ initialQ }: { initialQ: string }) {
             id="sq"
             name="q"
             className="input"
-            placeholder="مثلاً: آپلود عکس، عنوان سایت، فاکتور…"
+            placeholder="مثلاً: آپلود عکس، عنوان سایت، تیکت…"
             defaultValue={q}
             key={initialQ}
           />
@@ -87,12 +85,11 @@ export function SearchResults({ initialQ }: { initialQ: string }) {
         <div className="card card-pad" role="status">
           <b>نتیجه‌ای برای «{q.trim()}» پیدا نشد.</b>
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-            املا را بررسی کنید یا از واژه‌های ساده‌تر استفاده کنید؛ مثلاً «عکس»، «فاکتور» یا «عنوان».
+            املا را بررسی کنید یا از واژه‌های ساده‌تر استفاده کنید؛ مثلاً «عکس»، «تیکت» یا «عنوان».
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBlockStart: 8 }}>
             <Link className="btn btn-ghost btn-sm" href="/admin/pages">صفحات</Link>
             <Link className="btn btn-ghost btn-sm" href="/admin/media">فایل‌ها</Link>
-            <Link className="btn btn-ghost btn-sm" href="/admin/subscription">اشتراک و فاکتور</Link>
           </div>
         </div>
       ) : null}

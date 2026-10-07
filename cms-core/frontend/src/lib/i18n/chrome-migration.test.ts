@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
-import { ADMIN_MENU, ADMIN_MENU_LOCKED, mergePluginMenu, localizeMenuGroups, menuLabel, menuGroupTitle, type MenuGroup, type MenuItem } from "../menu.ts";
+import { ADMIN_MENU, mergePluginMenu, localizeMenuGroups, menuLabel, menuGroupTitle, type MenuGroup, type MenuItem } from "../menu.ts";
 import { fa } from "./fa.ts";
 import { en } from "./en.ts";
 
@@ -76,7 +76,7 @@ test("هیچ متنِ نمایشیِ فارسی در این فایل‌ها بی
 
 test("هر آیتمِ منوی هسته کلیدِ ترجمه دارد", () => {
   const missing: string[] = [];
-  for (const g of [...ADMIN_MENU, ...ADMIN_MENU_LOCKED]) {
+  for (const g of ADMIN_MENU) {
     if (g.title && !g.titleKey) missing.push(`عنوانِ گروه «${g.title}»`);
     for (const it of g.items) if (!it.labelKey) missing.push(`آیتم «${it.label}» (${it.href})`);
   }

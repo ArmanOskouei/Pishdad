@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { useLang } from "@/lib/i18n";
 import type { MenuGroup } from "@/lib/menu";
 
-/** سایدبار F1: رجیستری منو، جمع‌شونده، گروه «مرکزی» بنفش، حالت تعلیق = قفل بجز اشتراک. */
+/** سایدبار F1: رجیستری منو، جمع‌شونده، گروه «مرکزی» بنفش. */
 export function Sidebar({
-  groups, brand, suspended, collapsed, user,
+  groups, brand, collapsed, user,
 }: {
-  groups: MenuGroup[]; brand: { name: string; sub: string; logoUrl?: string | null }; suspended?: boolean; collapsed: boolean;
+  groups: MenuGroup[]; brand: { name: string; sub: string; logoUrl?: string | null }; collapsed: boolean;
   user?: { name: string; avatarUrl: string | null } | null;
 }) {
   const path = usePathname();
@@ -42,14 +42,6 @@ export function Sidebar({
             {g.title ? <div className="nav-group">{g.title}</div> : null}
             {g.items.map((it) => {
               const active = path === it.href;
-              const locked = suspended && it.href !== "/admin/subscription";
-              if (locked) {
-                return (
-                  <span key={it.key} className="nav-item locked" title={t("shell.lockedHint")}>
-                    <span aria-hidden>{it.icon}</span><span className="nav-label">{it.label} 🔒</span>
-                  </span>
-                );
-              }
               return (
                 <div key={it.key}>
                   <Link href={it.href} className={`nav-item${active ? " active" : ""}`} aria-current={active ? "page" : undefined}>

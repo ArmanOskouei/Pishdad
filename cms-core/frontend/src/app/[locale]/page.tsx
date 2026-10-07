@@ -9,7 +9,6 @@ import {
   effectiveLocale,
   pageMetadata,
   preparingMetadata,
-  suspendedNotice,
 } from "@/components/site/PublicPage";
 import type { SitePage } from "@/lib/domain";
 import { isPublicLocale, publicOgLocale, type PublicLocale } from "@/lib/i18n/public";
@@ -83,9 +82,6 @@ export default async function LocaleHome({ params }: Props) {
   const { locale: raw } = await params;
   const locale: PublicLocale = isPublicLocale(raw) ? raw : "fa";
   if (!(await localeAvailable(locale))) notFound();
-
-  const suspended = await suspendedNotice(locale);
-  if (suspended) return suspended;
 
   const chrome = await fetchSiteChrome().catch(() => null);
   const { locales, primary } = effectiveLocale(chrome, locale);

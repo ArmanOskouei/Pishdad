@@ -14,8 +14,8 @@ const isPaginator = (x: unknown): x is Paginator<never> =>
   typeof (x as { current_page?: unknown }).current_page === "number";
 
 /**
- * نرمال‌سازی پاسخ لیست: بک‌اند گاهی paginator خام برمی‌گرداند
- * (pages/media/invoices مشتری) و گاهی `{data: paginator}`.
+ * نرمال‌سازی پاسخ لیست: بک‌اند گاهی paginator خام برمی‌گرداند و گاهی
+ * `{data: paginator}`.
  */
 export function asPaginator<T>(json: unknown): Paginator<T> {
   if (isPaginator(json)) return json as Paginator<T>;
@@ -188,49 +188,8 @@ export function mediaUrl(m: Pick<MediaItem, "path"> & { url?: string | null }): 
   return `${base}/${m.path.replace(/^\/+/, "")}`;
 }
 
-/* ── اشتراک مشتری (۱.۱۵) ── */
 
-export type MySubscription = {
-  plan?: { id: number; name: string; slug: string; tier: string; price_monthly?: number; price_yearly?: number } | null;
-  tier: string;
-  status: "active" | "past_due" | "suspended" | "deleted";
-  due_at: string | null;
-  suspended_at?: string | null;
-  days_remaining: number;
-};
-
-export type Invoice = {
-  id: number;
-  client_id: number;
-  subscription_id?: number | null;
-  amount: number;
-  currency?: string;
-  status: "pending" | "paid" | "failed" | "cancelled";
-  due_at?: string | null;
-  paid_at?: string | null;
-  gateway_ref?: string | null;
-  created_at?: string;
-  client?: { id: number; name: string; site_id?: string };
-};
-
-/**
- * J10 \u2014 \u067e\u0627\u0633\u062e \u0646\u0647\u0627\u0646\u062a \u0633\u0627\u062e\u062a\u0647\u0627\u0631\u062a.
- *
- * \u0646\u0627\u0648\u0639\u062a \u062f\u0648\u0631 \u0648 \u0646\u0647 \u0627\u0646\u0642\u0631\u0627\u0631\u062f \u0627\u0632 \u0628\u0631\u062f\u0627\u0634\u062a \u0641\u0627\u06a9\u062a\u0648\u0631: \u0645\u0646\u0631\u0641\u0639 \u0645\u062f\u0631 \u0646\u0645\u06cc\u200c\u0634\u0648\u062f \u0627\u0633\u062a\u060c \u067e\u0633 \u0646\u0627\u0645\u06cc\u200c\u0628\u0648\u062f\u0646 \u062f\u0631\u06af\u0627\u0647 \u0648 \u0644\u06cc\u0646\u06a9
- * sandbox.zarinpal.com \u0645\u06cc\u200c\u0633\u0627\u062e\u062a \u0628\u0648\u062f\u0647 \u0648 \u0643\u0627\u0631\u0628\u0631 \u062f\u0631\u0627\u06af\u0647\u200c\u0627\u06cc \u0646\u0645\u06cc\u200c\u0633\u0627\u062e\u062a \u0646\u0645\u06cc\u200c\u0628\u095e\u062f.
- *
- * \u0627\u0632 \u0622\u0646 \u062f\u0648 \u0641\u06cc\u0644\u062f \u0647\u0627 \u062d\u0630\u0627\u0641\u0638\u0647 \u06a9\u0647 \u062f\u0627\u0631\u0646\u062f \u0648 pay_url \u0648 uthority
- * \u0646\u06cc\u0633\u062a\u060c \u0637\u0631\u06cc \u0627\u0632 \u0645\u0648\u0636\u0639\u06cc \u0628\u0631\u0627\u06cc \u062f\u0631\u06af\u0627\u0647 \u0642\u0631\u0627\u0631 \u0645\u06cc\u200c\u06af\u064a\u0631\u062f: \u0645\u0642\u0627\u0628\u0644 \u0627\u0635\u0644\u0627\u062d \u0628\u0647 \u0635\u0648\u0631\u062a
- * pending \u0645\u06cc\u200c\u0645\u0627\u0646\u062f \u0648 \u0627\u067e\u0631\u0627\u062a\u0648\u0631 \u0645\u0631\u06a9\u0632\u06cc \u062f\u0633\u062a\u06cc \u0622\u0646\u0631\u0627 \u0631\u0627 \u062a\u0646\u0638\u06cc\u0645 \u0645\u06cc\u200c\u06a9\u0646\u062f.
- */
-export type PaySession = {
-  manual_billing: true;
-  status: string;
-  amount: number;
-  currency: string;
-};
-
-/* ── دسته ۱ (برابری UI/UX): مصرف فضای پلن + پرونده‌های باز مرکزی ── */
+/* â”€â”€ Ø³Ù‡Ù…ÛŒÙ‡Ù” ÙØ¶Ø§ Ùˆ ÙˆØ¶Ø¹ÛŒØª Ø³Ø§ÛŒØª â”€â”€ */
 
 export type MediaUsage = {
   used_bytes: number;
@@ -239,67 +198,7 @@ export type MediaUsage = {
   percent: number;
 };
 
-export type OpenCase = {
-  kind: "wallet" | "pool" | "suspension" | "deploy" | "overdue" | string;
-  severity: "info" | "warning" | "critical";
-  title: string;
-  detail?: string | null;
-  action_label: string;
-  action: string;
-};
-
-/* ── مرکزی (۲.۲ / ۲.۴) ── */
-
-export type Plan = {
-  id: number;
-  name: string;
-  slug: string;
-  tier: "budget" | "standard" | "enterprise";
-  price_monthly?: number | null;
-  price_yearly?: number | null;
-  features?: string[];
-  active?: boolean;
-};
-
-export type Payment = {
-  id: number;
-  invoice_id?: number | null;
-  gateway: string;
-  ref: string;
-  amount: number;
-  status: string;
-  created_at?: string;
-  invoice?: { id: number; client_id: number; amount: number; status: string } | null;
-};
-
-
-export type Backup = {
-  id: number;
-  client_id: number;
-  type: string;
-  status: string;
-  path: string;
-  created_at?: string;
-};
-
-export type SuspendedSub = {
-  id: number;
-  client_id: number;
-  status: string;
-  suspended_at?: string | null;
-  due_at?: string | null;
-  days_remaining: number;
-  client?: { id: number; name: string; site_id?: string; domain?: string | null } | null;
-  plan?: { id: number; name: string; slug: string } | null;
-};
-
-export type GatewaySettings = {
-  driver: string;
-  merchant_id_masked: string | null;
-  sandbox: boolean;
-};
-
-export type SiteStatus = { status: "active" | "suspended"; message: string };
+export type SiteStatus = { status: "active"; message: string };
 
 /* ── مدیران + نقش‌ها (۱.۳) ── */
 
@@ -363,7 +262,6 @@ export const MODULE_FA: Record<string, string> = {
   themes: "قالب‌ها",
   layouts: "چیدمان",
   users: "مدیران و نقش‌ها",
-  subscription: "اشتراک",
 };
 
 export const ACTION_FA: Record<string, string> = {
@@ -775,82 +673,6 @@ export type MarketReviewQueueItem = {
   user?: { id: number; name: string; email: string } | null;
 };
 
-/* ── مرکزی: داشبورد (۲.۱) ── */
-
-
-
-/* ── مرکزی: چابکان (۲.۳) ── */
-
-export type Wallet = { balance: number; currency?: string; low?: boolean; threshold?: number };
-
-export type ServiceItem = { name: string; status: string; size?: string; [k: string]: unknown };
-
-export type Deployment = {
-  id: number;
-  service: string;
-  status: string;
-  triggered_by?: number | null;
-  created_at?: string;
-};
-
-export type Reconciliation = {
-  stub_services: string[];
-  recorded_services: string[];
-  missing_in_db: string[];
-  missing_in_chabokan: string[];
-  driver: string;
-  checked_at?: string;
-};
-
-/* ── مرکزی: مانیتورینگ (۲.۵) ── */
-
-export type HealthRow = {
-  client_id: number;
-  name: string;
-  site_id: string;
-  status?: string | null;
-  version?: string | null;
-  last_seen_at?: string | null;
-  state: "online" | "silent" | "never";
-};
-
-
-/* ── مرکزی: آپدیت‌ها (۲.۶) ── */
-
-export type CoreVersion = { id: number; version: string; is_latest: boolean; created_at?: string };
-
-export type InstallRow = {
-  client_id: number;
-  name: string;
-  site_id: string;
-  current_version?: string | null;
-  update_available: boolean;
-  /** دسته UIUX (افزودنی): آخرین وضعیت رول‌اوت نصب (برای بج شکست‌خورده). */
-  last_rollout_status?: string | null;
-};
-
-/** دسته UIUX (افزودنی): کارت رول‌اوت جاری. */
-export type CurrentRollout = {
-  rollout: { id: number; version: string; status: string } | null;
-  total?: number;
-  done?: number;
-  failed?: number;
-  pending?: number;
-  progress?: number;
-};
-
-export type UpdatesData = { latest: CoreVersion | null; versions: CoreVersion[]; installs: InstallRow[] };
-
-/** دسته UIUX (افزودنی): سری آپتایم روزانه هر نصب. */
-export type UptimeDay = { date: string; status: "online" | "silent" | "unknown" };
-export type UptimeRow = {
-  client_id: number;
-  name: string;
-  site_id: string;
-  today: string;
-  days: UptimeDay[];
-};
-
 /** دسته UIUX (افزودنی): نشست فعال کاربر — فراداده parseشده (مسئله ۲). */
 export type UserSession = {
   id: number;
@@ -882,16 +704,6 @@ export type LoginEvent = {
   created_at?: string | null;
 };
 
-/* ── مرکزی: اپراتور (۲.۷) ── */
-
-export type OperatorActivityItem = {
-  id: number;
-  action: string;
-  payload?: Record<string, unknown> | null;
-  user?: { id: number; name: string; email: string } | null;
-  created_at?: string;
-};
-
 /* ── سایت عمومی (ISR) ── */
 
 export type SitePage = {
@@ -908,20 +720,7 @@ export type SitePage = {
 
 /* ── برچسب‌های فارسی ── */
 
-export const TIER_FA: Record<string, string> = { budget: "بودجه", standard: "استاندارد", enterprise: "سازمانی" };
 export const PAGE_STATUS_FA: Record<string, string> = { draft: "پیش‌نویس", published: "منتشرشده" };
-export const INVOICE_STATUS_FA: Record<string, string> = {
-  pending: "در انتظار پرداخت",
-  paid: "پرداخت‌شده",
-  failed: "ناموفق",
-  cancelled: "لغوشده",
-};
-export const SUB_STATUS_FA: Record<string, string> = {
-  active: "فعال",
-  past_due: "سررسید گذشته",
-  suspended: "معلق",
-  deleted: "حذف‌شده",
-};
 export const HEALTH_FA: Record<string, string> = {
   healthy: "سالم",
   warning: "هشدار",

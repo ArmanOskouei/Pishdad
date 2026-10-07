@@ -33,11 +33,10 @@ use App\Validation\SafeUrl;
 final class Catalog
 {
     /**
-     * پنج گروه = پنج کارتِ صفحهٔ ترجیحات (`F4.2.U`).
+     * چهار گروه = چهار کارتِ صفحهٔ ترجیحات.
      */
     public const GROUPS = [
         'security' => 'امنیت و ورود',
-        'billing' => 'صورتحساب و اشتراک',
         'plugins' => 'افزونه‌ها و قالب‌ها',
         'content' => 'محتوا و صفحه‌ها',
         'system' => 'سامانه و نگه‌داری',
@@ -131,40 +130,14 @@ final class Catalog
             'channels' => ['email', 'sms'],
         ],
 
-        // ── billing ───────────────────────────────────────────────────
-        'billing.invoice_pending' => [
-            'group' => 'billing',
-            'title' => 'صورتحساب در انتظار پرداخت',
-            'body' => 'صورتحساب %s آمادهٔ پرداخت است. تا پرداخت نشود، سایت در وضعیت تعلیق قرار می‌گیرد.',
-            'action' => ['label' => 'پرداخت', 'href' => '/admin/subscription'],
-            'channels' => ['email', 'sms'],
-        ],
-        'billing.renewal_soon' => [
-            'group' => 'billing',
-            'title' => 'اشتراک شما رو به پایان است',
-            'body' => 'اشتراک تا %s اعتبار دارد. تمدید نکنید، سایت از روز بعد تعلیق می‌شود.',
-            'action' => ['label' => 'تمدید', 'href' => '/admin/subscription'],
-            'channels' => ['email'],
-        ],
-        'billing.suspended' => [
-            'group' => 'billing',
-            'title' => 'سایت تعلیق شد',
-            'body' => 'به دلیل عدم پرداخت، سایت موقتاً تعلیق شد. با پرداخت صورتحساب بی‌درنگ برمی‌گردد.',
-            'action' => ['label' => 'پرداخت', 'href' => '/admin/subscription'],
-            'channels' => ['email', 'sms'],
-        ],
-        'billing.subscription_expired' => [
-            'group' => 'billing',
-            'title' => 'اشتراک به پایان رسید',
-            'body' => 'مدت اشتراک شما تمام شد. تا ۷ روز فرصت دارید برای حفظ اطلاعات سایت تمدید کنید.',
-            'action' => ['label' => 'تمدید', 'href' => '/admin/subscription'],
-            'channels' => ['email', 'sms'],
-        ],
-        'billing.quota_warning' => [
-            'group' => 'billing',
-            'title' => 'نزدیکِ سقفِ منابع',
-            'body' => 'مصرف شما به %s رسیده که نزدیکِ سقفِ اشتراک است. افزایش بسته یا پاک‌سازی فضا پیشنهاد می‌شود.',
-            'action' => ['label' => 'ارتقا', 'href' => '/admin/subscription'],
+        // ── resources ─────────────────────────────────────────────────
+        // مصرفِ فضا تنها منبعِ محدودیتی است که در این نصب وجود دارد، پس
+        // هشدارش می‌ماند — ولی مقصدش مدیریتِ فایل است، نه پرداخت.
+        'resources.quota_warning' => [
+            'group' => 'system',
+            'title' => 'نزدیکِ سقفِ فضای فایل',
+            'body' => 'مصرف فضای فایل شما به %s رسیده که نزدیکِ سقفِ این نصب است. پاک‌سازیِ فایل‌های بلااستفاده پیشنهاد می‌شود.',
+            'action' => ['label' => 'مدیریت فایل', 'href' => '/admin/media'],
             'channels' => ['email'],
         ],
 
@@ -238,7 +211,7 @@ final class Catalog
             'group' => 'system',
             'title' => 'سقفِ منابع تمام شد',
             'body' => 'یکی از منابع نصب از سقف گذشته است: %s. تا رفعش، رشد سایت متوقف می‌شود.',
-            'action' => ['label' => 'ارتقا', 'href' => '/admin/subscription'],
+            'action' => ['label' => 'مدیریت فایل', 'href' => '/admin/media'],
             'channels' => ['email', 'telegram'],
         ],
         'system.maintenance' => [

@@ -18,7 +18,6 @@ return [
     'themes' => ['title_fa' => 'قالب‌ها', 'description' => 'قالب‌های سایت'],
     'layouts' => ['title_fa' => 'چیدمان', 'description' => 'هدر، فوتر و بلوک‌ها'],
     'users' => ['title_fa' => 'مدیران و نقش‌ها', 'description' => 'مدیران و سطوح دسترسی'],
-    'subscription' => ['title_fa' => 'اشتراک', 'description' => 'اشتراک و صورت‌حساب‌ها'],
     // WF-H12 — در انتها افزوده شد تا ترتیب ایندکس‌های ماتریس دسترسی موجود نشکند.
     'analytics' => ['title_fa' => 'تحلیل سایت', 'description' => 'بازدیدهای سایت عمومی'],
 ];

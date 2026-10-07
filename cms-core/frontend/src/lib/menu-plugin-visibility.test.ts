@@ -2,27 +2,31 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { filterMenuByPlugins } from "./menu-plugin-visibility.ts";
-import { ADMIN_MENU, ADMIN_MENU_LOCKED, type MenuGroup, type MenuItem } from "./menu.ts";
+import { ADMIN_MENU, type MenuGroup, type MenuItem } from "./menu.ts";
 
 /**
  * رگرسیونِ «آیتم پلاگین بعد از غیرفعال‌سازی در منو ماند».
  *
- * گزارشِ کاربر: پلاگین `subscription` را غیرفعال کرد، ولی «اشتراک من» در
- * بخش مالیِ منو ماند.
+ * گزارشِ کاربر: یک آیتمِ افزونه‌ای که در `ADMIN_MENU` **هاردکد** شده بود، با
+ * غیرفعال‌کردنِ افزونه‌اش از منو نرفت.
  *
- * ریشه: آن آیتم در `ADMIN_MENU` **هاردکد** بود، پس عضوِ هسته بود نه عضوِ
- * افزونه — و هیچ کش یا پاک‌سازی‌ای نمی‌توانست آن را بردارد. راه درست،
- * برچسب‌زدنِ وابستگی با `requiresPlugin` و فیلتر کردن بر اساس وضعیت واقعی.
+ * ریشه: آن آیتم عضوِ هسته بود نه عضوِ افزونه — و هیچ کش یا پاک‌سازی‌ای نمی‌توانست
+ * آن را بردارد. راه درست، برچسب‌زدنِ وابستگی با `requiresPlugin` و فیلتر کردن بر
+ * اساس وضعیت واقعی.
+ *
+ * ⚠️ نهادِ نمونه دیگر «اشتراک من» نیست: آن صفحه و کلِ لایهٔ اشتراک با پروژه رفت.
+ * fixtureهای زیر یک آیتمِ **افزونه‌ایِ فرضی** می‌سازند تا خودِ قانونِ فیلتر آزموده
+ * شود، نه یک محصولِ مشخص — وگرنه هر تست با هر محصولِ حذف‌شده‌ای می‌افتاد.
  */
 
-const groups = (...items: MenuItem[]): MenuGroup[] => [{ title: "مالی", items }];
+const groups = (...items: MenuItem[]): MenuGroup[] => [{ title: "افزونه‌ها", items }];
 
-const subItem: MenuItem = {
-  href: "/admin/subscription",
-  label: "اشتراک من",
-  icon: "◈",
-  key: "subscription",
-  requiresPlugin: "subscription",
+const pluginItem: MenuItem = {
+  href: "/admin/sampleplug",
+  label: "نمونه",
+  icon: "◆",
+  key: "sampleplug",
+  requiresPlugin: "sampleplug",
 };
 
 const coreItem: MenuItem = {
@@ -35,17 +39,17 @@ const coreItem: MenuItem = {
 const keys = (gs: MenuGroup[]): string[] => gs.flatMap((g) => g.items.map((i) => i.key));
 
 test("an item whose plugin is active stays", () => {
-  const out = filterMenuByPlugins(groups(subItem), new Set(["subscription"]));
-  assert.deepEqual(keys(out), ["subscription"]);
+  const out = filterMenuByPlugins(groups(pluginItem), new Set(["sampleplug"]));
+  assert.deepEqual(keys(out), ["sampleplug"]);
 });
 
 test("an item whose plugin is inactive disappears", () => {
-  const out = filterMenuByPlugins(groups(subItem), new Set([]));
+  const out = filterMenuByPlugins(groups(pluginItem), new Set([]));
   assert.deepEqual(keys(out), []);
 });
 
 test("another plugin being active does not bring it back", () => {
-  const out = filterMenuByPlugins(groups(subItem), new Set(["sampleplug"]));
+  const out = filterMenuByPlugins(groups(pluginItem), new Set(["otherplug"]));
   assert.deepEqual(keys(out), []);
 });
 
@@ -55,45 +59,36 @@ test("core items are never filtered", () => {
 });
 
 test("an empty group is removed entirely", () => {
-  // گروه «مالی» با تنها آیتمِ اشتراک نباید عنوانِ خالی نگه دارد.
-  const out = filterMenuByPlugins(groups(subItem), new Set([]));
+  // گروهی با تنها آیتمِ افزونه‌ای نباید عنوانِ خالی نگه دارد.
+  const out = filterMenuByPlugins(groups(pluginItem), new Set([]));
   assert.equal(out.length, 0);
 });
 
 test("unknown state is fail-closed", () => {
   // `null` یعنی «نمی‌دانیم». نمایشِ لینکی که شاید ۴۰۴ بدهد بدتر از نبودنش است.
-  const out = filterMenuByPlugins(groups(subItem, coreItem), null);
+  const out = filterMenuByPlugins(groups(pluginItem, coreItem), null);
   assert.deepEqual(keys(out), ["pages"]);
 });
 
-test("the real admin menu marks the subscription item as plugin-owned", () => {
-  // نگهبانِ خودِ داده: اگر کسی `requiresPlugin` را از آیتم اشتراک برداشت،
-  // این تست می‌افتند و باگ برمی‌گردد.
-  const item = ADMIN_MENU.flatMap((g) => g.items).find((i) => i.key === "subscription");
-
-  assert.ok(item, "آیتم اشتراک باید در منوی هسته باشد");
-  assert.equal(
-    item.requiresPlugin,
-    "subscription",
-    "آیتم اشتراک باید به افزونهٔ subscription نسبت داده شود",
-  );
-});
-
-test("no other core menu item pretends to belong to a plugin", () => {
-  // بقیهٔ آیتم‌های هسته واقعاً مالِ هسته‌اند. برچسب‌زدنشان یعنی با افزونهٔ
-  // غیرفعال، منوی پنل خالی می‌شد.
+test("no core menu item pretends to belong to a plugin", () => {
+  // برخلاف آیتم‌هایی که واقعاً مالِ افزونه‌اند، بقیهٔ آیتم‌های هسته مالِ خودِ
+  // هسته‌اند. برچسب‌زدنشان یعنی با افزونهٔ غیرفعال، منوی پنل خالی می‌شد.
   const owned = ADMIN_MENU
     .flatMap((g) => g.items)
     .filter((i) => i.requiresPlugin !== undefined)
     .map((i) => i.key);
 
-  assert.deepEqual(owned, ["subscription"]);
+  assert.deepEqual(owned, []);
 });
 
-test("the suspension menu keeps the payment page even if it is filtered elsewhere", () => {
-  // حالتِ تعلیق یعنی اشتراک وجود دارد و فقط معلق است. اگر این آیتم هم
-  // `requiresPlugin` داشت، کاربر در قفل گیر می‌افتاد: نه پرداخت، نه توضیح.
-  const locked = ADMIN_MENU_LOCKED.flatMap((g) => g.items);
-  assert.equal(locked.length, 1);
-  assert.equal(locked[0].requiresPlugin, undefined);
+test("every core menu item points inside the admin panel", () => {
+  // نگهبانِ ساختاری: هر آیتمِ منو باید مسیری در خودِ پنل بدهد. آیتمی که به
+  // جای دیگری اشاره کند یعنی یا اشتباه تایپ شده یا به صفحه‌ای می‌رود که در
+  // این نصب وجود ندارد.
+  const hrefs = ADMIN_MENU
+    .flatMap((g) => g.items)
+    .flatMap((i) => [i.href, ...(i.children ?? []).map((c) => c.href)]);
+
+  const outside = hrefs.filter((h) => !h.startsWith("/admin/"));
+  assert.deepEqual(outside, [], "مسیرِ بیرون از پنل در منو: " + outside.join("، "));
 });

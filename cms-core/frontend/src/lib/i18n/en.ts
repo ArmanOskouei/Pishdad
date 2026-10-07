@@ -62,7 +62,6 @@ export const en: Record<MessageKey, string> = {
 
   // ── catalog group labels (key = backend `group_key`) ──
   "inbox.group.security": "Security & sign-in",
-  "inbox.group.billing": "Billing & subscription",
   "inbox.group.plugins": "Plugins & updates",
   "inbox.group.content": "Content & site",
   "inbox.group.system": "Monitoring & maintenance",
@@ -90,7 +89,6 @@ export const en: Record<MessageKey, string> = {
   "menu.notifications": "Notifications",
   "menu.profile": "My profile",
   "menu.group.finance": "Finance",
-  "menu.subscription": "My subscription",
   "menu.group.appearance": "Appearance & content",
   "menu.headerFooter": "Header & footer",
   "menu.blocks": "Site blocks",
@@ -102,14 +100,11 @@ export const en: Record<MessageKey, string> = {
   "menu.settings": "Site settings",
   "menu.socials": "Social profiles",
   "menu.group.plugins": "Plugins",
-  "menu.group.suspended": "Suspended — payment only",
-  "menu.subscriptionPay": "My subscription (payment)",
 
   // ── panel shell — I1-b ──
   "shell.mainNav": "Main navigation",
   "shell.bottomNav": "Mobile navigation",
   "shell.brandLogoAlt": "Logo of {name}",
-  "shell.lockedHint": "Locked while suspended — subscription only",
   "shell.managerFallback": "Manager",
   "shell.panelSwitch": "Panel switch",
   "shell.customerPanel": "Customer",

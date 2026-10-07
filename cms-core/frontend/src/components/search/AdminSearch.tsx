@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSubscriptionLock, runSearch, type SearchHit } from "@/lib/search-registry";
+import { runSearch, type SearchHit } from "@/lib/search-registry";
 import { Highlight } from "./Highlight";
 
 const DEBOUNCE_MS = 150;
@@ -15,13 +15,8 @@ export function AdminSearch() {
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const [locked, setLocked] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const seq = useRef(0);
-
-  useEffect(() => {
-    void getSubscriptionLock().then(setLocked).catch(() => undefined);
-  }, []);
 
   // بستن با کلیک بیرون
   useEffect(() => {
@@ -43,14 +38,14 @@ export function AdminSearch() {
     }
     const my = ++seq.current;
     const t = setTimeout(async () => {
-      const res = await runSearch(query, { locked, limit: MAX_DROP });
+      const res = await runSearch(query, { limit: MAX_DROP });
       if (seq.current !== my) return;
       setHits(res);
       setActive(res.length > 0 ? 0 : -1);
       setOpen(true);
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [q, locked]);
+  }, [q]);
 
   const goResults = (query: string) => {
     setOpen(false);

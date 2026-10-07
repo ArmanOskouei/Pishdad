@@ -241,8 +241,7 @@ export default MinimalTheme;
 | `GET /site/pages/{path}?locale=` | `SitePage` \| 404 | فقط published |
 | `GET /site/theme/{slug}` | `SiteThemeTokens` \| 404 | `name, slug, version, layout, globals, builtin, layout_tokens, colorways[{key,name,light,dark}], default_colorway` — مبنای `/preview/{slug}` |
 | `GET /site/search?q=&per_page=` | `{data, meta:{q,total,per_page}}` | `q` الزامی ۲..۲۰۰ نویسه، `per_page` ≤۵۰، throttle `site-search` |
-| `GET /site/status?site_id=` | `{status: "active"\|"suspended", message}` | دروازهٔ صفحهٔ تعلیق |
-| `GET /subscription-status` | وضعیت اشتراک نصب | مصرف‌کنندهٔ داخلیِ تعلیق |
+| `GET /site/status?site_id=` | `{status: "active", message}` | وضعیت سبک سایت عمومی؛ پیام، نام برند سایت را دارد |
 | `POST /contact/tickets` | `{ticket_id}` | فرم تماس عمومی (هانی‌پات + rate-limit) — فراخوانی توسط `ContactForm` انجام می‌شود، نه قالب |
 
 قاعده: قالب فقط از wrapperهای `src/lib/site.ts` بخواند. مسیرهای admin (`/v1/admin/themes/*`) پشت Sanctum هستند و در سایت عمومی فراخوانی نمی‌شوند.
@@ -271,8 +270,8 @@ export default MinimalTheme;
 
 **ب) بستهٔ ZIP:**
 1. ZIP بسازید که `manifest.json` در **ریشهٔ** ZIP باشد (حداکثر ۲۰MB).
-2. پنل → `/admin/themes` → تب **بستهٔ ZIP** → «آپلود قالب (ZIP)» → `POST /v1/admin/themes/upload` (فیلد `file`). پاسخ 201؛ اگر سوپرادمین/اپراتور نباشید: `pending` («پس از تأیید طراح و معمار CMS فعال‌سازی ممکن می‌شود»، SLA بازبینی سه‌روزه).
-3. پس از تأیید مرکزی → دکمهٔ فعال‌سازی → `POST /v1/admin/themes/{id}/activate`. فعال‌سازی: قالب قبلی غیرفعال، کش `site_chrome` (۱۲۰ ثانیه)، کش توکن (`SiteThemeResolver::flush`) و ISR فرانت (تگ‌های `site-theme`, `theme`, `site-chrome`) باطل می‌شود. اگر اسلاگ پوستهٔ درون‌ساخت باشد، resolver هم هم‌گام می‌شود (رنگ‌بندی/حالت دست‌نخورده می‌ماند).
+2. پنل → `/admin/themes` → تب **بستهٔ ZIP** → «آپلود قالب (ZIP)» → `POST /v1/admin/themes/upload` (فیلد `file`). پاسخ 201. قالبی که مدیرِ عادی آپلود کند `pending` ذخیره می‌شود و فعال‌شدنش ممکن نیست؛ قالبی که اپراتور آپلود کند از همان ابتدا `approved` است. یعنی `review_status` خاصیتِ «چه کسی آپلود کرد» است، نه یک مرحلهٔ تأییدِ جدا.
+3. فعال‌سازی → دکمهٔ فعال‌سازی → `POST /v1/admin/themes/{id}/activate`. فعال‌سازی: قالب قبلی غیرفعال، کش `site_chrome` (۱۲۰ ثانیه)، کش توکن (`SiteThemeResolver::flush`) و ISR فرانت (تگ‌های `site-theme`, `theme`, `site-chrome`) باطل می‌شود. اگر اسلاگ پوستهٔ درون‌ساخت باشد، resolver هم هم‌گام می‌شود (رنگ‌بندی/حالت دست‌نخورده می‌ماند).
 4. دکمهٔ پیش‌نمایش → `POST /v1/admin/themes/{id}/preview` → `preview_url = /preview/{slug}`. صفحهٔ `/preview/{slug}` با توکن‌های همان قالب و کامپوننت رزولوشده رندر می‌کند (`force-dynamic`، noindex)؛ قالب غیرفعال هم قابل پیش‌نمایش است. صفحهٔ عمومی `/preview` هم پیش‌نمایش قالبِ فعال را می‌دهد.
 5. قالب فعال حذف نمی‌شود (`قالب فعال را نمی‌توان حذف کرد`)؛ `DELETE /v1/admin/themes/{id}` فقط برای غیرفعال‌ها.
 

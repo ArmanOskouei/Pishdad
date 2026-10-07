@@ -88,11 +88,6 @@ export async function fetchSitePageFallback(
   return null;
 }
 
-/** وضعیت اشتراک برای رندر تعلیق خودکار (۱.۱۶). null = نامشخص/سرویس پایین. */
-export function fetchSiteStatus(siteId: string): Promise<SiteStatus | null> {
-  return get<SiteStatus>(`/v1/site/status?site_id=${encodeURIComponent(siteId)}`, [SITE_TAG, "site-status"]);
-}
-
 /**
  * K6.12 — رجیستری بلوک‌های schema-only که بک‌اند در `chrome.blocks` می‌دهد.
  * کلید = `type`، مقدار = schema بلوک؛ فقط `properties['x-pattern']` مصرف

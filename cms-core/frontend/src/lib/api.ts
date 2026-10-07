@@ -105,22 +105,6 @@ export type DashboardStats = {
    * صفحاتِ واقعی مشتق می‌کند؛ کلاینت فقط نمایش می‌دهد (بدون حدس).
    */
   checklist?: import("./onboarding").OnboardingChecklist;
-  /**
-   * `null` یعنی «افزونهٔ اشتراک نصب نیست» — نه «اشتراک خراب».
-   *
-   * قرارداد را `DashboardController` صریح تعیین کرده (data.subscription = null
-   * وقتی resolver چیزی برنگرداند). اینجا **قبلاً** غیرقابل‌null تیپ شده بود و
-   * داشبورد `stats.subscription.status` را بدون guard می‌خواند؛ نتیجه برای
-   * سوپرادمین (که اصلاً اشتراک ندارد) کرشِ
-   * «Cannot read properties of null (reading 'status')» بود. تایپ باید حقیقت
-   * سرور را بازتاب دهد تا هر مصرف‌کننده‌ای مجبور به guard شود.
-   */
-  subscription: {
-    status: string;
-    tier: string;
-    due_at: string | null;
-    days_remaining: number;
-  } | null;
 };
 
 export type DashboardAlert = {

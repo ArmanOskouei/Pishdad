@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 /*
 | K8 — market tables: orders, licenses, settlement ledger, manual payouts, security notices.
 | No gateway (K8.6 deferred): orders are confirmed manually, payouts are executed
-| manually by the central operator. Every money movement leaves a ledger row.
+| manually by an operator. Every money movement leaves a ledger row.
 */
 return new class extends Migration
 {

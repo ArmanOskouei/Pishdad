@@ -7,7 +7,7 @@
  * بازتولید:    `npm run gen:plugin-contract`
  * بررسی drift: `npm run gen:plugin-contract:check`  ← روی drift غیرصفر می‌دهد
  *
- * اثر انگشت قرارداد: `870fa337b2303b2c`
+ * اثر انگشت قرارداد: `eab8849bf96185e2`
  * (روی تغییر معنایی قرارداد عوض می‌شود؛ روی تغییر کامنت نه)
  */
 
@@ -114,7 +114,7 @@ export interface PluginPackageContractData {
 }
 
 export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
-  contractFingerprint: "870fa337b2303b2c",
+  contractFingerprint: "eab8849bf96185e2",
   source: "cms-core/backend/app/Services/Plugins/PluginPackageContract.php",
   package: {
     manifestName: "manifest.json",
@@ -186,6 +186,7 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
     "video",
     "contact-form",
     "faq",
+    "form",
     "logo",
     "nav",
     "search",
@@ -199,8 +200,7 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
   overridableInterfaces: [
     "App\\Services\\Billing\\PaymentGatewayInterface",
     "App\\Services\\Chabokan\\ChabokanClientInterface",
-    "App\\Search\\SearchableProvider",
-    "App\\Services\\Subscription\\SubscriptionSource"
+    "App\\Search\\SearchableProvider"
   ],
   grammar: {
     limits: {
@@ -936,7 +936,7 @@ export const PLUGIN_PACKAGE_CONTRACT: PluginPackageContractData = {
       ],
       example_bad: [
         {
-          why: "این نقطه آدرس ندارد. اگر لینک لازم است `notification_id` بدهید تا هسته خودش از راه `pageRegistry()` نشانی بسازد — وگرنه افزونه می‌تواند به هر مسیری لینک بدهد، از جمله `/central/...` که مال پنل مرکزی است.",
+          why: "این نقطه آدرس ندارد. اگر لینک لازم است `notification_id` بدهید تا هسته خودش از راه `pageRegistry()` نشانی بسازد — وگرنه افزونه می‌تواند به هر مسیری لینک بدهد، از جمله مسیری که خودش ثبت نکرده است.",
           decl: {
             key: "sync",
             title_fa: "همگام‌سازی",

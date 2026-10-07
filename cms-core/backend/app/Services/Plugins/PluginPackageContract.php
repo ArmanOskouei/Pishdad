@@ -5,7 +5,6 @@ namespace App\Services\Plugins;
 use App\Search\SearchableProvider;
 use App\Services\Billing\PaymentGatewayInterface;
 use App\Services\Chabokan\ChabokanClientInterface;
-use App\Services\Subscription\SubscriptionSource;
 use Illuminate\Support\Str;
 
 /**
@@ -220,11 +219,6 @@ final class PluginPackageContract
         PaymentGatewayInterface::class,
         ChabokanClientInterface::class,
         SearchableProvider::class,
-        // K7.3 — وضعیتِ اشتراک. افزودنِ این یکی **افزودنیِ محض** است: پیش از
-        // این، `ClientSubscriptionResolver` افزونهٔ مرکزی را با یک `class_exists`
-        // هاردکد صدا می‌زد، پس هیچ افزونهٔ سومی نمی‌توانست منبعِ وضعیت باشد و
-        // «ثبتِ پیاده‌سازی از سمتِ پلاگین» (K7.3) اصلاً مسیرِ کد نداشت.
-        SubscriptionSource::class,
     ];
 
     /** ریشهٔ اجباری namespace کلاس افزونه — هم‌ریشه با قاعدهٔ K5.3. */
@@ -768,7 +762,7 @@ final class PluginPackageContract
             ],
             'example_bad' => [
                 [
-                    'why' => 'این نقطه آدرس ندارد. اگر لینک لازم است `notification_id` بدهید تا هسته خودش از راه `pageRegistry()` نشانی بسازد — وگرنه افزونه می‌تواند به هر مسیری لینک بدهد، از جمله `/central/...` که مال پنل مرکزی است.',
+                    'why' => 'این نقطه آدرس ندارد. اگر لینک لازم است `notification_id` بدهید تا هسته خودش از راه `pageRegistry()` نشانی بسازد — وگرنه افزونه می‌تواند به هر مسیری لینک بدهد، از جمله مسیری که خودش ثبت نکرده است.',
                     'decl' => ['key' => 'sync', 'title_fa' => 'همگام‌سازی', 'href' => '/admin/plugin/sync'],
                 ],
                 [
