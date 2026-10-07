@@ -39,6 +39,29 @@ async function requestOrigin(): Promise<string> {
 const pick = (fromFile: string | undefined, runtimeName: string, buildTime: string | undefined, fallback = ""): string =>
   fromFile ?? effectiveValue(runtimeName, buildTime, fallback) ?? "";
 
+/**
+ * ریشهٔ عمومیِ بک‌اند، از روی نشانیِ API.
+ *
+ * `http://localhost:8080/api` → `http://localhost:8080`
+ *
+ * ⚠️ چرا مهم است: تصاویرِ آپلودی و **گالری** روی خودِ بک‌اند ذخیره می‌شوند
+ * (`/storage/...`) و نشانی‌شان از پایهٔ رسانه ساخته می‌شود. اگر این مقدار خالی
+ * بماند، مرورگر تصویر را از **فرانت** می‌خواهد و ۴۰۴ می‌گیرد — دلیلِ اینکه
+ * گالری خالی بود ولی قالب‌های محتوایی (که از `frontend/public` سرو می‌شوند)
+ * درست می‌آمدند. پس پیش‌فرضش را از همان نشانیِ API می‌گیریم تا کاربر لازم نباشد
+ * چیزی را حدس بزند.
+ */
+function backendOrigin(apiUrl: string): string {
+  const trimmed = apiUrl.trim();
+  if (trimmed === "") return "";
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return "";
+  }
+}
+
 export default async function SetupPage() {
   const config = readSiteConfig();
   const installed = isInstalled();
@@ -88,15 +111,20 @@ export default async function SetupPage() {
     );
   }
 
+  // نشانیِ API جدا حساب می‌شود چون پیش‌فرضِ رسانه از آن مشتق می‌شود.
+  const apiUrl = pick(config.apiUrl, "CMS_PUBLIC_API_URL", process.env.NEXT_PUBLIC_API_URL);
+
   const defaults: SetupInput = {
-    apiUrl: pick(config.apiUrl, "CMS_PUBLIC_API_URL", process.env.NEXT_PUBLIC_API_URL),
+    apiUrl,
     internalApiUrl: pick(config.internalApiUrl, "INTERNAL_API_URL", process.env.INTERNAL_API_URL),
     siteUrl: pick(config.siteUrl, "CMS_SITE_URL", process.env.NEXT_PUBLIC_SITE_URL) || origin,
     locales: pick(config.locales, "CMS_SITE_LOCALES", process.env.NEXT_PUBLIC_SITE_LOCALES) || DEFAULT_PUBLIC_LOCALE,
     primaryLocale:
       pick(config.primaryLocale, "CMS_SITE_PRIMARY_LOCALE", process.env.NEXT_PUBLIC_SITE_PRIMARY_LOCALE) ||
       DEFAULT_PUBLIC_LOCALE,
-    mediaUrl: pick(config.mediaUrl, "CMS_PUBLIC_MEDIA_URL", process.env.NEXT_PUBLIC_MEDIA_URL),
+    // ⚠️ پیش‌فرض از ریشهٔ بک‌اند مشتق می‌شود، نه از فرانت — دلیلش در `backendOrigin`.
+    mediaUrl:
+      pick(config.mediaUrl, "CMS_PUBLIC_MEDIA_URL", process.env.NEXT_PUBLIC_MEDIA_URL) || backendOrigin(apiUrl),
     // ⚠️ رازِ ذخیره‌شده هرگز در فرم بازنشانده نمی‌شود؛ اگر از قبل هست، کاربر
     // باید دوباره واردش کند. افشای آن در HTML یک صفحه یعنی هر بازدیدکننده‌ای
     // می‌توانست کشِ سایت را پاک کند.
