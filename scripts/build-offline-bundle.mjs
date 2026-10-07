@@ -178,7 +178,13 @@ run("docker", [
   "sh", "-lc",
   // `--no-dev`: بستهٔ منتشرشده محیطِ production است و phpunit/pint هیچ‌وقت روی
   // ماشینِ کاربر اجرا نمی‌شوند.
-  "composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader",
+  //
+  // `--no-scripts` عمدی است: اسکریپتِ `post-autoload-dump` لاراول
+  // (`artisan package:discover`) در `storage/logs/` و `bootstrap/cache/`
+  // می‌نویسد — و سورس اینجا read-only است تا درختِ کاری آلوده نشود. لاراول در
+  // اولین بوت، خودش این کش را می‌سازد (`PackageManifest::build()` وقتی فایل
+  // کش نباشد صدا زده می‌شود)، پس چیزی از دست نمی‌رود.
+  "composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader",
 ]);
 
 mkdirSync(join(OUT, "offline"), { recursive: true });
