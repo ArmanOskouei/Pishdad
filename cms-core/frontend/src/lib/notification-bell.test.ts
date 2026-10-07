@@ -255,3 +255,35 @@ test("پاک‌سازی در مسیر خواندن است، نه command جدا"
     "index باید پاک‌سازی را صدا بزند.",
   );
 });
+
+test("پاپ‌اور از جدِ برنده فرار می‌کند (E72)", () => {
+  // ریشهٔ باگ: popover قبلاً absolute داخل bell-wrap بود ولی topbar-actions
+  // (جدِ آن) overflow-x:auto دارد و هر overflow غیرvisible نوادگانِ مطلق
+  // را می‌بُرد — در DOM باز می‌شد ولی هیچ‌چیز دیده نمی‌شد.
+  assert.match(BELL, /getBoundingClientRect\(\)/, "مختصات باید در لحظهٔ بازشدن از خودِ دکمه خوانده شود.");
+  assert.match(BELL, /bell-pop-fixed/, "پاپ‌اور باید کلاسِ fixed داشته باشد.");
+  const seg = CSS.slice(CSS.indexOf(".bell-pop-fixed"));
+  assert.match(seg.slice(0, seg.indexOf("}")), /position:\s*fixed/, "کلاس باید fixed باشد تا از overflow جد فرار کند.");
+});
+
+test("مختصاتِ پاپ‌اور جهت‌آگاه است و کهنه نمی‌ماند (E72)", () => {
+  assert.match(BELL, /getComputedStyle\([^)]*\)\.direction/, "جهت باید از دکمه خوانده شود، نه حدس زده.");
+  assert.match(BELL, /window\.addEventListener\("scroll"/, "با اسکرول باید بسته شود تا مختصاتِ کهنه نماند.");
+  assert.match(BELL, /window\.addEventListener\("resize"/, "با ری‌سایز باید بسته شود.");
+});
+
+test("اسکرولِ داخلِ خودِ پاپ‌اور آن را نمی‌بندد (E72)", () => {
+  // فهرستِ بلند اسکرولِ خودش را دارد. `scroll` حباب نمی‌شود ولی listenerِ
+  // capture روی window آن را از هر نواده می‌گیرد — پس مبدأ باید چک شود وگرنه
+  // کاربر هرگز به ردیف‌های پایینِ اعلان‌ها نمی‌رسد.
+  // دقیقاً در هندلرِ اسکرول، نه هندلرِ pointerdown (آن هم contains دارد).
+  const scrollBlock = BELL.slice(
+    BELL.indexOf("const onScroll"),
+    BELL.indexOf('addEventListener("scroll"'),
+  );
+  assert.match(
+    scrollBlock,
+    /root\.contains\(e\.target\)/,
+    "اسکرولِ برخاسته از داخلِ popover نباید ببندد.",
+  );
+});

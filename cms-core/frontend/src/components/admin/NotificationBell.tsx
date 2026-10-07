@@ -57,6 +57,17 @@ export function NotificationBell() {
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  /**
+   * E72 — مختصاتِ popover در مختصاتِ viewport.
+   *
+   * چرا این state لازم است: popover قبلاً `absolute` داخل `.bell-wrap` بود،
+   * ولی `.topbar-actions` (جدِ آن) `overflow-x: auto` دارد و هر overflowِ
+   * غیرِ`visible` نوادگانِ مطلق را می‌بُرد — popover در DOM باز می‌شد
+   * (`expanded=true`) ولی هیچ‌چیز دیده نمی‌شد. `fixed` از جدِ برنده فرار
+   * می‌کند؛ مختصاتش در لحظهٔ بازشدن از خودِ دکمه خوانده می‌شود.
+   */
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -99,6 +110,46 @@ export function NotificationBell() {
     if (open) void load();
   }, [open, load]);
 
+  /**
+   * E72 — با بازشدن، مختصات از دکمه خوانده می‌شود؛ با اسکرول/ری‌سایز بسته
+   * می‌شود تا مختصاتِ کهنه نماند. جهت از خودِ دکمه خوانده می‌شود (نه از
+   * `document.dir`) چون تم از `data-direction` می‌آید و attr ممکن است نباشد.
+   */
+  const toggle = useCallback(() => {
+    if (!open && btnRef.current && typeof window !== "undefined") {
+      const rect = btnRef.current.getBoundingClientRect();
+      const width = Math.min(360, window.innerWidth - 24);
+      const rtl = getComputedStyle(btnRef.current).direction !== "ltr";
+      const x = rtl ? rect.right - width : rect.left;
+      setPos({
+        top: rect.bottom + 8,
+        left: Math.max(8, Math.min(x, window.innerWidth - width - 8)),
+      });
+    }
+    setOpen(!open);
+  }, [open ]);
+
+  // مختصات در viewport معنا دارد؛ با حرکتِ صفحه کهنه می‌شود، پس ببند —
+  // ولی نه با اسکرولِ داخلِ خودِ popover (فهرستِ بلند اسکرولِ خودش را دارد؛
+  // بستن با آن یعنی کاربر هرگز به ردیف‌های پایین نمی‌رسد). `scroll` حباب
+  // نمی‌شود ولی listenerِ capture روی window آن را از هر نواده می‌گیرد، پس
+  // مبدأ صریحاً چک می‌شود.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const onScroll = (e: Event) => {
+      const root = popRef.current;
+      if (root && e.target instanceof Node && root.contains(e.target)) return;
+      close();
+    };
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open ]);
+
   const markAll = useCallback(async () => {
     try {
       await authed("/v1/admin/notifications/read-all", { method: "POST" });
@@ -138,7 +189,8 @@ export function NotificationBell() {
       <button
         type="button"
         className="icon-btn"
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={toggle}
         aria-label={label}
         title={t("bell.label")}
         aria-expanded={open}
@@ -161,7 +213,12 @@ export function NotificationBell() {
       </button>
 
       {open ? (
-        <div className="bell-pop" role="dialog" aria-label={t("bell.label")}>
+        <div
+          className="bell-pop bell-pop-fixed"
+          role="dialog"
+          aria-label={t("bell.label")}
+          style={pos ? { top: pos.top, left: pos.left } : undefined}
+        >
           <div className="bell-pop-head">
             <b>{t("bell.label")}</b>
             <div className="overlay-head-spacer" />

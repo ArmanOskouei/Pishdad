@@ -762,6 +762,15 @@ body.has-savebar .content { padding-block-end: 120px; }
 .bell-pop-foot { padding: 8px 12px; border-block-start: 1px solid var(--border); flex-shrink: 0; }
 .bell-pop-foot a { font-size: 12.5px; color: var(--primary); text-decoration: none; }
 .bell-pop-foot a:hover { text-decoration: underline; }
+/*
+ * E72 — popoverِ زنگ با `fixed` از جدِ برنده فرار می‌کند.
+ *
+ * ریشه: `.topbar-actions` (جدِ `.bell-wrap`) `overflow-x: auto` دارد و هر
+ * overflowِ غیرِ`visible` نوادگانِ `absolute` را می‌بُرد — popover در DOM باز
+ * می‌شد ولی هیچ‌چیز دیده نمی‌شد. مختصات در لحظهٔ بازشدن از خودِ دکمه خوانده
+ * می‌شود و با اسکرول/ری‌سایز بسته می‌شود تا کهنه نماند.
+ */
+.bell-pop-fixed { position: fixed; z-index: 200; }
 .bell-row { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-block-end: 1px solid var(--border); }
 .bell-row:last-child { border-block-end: 0; }
 .bell-row-title { font-size: 13px; font-weight: 700; color: var(--text); }
