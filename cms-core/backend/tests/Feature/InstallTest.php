@@ -137,7 +137,10 @@ class InstallTest extends TestCase
 
             $this->assertStringContainsString('OWNER TO', $text, "[{$locale}] the remedy must name the ownership fix");
             $this->assertStringContainsString('cms', $text, "[{$locale}] the remedy must carry the real names");
-            $this->assertStringNotContainsString('GRANT CREATE ON SCHEMA', $text, "[{$locale}] the wrong remedy is back");
+            // نامِ مجوزِ غلط فقط داخلِ نفی می‌آید («این کار را نمی‌کند»)، نه
+            // به‌عنوان توصیه — وگرنه کاربر دنبالِ راهِ اشتباه می‌رود.
+            $negation = $locale === 'fa' ? 'نمی‌دهد' : 'does not';
+            $this->assertStringContainsString($negation, $text, "[{$locale}] the wrong grant must only appear as a negation");
         }
     }
 
@@ -208,6 +211,13 @@ class InstallTest extends TestCase
         $this->assertCount(0, $leftovers, 'probe collations must be dropped');
     }
 
+    /**
+     * E49 — وقتی اتصال برقرار نمی‌شود، چکِ مجوز `pending` می‌دهد نه `fail` دوم.
+     *
+     * اندازه‌گیری اصلاً ممکن نیست (همان خطای اتصال)، پس دو `fail` روی صفحه فقط
+     * یک مشکل را دو بار نشان می‌داد. `fail` اتصال به‌تنهایی جلوی ادامه را
+     * می‌گیرد و چکِ مجوز در گامِ «پایگاه داده» با اتصالِ واقعی سنجیده می‌شود.
+     */
     public function test_preflight_fails_gracefully_without_database(): void
     {
         $checks = Preflight::run([
@@ -218,8 +228,7 @@ class InstallTest extends TestCase
         $collation = collect($checks)->firstWhere('key', 'db_collation_privilege');
         $this->assertSame('fail', $conn['status']);
         $this->assertNotSame('', $conn['remedy']);
-        $this->assertSame('fail', $collation['status']);
-        $this->assertNotSame('', $collation['remedy']);
+        $this->assertSame('pending', $collation['status'], 'بدون اتصال، مجوز سنجیده نشده — نه رد شده.');
         $this->assertTrue(Preflight::blockingFailures($checks));
     }
 
