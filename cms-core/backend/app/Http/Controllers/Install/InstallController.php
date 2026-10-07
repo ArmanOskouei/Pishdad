@@ -788,6 +788,24 @@ class InstallController extends Controller
                 Artisan::call('storage:link');
             }
 
+            /*
+             * ⚠️ قالب‌های سایت باید **صریح** اینجا صدا زده شوند.
+             *
+             * `SiteThemeSeeder` تنها از `DatabaseSeeder` صدا زده می‌شود و جریانِ
+             * نصب عمداً `DatabaseSeeder` را اجرا نمی‌کند — چون `DemoAdminSeeder`
+             * محتوای نمایشی می‌سازد و کاربرِ مدیر را خودِ نصب‌کننده می‌سازد.
+             *
+             * نتیجه‌اش این بود که نصبِ تازه **بدونِ هیچ قالبی** بالا می‌آمد و
+             * صفحهٔ «قالب‌های سایت» در پنل خالی بود، با وجودی که قالب‌ها بخشی از
+             * خودِ محصول‌اند نه محتوای نمایشی. با یک نصبِ واقعی گزارش شد.
+             *
+             * ترتیب مهم است: `SiteThemeSeeder` به مجوزِ `themes.review_status`
+             * تکیه دارد که `RolesPermissionsSeeder` می‌سازد و در گامِ مجوزها
+             * اجرا می‌شود؛ پس باید بعد از آن و **پیش از** `PishdadSiteSeeder`
+             * برود (صفحه‌های نمونه به قالبِ فعال ارجاع می‌دهند).
+             */
+            app(\Database\Seeders\SiteThemeSeeder::class)->run();
+
             app(\Database\Seeders\PishdadSiteSeeder::class)->run();
         } catch (Throwable $e) {
             // محتوای نمونه نباید نصب را بشکند: نصبِ سالمِ بدونِ محتوای نمونه

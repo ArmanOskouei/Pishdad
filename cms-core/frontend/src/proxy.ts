@@ -11,7 +11,7 @@ import {
   SITE_LOCALES_HEADER,
   SITE_PRIMARY_LOCALE_HEADER,
 } from "@/lib/public-routing";
-import { effectiveValue } from "./lib/site-config.ts";
+import { effectiveValue, isInstalled } from "./lib/site-config.ts";
 
 /**
  * محافظت روت‌های پنل (F1) — سخت‌شده در K6.6.
@@ -30,6 +30,14 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
   // روتِ واقعیِ `app/setup` هرگز اجرا نمی‌شود ⇒ نصب‌کننده ۴۰۴ می‌شد. همچنین
   // نباید قاعدهٔ ریدایرکتِ سایت (که ممکن است روی همان مسیر باشد) آن را بدزدد.
   if (SYSTEM_PATHS.has(firstSegment(req.nextUrl.pathname))) return NextResponse.next();
+
+  // 🚪 اجرای نخست ⇒ نصب‌کننده. شرط‌های احتیاطی‌اش بالا توضیح داده شده‌اند.
+  if (needsSetup() && !isNonPageRequest(req.nextUrl.pathname)) {
+    const url = req.nextUrl.clone();
+    url.pathname = SETUP_PATH;
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
 
   // WF-C2 — ریدایرکت‌های سایت پیش از هر چیز (پیش از بازنویسیِ زبان).
   //
@@ -99,6 +107,52 @@ function firstSegment(pathname: string): string {
  * (`/api`, `/_next`, `/robots.txt`, …) را خودِ `isPublicSitePath` کنار می‌گذارد.
  */
 const SYSTEM_PATHS = new Set(["setup"]);
+
+/** مسیرِ نصب‌کننده. */
+const SETUP_PATH = "/setup";
+
+/**
+ * 🚪 دروازهٔ **اجرای نخست**: این نصب هرگز تنظیم نشده است؟
+ *
+ * اگر نه فایلِ نصب (`/setup` را کسی پر نکرده) باشد و نه اپراتور مقدارِ محیطی
+ * داده باشد، فرانت هیچ نشانیِ بک‌اندی ندارد. در آن حالت هر صفحهٔ عمومی به
+ * `/setup` می‌رود تا کاربر **همان اولین بار** نشانی را بدهد، به‌جای اینکه یک
+ * سایتِ نیمه‌کاره ببیند و نداند چه چیزی کم است.
+ *
+ * ⚠️ دو شرطِ احتیاطی، چون این دروازه در مسیرِ **هر** درخواست است:
+ *
+ *   • اگر اپراتور `CMS_PUBLIC_API_URL` را از محیط داده باشد، هرگز فعال نمی‌شود
+ *     ⇒ استقرارهای متغیر-محور به نصب‌کننده پرت نمی‌شوند.
+ *   • مقدارِ زمانِ بیلد تنها وقتی «تنظیم‌شده» شمرده می‌شود که با پیش‌فرضِ
+ *     Dockerfile فرق داشته باشد. آن پیش‌فرض همیشه حاضر است، پس معیارِ
+ *     «تنظیم‌شده» نیست — وگرنه دروازه هرگز روشن نمی‌شد.
+ */
+function needsSetup(): boolean {
+  if (isInstalled()) return false;
+  if (effectiveValue("CMS_PUBLIC_API_URL", "").trim() !== "") return false;
+
+  const baked = (process.env.NEXT_PUBLIC_API_URL ?? "").trim();
+  return baked === "" || baked === "http://localhost:8080/api";
+}
+
+/**
+ * درخواست‌هایی که «صفحه» نیستند و نباید به نصب‌کننده ریدایرکت شوند.
+ *
+ * اگر این‌ها هم ریدایرکت می‌شدند، خودِ صفحهٔ نصب هم نمی‌توانست دارایی‌هایش را
+ * بار کند (`/_next/static/...`) و پروکسیِ API و کشِ Next می‌شکستند.
+ */
+function isNonPageRequest(pathname: string): boolean {
+  return (
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/fonts/") ||
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/manifest.webmanifest" ||
+    /\.[a-z0-9]{2,5}$/i.test(pathname)
+  );
+}
 
 /* ── WF-C2 — ریدایرکت‌های سایت (۳۰۱/۳۰۲) ─────────────────────────────────
  * فهرستِ فعال از بک‌اند با TTL کوتاه کش می‌شود تا هر درخواست یک fetch نگیرد.
