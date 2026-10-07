@@ -105,10 +105,10 @@ class Preflight
 
         return [
             'key' => 'php_version',
-            'label' => 'نسخه PHP (حداقل ۸.۳)',
+            'label' => __('install.checks.php_version.label'),
             'status' => $ok ? 'pass' : 'fail',
-            'detail' => 'نسخه فعلی: '.PHP_VERSION,
-            'remedy' => $ok ? '' : 'PHP را به نسخه ۸.۳ یا جدیدتر ارتقا دهید (مبنای composer.json).',
+            'detail' => __('install.checks.php_version.'.($ok ? 'detail_ok' : 'detail_fail'), ['version' => PHP_VERSION]),
+            'remedy' => $ok ? '' : __('install.checks.php_version.remedy'),
         ];
     }
 
@@ -119,12 +119,12 @@ class Preflight
 
         return [
             'key' => 'sodium_runtime',
-            'label' => 'رمزنگاری sodium (تست واقعی roundtrip)',
+            'label' => __('install.checks.sodium_runtime.label'),
             'status' => $result['ok'] ? 'pass' : 'fail',
             'detail' => $result['ok']
-                ? 'رمزنگاری و رمزگشایی آزمایشی موفق بود ('.$result['backend'].').'
-                : 'تست واقعی رمزنگاری sodium ناموفق بود.',
-            'remedy' => $result['ok'] ? '' : 'اکستنشن php-sodium را نصب کنید یا بسته paragonie/sodium_compat را به‌روز نگه دارید.',
+                ? __('install.checks.sodium_runtime.detail_ok', ['backend' => $result['backend']])
+                : __('install.checks.sodium_runtime.detail_fail'),
+            'remedy' => $result['ok'] ? '' : __('install.checks.sodium_runtime.remedy'),
         ];
     }
 
@@ -135,10 +135,10 @@ class Preflight
 
         return [
             'key' => 'ext_'.$ext,
-            'label' => 'اکستنشن '.$ext,
+            'label' => __('install.checks.ext.label', ['ext' => $ext]),
             'status' => $ok ? 'pass' : 'fail',
-            'detail' => $ok ? 'فعال است.' : 'یافت نشد.',
-            'remedy' => $ok ? '' : 'اکستنشن php-'.$ext.' را نصب و PHP را ری‌استارت کنید.',
+            'detail' => __('install.checks.ext.'.($ok ? 'detail_ok' : 'detail_fail')),
+            'remedy' => $ok ? '' : __('install.checks.ext.remedy', ['ext' => $ext]),
         ];
     }
 
@@ -161,10 +161,12 @@ class Preflight
 
         return [
             'key' => 'storage_writable',
-            'label' => 'دسترسی نوشتن storage و کش',
+            'label' => __('install.checks.storage_writable.label'),
             'status' => $ok ? 'pass' : 'fail',
-            'detail' => $ok ? 'مسیرهای storage و bootstrap/cache قابل نوشتن‌اند.' : 'غیرقابل نوشتن: '.implode('، ', $bad),
-            'remedy' => $ok ? '' : 'مالکیت/دسترسی مسیرها را به کاربر وب‌سرور بدهید (مثلاً chown).',
+            'detail' => $ok
+                ? __('install.checks.storage_writable.detail_ok')
+                : __('install.checks.storage_writable.detail_fail', ['paths' => implode(', ', $bad)]),
+            'remedy' => $ok ? '' : __('install.checks.storage_writable.remedy'),
         ];
     }
 
@@ -174,18 +176,18 @@ class Preflight
         $envPath = (string) (config('installer.env_path') ?? base_path('.env'));
         if (is_file($envPath)) {
             $ok = is_writable($envPath);
-            $detail = $ok ? '.env قابل به‌روزرسانی است.' : '.env قابل نوشتن نیست.';
+            $detail = __('install.checks.env_writable.'.($ok ? 'detail_file_ok' : 'detail_file_fail'));
         } else {
             $ok = is_writable(dirname($envPath));
-            $detail = $ok ? '.env هنوز ساخته نشده ولی پوشه قابل نوشتن است.' : 'پوشه .env قابل نوشتن نیست.';
+            $detail = __('install.checks.env_writable.'.($ok ? 'detail_dir_ok' : 'detail_dir_fail'));
         }
 
         return [
             'key' => 'env_writable',
-            'label' => 'قابلیت نوشتن فایل .env',
+            'label' => __('install.checks.env_writable.label'),
             'status' => $ok ? 'pass' : 'fail',
             'detail' => $detail,
-            'remedy' => $ok ? '' : 'دسترسی نوشتن .env را به نصب‌کننده بدهید.',
+            'remedy' => $ok ? '' : __('install.checks.env_writable.remedy'),
         ];
     }
 
@@ -197,10 +199,10 @@ class Preflight
 
         return [
             'key' => 'app_key',
-            'label' => 'کلید APP_KEY',
+            'label' => __('install.checks.app_key.label'),
             'status' => $ok ? 'pass' : 'warn',
-            'detail' => $ok ? 'کلید معتبر تنظیم شده است.' : 'کلید خالی/نامعتبر است؛ در گام «کلید برنامه» ساخته می‌شود.',
-            'remedy' => $ok ? '' : 'ادامه دهید؛ نصب‌کننده کلید را می‌سازد (بدون نیاز به اقدام دستی).',
+            'detail' => __('install.checks.app_key.'.($ok ? 'detail_ok' : 'detail_warn')),
+            'remedy' => $ok ? '' : __('install.checks.app_key.remedy'),
         ];
     }
 
@@ -211,10 +213,10 @@ class Preflight
         if (($config['database'] ?? '') === '') {
             return [
                 'key' => 'db_connection',
-                'label' => 'اتصال پایگاه داده',
+                'label' => __('install.checks.db_connection.label'),
                 'status' => 'fail',
-                'detail' => 'نام دیتابیس مشخص نیست.',
-                'remedy' => 'در گام «پایگاه داده» مشخصات اتصال را وارد کنید.',
+                'detail' => __('install.checks.db_connection.detail_empty'),
+                'remedy' => __('install.checks.db_connection.remedy_empty'),
             ];
         }
         try {
@@ -222,18 +224,20 @@ class Preflight
 
             return [
                 'key' => 'db_connection',
-                'label' => 'اتصال پایگاه داده',
+                'label' => __('install.checks.db_connection.label'),
                 'status' => 'pass',
-                'detail' => "اتصال به {$config['host']}:{$config['port']}/{$config['database']} برقرار شد.",
+                'detail' => __('install.checks.db_connection.detail_ok', [
+                    'host' => $config['host'], 'port' => $config['port'], 'database' => $config['database'],
+                ]),
                 'remedy' => '',
             ];
         } catch (Throwable $e) {
             return [
                 'key' => 'db_connection',
-                'label' => 'اتصال پایگاه داده',
+                'label' => __('install.checks.db_connection.label'),
                 'status' => 'fail',
-                'detail' => 'اتصال ناموفق: '.self::shortError($e),
-                'remedy' => 'هاست/پورت/نام/کاربر/رمز را بررسی کنید و مطمئن شوید Postgres در دسترس است.',
+                'detail' => __('install.checks.db_connection.detail_fail', ['error' => self::shortError($e)]),
+                'remedy' => __('install.checks.db_connection.remedy_fail'),
             ];
         }
     }
@@ -245,10 +249,10 @@ class Preflight
         if (($config['database'] ?? '') === '') {
             return [
                 'key' => 'db_collation_privilege',
-                'label' => 'مجوز CREATE COLLATION (تست واقعی)',
+                'label' => __('install.checks.db_collation_privilege.label'),
                 'status' => 'fail',
-                'detail' => 'بدون اتصال سالم، مجوز سنجیده نمی‌شود.',
-                'remedy' => 'اول اتصال پایگاه داده را درست کنید.',
+                'detail' => __('install.checks.db_collation_privilege.detail_empty'),
+                'remedy' => __('install.checks.db_collation_privilege.remedy_empty'),
             ];
         }
         $probe = 'cms_probe_'.bin2hex(random_bytes(4));
@@ -262,27 +266,27 @@ class Preflight
                 // ساخت موفق بود؛ حذف ناموفق را نادیده نگیر ولی خطا نده — گزارش بده.
                 return [
                     'key' => 'db_collation_privilege',
-                    'label' => 'مجوز CREATE COLLATION (تست واقعی)',
+                    'label' => __('install.checks.db_collation_privilege.label'),
                     'status' => 'warn',
-                    'detail' => "ساخت موفق ولی حذف پروب «{$probe}» ناموفق بود؛ دستی حذفش کنید.",
-                    'remedy' => "DROP COLLATION \"{$probe}\"; را روی دیتابیس اجرا کنید.",
+                    'detail' => __('install.checks.db_collation_privilege.detail_drop_warn', ['probe' => $probe]),
+                    'remedy' => __('install.checks.db_collation_privilege.remedy_drop_warn', ['sql' => 'DROP COLLATION "'.$probe.'";']),
                 ];
             }
 
             return [
                 'key' => 'db_collation_privilege',
-                'label' => 'مجوز CREATE COLLATION (تست واقعی)',
+                'label' => __('install.checks.db_collation_privilege.label'),
                 'status' => 'pass',
-                'detail' => 'ساخت و حذف آزمایشی collation موفق بود.',
+                'detail' => __('install.checks.db_collation_privilege.detail_ok'),
                 'remedy' => '',
             ];
         } catch (Throwable $e) {
             return [
                 'key' => 'db_collation_privilege',
-                'label' => 'مجوز CREATE COLLATION (تست واقعی)',
+                'label' => __('install.checks.db_collation_privilege.label'),
                 'status' => 'fail',
-                'detail' => 'تست واقعی ناموفق: '.self::shortError($e),
-                'remedy' => 'به کاربر دیتابیس مجوز CREATE روی اسکیما بدهید (GRANT CREATE ON SCHEMA public).',
+                'detail' => __('install.checks.db_collation_privilege.detail_fail', ['error' => self::shortError($e)]),
+                'remedy' => __('install.checks.db_collation_privilege.remedy_fail'),
             ];
         }
     }

@@ -1,20 +1,20 @@
 @extends('install.layout')
 
-@section('title', 'گام ۳ — کلید برنامه')
+@section('title', __('install.appkey.title'))
 
 @section('content')
-<h2>گام ۳ — کلید برنامه (APP_KEY)</h2>
+<h2>{{ __('install.appkey.heading') }}</h2>
 
 @if ($valid)
-  <div class="okmsg">کلید معتبر از قبل تنظیم شده است؛ می‌توانید بدون تغییر ادامه دهید.</div>
+  <div class="okmsg">{{ __('install.appkey.valid') }}</div>
 @else
-  <p>کلیدی تنظیم نشده است. با دکمه زیر یک کلید تصادفی ۳۲بایتی ساخته و در <code dir="ltr">.env</code> ذخیره می‌شود.</p>
+  <p>{{ __('install.appkey.missing') }} <code dir="ltr">.env</code></p>
 @endif
 
 <form method="post" action="{{ route('install.app-key.generate') }}">
   <input type="hidden" name="install_token" value="{{ $token }}">
   <div class="actions">
-    <button class="btn" type="submit">{{ $valid ? 'ادامه با همین کلید' : 'ساخت کلید و ادامه' }}</button>
+    <button class="btn" type="submit">{{ $valid ? __('install.appkey.continue_valid') : __('install.appkey.generate') }}</button>
   </div>
 </form>
 @endsection

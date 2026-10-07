@@ -10,6 +10,7 @@ use App\Http\Controllers\Install\Preflight;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -37,6 +38,8 @@ class InstallTest extends TestCase
             'installer.guard_enabled' => false,
             'installer.enforce_2fa_setup' => false,
         ]);
+        // E20: زبانِ پیش‌فرضِ نصب فارسی است (فراخوانیِ مستقیمِ Preflight هم).
+        App::setLocale('fa');
 
         // سیم‌پیچیِ ایزولاسیون: ژورنال/قفل هرگز نباید به مسیر واقعی برود.
         $this->assertSame($this->dir, InstallJournal::basePath());
@@ -165,7 +168,7 @@ class InstallTest extends TestCase
         $this->get('/install')->assertRedirect(route('install.preflight'));
 
         $this->markPriorSteps('preflight', 'database');
-        $this->get('/install')->assertRedirect(route('install.app-key'));
+        $this->get('/install')->assertRedirect(route('install.prepare'));
     }
 
     public function test_posts_require_install_token(): void
@@ -192,6 +195,10 @@ class InstallTest extends TestCase
         $this->get('/install')->assertNotFound();
         $this->get('/install/preflight')->assertNotFound();
         $this->get('/install/done')->assertOk()->assertSee('نصب کامل شد', false);
+        // E22 — برگهٔ اطلاعات: مشخصات دیتابیس + لینک پنل/سایت.
+        $this->get('/install/done')->assertOk()
+            ->assertSee('برگهٔ اطلاعات نصب', false)
+            ->assertSee('/admin/login', false);
     }
 
     public function test_guard_redirects_app_to_installer_when_not_installed(): void
@@ -263,6 +270,95 @@ class InstallTest extends TestCase
 
         $this->expectException(NotFoundHttpException::class);
         $guard->handle(Request::create('/install/preflight', 'GET'), $next);
+    }
+
+    /**
+     * ⭐ رگرسیون E21 — صفحهٔ موفقیت بعدِ قفل باید از گارد رد شود.
+     *
+     * `finalize` به `/install/done` ریدایرکت می‌کند و `done()` عمداً فقط
+     * بعد از نصب معنا دارد؛ گارد نباید آن را هم ۴۰۴ کند.
+     */
+    public function test_guard_lets_done_page_through_after_lock(): void
+    {
+        config(['installer.guard_enabled' => true]);
+        InstallJournal::writeLock();
+        $guard = new InstallGuard;
+        $next = fn () => response('ok');
+
+        $this->assertSame('ok', $guard->handle(Request::create('/install/done', 'GET'), $next)->getContent());
+        $this->assertSame('ok', $guard->handle(Request::create('/install/lang/en', 'GET'), $next)->getContent());
+
+        $this->expectException(NotFoundHttpException::class);
+        $guard->handle(Request::create('/install/preflight', 'GET'), $next);
+    }
+
+    /**
+     * ⭐ رگرسیون E17 — گارد نباید نصبِ درحال‌انجام را بعد از گام ۳ بکشد.
+     *
+     * گام ۳ (`appKeyGenerate`) خودش `APP_KEY` را در `.env` می‌نویسد؛ از
+     * ریکوئستِ بعد، `looksAlreadyInstalled()` صرفاً به‌خاطر ست‌بودن کلید
+     * `true` می‌داد و گارد کل `/install` (از جمله `/install/migrate`) را
+     * ۴۰۴ می‌کرد. با ژورنالِ بدون‌قفل و گامِ ناتمام، مسیر نصب باید باز بماند.
+     */
+    public function test_guard_keeps_installer_open_after_app_key_step(): void
+    {
+        config(['installer.guard_enabled' => true]);
+        // probe واقعی (نه درزِ تست) + کلیدِ ست‌شده مثلِ بعدِ گام ۳.
+        config(['installer.installed_probe' => null]);
+        config(['app.key' => 'base64:'.base64_encode(random_bytes(32))]);
+        $this->markPriorSteps('preflight', 'database', 'app_key');
+
+        $guard = new InstallGuard;
+        $next = fn () => response('ok');
+
+        $this->assertSame(
+            'ok',
+            $guard->handle(Request::create('/install/migrate', 'GET'), $next)->getContent()
+        );
+    }
+
+    /**
+     * E20 — نصب دوزبانه: `?lang=en` انگلیسی می‌کند (جهت LTR)، سوییچر به
+     * فارسی برمی‌گرداند و انتخاب در ژورنال + کوکی می‌ماند.
+     */
+    public function test_installer_switches_language_en_and_back(): void
+    {
+        $this->get('/install/preflight?lang=en')
+            ->assertOk()
+            ->assertSee('Step 1', false)
+            ->assertSee('dir="ltr"', false)
+            ->assertSee('Database', false);
+        $this->assertSame('en', InstallJournal::get('lang')['code'] ?? null);
+
+        $res = $this->get('/install/lang/fa?back=install/preflight');
+        $res->assertRedirect('/install/preflight');
+        // کوکیِ نصب رمزنگاری نمی‌شود (web middleware نداریم)؛ پس هدر خام چک می‌شود.
+        $this->assertStringContainsString('install_lang=fa', (string) $res->headers->get('set-cookie'));
+
+        // پیش‌فرض (بدون Accept-Language انگلیسی) فارسی می‌ماند.
+        $this->get('/install/preflight')->assertOk()->assertSee('گام ۱', false);
+    }
+
+    /**
+     * E19 — اندپوینت‌های مرحله‌ای prepare: کلید و مهاجرت جدا، JSON، و
+     * توکن نامعتبر ۴۱۹ می‌دهد.
+     */
+    public function test_prepare_phased_endpoints_return_json_progress(): void
+    {
+        $token = $this->token();
+        $db = $this->testDbConfig();
+        $this->post('/install/preflight', ['install_token' => $token])
+            ->assertRedirect(route('install.database'));
+        $this->post('/install/database', array_merge(['install_token' => $token], $db))
+            ->assertRedirect(route('install.prepare'));
+
+        $this->postJson('/install/prepare/key', ['install_token' => $token])->assertOk();
+        $this->postJson('/install/prepare/migrate', ['install_token' => $token])
+            ->assertOk()
+            ->assertJsonPath('data.next', route('install.superadmin'));
+
+        $this->postJson('/install/prepare/key', ['install_token' => 'nope'])->assertStatus(419);
+        $this->postJson('/install/prepare/migrate', ['install_token' => 'nope'])->assertStatus(419);
     }
 
     // ─── superadmin + 2FA ────────────────────────────────────────
@@ -360,18 +456,23 @@ class InstallTest extends TestCase
         $this->post('/install/preflight', ['install_token' => $token])
             ->assertRedirect(route('install.database'));
 
-        // ۲) database (اتصال واقعی) + resume از اولین گام ناتمام
+        // ۲) database (اتصال واقعی) → آماده‌سازی خودکار (E18)
         $db = $this->testDbConfig();
         $this->post('/install/database', array_merge(['install_token' => $token], $db))
-            ->assertRedirect(route('install.app-key'));
-        $this->get('/install')->assertRedirect(route('install.app-key'));
+            ->assertRedirect(route('install.prepare'));
+        $this->get('/install')->assertRedirect(route('install.prepare'));
 
-        // ۳) app_key — کلید واقعی نوشته می‌شود.
-        $this->post('/install/app-key', ['install_token' => $token])
-            ->assertRedirect(route('install.migrate'));
+        // ۲ب) prepare — پیام موفقیت اتصال + اجرای خودکار کلید و مهاجرت‌ها.
+        $this->get('/install/prepare')->assertOk()->assertSee('اتصال به دیتابیس برقرار شد', false);
+        // شبیه‌سازی نصبِ تازه: کلیدی در کانفیگ نیست تا prepare بسازدش.
+        config(['app.key' => '']);
+        $this->post('/install/prepare', ['install_token' => $token])
+            ->assertRedirect(route('install.superadmin'));
         $this->assertStringContainsString('APP_KEY=base64:', (string) file_get_contents($this->envFile));
 
-        // ۴) migrate (در تست بی‌اثر است ولی باید عزیمت موفق بدهد).
+        // مسیرهای جدای قدیمی هنوز مستقیم کار می‌کنند (سازگاری API/فراخوانی مستقیم).
+        $this->post('/install/app-key', ['install_token' => $token])
+            ->assertRedirect(route('install.migrate'));
         $this->post('/install/migrate', ['install_token' => $token])
             ->assertRedirect(route('install.superadmin'));
 

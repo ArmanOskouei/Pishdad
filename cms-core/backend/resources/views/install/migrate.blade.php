@@ -1,24 +1,24 @@
 @extends('install.layout')
 
-@section('title', 'گام ۴ — مهاجرت‌ها')
+@section('title', __('install.migrate.title'))
 
 @section('content')
-<h2>گام ۴ — مهاجرت‌های دیتابیس</h2>
+<h2>{{ __('install.migrate.heading') }}</h2>
 
 @if (! empty($formError ?? null))
   <div class="err" role="alert">{{ $formError }}</div>
 @endif
 
 @if ($ran)
-  <div class="okmsg">مهاجرت‌ها قبلاً اجرا شده‌اند (resume از ژورنال).</div>
+  <div class="okmsg">{{ __('install.migrate.ran') }}</div>
 @endif
 
-<p>جدول‌های هسته با <code dir="ltr">php artisan migrate --force</code> ساخته می‌شوند. این کار ممکن است کمی طول بکشد.</p>
+<p>{{ __('install.migrate.intro') }} <code dir="ltr">php artisan migrate --force</code></p>
 
-<form method="post" action="{{ route('install.migrate.run') }}" onsubmit="return confirm('مهاجرت‌ها اجرا شوند؟');">
+<form method="post" action="{{ route('install.migrate.run') }}" onsubmit="return confirm('{{ __('install.migrate.confirm') }}');">
   <input type="hidden" name="install_token" value="{{ $token }}">
   <div class="actions">
-    <button class="btn" type="submit">اجرای مهاجرت‌ها و ادامه</button>
+    <button class="btn" type="submit">{{ __('install.migrate.submit') }}</button>
   </div>
 </form>
 @endsection

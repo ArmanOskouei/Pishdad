@@ -1,12 +1,12 @@
 @php
-  // StepRail راست‌به‌چپ: ترتیب از بالا (شروع) به پایین (پایان).
+  // StepRail: ترتیب از بالا (شروع) به پایین (پایان). برچسب‌ها از lang می‌آیند (E20).
   $steps = [
-    'preflight'  => '۱. پیش‌نیازها',
-    'database'   => '۲. پایگاه داده',
-    'app_key'    => '۳. کلید برنامه',
-    'migrate'    => '۴. مهاجرت‌ها',
-    'superadmin' => '۵. مدیر اصلی',
-    'finalize'   => '۶. اتمام',
+    'preflight'  => __('install.rail.preflight'),
+    'database'   => __('install.rail.database'),
+    'app_key'    => __('install.rail.app_key'),
+    'migrate'    => __('install.rail.migrate'),
+    'superadmin' => __('install.rail.superadmin'),
+    'finalize'   => __('install.rail.finalize'),
   ];
   $order = array_keys($steps);
   $pos = array_search($current ?? 'preflight', $order, true);

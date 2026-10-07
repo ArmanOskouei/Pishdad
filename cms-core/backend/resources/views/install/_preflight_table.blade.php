@@ -1,13 +1,13 @@
 @php
-  $fa = ['pass' => 'قبول', 'warn' => 'هشدار', 'fail' => 'خطا'];
+  $fa = ['pass' => __('install.status.pass'), 'warn' => __('install.status.warn'), 'fail' => __('install.status.fail')];
 @endphp
 <table class="checks">
   <thead>
     <tr>
-      <th scope="col">بررسی</th>
-      <th scope="col">وضعیت</th>
-      <th scope="col">جزئیات</th>
-      <th scope="col">راه‌حل</th>
+      <th scope="col">{{ __('install.table.check') }}</th>
+      <th scope="col">{{ __('install.table.status') }}</th>
+      <th scope="col">{{ __('install.table.detail') }}</th>
+      <th scope="col">{{ __('install.table.remedy') }}</th>
     </tr>
   </thead>
   <tbody>
@@ -16,7 +16,7 @@
       <td>{{ $check['label'] }}</td>
       <td><span class="badge {{ $check['status'] }}">{{ $fa[$check['status']] ?? $check['status'] }}</span></td>
       <td>{{ $check['detail'] }}</td>
-      <td class="remedy">{{ $check['remedy'] !== '' ? $check['remedy'] : '—' }}</td>
+      <td class="remedy">{{ $check['remedy'] !== '' ? $check['remedy'] : __('install.table.none') }}</td>
     </tr>
   @endforeach
   </tbody>

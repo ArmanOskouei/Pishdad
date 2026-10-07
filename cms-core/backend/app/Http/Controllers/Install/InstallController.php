@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -37,20 +38,79 @@ class InstallController extends Controller
 
     // ─── شروع / resume ──────────────────────────────────────────────
 
-    public function start(): RedirectResponse|Response
+    public function start(Request $request): RedirectResponse|Response
     {
+        $this->resolveLocale($request);
         if (InstallJournal::isInstalled()) {
             abort(404);
         }
         $step = InstallJournal::firstIncompleteStep() ?? 'preflight';
+        // E18: گذر وب گام‌های ۳ (کلید) و ۴ (مهاجرت) را در صفحهٔ prepare
+        // ادغام می‌کند؛ resume هم باید به همان‌جا برگردد نه به صفحه‌های جدا.
+        if (in_array($step, ['app_key', 'migrate'], true)) {
+            return redirect()->route('install.prepare');
+        }
 
         return redirect()->route(self::STEP_ROUTES[$step]);
+    }
+
+    // ─── تغییر زبان نصب (E20) ──────────────────────────────────────
+    //
+    // نصب‌کننده نه session دارد نه web middleware؛ پس زبان در کوکیِ ساده
+    // (`install_lang`) + ژورنال می‌ماند و با `?lang=` عوض می‌شود. `back`
+    // عمداً فقط مسیرِ نسبیِ داخل `/install` است (نه URL کامل) تا ریدایرکتِ
+    // باز پیش نیاید.
+
+    public function switchLang(string $lang, Request $request): RedirectResponse
+    {
+        if (! in_array($lang, ['fa', 'en'], true)) {
+            abort(404);
+        }
+        InstallJournal::put('lang', ['code' => $lang]);
+        App::setLocale($lang);
+        $back = '/'.ltrim((string) $request->query('back', ''), '/');
+        if (! str_starts_with($back, '/install')) {
+            $back = route('install.start');
+        }
+
+        return redirect($back)->cookie(cookie()->forever('install_lang', $lang));
+    }
+
+    /**
+     * زبانِ این ریکوئست را مشخص و ست می‌کند: `?lang=` ← کوکی ← ژورنال ←
+     * پیش‌فرض فارسی. عمداً از هدر Accept-Language استفاده نمی‌شود تا زبانِ
+     * پیش‌فرضِ محصول (فارسی) برای همه پایدار بماند؛ انگلیسی فقط با انتخابِ
+     * صریح کاربر (?lang= یا سوییچر) فعال می‌شود و همان در ژورنال/کوکی می‌ماند.
+     * هر اکشنِ نصب اول همین را صدا می‌زند.
+     */
+    private function resolveLocale(Request $request): string
+    {
+        $lang = (string) $request->query('lang', '');
+        if (! in_array($lang, ['fa', 'en'], true)) {
+            $lang = (string) $request->cookie('install_lang', '');
+        }
+        if (! in_array($lang, ['fa', 'en'], true)) {
+            $stored = InstallJournal::get('lang');
+            $lang = isset($stored['code']) && in_array($stored['code'], ['fa', 'en'], true)
+                ? (string) $stored['code']
+                : '';
+        }
+        if ($lang === '') {
+            $lang = 'fa';
+        }
+        if ((string) $request->query('lang', '') !== '') {
+            InstallJournal::put('lang', ['code' => $lang]);
+        }
+        App::setLocale($lang);
+
+        return $lang;
     }
 
     // ─── گام ۱: preflight ───────────────────────────────────────────
 
     public function preflight(Request $request): View|JsonResponse
     {
+        $this->resolveLocale($request);
         $this->ensureNotInstalled();
         $checks = Preflight::run();
         $blocking = Preflight::blockingFailures($checks);
@@ -71,13 +131,14 @@ class InstallController extends Controller
 
     public function preflightConfirm(Request $request): RedirectResponse|JsonResponse|Response
     {
+        $this->resolveLocale($request);
         $this->ensureNotInstalled();
         $this->checkToken($request);
         $checks = Preflight::run();
 
         if (Preflight::blockingFailures($checks)) {
             if ($request->wantsJson()) {
-                return response()->json(['message' => 'پیش‌نیازهای حیاتی برقرار نیست.', 'data' => ['checks' => $checks]], 422);
+                return response()->json(['message' => __('install.msgs.preflight_blocked'), 'data' => ['checks' => $checks]], 422);
             }
 
             // بدون session رندر مستقیم با ۴۲۲ (نه ریدایرکت با withErrors).
@@ -86,7 +147,7 @@ class InstallController extends Controller
                 'blocking' => true,
                 'token' => InstallJournal::token(),
                 'step' => 'preflight',
-                'formError' => 'پیش‌نیازهای حیاتی برقرار نیست؛ ستون «راه‌حل» را ببینید.',
+                'formError' => __('install.msgs.preflight_blocked_hint'),
                 'old' => [],
             ], 422);
         }
@@ -94,7 +155,7 @@ class InstallController extends Controller
         InstallJournal::markStepDone('preflight');
 
         if ($request->wantsJson()) {
-            return response()->json(['message' => 'پیش‌نیازها برقرار است.', 'data' => ['next' => route('install.database')]]);
+            return response()->json(['message' => __('install.msgs.preflight_ok'), 'data' => ['next' => route('install.database')]]);
         }
 
         return redirect()->route('install.database');
@@ -104,6 +165,7 @@ class InstallController extends Controller
 
     public function database(): View
     {
+        $this->resolveLocale(request());
         $this->ensureStepReachable('database');
 
         return view('install.database', [
@@ -117,6 +179,7 @@ class InstallController extends Controller
 
     public function databaseSave(Request $request): RedirectResponse|JsonResponse|Response
     {
+        $this->resolveLocale($request);
         $this->ensureStepReachable('database');
         $this->checkToken($request);
 
@@ -128,7 +191,7 @@ class InstallController extends Controller
             'username' => ['required', 'string', 'max:63'],
             'password' => ['nullable', 'string', 'max:255'],
         ], [
-            'database.regex' => 'نام دیتابیس فقط حروف/عدد/آندرلاین باشد.',
+            'database.regex' => __('install.validation.db_name_rule'),
         ]);
         if ($validator->fails()) {
             if ($request->wantsJson()) {
@@ -149,7 +212,7 @@ class InstallController extends Controller
         $conn = $this->findCheck($probe, 'db_connection');
         $collation = $this->findCheck($probe, 'db_collation_privilege');
         if (($conn['status'] ?? '') !== 'pass' || ($collation['status'] ?? '') !== 'pass') {
-            $message = 'اتصال یا مجوز دیتابیس کافی نیست: '.($conn['detail'] ?? '').' / '.($collation['detail'] ?? '');
+            $message = __('install.msgs.db_probe_fail', ['conn' => $conn['detail'] ?? '', 'collation' => $collation['detail'] ?? '']);
             if ($request->wantsJson()) {
                 return response()->json(['message' => $message, 'data' => ['checks' => $probe]], 422);
             }
@@ -173,16 +236,190 @@ class InstallController extends Controller
         InstallJournal::markStepDone('database');
 
         if ($request->wantsJson()) {
-            return response()->json(['message' => 'اتصال ذخیره شد.', 'data' => ['next' => route('install.app-key')]]);
+            return response()->json(['message' => __('install.msgs.db_saved'), 'data' => ['next' => route('install.prepare')]]);
         }
 
-        return redirect()->route('install.app-key');
+        return redirect()->route('install.prepare');
+    }
+
+    // ─── گام ۲ب: prepare — پیام موفقیت اتصال + اجرای خودکار ۳ و ۴ ──────
+    //
+    // E18: کاربر نمی‌خواهد دو کلیکِ اضافه (ساخت کلید، اجرای مهاجرت‌ها) بزند.
+    // بعد از اتصال موفق، این صفحه «اتصال برقرار شد» را نشان می‌دهد و یک دکمهٔ
+    // واحد («شروع آماده‌سازی و ساخت دیتابیس») گام ۳ و ۴ را خودکار اجرا می‌کند.
+    // صفحه‌های جدا `/install/app-key` و `/install/migrate` سر جایشان‌اند
+    // (سازگاری API/JSON + فراخوانی مستقیم)، ولی گذرِ وب از اینجا می‌گذرد.
+
+    public function prepare(): View|RedirectResponse
+    {
+        $this->resolveLocale(request());
+        $this->ensureStepReachable('database');
+        // resume: اگر قبلاً آماده‌سازی تمام شده، مستقیم گام بعد.
+        if (InstallJournal::isStepDone('migrate')) {
+            return redirect()->route('install.superadmin');
+        }
+
+        return view('install.prepare', [
+            'db' => InstallJournal::get('db'),
+            'token' => InstallJournal::token(),
+            'step' => 'database',
+            'formError' => null,
+        ]);
+    }
+
+    public function prepareRun(Request $request): RedirectResponse|JsonResponse|Response
+    {
+        $this->resolveLocale($request);
+        $this->ensureStepReachable('database');
+        $this->checkToken($request);
+
+        // ۳) کلید برنامه (فقط اگر معتبر نیست — اجرای مجدد بی‌اثر است).
+        $this->ensureAppKey();
+
+        // ۴) مهاجرت‌ها.
+        $migrated = $this->runMigrations();
+        if (! $migrated['ok']) {
+            // جزئیات همین حالا داخل runMigrations در لاگ ثبت شده.
+            $message = __('install.msgs.prepare_fail');
+            if ($request->wantsJson()) {
+                return response()->json(['message' => $message], 500);
+            }
+
+            return $this->formFail('install.prepare', [
+                'db' => InstallJournal::get('db'),
+                'token' => InstallJournal::token(),
+                'step' => 'database',
+            ], $message);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['message' => __('install.msgs.prepare_done'), 'data' => ['next' => route('install.superadmin')]]);
+        }
+
+        return redirect()->route('install.superadmin');
+    }
+
+    // ─── E19: prepare مرحله‌ای (پیشرفت + خطای درون‌صفحه‌ای) ──────────
+    //
+    // صفحهٔ prepare با JS دو فراخوانیِ پشت‌سرهم می‌زند تا نوار پیشرفت فازبه‌فاز
+    // جلو برود: ۱) ساخت کلید (سریع) ۲) مهاجرت‌ها (طولانی). هنگام خطا، به‌جای
+    // «برو لاگ را بخوان»، همان‌جا خلاصهٔ قابل‌فهم + بریدهٔ لاگ برمی‌گردد.
+    // بدون JS همان فرمِ تکیِ prepare.run کار می‌کند (fallback).
+
+    public function prepareKey(Request $request): RedirectResponse|JsonResponse
+    {
+        $this->resolveLocale($request);
+        $this->ensureStepReachable('database');
+        $this->checkToken($request);
+
+        $this->ensureAppKey();
+
+        if ($request->wantsJson()) {
+            return response()->json(['message' => __('install.msgs.key_made'), 'data' => ['done' => true]]);
+        }
+
+        return redirect()->route('install.prepare');
+    }
+
+    public function prepareMigrate(Request $request): RedirectResponse|JsonResponse
+    {
+        $this->resolveLocale($request);
+        $this->ensureStepReachable('database');
+        $this->checkToken($request);
+
+        $migrated = $this->runMigrations();
+        if (! $migrated['ok']) {
+            $payload = [
+                'message' => __('install.msgs.prepare_fail'),
+                'diagnosis' => $this->diagnoseMigrateFailure($migrated['output']),
+                'log' => $this->recentLogExcerpt(),
+            ];
+            if ($request->wantsJson()) {
+                return response()->json($payload, 500);
+            }
+
+            return $this->formFail('install.prepare', [
+                'db' => InstallJournal::get('db'),
+                'token' => InstallJournal::token(),
+                'step' => 'database',
+            ], (string) $payload['message']);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['message' => __('install.msgs.prepare_done'), 'data' => ['next' => route('install.superadmin')]]);
+        }
+
+        return redirect()->route('install.superadmin');
+    }
+
+    /**
+     * نگاشت امضای خطای مهاجرت به خلاصهٔ قابل‌فهم کاربر (E19).
+     * ترتیب مهم است: امضای خاص‌تر اول.
+     */
+    private function diagnoseMigrateFailure(string $output): string
+    {
+        $hay = strtolower($output);
+        $has = function (string ...$needles) use ($hay): bool {
+            foreach ($needles as $n) {
+                if (str_contains($hay, $n)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        if ($has('event trigger')) {
+            return __('install.diagnosis.event_trigger');
+        }
+        if ($has('could not connect', 'connection refused', '08006', '08001', 'timeout expired', 'no such host', 'name resolution')) {
+            return __('install.diagnosis.connection');
+        }
+        if ($has('password authentication failed', '28p01', 'authentication failed')) {
+            return __('install.diagnosis.auth');
+        }
+        if ($has('3d000', 'invalid catalog', 'database does not exist')) {
+            return __('install.diagnosis.catalog');
+        }
+        if ($has('permission denied', '42501', '42502', 'must be owner', 'must be superuser')) {
+            return __('install.diagnosis.privilege');
+        }
+        if ($has('already exists', 'duplicate', '42p07', '23505')) {
+            return __('install.diagnosis.duplicate');
+        }
+
+        return __('install.diagnosis.unknown');
+    }
+
+    /**
+     * ~۴۰ خط آخر لاگ لاراول برای نمایش درون‌صفحه‌ای خطا (E19).
+     * سقف حجم دارد و هرگز استثنا بیرون نمی‌دهد (خودِ گزارشِ خطا نباید خطا بدهد).
+     */
+    private function recentLogExcerpt(): string
+    {
+        try {
+            $path = storage_path('logs/laravel.log');
+            if (! is_file($path)) {
+                return '';
+            }
+            $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+            $tail = array_slice($lines, -40);
+            $text = implode("\n", $tail);
+            if (strlen($text) > 4000) {
+                $text = '…'.substr($text, -4000);
+            }
+
+            return $text;
+        } catch (Throwable) {
+            return '';
+        }
     }
 
     // ─── گام ۳: app_key ─────────────────────────────────────────────
 
     public function appKey(): View
     {
+        $this->resolveLocale(request());
         $this->ensureStepReachable('app_key');
         $key = (string) (config('app.key') ?? env('APP_KEY', ''));
         $valid = str_starts_with($key, 'base64:');
@@ -196,26 +433,49 @@ class InstallController extends Controller
 
     public function appKeyGenerate(Request $request): RedirectResponse|JsonResponse
     {
+        $this->resolveLocale($request);
         $this->ensureStepReachable('app_key');
         $this->checkToken($request);
 
+        $this->ensureAppKey();
+
+        if ($request->wantsJson()) {
+            return response()->json(['message' => __('install.msgs.key_made'), 'data' => ['next' => route('install.migrate')]]);
+        }
+
+        return redirect()->route('install.migrate');
+    }
+
+    /**
+     * کلید برنامه را می‌سازد و در .env می‌نویسد — فقط اگر کلیدِ معتبری نیست
+     * (E18: اجرای مجددِ prepare نباید کلیدِ موجود را عوض کند).
+     *
+     * عمداً فقط `config('app.key')` خوانده می‌شود نه `env()` — در بوت واقعی
+     * هر دو یکی‌اند، ولی در تست `env()` همیشه مقدار phpunit را دارد و مسیرِ
+     * «کلید نیست، بساز» قابل تست نمی‌شد.
+     */
+    private function ensureAppKey(): void
+    {
+        $key = (string) (config('app.key') ?? '');
+        if (str_starts_with($key, 'base64:')) {
+            if (! InstallJournal::isStepDone('app_key')) {
+                InstallJournal::markStepDone('app_key');
+            }
+
+            return;
+        }
         $key = 'base64:'.base64_encode(random_bytes(32));
         self::writeEnv(['APP_KEY' => $key]);
         // همین ریکوئست هم از کلید تازه استفاده کند (ری‌استارت لازم نباشد).
         config(['app.key' => $key]);
         InstallJournal::markStepDone('app_key');
-
-        if ($request->wantsJson()) {
-            return response()->json(['message' => 'کلید برنامه ساخته شد.', 'data' => ['next' => route('install.migrate')]]);
-        }
-
-        return redirect()->route('install.migrate');
     }
 
     // ─── گام ۴: migrate ─────────────────────────────────────────────
 
     public function migrate(): View
     {
+        $this->resolveLocale(request());
         $this->ensureStepReachable('migrate');
 
         return view('install.migrate', [
@@ -228,18 +488,14 @@ class InstallController extends Controller
 
     public function migrateRun(Request $request): RedirectResponse|JsonResponse|Response
     {
+        $this->resolveLocale($request);
         $this->ensureStepReachable('migrate');
         $this->checkToken($request);
 
-        try {
-            $exit = Artisan::call('migrate', ['--force' => true]);
-            $output = (string) Artisan::output();
-            if ($exit !== 0) {
-                throw new \RuntimeException('migrate exit='.$exit.' '.$output);
-            }
-        } catch (Throwable $e) {
-            $message = 'اجرای مهاجرت‌ها ناموفق بود. خروجی در لاگ ثبت شد.';
-            report($e);
+        $migrated = $this->runMigrations();
+        if (! $migrated['ok']) {
+            // جزئیات همین حالا داخل runMigrations در لاگ ثبت شده.
+            $message = __('install.msgs.migrate_fail');
             if ($request->wantsJson()) {
                 return response()->json(['message' => $message], 500);
             }
@@ -251,19 +507,43 @@ class InstallController extends Controller
             ], $message);
         }
 
-        InstallJournal::markStepDone('migrate');
-
         if ($request->wantsJson()) {
-            return response()->json(['message' => 'مهاجرت‌ها اجرا شدند.', 'data' => ['next' => route('install.superadmin')]]);
+            return response()->json(['message' => __('install.msgs.migrated'), 'data' => ['next' => route('install.superadmin')]]);
         }
 
         return redirect()->route('install.superadmin');
+    }
+
+    /**
+     * اجرای `migrate --force` + ثبت گام. خروجی همیشه برمی‌گردد تا فراخواننده
+     * (prepare یا migrateRun) خودش تصمیم بگیرد.
+     *
+     * @return array{ok: bool, output: string}
+     */
+    private function runMigrations(): array
+    {
+        try {
+            $exit = Artisan::call('migrate', ['--force' => true]);
+            $output = (string) Artisan::output();
+            if ($exit !== 0) {
+                return ['ok' => false, 'output' => 'exit='.$exit.' '.$output];
+            }
+        } catch (Throwable $e) {
+            report($e);
+
+            return ['ok' => false, 'output' => $e->getMessage()];
+        }
+
+        InstallJournal::markStepDone('migrate');
+
+        return ['ok' => true, 'output' => ''];
     }
 
     // ─── گام ۵: superadmin ──────────────────────────────────────────
 
     public function superadmin(): View
     {
+        $this->resolveLocale(request());
         $this->ensureStepReachable('superadmin');
 
         return view('install.superadmin', [
@@ -276,6 +556,7 @@ class InstallController extends Controller
 
     public function superadminSave(Request $request): RedirectResponse|JsonResponse|Response
     {
+        $this->resolveLocale($request);
         $this->ensureStepReachable('superadmin');
         $this->checkToken($request);
 
@@ -284,9 +565,9 @@ class InstallController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], [
-            'email.unique' => 'این ایمیل قبلاً ثبت شده است.',
-            'password.min' => 'رمز عبور باید حداقل ۸ نویسه باشد.',
-            'password.confirmed' => 'تکرار رمز عبور مطابقت ندارد.',
+            'email.unique' => __('install.validation.email_unique'),
+            'password.min' => __('install.validation.password_min'),
+            'password.confirmed' => __('install.validation.password_confirmed'),
         ]);
         if ($validator->fails()) {
             if ($request->wantsJson()) {
@@ -305,7 +586,7 @@ class InstallController extends Controller
         InstallJournal::markStepDone('superadmin');
 
         if ($request->wantsJson()) {
-            return response()->json(['message' => 'سوپرادمین ساخته شد.', 'data' => ['next' => route('install.finalize'), 'email' => $user->email]]);
+            return response()->json(['message' => __('install.msgs.admin_made'), 'data' => ['next' => route('install.finalize'), 'email' => $user->email]]);
         }
 
         return redirect()->route('install.finalize');
@@ -315,6 +596,7 @@ class InstallController extends Controller
 
     public function finalizeShow(): View
     {
+        $this->resolveLocale(request());
         $this->ensureStepReachable('superadmin');
         if (! InstallJournal::isStepDone('superadmin')) {
             abort(404);
@@ -329,6 +611,7 @@ class InstallController extends Controller
 
     public function finalize(Request $request): RedirectResponse|JsonResponse
     {
+        $this->resolveLocale($request);
         $this->ensureStepReachable('superadmin');
         $this->checkToken($request);
 
@@ -340,7 +623,7 @@ class InstallController extends Controller
         InstallJournal::writeLock(['email' => InstallJournal::get('superadmin')['email'] ?? null]);
 
         if ($request->wantsJson()) {
-            return response()->json(['message' => 'نصب کامل شد.', 'data' => ['next' => route('install.done')]]);
+            return response()->json(['message' => __('install.msgs.install_done'), 'data' => ['next' => route('install.done')]]);
         }
 
         return redirect()->route('install.done');
@@ -348,13 +631,23 @@ class InstallController extends Controller
 
     public function done(): View
     {
+        $this->resolveLocale(request());
         // صفحه پایانی فقط بعد از قفل معنا دارد؛ قبلش resume.
         if (! InstallJournal::isInstalled()) {
             abort(404);
         }
-        $email = InstallJournal::get('superadmin')['email'] ?? '';
+        // E22 — خلاصهٔ قابل‌ذخیره: مشخصات دیتابیس (از ژورنال) + ایمیل مدیر +
+        // لینک سایت و پنل. رمز ادمین هرگز ذخیره نمی‌شود (فقط هش)، پس همان
+        // «رمزی که خودتان در گام ۵ دادید» یادآوری می‌شود.
+        $frontend = rtrim((string) (env('FRONTEND_URL', 'http://localhost:3000')), '/');
 
-        return view('install.done', ['email' => $email, 'step' => 'finalize']);
+        return view('install.done', [
+            'email' => InstallJournal::get('superadmin')['email'] ?? '',
+            'db' => InstallJournal::get('db'),
+            'frontend' => $frontend,
+            'panel' => $frontend.'/admin/login',
+            'step' => 'finalize',
+        ]);
     }
 
     // ─── ساختِ نخستین مدیر (مشترک وب + CLI) ─────────────────────────
@@ -457,7 +750,7 @@ class InstallController extends Controller
     {
         $given = (string) $request->input('install_token', '');
         if ($given === '' || ! hash_equals(InstallJournal::token(), $given)) {
-            abort(419, 'توکن نصب نامعتبر است؛ صفحه را رفرش کنید.');
+            abort(419, __('install.msgs.token_invalid'));
         }
     }
 

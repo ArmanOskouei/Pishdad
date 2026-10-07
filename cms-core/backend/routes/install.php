@@ -14,11 +14,21 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('install')->name('install.')->group(function () {
     Route::get('/', [InstallController::class, 'start'])->name('start');
 
+    // E20 — سوییچر زبان نصب (fa/en). بیرون از ترتیب گام‌هاست و توکن نمی‌خواهد.
+    Route::get('lang/{lang}', [InstallController::class, 'switchLang'])->name('lang');
+
     Route::get('preflight', [InstallController::class, 'preflight'])->name('preflight');
     Route::post('preflight', [InstallController::class, 'preflightConfirm'])->name('preflight.confirm');
 
     Route::get('database', [InstallController::class, 'database'])->name('database');
     Route::post('database', [InstallController::class, 'databaseSave'])->name('database.save');
+
+    // E18 — آماده‌سازی خودکار (گام ۳ + ۴) بلافاصله بعد از اتصال موفق.
+    Route::get('prepare', [InstallController::class, 'prepare'])->name('prepare');
+    Route::post('prepare', [InstallController::class, 'prepareRun'])->name('prepare.run');
+    // E19 — همان کار، ولی در دو فاز جدا برای نوار پیشرفت (JS) + خطای درون‌صفحه‌ای.
+    Route::post('prepare/key', [InstallController::class, 'prepareKey'])->name('prepare.key');
+    Route::post('prepare/migrate', [InstallController::class, 'prepareMigrate'])->name('prepare.migrate');
 
     Route::get('app-key', [InstallController::class, 'appKey'])->name('app-key');
     Route::post('app-key', [InstallController::class, 'appKeyGenerate'])->name('app-key.generate');

@@ -190,18 +190,44 @@ return new class extends Migration
         // ── ۳) نگهبان ─────────────────────────────────────────────────────
         //
         // `ALTER TABLE` برای `RENAME TO` لازم است. `DROP`/`TRUNCATE` عمداً نیست.
-        DB::unprepared('DROP EVENT TRIGGER IF EXISTS pishdad_guard_plugin_ddl_trg');
-        DB::unprepared(<<<'SQL'
+        //
+        // ⚠️ `CREATE EVENT TRIGGER` فقط superuser می‌خواهد. نصب‌کنندهٔ وب
+        // عمداً با کاربرِ عادی (مالکِ دیتابیس، نه superuser) کار می‌کند —
+        // روی هاست اشتراکی/ابری معمولاً superuser اصلاً داده نمی‌شود. پس
+        // تریگر شرطی است: روی محیطِ محدود، رجیستری و تابع ساخته می‌شوند ولی
+        // enforce در سطح trigger رد می‌شود و هشدارش در لاگ می‌ماند (E18).
+        // ACL خودِ PostgreSQL (مالکیت جدول‌ها) همچنان افزونه را محدود نگه
+        // می‌دارد — همان‌طور که بخش «چرا ACL به‌تنهایی کافی است» توضیح داد.
+        if ($this->installingRoleIsSuperuser()) {
+            DB::unprepared('DROP EVENT TRIGGER IF EXISTS pishdad_guard_plugin_ddl_trg');
+            DB::unprepared(<<<'SQL'
         CREATE EVENT TRIGGER pishdad_guard_plugin_ddl_trg
             ON ddl_command_end
             WHEN TAG IN ('CREATE TABLE', 'CREATE TABLE AS', 'ALTER TABLE')
             EXECUTE FUNCTION pishdad_guard_plugin_ddl();
         SQL);
+        } else {
+            logger()->warning('[K5.12] ساخت EVENT TRIGGER رد شد: نقشِ نصب‌کننده superuser نیست؛ enforce نگهبان DDL غیرفعال ماند.');
+        }
+    }
+
+    /**
+     * آیا نقشی که مهاجرت‌ها را اجرا می‌کند superuser است؟
+     */
+    private function installingRoleIsSuperuser(): bool
+    {
+        $row = DB::selectOne('SELECT rolsuper FROM pg_roles WHERE rolname = current_user');
+
+        return $row !== null && (bool) $row->rolsuper;
     }
 
     public function down(): void
     {
-        DB::unprepared('DROP EVENT TRIGGER IF EXISTS pishdad_guard_plugin_ddl_trg');
+        // حذفِ تریگر هم امتیاز superuser می‌خواهد؛ روی محیطِ محدود که تریگر
+        // هرگز ساخته نشده، تلاش برای حذف خطای مجوز می‌داد.
+        if ($this->installingRoleIsSuperuser()) {
+            DB::unprepared('DROP EVENT TRIGGER IF EXISTS pishdad_guard_plugin_ddl_trg');
+        }
         DB::unprepared('DROP FUNCTION IF EXISTS pishdad_guard_plugin_ddl()');
 
         Schema::dropIfExists('plugin_table_prefixes');

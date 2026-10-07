@@ -51,8 +51,16 @@ class InstallGuard
             return $next($request);
         }
 
-        if (InstallJournal::isInstalled() || $this->looksAlreadyInstalled()) {
-            if ($isInstallPath) {
+        // E17 — نصبِ درحال‌انجام (ژورنالِ بدون‌قفل با گامِ ناتمام) هرگز
+        // «نصب‌شده» نیست، حتی اگر گام ۳ قبلاً APP_KEY را در .env نوشته باشد.
+        // بدون این استثنا، `looksAlreadyInstalled()` از ریکوئستِ بعد از گام ۳
+        // به‌بعد کل `/install` را ۴۰۴ می‌کرد و نصب همان‌جا می‌مرد.
+        // E21 — صفحهٔ موفقیتِ بعدِ قفل (`install/done`) باید باز بماند:
+        // `done()` عمداً فقط *بعد* از نصب معنا دارد و ریدایرکتِ finalize
+        // به آن می‌رود. سوییچر زبان هم روی همان صفحه باید کار کند (توکن
+        // نمی‌خواهد و بی‌خطر است). بقیهٔ `/install` در حالتِ نصب‌شده ۴۰۴ می‌مانند.
+        if (InstallJournal::isInstalled() || (! $this->installInProgress() && $this->looksAlreadyInstalled())) {
+            if ($isInstallPath && ! $request->is('install/done', 'install/lang/*')) {
                 abort(404);
             }
 
@@ -87,6 +95,27 @@ class InstallGuard
      * می‌تواند وقتی probe اشتباه جواب داد (مثلاً DB در بوت در دسترس نیست)
      * آن را از config بازنویسی کند.
      */
+    /**
+     * آیا یک نصبِ وبِ ناتمام در جریان است؟
+     *
+     * ژورنالِ موجودِ بدون‌قفل که هنوز گامِ ناتمامی دارد یعنی کاربر وسط
+     * `/install` است (یا نصب نیمه‌کاره مانده و resume می‌خواهد). در این
+     * حالت هیوریستیکِ `looksAlreadyInstalled()` — که صرفِ ست‌بودن APP_KEY
+     * را نصب‌شده می‌داند — نباید اعمال شود، چون خودِ نصب‌کننده APP_KEY را
+     * در گام ۳ می‌سازد (E17).
+     */
+    private function installInProgress(): bool
+    {
+        if (InstallJournal::isInstalled()) {
+            return false;
+        }
+        if (! is_file(InstallJournal::journalPath())) {
+            return false;
+        }
+
+        return InstallJournal::firstIncompleteStep() !== null;
+    }
+
     private function looksAlreadyInstalled(): bool
     {
         $probe = config('installer.installed_probe');
