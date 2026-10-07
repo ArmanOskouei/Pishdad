@@ -1462,4 +1462,57 @@ mark.search-hl { background: var(--primary-soft, var(--surface-2)); color: var(-
 .setup-kv dd { margin: 0; color: var(--text); font-size: 13px; overflow-wrap: anywhere; }
 .setup-kv code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 6px; }
 
+/* ── سوییچرِ زبان: سگمنتِ «فا / EN» ─────────────────────────────────────
+   `aria-pressed` تنها نشانگرِ حالتِ فعال است (هم برای چشم، هم صفحه‌خوان). */
+.setup-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.setup-lang {
+  display: inline-flex; align-items: stretch; gap: 2px; padding: 2px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2);
+}
+.setup-lang button {
+  min-inline-size: 40px; min-block-size: 32px; padding-block: 4px; padding-inline: 12px;
+  border: 0; border-radius: 999px; background: none; color: var(--text-muted);
+  font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.setup-lang button[aria-pressed="true"] { background: var(--primary); color: var(--primary-text); }
+.setup-lang button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* ── بلوکِ کد/مقدارِ LTR با دکمهٔ کپی در **راستِ** کادر ─────────────────
+   محتوای این جعبه‌ها لاتین است، پس خودِ جعبه همیشه `dir="ltr"` است (از JSX)
+   و دکمهٔ کپی باید در لبهٔ راست بنشیند — در فارسی و انگلیسی یکسان، مستقل از
+   جهتِ صفحه. چون `inset-inline-end` روی عنصرِ `direction: ltr` به «راست» حل
+   می‌شود، این ویژگی خودش تضمینِ درستی است (نه دو قاعدهٔ جدا برای فا/EN). */
+.setup-codewrap { position: relative; }
+.setup-copy {
+  flex: 0 0 auto; display: inline-grid; place-items: center;
+  inline-size: 32px; block-size: 32px; min-block-size: 32px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-muted); cursor: pointer;
+}
+.setup-codewrap > .setup-copy { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; }
+.setup-codewrap .setup-env { padding-inline-end: 48px; }
+.setup-copy.done { color: var(--success); border-color: var(--success); }
+.setup-copy:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+@media (hover: hover) { .setup-copy:hover { color: var(--text); border-color: var(--primary); } }
+
+/* ردیفِ مقدارِ راهنمای سریع: برچسبِ فارسی + کادرِ LTR + کپی در راستِ کادر. */
+.setup-ref-val { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-inline-size: 0; direction: ltr; text-align: left; }
+.setup-ref-val code { flex: 1 1 auto; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+.setup-ref-val .setup-copy { inline-size: 28px; block-size: 28px; min-block-size: 28px; }
+
+/* ── جعبهٔ چسباندنِ بلوکِ بک‌اند (میان‌بُرِ اختیاری) ────────────────────── */
+.card > .setup-disclosure:first-child { border-block-start: 0; padding-block-start: 0; }
+.setup-paste-area { display: flex; align-items: flex-start; gap: 8px; margin-block-start: 10px; direction: ltr; }
+.setup-paste-text {
+  flex: 1 1 auto; min-inline-size: 0; min-block-size: 132px; padding: 10px 12px; text-align: left;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text); resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px; line-height: 1.9;
+}
+.setup-paste-text:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.setup-paste-actions { display: flex; align-items: center; gap: 12px; margin-block-start: 10px; flex-wrap: wrap; }
+.setup-paste-result { margin: 10px 0 0; font-size: 12px; line-height: 1.9; }
+.setup-ok { color: var(--success); }
+.setup-warn { color: var(--warning); }
+
 

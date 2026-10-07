@@ -7,7 +7,7 @@ import type { SetupInput } from "./actions";
 import { SetupForm } from "./SetupForm";
 
 /**
- * نصب‌کنندهٔ وبِ فرانت (E43).
+ * نصب‌کنندهٔ وبِ پنل (E54).
  *
  * طراحی: کاربر **فقط اطلاعاتِ بک‌اند** را وارد می‌کند؛ نصب‌کننده اتصال را واقعاً
  * می‌آزماید، مقادیر را در یک فایلِ JSON روی volume می‌نویسد و همان لحظه
@@ -20,7 +20,9 @@ import { SetupForm } from "./SetupForm";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "نصبِ فرانت‌اند",
+  // عنوانِ سرور (پیش‌فرضِ فارسی). سوییچِ زبانِ کلاینتی در `SetupForm` بعد از
+  // mount عنوانِ مرورگر را هم‌راستا می‌کند (در `useEffect`، نه در رندر).
+  title: "نصب پنل مدیریت پیشداد",
   // صفحهٔ نصب هرگز نباید ایندکس شود.
   robots: { index: false, follow: false },
 };
@@ -40,16 +42,39 @@ const pick = (fromFile: string | undefined, runtimeName: string, buildTime: stri
   fromFile ?? effectiveValue(runtimeName, buildTime, fallback) ?? "";
 
 /**
- * ریشهٔ عمومیِ بک‌اند، از روی نشانیِ API.
+ * ⭐ ترتیبِ اولویتِ «نشانیِ عمومیِ سایت».
+ *
+ *   ۱. مقدارِ **صریح** در فایلِ config (کاربر قبلاً نوشته؛ بر همه‌چیز مقدم است)
+ *   ۲. **originِ درخواستِ واقعی** (از هدرها)
+ *   ۳. `CMS_SITE_URL`ِ محیطِ زمانِ اجرا
+ *   ۴. `NEXT_PUBLIC_SITE_URL`ِ زمانِ بیلد
+ *   ۵. رشتهٔ خالی (فرم خودش اعتبارسنجی می‌کند)
+ *
+ * چرا origin **بالاتر** از `NEXT_PUBLIC_SITE_URL` است: فرانت خودش بهترین
+ * منبعِ آدرسِ عمومیِ خودش است — همان دامنه‌ای که کاربر همین حالا در مرورگر
+ * باز کرده و درخواست از آن رسیده. ولی `NEXT_PUBLIC_*` یک مقدارِ **پخته‌شده در
+ * زمانِ بیلد** است؛ چون باندل باید روی هر سروری نصب شود (بخشِ `runtime-config`)،
+ * این مقدار به‌سرعت کهنه می‌شود و همان باگی را می‌سازد که کاربر `http://localhost:3000`
+ * را می‌بیند در حالی که صفحه روی `http://localhost:3100` باز است.
+ *
+ * ⚠️ بقیهٔ فیلدها دست‌نخورده‌اند و همچنان با `pick` حل می‌شوند.
+ */
+function resolveSiteUrl(fromFile: string | undefined, origin: string): string {
+  const explicit = (fromFile ?? "").trim();
+  return explicit || origin || effectiveValue("CMS_SITE_URL", process.env.NEXT_PUBLIC_SITE_URL);
+}
+
+/**
+ * ریشهٔ عمومیِ سرورِ بک‌اند (لاراول)، از روی نشانیِ API.
  *
  * `http://localhost:8080/api` → `http://localhost:8080`
  *
- * ⚠️ چرا مهم است: تصاویرِ آپلودی و **گالری** روی خودِ بک‌اند ذخیره می‌شوند
- * (`/storage/...`) و نشانی‌شان از پایهٔ رسانه ساخته می‌شود. اگر این مقدار خالی
- * بماند، مرورگر تصویر را از **فرانت** می‌خواهد و ۴۰۴ می‌گیرد — دلیلِ اینکه
- * گالری خالی بود ولی قالب‌های محتوایی (که از `frontend/public` سرو می‌شوند)
- * درست می‌آمدند. پس پیش‌فرضش را از همان نشانیِ API می‌گیریم تا کاربر لازم نباشد
- * چیزی را حدس بزند.
+ * ⚠️ چرا مهم است: فایل‌ها و تصویرهای آپلودی و **گالری** روی خودِ بک‌اند ذخیره
+ * می‌شوند (`/storage/...`) و نشانی‌شان از این پایه ساخته می‌شود. اگر این مقدار
+ * خالی بماند، مرورگر تصویر را از **فرانت** می‌خواهد و ۴۰۴ می‌گیرد — دلیلِ
+ * اینکه گالری خالی بود ولی قالب‌های محتوایی (که از `frontend/public` سرو
+ * می‌شوند) درست می‌آمدند. پس پیش‌فرضش را از همان نشانیِ API می‌گیریم تا کاربر
+ * لازم نباشد چیزی را حدس بزند.
  */
 function backendOrigin(apiUrl: string): string {
   const trimmed = apiUrl.trim();
@@ -74,8 +99,8 @@ export default async function SetupPage() {
         <div className="setup-wrap setup-wrap-narrow">
           <header className="setup-head">
             <div>
-              <p className="setup-eyebrow">نصبِ فرانت‌اند</p>
-              <h1>این فرانت قبلاً نصب شده است</h1>
+              <p className="setup-eyebrow">نصب پنل مدیریت پیشداد</p>
+              <h1>این پنل قبلاً نصب شده است</h1>
               <p className="setup-lead">
                 برای جلوگیری از بازتنظیمِ سایت توسط هر کسی که به این نشانی می‌رسد، نصب‌کننده قفل است. برای نصبِ دوباره،
                 فایلِ تنظیمات را پاک کنید و این صفحه را دوباره باز کنید.
@@ -123,18 +148,19 @@ export default async function SetupPage() {
     );
   }
 
-  // نشانیِ API جدا حساب می‌شود چون پیش‌فرضِ رسانه از آن مشتق می‌شود.
+  // نشانیِ API جدا حساب می‌شود چون پیش‌فرضِ سرورِ بک‌اند از آن مشتق می‌شود.
   const apiUrl = pick(config.apiUrl, "CMS_PUBLIC_API_URL", process.env.NEXT_PUBLIC_API_URL);
 
   const defaults: SetupInput = {
     apiUrl,
     internalApiUrl: pick(config.internalApiUrl, "INTERNAL_API_URL", process.env.INTERNAL_API_URL),
-    siteUrl: pick(config.siteUrl, "CMS_SITE_URL", process.env.NEXT_PUBLIC_SITE_URL) || origin,
+    // ⚠️ اولویت: فایل → originِ درخواست → `CMS_SITE_URL` → `NEXT_PUBLIC_SITE_URL` (دلیلش در `resolveSiteUrl`).
+    siteUrl: resolveSiteUrl(config.siteUrl, origin),
     locales: pick(config.locales, "CMS_SITE_LOCALES", process.env.NEXT_PUBLIC_SITE_LOCALES) || DEFAULT_PUBLIC_LOCALE,
     primaryLocale:
       pick(config.primaryLocale, "CMS_SITE_PRIMARY_LOCALE", process.env.NEXT_PUBLIC_SITE_PRIMARY_LOCALE) ||
       DEFAULT_PUBLIC_LOCALE,
-    // ⚠️ پیش‌فرض از ریشهٔ بک‌اند مشتق می‌شود، نه از فرانت — دلیلش در `backendOrigin`.
+    // ⚠️ پیش‌فرض از ریشهٔ سرورِ بک‌اند مشتق می‌شود، نه از فرانت — دلیلش در `backendOrigin`.
     mediaUrl:
       pick(config.mediaUrl, "CMS_PUBLIC_MEDIA_URL", process.env.NEXT_PUBLIC_MEDIA_URL) || backendOrigin(apiUrl),
     // ⚠️ رازِ ذخیره‌شده هرگز در فرم بازنشانده نمی‌شود؛ اگر از قبل هست، کاربر

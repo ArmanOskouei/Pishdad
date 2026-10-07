@@ -40,7 +40,7 @@ export type SiteConfig = {
    * در داکر معمولاً نامِ سرویس است تا از اینترنت دور بزند.
    */
   internalApiUrl?: string;
-  /** پایهٔ دارایی‌های رسانه‌ای (MinIO/S3 یا `/storage`). */
+  /** پایهٔ سرورِ بک‌اند (لاراول) برای دارایی‌های رسانه‌ای (MinIO/S3 یا `/storage`). */
   mediaUrl?: string;
   /** کلیدِ عمومیِ Web Push. */
   vapidPublicKey?: string;
