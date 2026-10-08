@@ -9,7 +9,7 @@
 ;   cache=../../.local/cache/npm
 ;
 ; Windows (use forward slashes and quote if the path contains spaces):
-;   cache=E:/path/to/ArmanOskouei.ir/.local/cache/npm
+;   cache=E:/path/to/Pishdad/.local/cache/npm
 ;
 ; Then verify with:
 ;   npm config get cache
