@@ -215,6 +215,16 @@
         <!-- ⚠️ این رمز فقط آزمایشی است و به هیچ نصبی تعلق ندارد. نقشِ واقعی در -->
         <!-- هر نصب رمز خودش را از `PLUGIN_DDL_PASSWORD` می‌گیرد. -->
         <env name="PLUGIN_DDL_PASSWORD" value="phpunit-ddl-secret-5c1e" force="true"/>
+        <!-- E70: پایهٔ URL عمومی دیسک s3 (`filesystems.disks.s3.url`).
+             ثابت و `force=true`: تست‌های غنی‌سازی رسانه (`PublicPageMediaUrlTest`،
+             `SiteSettingsTest`، `LogoWidgetTest`) انتظارِ URL روی دیسک s3 را از
+             همین پیکربندی می‌سازند؛ اگر به `.env` محیط گره بخورد (که `AWS_URL`
+             ندارد)، همه بی‌صدا `null` می‌گیرند و ۸ تست قرمز می‌شود. مقدار همان
+             `.env.example` است؛ هیچ درخواستی به آن زده نمی‌شود، فقط رشته‌سازی. -->
+        <env name="AWS_URL" value="http://localhost:9100/cms" force="true"/>
+        <env name="AWS_ENDPOINT" value="http://minio:9000" force="true"/>
+        <env name="AWS_BUCKET" value="cms" force="true"/>
+        <env name="AWS_USE_PATH_STYLE_ENDPOINT" value="true" force="true"/>
     </php>
 
     <!--

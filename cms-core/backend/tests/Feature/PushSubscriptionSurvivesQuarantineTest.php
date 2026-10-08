@@ -85,9 +85,18 @@ class PushSubscriptionSurvivesQuarantineTest extends TestCase
     /**
      * جداییِ نام‌ها: لایهٔ اشتراک نباید هیچ ارجاعی به PushSubscription داشته باشد،
      * و وب‌پوش نباید در `Services/Subscription` باشد.
+     *
+     * E70: از زمان حذف پنل مرکزی (E27) پوشهٔ `Services/Subscription` دیگر وجود
+     * ندارد، پس حلقهٔ زیر صفر بار می‌چرخید و تست بدون هیچ assertion می‌ماند
+     * (risky). assert صریحِ نبودِ پوشه هم جدایی را قفل می‌کند و هم risky را.
      */
     public function test_the_subscription_layer_does_not_absorb_push(): void
     {
+        $this->assertDirectoryDoesNotExist(
+            base_path('app/Services/Subscription'),
+            'لایهٔ اشتراک با E27 حذف شد؛ بازگشتش بدون دلیل ممنوع.',
+        );
+
         foreach (glob(base_path('app/Services/Subscription/*.php')) ?: [] as $file) {
             $this->assertStringNotContainsString(
                 'PushSubscription',
@@ -95,5 +104,10 @@ class PushSubscriptionSurvivesQuarantineTest extends TestCase
                 basename($file).' به PushSubscription ارجاع می‌دهد — دو دامنهٔ متفاوت‌اند.',
             );
         }
+
+        $this->assertTrue(
+            class_exists(PushSubscription::class),
+            'وب‌پوش باید مستقل از لایهٔ اشتراک زنده بماند.',
+        );
     }
 }

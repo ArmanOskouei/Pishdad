@@ -71,6 +71,13 @@ class PluginsTest extends PluginDdlNoTransactionCase
         Setting::query()->where('group', 'plugin')->delete();
         Setting::query()->where('key', 'like', 'seal_key_%')->delete();
 
+        // E70: این کلاس `RefreshDatabase` ندارد (پایهٔ `PluginDdlNoTransactionCase`)،
+        // پس هر چه تست‌ها `enable()` کنند در دیتابیسِ مشترکِ تست می‌ماند و تستِ
+        // `ThemeMakeTest::fail_closed` (که باید حالت را بسته ببیند) در suite کامل
+        // قرمز می‌شود. حالت توسعه‌دهنده را هم مثل بقیه صریح برمی‌گردانیم.
+        Setting::query()->where('group', DevMode::GROUP)->where('key', DevMode::KEY)->delete();
+        app(DevMode::class)->forget();
+
         // بدون این‌ها تست‌های بعدی با `unique violation` می‌میرند، چون
         // `RefreshDatabase` دیگر هیچ چیزی را برنمی‌گرداند.
         //

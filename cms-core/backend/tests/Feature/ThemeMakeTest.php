@@ -30,6 +30,11 @@ class ThemeMakeTest extends TestCase
         parent::setUp();
         Cache::flush();
         app(DevScaffoldRegistry::class)->forget();
+        // E70: این تست‌ها پیش‌فرضِ «بسته» را می‌سنجند، ولی دیتابیسِ تست بین
+        // کلاس‌ها مشترک است و `PluginsTest` (بدون تراکنش) ممکن است حالتِ باز
+        // را commit کرده باشد. پس به‌جای فرض، صریح می‌بندیم تا ترتیب‌اثر نماند.
+        app(DevMode::class)->disable();
+        app(DevMode::class)->forget();
     }
 
     protected function tearDown(): void
