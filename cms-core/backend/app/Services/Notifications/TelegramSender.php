@@ -45,23 +45,63 @@ final class TelegramSender
     /** فرمتِ توکنِ BotFather: `digits:body`. */
     public const TOKEN_PATTERN = '/^\d{5,}:[A-Za-z0-9_-]{20,}$/';
 
+    /**
+     * ⭐ E74 — رباتِ عمومیِ پیشداد که با نسخه منتشر می‌شود.
+     *
+     * **عمومی و عمدی** است: کاربرِ تازه‌کار بدون هیچ تنظیمی باید تلگرامِ
+     * کارکرده داشته باشد. این مقدار یک راز نیست (مثل کلیدِ عمومی)، ولی
+     * قرار هم نیست رازِ نصب باشد — و نمی‌شود. ترتیب اولویت در `token()`:
+     * `.env` ⇒ پنل ⇒ همین. پس رباتِ شخصیِ اپراتور همیشه برنده است و
+     * خاموش‌کردنِ کامل هم با `TELEGRAM_BOT_TOKEN=` (خالیِ صریح) ممکن است.
+     *
+     * تنها منبعِ حقیقت: `config/telegram.php` (این ثابت فقط همان را نام می‌برد
+     * تا تست‌ها و پنل لازم نباشد رشته را تکرار کنند).
+     */
+    public const DEFAULT_TOKEN = '8970988910:AAFbk0HLteQtrosvpiBpw2bTH1ifOk48sCg';
+
+    /** نامِ کاربریِ همان ربات — فقط برای متنِ راهنما. */
+    public const DEFAULT_HANDLE = '@PishdadCMS_Bot';
+
+    /** آیا توکنِ مؤثر از پیش‌فرضِ عمومی می‌آید (نه `.env` و نه پنل)؟ */
+    public static function usesDefaultBot(): bool
+    {
+        return self::token() === self::DEFAULT_TOKEN;
+    }
+
     public static function configured(): bool
     {
         return self::token() !== '';
     }
 
-    /** توکنِ مؤثر: اول `.env`، بعد تنظیمِ پنل. */
+    /**
+     * توکنِ مؤثر، از بالا به پایین:
+     *
+     *  ① `.env` اگر **مقداری** داشته باشد — تصمیمِ اپراتور، برنده‌ی مطلق.
+     *  ② تنظیمِ پنل (`integrations.telegram_bot_token`).
+     *  ③ رباتِ عمومیِ پیشداد (E74) — پایین‌ترین لایه.
+     *
+     * ⚠️ یک حالتِ سوم هم هست و عمدی است: `.env` با خطِ **خالی**
+     * (`TELEGRAM_BOT_TOKEN=`) یعنی «خاموش». این با «خط نبودن» فرق دارد:
+     * نبودِ خط ⇒ پیش‌فرضِ عمومی، خطِ خالی ⇒ کانال بسته (fail-soft). بدون این
+     * تفکیک، خاموش‌کردنِ کانالِ پیش‌فرض غیرممکن می‌شد.
+     */
     public static function token(): string
     {
-        $fromEnv = trim((string) config('telegram.bot_token', ''));
+        $raw = config('telegram.bot_token');
 
-        if ($fromEnv !== '') {
-            return $fromEnv;
+        if ($raw !== null) {
+            $fromEnv = trim((string) $raw);
+
+            return $fromEnv === '' ? '' : $fromEnv;
         }
 
         $fromPanel = Setting::get(self::SETTINGS_GROUP, self::SETTINGS_KEY, '');
 
-        return is_string($fromPanel) ? trim($fromPanel) : '';
+        if (is_string($fromPanel) && trim($fromPanel) !== '') {
+            return trim($fromPanel);
+        }
+
+        return trim((string) config('telegram.default_token', ''));
     }
 
     /**

@@ -137,7 +137,11 @@ class NotificationInboxController extends Controller
      * مدیر بفهمد کدام ربات وصل است. مسیر `perm:settings.edit` دارد چون رازِ
      * نصب است، نه تنظیمِ شخصی (برخلاف chat_id که مالِ خودِ کاربر است).
      *
-     * @return array{configured: bool, masked: string|null}
+     * E74 — `is_default` یعنی «توکنِ مؤثر از رباتِ عمومیِ پیشداد می‌آید».
+     * پنل با آن می‌فهمد پاک‌کردن یعنی برگشت به رباتِ عمومی، نه خاموشی؛
+     * برای خاموشیِ واقعی باید `TELEGRAM_BOT_TOKEN=` در `.env` باشد.
+     *
+     * @return array{configured: bool, masked: string|null, is_default: bool}
      */
     public function botSettings(): JsonResponse
     {
@@ -145,6 +149,7 @@ class NotificationInboxController extends Controller
             'data' => [
                 'configured' => TelegramSender::configured(),
                 'masked' => TelegramSender::masked(),
+                'is_default' => TelegramSender::configured() && TelegramSender::usesDefaultBot(),
             ],
         ]);
     }
@@ -170,6 +175,16 @@ class NotificationInboxController extends Controller
             ]);
         }
 
+        // E74 — اگر اپراتور در `.env` کانال را **عمداً** بسته باشد
+        // (`TELEGRAM_BOT_TOKEN=` خطِ خالی)، ذخیرهٔ توکن در پنل بی‌صدا بی‌اثر
+        // می‌ماند و مدیر فکر می‌کند تنظیمش کرده. به‌جای آن صریح می‌گوییم چه
+        // چیزی باید عوض شود.
+        if ($token !== null && $token !== '' && config('telegram.bot_token') === '') {
+            throw ValidationException::withMessages([
+                'token' => 'در فایل .env خطِ خالیِ TELEGRAM_BOT_TOKEN= هست و آن یعنی «کانال خاموش»؛ تا آن خط را خالی نگذارید یا توکن خودتان را داخلش بگذارید، توکنِ پنل اعمال نمی‌شود.',
+            ]);
+        }
+
         TelegramSender::setToken($token === '' ? null : $token);
 
         return response()->json([
@@ -177,6 +192,7 @@ class NotificationInboxController extends Controller
             'data' => [
                 'configured' => TelegramSender::configured(),
                 'masked' => TelegramSender::masked(),
+                'is_default' => TelegramSender::configured() && TelegramSender::usesDefaultBot(),
             ],
         ]);
     }

@@ -129,7 +129,10 @@ class NotificationChannelsTest extends TestCase
 
     public function test_no_telegram_row_without_a_bot_token(): void
     {
-        config(['telegram.bot_token' => null]);
+        // E74 — چون نسخهٔ منتشرشده رباتِ عمومیِ پیش‌فرض دارد، «بدون توکن»
+        // یعنی خطِ **خالیِ صریح** در `.env` (`TELEGRAM_BOT_TOKEN=`)، نه نبودِ
+        // خط. `''` همان خاموشیِ عمدی است.
+        config(['telegram.bot_token' => '']);
         Mail::fake();
 
         $u = $this->user(['telegram_chat_id' => '123']);
