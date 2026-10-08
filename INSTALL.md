@@ -17,7 +17,10 @@ npx pishdad install [dir] [--yes] [--check]
 This checks prerequisites, clones, runs `composer install` + `npm ci`,
 writes `.env`, serves the backend and **opens `/install` in your browser**.
 `--check` only reports what is missing; `--yes` auto-installs missing system
-packages (needs sudo/admin). Details and flags: `npx pishdad install --help`.
+packages (needs sudo/admin). PHP is searched everywhere first — `PATH`,
+XAMPP/Laragon/winget folders, then running Docker containers (you pick when
+several qualify; `--docker-container <name>` forces one). Details and flags:
+`npx pishdad install --help`.
 
 > Status: the `pishdad` npm package publishes alongside each release. If
 > `npx` says “404”, use way A/B/C below — same result, a few more commands.
