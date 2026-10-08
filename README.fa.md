@@ -265,8 +265,16 @@ npm install
 npm run build
 ```
 
-Nginx را به `public/` بک‌اند و `.next/` فرانت‌اند اشاره دهید و سایت بالاست.
+بعد نصب‌کنندهٔ وب را باز کنید — همهٔ پیش‌نیازها را بررسی می‌کند و نصب را تمام
+می‌کند (سوپرادمین، محتوای دمو، لینک storage):
 
+```bash
+cd ../backend && php artisan serve
+# باز کنید: http://127.0.0.1:8000/install
+```
+
+راهنمای کامل — دستورهای هر سیستم‌عامل، هر قدم چه نصب می‌کند، به‌روزرسانی،
+هاست اشتراکی (cPanel)، Docker، دانلود ZIP: **[INSTALL.fa.md](INSTALL.fa.md)**.
 
 > 🇬🇧 [This section in English](README.md#installation)
 ---
@@ -282,19 +290,18 @@ Nginx را به `public/` بک‌اند و `.next/` فرانت‌اند اشار
 | دامنه | ۱ دامنه با DNS به سرور | + ۱ زیردامنه |
 
 <details>
-<summary>نصب‌کننده چه چیزهایی را خودکار نصب می‌کند</summary>
+<summary>اول چه لازم دارید (نصب‌کننده این‌ها را بررسی می‌کند، نصب نمی‌کند)</summary>
 
 | سرویس | نسخه |
 |---|---|
-| PHP | 8.3+ (FPM) |
-| افزونه‌های PHP | `pdo_pgsql` · `redis` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
-| Nginx | 1.31+ |
-| PostgreSQL | 18+ با مرتب‌سازی `fa-IR` |
-| Redis | 8+ |
-| MinIO | آخرین نسخه، ذخیره‌سازی شیء سازگار با S3 |
-| Composer | 2.x |
-| Node.js | 22 LTS، ۲۴ پیشنهاد می‌شود |
-| TLS | گواهی خودکار و تمدید خودکار |
+| PHP | 8.2 به بالا، 8.3 پیشنهادی (FPM) |
+| افزونه‌های PHP | `pdo_pgsql` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
+| PostgreSQL | 14 به بالا — MySQL/MariaDB **کار نمی‌کند** (مهاجرت‌های `jsonb`) |
+| Composer | نسخه ۲ |
+| Node.js | نسخه 22 LTS (فقط برای یک‌بار بیلد فرانت) |
+
+Redis و MinIO و Supervisor **لازم نیستند**. دستورهای هر سیستم‌عامل، روش
+به‌روزرسانی، راهنمای هاست اشتراکی (cPanel) و دانلود ZIP: **[INSTALL.fa.md](INSTALL.fa.md)**.
 
 </details>
 
