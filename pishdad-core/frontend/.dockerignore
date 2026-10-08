@@ -1,0 +1,19 @@
+node_modules
+.next
+out
+.local
+.npmrc
+npm-debug.log*
+# ⚠️ هرگز این‌ها را به context ندهید. Next در `next build` مقدارهای `NEXT_PUBLIC_*`
+# را از `.env*` می‌خواند و **داخلِ باندلِ منتشرشده جای‌گذاری می‌کند**. یک بیلد با
+# `.env.local`ِ توسعه‌دهنده یعنی هر کاربری نشانیِ رسانهٔ شخصیِ او و تنظیماتِ پنلش
+# را می‌گیرد. دقیقاً همین اتفاق افتاد و در chunkهای ایمیج دیده شد.
+.env
+.env.local
+.env.*.local
+Dockerfile
+docker-compose.yml
+.git
+.gitignore
+README.md
+README.fa.md

@@ -30,6 +30,7 @@
 - [ویرایشگر بلوکی](#ویرایشگر-بلوکی)
 - [سئوی داخلی](#سئوی-داخلی)
 - [مقایسه](#مقایسه)
+- [مستندات](#مستندات)
 - [نصب](#نصب)
 - [الزامات سرور](#الزامات-سرور)
 - [توسعه محلی](#توسعه-محلی)
@@ -249,7 +250,7 @@
 
 ```bash
 git clone https://github.com/ArmanOskouei/Pishdad.git
-cd Pishdad/cms-core
+cd Pishdad/pishdad-core
 
 # --- بک‌اند ---
 cd backend
@@ -305,19 +306,19 @@ Nginx را به `public/` بک‌اند و `.next/` فرانت‌اند اشار
 
 ```bash
 # بک‌اند — http://127.0.0.1:8000
-cd cms-core/backend
+cd pishdad-core/backend
 cp .env.example .env && composer install && php artisan serve
 
 # فرانت‌اند — http://127.0.0.1:3000
-cd cms-core/frontend
+cd pishdad-core/frontend
 npm install && npm run dev
 ```
 
 با Docker Compose، مجموعهٔ Nginx، PHP-FPM، PostgreSQL، Redis و MinIO بالا می‌آید:
 
 ```bash
-cd cms-core/backend  && docker compose up -d
-cd cms-core/frontend && docker compose up -d
+cd pishdad-core/backend  && docker compose up -d
+cd pishdad-core/frontend && docker compose up -d
 ```
 
 | فرانت‌اند | |
@@ -368,6 +369,27 @@ cd cms-core/frontend && docker compose up -d
 
 
 > 🇬🇧 [This section in English](README.md#frequently-asked-questions)
+---
+
+## مستندات
+
+مستندات مخصوص توسعه‌دهنده. هر سند دو نسخهٔ انگلیسی و فارسی دارد؛ نسخهٔ فارسی اصل است و نسخهٔ
+انگلیسی آینهٔ آن (در هر اختلاف، **کد** داور است).
+
+| سند | انگلیسی | فارسی |
+|---|---|---|
+| شروع سریع توسعه‌دهنده | [DEVELOPER-QUICKSTART.en.md](docs/DEVELOPER-QUICKSTART.en.md) | — |
+| راهنمای افزونه | [PLUGIN-GUIDE.en.md](docs/PLUGIN-GUIDE.en.md) | [PLUGIN-GUIDE.md](docs/PLUGIN-GUIDE.md) |
+| قرارداد مانیفست افزونه | [PLUGIN-MANIFEST-CONTRACT.en.md](docs/PLUGIN-MANIFEST-CONTRACT.en.md) | [PLUGIN-MANIFEST-CONTRACT.md](docs/PLUGIN-MANIFEST-CONTRACT.md) |
+| معماری اکوسیستم افزونه | [PLUGIN-ECOSYSTEM-ARCHITECTURE.en.md](docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.en.md) | [PLUGIN-ECOSYSTEM-ARCHITECTURE.md](docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.md) |
+| قرارداد جستجوی افزونه (منسوخ) | [SEARCH-PLUGIN-CONTRACT.en.md](docs/SEARCH-PLUGIN-CONTRACT.en.md) | [SEARCH-PLUGIN-CONTRACT.md](docs/SEARCH-PLUGIN-CONTRACT.md) |
+
+سطح پروژه: [README.md](README.md) · [COMPARISON.md](COMPARISON.md) ·
+[COMPARISON.fa.md](COMPARISON.fa.md) · [CONTRIBUTING.md](CONTRIBUTING.md) ·
+[SECURITY.md](SECURITY.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+
+> 🇬🇧 [This section in English](README.md#documentation)
 ---
 
 ## لایسنس

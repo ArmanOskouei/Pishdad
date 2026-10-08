@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320" width="960" height="320" direction="rtl" role="img" aria-label="جریان انتشار محتوا در پیشداد">
+  <title>جریان انتشار محتوا در پیشداد</title>
+  <style>
+    text { font-family: Vazirmatn, 'Segoe UI', Tahoma, sans-serif; fill: #e8ecf6; direction: rtl; }
+    .t-lg { font-size: 26px; font-weight: 700; }
+    .t    { font-size: 15px; }
+    .t-sm { font-size: 13px; fill: #9aa4bd; }
+    .t-xs { font-size: 11px; fill: #9aa4bd; }
+    /* کارتِ خودبسنده: پس‌زمینهٔ ماتِ تیره + خطِ میانی.
+       روی تم تیره با صفحه یکی می‌شود، روی تم روشن مثل یک تصویر می‌ماند. */
+    .box  { fill: #101423; stroke: #2b3348; }
+    .accent   { fill: #7c8cff; }
+    .accent-s { fill: #232b45; }
+    .cyan     { fill: #38bdf8; }
+    .good    { fill: #34d399; }
+    .cyan-s   { fill: #1c2b3d; }
+    .rule { fill: none; stroke: #9aa4bd; }
+  </style>
+  <text class="t-lg" x="920" y="56" text-anchor="start">جریان انتشار</text>
+  <text class="t-sm" x="920" y="84" text-anchor="start">هر تغییر یک تراکنش است: بازبینی و بازگشت کامل</text>
+
+  <g>
+    <rect class="box" x="740" y="130" width="180" height="80" rx="12"/>
+    <text class="t" x="830" y="164" text-anchor="middle">پیش‌نویس</text>
+    <text class="t-xs" x="830" y="188" text-anchor="middle">ویرایش در پنل</text>
+  </g>
+  <g>
+    <rect class="box" x="490" y="130" width="180" height="80" rx="12"/>
+    <text class="t" x="580" y="164" text-anchor="middle">بازبینی</text>
+    <text class="t-xs" x="580" y="188" text-anchor="middle">نسخهٔ تازه ساخته می‌شود</text>
+  </g>
+  <g>
+    <rect class="accent-s" x="240" y="130" width="180" height="80" rx="12"/>
+    <text class="t" x="330" y="164" text-anchor="middle">انتشار</text>
+    <text class="t-xs" x="330" y="188" text-anchor="middle">اشاره‌گر جابه‌جا می‌شود</text>
+  </g>
+  <g>
+    <rect class="box" x="40" y="130" width="130" height="80" rx="12"/>
+    <text class="t" x="105" y="164" text-anchor="middle">سایت زنده</text>
+    <text class="t-xs" x="105" y="188" text-anchor="middle">ISR</text>
+  </g>
+
+  <path d="M735 170 L675 170" class="rule" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M485 170 L425 170" class="rule" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M235 170 L175 170" class="rule" stroke-width="2" marker-end="url(#a)"/>
+
+  <path d="M330 215 L330 250 L830 250 L830 215" stroke="#fbbf24" stroke-width="2"
+        fill="none" stroke-dasharray="6 4" marker-end="url(#b)"/>
+  <text class="t-xs" x="580" y="288" text-anchor="middle">بازگشت به پیش‌نویس همیشه ممکن است</text>
+
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#9aa4bd"/>
+    </marker>
+    <marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#fbbf24"/>
+    </marker>
+  </defs>
+</svg>

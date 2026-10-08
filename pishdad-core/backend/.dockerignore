@@ -1,0 +1,17 @@
+vendor/
+node_modules/
+.env
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*.php
+.phpunit.result.cache
+
+# public/storage is the link `php artisan storage:link` creates — generated, not
+# source. It must stay out of the build for two independent reasons: on Windows
+# Docker's context transfer fails outright on it ("invalid file request
+# public/storage"), and a symlink baked into the image points at a path the
+# container may not have, which is why the compose mounts storage/app/public
+# separately and nginx serves it with an alias instead.
+public/storage

@@ -1,0 +1,54 @@
+{
+  "name": "pishdad",
+  "part": "full",
+  "built_from": "06b4932db653339ca66e6542cf73fb371a74e5cb",
+  "source_state": "clean — built_from describes this package exactly",
+  "content_digest": "a957ae0cb85d6d5782b140f78298725188bc787fa6618f748bb9d2a2c8519e12",
+  "built_at": "2026-10-08T11:27:05.112Z",
+  "tracked_files": 1032,
+  "copied_files": 895,
+  "shipped_files": 911,
+  "shipped_bytes": 8035642,
+  "public_docs": [
+    "README.md",
+    "README.fa.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "COMPARISON.md",
+    "llms.txt",
+    "docs/PLUGIN-GUIDE.md",
+    "docs/PLUGIN-GUIDE.en.md",
+    "docs/PLUGIN-MANIFEST-CONTRACT.md",
+    "docs/PLUGIN-MANIFEST-CONTRACT.en.md",
+    "docs/SEARCH-PLUGIN-CONTRACT.md",
+    "docs/SEARCH-PLUGIN-CONTRACT.en.md",
+    "docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.md",
+    "docs/PLUGIN-ECOSYSTEM-ARCHITECTURE.en.md",
+    "docs/DEVELOPER-QUICKSTART.en.md"
+  ],
+  "excluded": {
+    "reason": "untracked by design — see scripts/build-distribution.mjs",
+    "items": [
+      ".env (real secrets)",
+      "vendor/ and node_modules/ (installed by composer/npm)",
+      "storage/ except the empty .gitignore placeholders",
+      "pishdad-core/backend/plugins/central/ (private plugin)",
+      "pishdad-core/backend/plugins/subscription/ (private plugin)",
+      "pishdad-core/backend/plugins/_quarantine/ (quarantined plugins + remote subscription layer)",
+      "docs/ (dev documentation, not needed at runtime)",
+      "Run/ (local run helpers, dev-only)",
+      "scripts/ (dev/build tooling, dev-only)",
+      "Logo/ (graphic archive; none referenced by code — runtime logo/favicon live in pishdad-core/frontend/public/)",
+      "build output (.next/, out/, dist-*)"
+    ]
+  },
+  "install": [
+    "cd pishdad-core/backend && composer install",
+    "cp .env.example .env && php artisan key:generate",
+    "php artisan storage:link   # required: media/images are served from /storage/",
+    "php artisan migrate --force",
+    "php artisan db:seed --class=PishdadSiteSeeder   # optional: the Pishdad demo site",
+    "cd ../frontend && npm ci && npm run build"
+  ]
+}

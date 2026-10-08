@@ -2,11 +2,31 @@ name: tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 jobs:
+  tasks-ledger:
+    name: tasks ledger
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # docs/TASKS.md is the source of truth for what is done. It drifted for
+      # six months without anything going red: the status column sat at a
+      # different index in every table, often held prose instead of a status,
+      # and four row runs were orphaned by a blank line and invisible to any
+      # table-aware read. The guard enforces one shape and one vocabulary.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Guard the task ledger's shape
+        run: node docs/tools/tasks-guard.mjs
+
   tests:
     name: tests
     runs-on: ubuntu-latest
@@ -17,7 +37,7 @@ jobs:
         env:
           POSTGRES_USER: cms
           POSTGRES_PASSWORD: cmssecret
-          POSTGRES_DB: cms_test
+          POSTGRES_DB: pishdad_test
         ports:
           - 5432:5432
         options: >-
@@ -50,19 +70,19 @@ jobs:
       - name: Cache Composer packages
         uses: actions/cache@v4
         with:
-          path: cms-core/backend/vendor
-          key: composer-${{ hashFiles('cms-core/backend/composer.lock') }}
+          path: pishdad-core/backend/vendor
+          key: composer-${{ hashFiles('pishdad-core/backend/composer.lock') }}
           restore-keys: composer-
 
       - name: Install dependencies
-        working-directory: cms-core/backend
+        working-directory: pishdad-core/backend
         run: composer install --no-interaction --no-progress --prefer-dist
 
       - name: Create the fa-IR collation
         env:
           PGPASSWORD: cmssecret
         run: |
-          psql -h localhost -U cms -d cms_test -v ON_ERROR_STOP=0 <<'SQL'
+          psql -h localhost -U cms -d pishdad_test -v ON_ERROR_STOP=0 <<'SQL'
           DO $$
           BEGIN
               IF NOT EXISTS (SELECT 1 FROM pg_collation WHERE collname = 'fa-IR') THEN
@@ -76,6 +96,108 @@ jobs:
           $$;
           SQL
 
+      # F1.2 - the curated registry is a data file, so the gate that keeps it
+      # honest is a data gate, not a UI convention. It reuses the same
+      # PluginPackageValidator that install uses, so "valid package" means one
+      # thing in CI and in production. Non-zero exit fails the job on purpose:
+      # a gate that only warns is a gate people stop reading.
+      - name: Check the curated registry
+        working-directory: pishdad-core/backend
+        run: php artisan registry:check
+
+      # E2-E3/U1 - `pishdad:doctor` is the only thing in the repo that knows about
+      # SMTP, SMS, S3/MinIO, Redis and the plugin DDL role. Nothing else in this
+      # workflow would notice one of them going MISSING, because the rest of the
+      # suite runs against fakes and offline drivers.
+      #
+      # This gate is deliberately NOT `--strict`. `--strict` promotes `warn` to a
+      # failure, and several of the checks are `warn` in a healthy CI because of
+      # FILESYSTEM_DISK=local and unset seal keys. Gating on `--strict` would be
+      # a permanently red build, and a build that is always red is a build people
+      # stop reading. What has to be red is `MISSING`: a dependency that is
+      # half-configured or unreachable, because that is the class of failure that
+      # otherwise reaches production silently.
+      #
+      # `PishdadDoctor::exitCode()` returns FAILURE the moment any status
+      # `isBlocking()`, with or without `--strict`, so the bare command is
+      # already exactly the MISSING-only gate.
+      - name: Gate on external dependencies (MISSING only)
+        working-directory: pishdad-core/backend
+        env:
+          # The checker reads PRESENCE from config('plugins.env_present...'),
+          # not the value, so a throwaway satisfies it. Without this the
+          # plugin-ddl check is itself MISSING and the build goes red for the
+          # wrong reason. The Postgres role being absent only downgrades to
+          # `warn`, which is correct: CI never installs a real plugin.
+          PLUGIN_DDL_PASSWORD: ci-doctor-gate-not-a-real-secret
+        run: php artisan pishdad:doctor
+
+      # The same report under `--strict`, which also counts every `warn`.
+      # Advisory only: this is the list a release engineer reads before turning
+      # the deliberately-off features on, and in CI it is always non-empty.
+      # `continue-on-error` keeps it from masking the gate above.
+      - name: Report the strict dependency view (advisory)
+        working-directory: pishdad-core/backend
+        env:
+          PLUGIN_DDL_PASSWORD: ci-doctor-gate-not-a-real-secret
+        run: php artisan pishdad:doctor --strict
+        continue-on-error: true
+
+      # K1.6.2 - docs/PLUGIN-GUIDE.md restates the bundle structure and the
+      # extension-point table that PluginPackageContract already owns. Two
+      # sources of truth means the guide silently goes stale on every contract
+      # change, so the gate reads the real values out of the contract and fails
+      # on drift. It lives in docs/tools/ because the backend container mounts
+      # only pishdad-core/backend - see the script header for the full reasoning.
+      - name: Guard the plugin docs against the package contract
+        run: php docs/tools/plugin-contract-guard.php
+
       - name: Run the test suite
-        working-directory: cms-core/backend
+        working-directory: pishdad-core/backend
         run: php artisan test
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: pishdad-core/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: pishdad-core/frontend
+        run: npm ci
+
+      # I2 — the generated snapshot of the plugin package contract is committed,
+      # and a committed snapshot that silently rots is worse than none: it reads
+      # like an answer. This is the same idea as the backend's
+      # docs/tools/plugin-contract-guard.php, applied to the frontend artifact —
+      # regenerate with `npm run gen:plugin-contract` and commit the result.
+      #
+      # The runtime UI no longer imports that file (DeveloperGuide reads
+      # GET /v1/admin/plugins/contract instead), so nothing at build time would
+      # notice the drift. Without this step the drift that was sitting in the
+      # tree — OVERRIDABLE_INTERFACES had gained SubscriptionSource — would have
+      # stayed there indefinitely.
+      - name: Guard the generated plugin contract against the backend source
+        working-directory: pishdad-core/frontend
+        run: npm run gen:plugin-contract:check
+
+      # `next lint` was removed in Next 16, so `lint` is the project's typecheck
+      # (see pishdad-core/frontend/README.md). It is a real gate: tsc has caught
+      # genuine errors in this tree, including the ones introduced while
+      # replacing the contract import.
+      - name: Lint (typecheck)
+        working-directory: pishdad-core/frontend
+        run: npm run lint
+
+      - name: Run the frontend test suite
+        working-directory: pishdad-core/frontend
+        run: npm test

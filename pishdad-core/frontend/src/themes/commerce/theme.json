@@ -1,0 +1,18 @@
+{
+  "slug": "commerce",
+  "name": "فروشگاهی",
+  "description": "چیدمان چگال و شبکه‌ای با شعاع گوشهٔ بزرگ‌تر؛ مناسب فهرست کالا و صفحه‌های پرتراکم.",
+  "version": "1.0.0",
+  "modes": ["light", "dark", "system"],
+  "slots": ["header", "footer", "main", "left", "right", "banner", "blog"],
+  "tokens": {
+    "radius-sm": "6px",
+    "radius-md": "10px",
+    "radius-lg": "14px",
+    "radius-xl": "20px",
+    "fs-body": "14px",
+    "fs-small": "12.5px",
+    "fs-h": "18px",
+    "density": "0.9"
+  }
+}

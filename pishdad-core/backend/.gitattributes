@@ -1,0 +1,11 @@
+# Force LF inside containers (Windows CRLF breaks entrypoint.sh / psql init files)
+docker/php/entrypoint.sh text eol=lf
+docker/postgres/init/** text eol=lf
+*.sh text eol=lf
+
+# PHP too, and for a different reason than the shell scripts: it is not the container that
+# breaks, it is Pint. Its `line_ending` fixer enforces LF, so on a Windows checkout with
+# core.autocrlf=true every PHP file comes back with CRLF and a `pint` run rewrites all 239 of
+# them — a whole-repo diff that has nothing to do with the change under review. Pinning eol=lf
+# also overrides core.autocrlf for these paths, so the working tree matches the index.
+*.php text eol=lf

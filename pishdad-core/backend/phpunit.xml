@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+      <testsuites>
+          <!--
+              ⛔ فهرستِ زیر را **دستی** ویرایش نکن.
+
+              این فایل‌ها با `<file>` نوشته شده‌اند، نه با `<directory>`. دلیلش فنی و
+              جدی است: پروژه روی Windows اجرا می‌شود و پوشه در کانتینر با 9p mount
+              شده. روی 9p، `glob`/`scandir`/`readdir` هر ۹۰ فایل را می‌بینند ولی هر
+              پیاده‌سازیِ `*DirectoryIterator` در PHP فقط ۴۷ فایل می‌بیند — یک بازهٔ
+              الفبایی پیوسته از `P` تا `W`. رفتار قطعی است، نه flaky.
+
+              PHPUnit برای `<directory>` از `php-file-iterator` استفاده می‌کند که
+              داخلش `RecursiveDirectoryIterator` است. پس با `<directory>`،
+              `php artisan test` (که همین فایل را می‌خواند) **۱۹ تست از ۸۷۷** را
+              می‌دید و سبز گزارش می‌کرد.
+
+              برای رگنریکردن (بعد از افزودن/حذف/تغییرنام تست):
+                  docker compose exec -T app php /var/www/html/tools/build-phpunit-file-list.php
+
+              `TestSuiteIntegrityTest` بررسی می‌کند این فهرست با دیسک بخواند، پس
+              فراموش‌کردنِ رگنریت = تست قرمز، نه اجرای ناقص.
+
+              @see tools/build-phpunit-file-list.php
+          -->
+          <testsuite name="Unit">
+            <!-- BEGIN:GENERATED:Unit -->
+            <file>tests/Unit/BigNumArithmeticTest.php</file>
+            <file>tests/Unit/CurveEcdhTest.php</file>
+            <file>tests/Unit/EcdhRangeTest.php</file>
+            <file>tests/Unit/ExampleTest.php</file>
+            <file>tests/Unit/PushEncryptionRoundTripTest.php</file>
+            <file>tests/Unit/RevalidateSignerTest.php</file>
+            <file>tests/Unit/SessionDeviceParserTest.php</file>
+            <file>tests/Unit/VapidKeysTest.php</file>
+            <!-- END:GENERATED:Unit -->
+          </testsuite>
+          <testsuite name="Feature">
+            <!-- BEGIN:GENERATED:Feature -->
+            <file>tests/Feature/AccessibilityStatementTest.php</file>
+            <file>tests/Feature/ActivityLogTest.php</file>
+            <file>tests/Feature/AdminIpAllowlistTest.php</file>
+            <file>tests/Feature/AdminSearchTest.php</file>
+            <file>tests/Feature/AnalyticsTest.php</file>
+            <file>tests/Feature/AuthTest.php</file>
+            <file>tests/Feature/BackupRunTest.php</file>
+            <file>tests/Feature/BackupSettingsTest.php</file>
+            <file>tests/Feature/BlockTypesTest.php</file>
+            <file>tests/Feature/BlogArchiveTest.php</file>
+            <file>tests/Feature/CachePurgeTest.php</file>
+            <file>tests/Feature/ClientDashboardExtrasTest.php</file>
+            <file>tests/Feature/ClientDashboardTest.php</file>
+            <file>tests/Feature/ContactFormNoticeTest.php</file>
+            <file>tests/Feature/ContentExportImportTest.php</file>
+            <file>tests/Feature/ContentPublishedNotifierTest.php</file>
+            <file>tests/Feature/CoreRequirementCheckerTest.php</file>
+            <file>tests/Feature/CuratedRegistryTest.php</file>
+            <file>tests/Feature/DefaultPagesSeederTest.php</file>
+            <file>tests/Feature/DevModeGateTest.php</file>
+            <file>tests/Feature/DevModeUnlockTest.php</file>
+            <file>tests/Feature/ExampleTest.php</file>
+            <file>tests/Feature/ExternalDriverContractTest.php</file>
+            <file>tests/Feature/FaqBlockTest.php</file>
+            <file>tests/Feature/FormBuilderTest.php</file>
+            <file>tests/Feature/FreshInstallMatchesDemoTest.php</file>
+            <file>tests/Feature/HomepageTest.php</file>
+            <file>tests/Feature/InstallDatabasePrefillTest.php</file>
+            <file>tests/Feature/InstallTest.php</file>
+            <file>tests/Feature/LayoutLinksTest.php</file>
+            <file>tests/Feature/LayoutsTest.php</file>
+            <file>tests/Feature/LoginHistoryTest.php</file>
+            <file>tests/Feature/LogoWidgetTest.php</file>
+            <file>tests/Feature/MailSettingsTest.php</file>
+            <file>tests/Feature/ManagersRolesTest.php</file>
+            <file>tests/Feature/ManifestRegistryTest.php</file>
+            <file>tests/Feature/MarketK8Test.php</file>
+            <file>tests/Feature/MarketOneClickInstallTest.php</file>
+            <file>tests/Feature/MarketPublisherDashboardTest.php</file>
+            <file>tests/Feature/MarketReviewsTest.php</file>
+            <file>tests/Feature/MarketStorefrontTest.php</file>
+            <file>tests/Feature/MediaAltReportTest.php</file>
+            <file>tests/Feature/MediaExtrasTest.php</file>
+            <file>tests/Feature/MediaFocalPointTest.php</file>
+            <file>tests/Feature/MediaFolderTagTest.php</file>
+            <file>tests/Feature/MediaImageVariantsTest.php</file>
+            <file>tests/Feature/MediaQuotaTest.php</file>
+            <file>tests/Feature/MediaReplaceTest.php</file>
+            <file>tests/Feature/MediaTest.php</file>
+            <file>tests/Feature/MonitoringTest.php</file>
+            <file>tests/Feature/MultilingualPagesTest.php</file>
+            <file>tests/Feature/NestedLinksTest.php</file>
+            <file>tests/Feature/NotificationCatalogTest.php</file>
+            <file>tests/Feature/NotificationChannelsTest.php</file>
+            <file>tests/Feature/NotificationServiceTest.php</file>
+            <file>tests/Feature/OpenApiSpecHonestyTest.php</file>
+            <file>tests/Feature/OperatorHardwareSetupTest.php</file>
+            <file>tests/Feature/OutboundWebhookTest.php</file>
+            <file>tests/Feature/OutboxDrainTest.php</file>
+            <file>tests/Feature/PageBulkActionsTest.php</file>
+            <file>tests/Feature/PageDeleteTest.php</file>
+            <file>tests/Feature/PageDuplicateTest.php</file>
+            <file>tests/Feature/PageEditLockTest.php</file>
+            <file>tests/Feature/PageListExtrasTest.php</file>
+            <file>tests/Feature/PageMarkupGuardTest.php</file>
+            <file>tests/Feature/PageSeoMetaTest.php</file>
+            <file>tests/Feature/PageShareLinkTest.php</file>
+            <file>tests/Feature/PageTranslationTest.php</file>
+            <file>tests/Feature/PageTrashTest.php</file>
+            <file>tests/Feature/PageUnpublishTest.php</file>
+            <file>tests/Feature/PagesTest.php</file>
+            <file>tests/Feature/PerformanceSettingsTest.php</file>
+            <file>tests/Feature/PishdadSiteSeederTest.php</file>
+            <file>tests/Feature/PluginAutoloaderTest.php</file>
+            <file>tests/Feature/PluginContractExampleIntegrityTest.php</file>
+            <file>tests/Feature/PluginCoreTicketAccessTest.php</file>
+            <file>tests/Feature/PluginDbContractTest.php</file>
+            <file>tests/Feature/PluginDdlProvisioningFlowTest.php</file>
+            <file>tests/Feature/PluginExtensionChannelTest.php</file>
+            <file>tests/Feature/PluginExtensionPointSchemaTest.php</file>
+            <file>tests/Feature/PluginFileCountCapTest.php</file>
+            <file>tests/Feature/PluginInstallerTest.php</file>
+            <file>tests/Feature/PluginIntegritySealTest.php</file>
+            <file>tests/Feature/PluginInternalActivateTest.php</file>
+            <file>tests/Feature/PluginLifecycleMenuVisibilityTest.php</file>
+            <file>tests/Feature/PluginLifecycleTest.php</file>
+            <file>tests/Feature/PluginMakeTest.php</file>
+            <file>tests/Feature/PluginMenuTest.php</file>
+            <file>tests/Feature/PluginMigrationRunnerTest.php</file>
+            <file>tests/Feature/PluginMigratorTest.php</file>
+            <file>tests/Feature/PluginModelBindingTest.php</file>
+            <file>tests/Feature/PluginPackageValidatorTest.php</file>
+            <file>tests/Feature/PluginPageContentTest.php</file>
+            <file>tests/Feature/PluginPageRegistryTest.php</file>
+            <file>tests/Feature/PluginPrefixGuardTest.php</file>
+            <file>tests/Feature/PluginReactivationCycleTest.php</file>
+            <file>tests/Feature/PluginRouteCacheInvalidationTest.php</file>
+            <file>tests/Feature/PluginRouteMethodTest.php</file>
+            <file>tests/Feature/PluginRouteRegistrationTest.php</file>
+            <file>tests/Feature/PluginRouterTest.php</file>
+            <file>tests/Feature/PluginSettingsTest.php</file>
+            <file>tests/Feature/PluginToolsTest.php</file>
+            <file>tests/Feature/PluginTrustStoreTest.php</file>
+            <file>tests/Feature/PluginUpdateBadgeTest.php</file>
+            <file>tests/Feature/PluginWidgetExtensionTest.php</file>
+            <file>tests/Feature/PluginsTest.php</file>
+            <file>tests/Feature/ProfileExtrasTest.php</file>
+            <file>tests/Feature/ProfileTest.php</file>
+            <file>tests/Feature/PublicPageMediaUrlTest.php</file>
+            <file>tests/Feature/PushOutboxChannelTest.php</file>
+            <file>tests/Feature/PushSubscriptionApiTest.php</file>
+            <file>tests/Feature/PushSubscriptionSurvivesQuarantineTest.php</file>
+            <file>tests/Feature/RedirectTest.php</file>
+            <file>tests/Feature/RobotsSettingsTest.php</file>
+            <file>tests/Feature/RoleTwoFactorTest.php</file>
+            <file>tests/Feature/SampleContentTest.php</file>
+            <file>tests/Feature/ScheduledPublishTest.php</file>
+            <file>tests/Feature/SearchReportTest.php</file>
+            <file>tests/Feature/ServiceProviderRegistryTest.php</file>
+            <file>tests/Feature/SidePresetsTest.php</file>
+            <file>tests/Feature/SiteChromeTest.php</file>
+            <file>tests/Feature/SiteFeedTest.php</file>
+            <file>tests/Feature/SiteMediaResolveTest.php</file>
+            <file>tests/Feature/SiteSearchTest.php</file>
+            <file>tests/Feature/SiteSettingsTest.php</file>
+            <file>tests/Feature/SiteStatusTest.php</file>
+            <file>tests/Feature/SiteThemeApiTest.php</file>
+            <file>tests/Feature/SiteThemeResolverTest.php</file>
+            <file>tests/Feature/SmsRequestHonestyTest.php</file>
+            <file>tests/Feature/TelegramBotSettingsTest.php</file>
+            <file>tests/Feature/TestSuiteIntegrityTest.php</file>
+            <file>tests/Feature/ThemeMakeTest.php</file>
+            <file>tests/Feature/ThemesTest.php</file>
+            <file>tests/Feature/TicketSearchTest.php</file>
+            <file>tests/Feature/TicketsTest.php</file>
+            <file>tests/Feature/UiSettingsTest.php</file>
+            <file>tests/Feature/UnauthenticatedApiTest.php</file>
+            <file>tests/Feature/WidgetHrefGuardTest.php</file>
+            <file>tests/Feature/WidgetsSchemaTest.php</file>
+            <file>tests/Feature/ZarinpalGatewayTest.php</file>
+            <!-- END:GENERATED:Feature -->
+          </testsuite>
+      </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <!-- Feature tests run on the dedicated pishdad_test database (see docker/postgres/init/02-testdb.sql) -->
+        <env name="DB_CONNECTION" value="pgsql" force="true"/>
+        <env name="DB_HOST" value="db" force="true"/>
+        <env name="DB_PORT" value="5432" force="true"/>
+        <env name="DB_DATABASE" value="pishdad_test" force="true"/>
+        <env name="DB_USERNAME" value="cms" force="true"/>
+        <env name="DB_PASSWORD" value="cmssecret" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="PULSE_ENABLED" value="false" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <env name="REVALIDATE_SECRET" value="test-secret" force="true"/>
+        <!-- Fixed testing-only key (random 32 bytes). Never use outside tests. -->
+        <env name="APP_KEY" value="base64:PR8akB+5eVsv5VdD91nrhoHRsz+bo57kKRpCi3jAJmY=" force="true"/>
+        <!-- K5.12: رمز نقش DDL افزونه (`pishdad_plugin_ddl`). -->
+        <!-- ثابت و `force=true`: `EnsuresPluginDdlRole` این را از محیط می‌خواند -->
+        <!-- چون در `setUpBeforeClass` هنوز اپی ساخته نشده و نمی‌توان از `config()` خواند. -->
+        <!-- -->
+        <!-- ⚠️ این رمز فقط آزمایشی است و به هیچ نصبی تعلق ندارد. نقشِ واقعی در -->
+        <!-- هر نصب رمز خودش را از `PLUGIN_DDL_PASSWORD` می‌گیرد. -->
+        <env name="PLUGIN_DDL_PASSWORD" value="phpunit-ddl-secret-5c1e" force="true"/>
+        <!-- E70: پایهٔ URL عمومی دیسک s3 (`filesystems.disks.s3.url`).
+             ثابت و `force=true`: تست‌های غنی‌سازی رسانه (`PublicPageMediaUrlTest`،
+             `SiteSettingsTest`، `LogoWidgetTest`) انتظارِ URL روی دیسک s3 را از
+             همین پیکربندی می‌سازند؛ اگر به `.env` محیط گره بخورد (که `AWS_URL`
+             ندارد)، همه بی‌صدا `null` می‌گیرند و ۸ تست قرمز می‌شود. مقدار همان
+             `.env.example` است؛ هیچ درخواستی به آن زده نمی‌شود، فقط رشته‌سازی. -->
+        <env name="AWS_URL" value="http://localhost:9100/cms" force="true"/>
+        <env name="AWS_ENDPOINT" value="http://minio:9000" force="true"/>
+        <env name="AWS_BUCKET" value="cms" force="true"/>
+        <env name="AWS_USE_PATH_STYLE_ENDPOINT" value="true" force="true"/>
+    </php>
+
+    <!--
+        نقش `pishdad_plugin_ddl` یک شیءِ **کلاستری** است: `CREATE ROLE`/
+        `ALTER ROLE` در PostgreSQL روی کلِ سرور اثر دارد. یعنی نقش بین
+        `cms` (واقعی) و `pishdad_test` (تست) مشترک است.
+
+        پس `<env>` بالا با `force="true"` — که `EnsuresPluginDdlRole` در
+        `setUpBeforeClass` روی نقش می‌نویسد — **رمزِ محیطِ توسعه را عوض
+        می‌کرد**. نتیجه: بعد از هر `php artisan test`، پنل با «رمز پیکربندی
+        به نقش وصل نمی‌شود» می‌افتاد، در حالی که همهٔ تست‌ها سبز بودند.
+
+        این extension بعد از پایانِ سوئیت رمزِ واقعیِ `.env` را برمی‌گرداند.
+        تنها جایی است که می‌دانیم هیچ تستی در حال اجرا نیست.
+    -->
+    <extensions>
+        <bootstrap class="Tests\Support\RestoresPluginDdlRole"/>
+    </extensions>
+</phpunit>

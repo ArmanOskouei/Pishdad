@@ -1,0 +1,214 @@
+name: ${PISHDAD_PROJECT:-pishdad-backend}
+
+# Single-command boot:  docker compose up -d --build
+# API: http://localhost:8080/api/v1/...   MinIO console: http://localhost:9101
+services:
+  app:
+    build: .
+    container_name: ${PISHDAD_APP:-pishdad-app}
+    restart: unless-stopped
+    # NOTE: no `env_file` on purpose. The bind-mounted `.env` FILE is the single
+    # source Laravel reads (via Dotenv). Injecting it into the process env too
+    # would shadow phpunit.xml `<env force>` in tests (PHP $_SERVER wins over
+    # putenv) and freeze values from container creation time. Only overrides
+    # the entrypoint/compose network needs are passed here.
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      # ⚠️⛔ اینجا `DB_DATABASE` نگذارید. (E63)
+      #
+      # یک نسخهٔ پیشین آن را روی `cms` گذاشته بود و نتیجه یک تناقضِ بی‌صدا بود:
+      # php-fpm محیطِ پروسه را پاک می‌کند (`clear_env`)، پس برنامه از **فایلِ
+      # `.env`** مقدار می‌گرفت، ولی `artisan`/CLI متغیرِ پروسه را ترجیح می‌داد.
+      # یعنی وب و خطِ فرمان به **دو دیتابیسِ مختلف** وصل می‌شدند: نصب‌کننده در
+      # گام ۲ نام را در `.env` می‌نوشت، ولی هر `db:seed` دستی در دیتابیسِ دیگری
+      # می‌نشست — و قالب‌ها در پنل خالی می‌ماندند در حالی که در دیتابیس بودند.
+      #
+      # نامِ دیتابیس را **نصب‌کننده** در `.env` می‌نویسد؛ همان باید تنها منبع
+      # باشد. اینجا نسپارید تا وب و CLI همیشه یک دیتابیس ببینند.
+      DB_USERNAME: cms
+      DB_PASSWORD: cmssecret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  # E76 — تیکِ دائمیِ صفِ تحویل (و زمان‌بندِ لاراول).
+  #
+  # چرا سرویسِ جدا و نه cron هاست: با هر نصب بالا می‌آید، به OS هاست وابسته
+  # نیست و با `restart: unless-stopped` از ری‌استارت برمی‌گردد. `schedule:work`
+  # هر دقیقه `schedule:run` می‌زند، پس `outbox:drain` (صفِ ایمیل/تلگرام/…) و
+  # بقیهٔ کارهای زمان‌بندی واقعاً اجرا می‌شوند — پیش از این هیچ tickای نبود و
+  # سطرهای صف برای همیشه pending می‌ماندند.
+  #
+  # entrypoint بیلد/انتظار/آماده‌سازی را مثل app می‌گذراند و بعد commandِ اینجا
+  # جای php-fpm می‌نشیند. پورتی ندارد؛ نامش مثل بقیه قابلِ بازنویسی است (E37).
+  scheduler:
+    build: .
+    container_name: ${PISHDAD_SCHEDULER:-pishdad-scheduler}
+    restart: unless-stopped
+    command: ["php", "artisan", "schedule:work"]
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      # ⚠️⛔ اینجا هم `DB_DATABASE` نگذارید. (E63 — مثل سرویس app)
+      DB_USERNAME: cms
+      DB_PASSWORD: cmssecret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  web:
+    image: nginx:1.31.6-alpine
+    container_name: ${PISHDAD_WEB:-pishdad-web}
+    restart: unless-stopped
+    ports:
+      - "${PISHDAD_WEB_PORT:-8080}:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./public:/var/www/html/public:ro
+      # ⚠️ این mount لازم است و قبلاً نبود ⇒ *تصاویر همه‌جا* خراب بودند.
+      #
+      # `public/storage` یک symlink است، ولی symlink به مسیری که در این
+      # کانتینر وجود ندارد بی‌فایده است. کانتینر `web` فقط `public/` را
+      # می‌بیند، نه `storage/` را. نتیجه: `artisan storage:link` «موفق»
+      # گزارش می‌شد ولی nginx برای هر `/storage/…` ۴۰۳ می‌داد.
+      #
+      # پس مسیرِ فیزیکی را جداگانه mount می‌کنیم و `default.conf` آن را
+      # با `alias` سرو می‌کند (بلوک `location /storage/`).
+      #
+      # فقط خواندنی: کاربر هیچ‌وقت نباید از راه HTTP چیزی اینجا بنویسد.
+      - ./storage/app/public:/var/www/html/storage/app/public:ro
+    depends_on:
+      - app
+
+  db:
+    build: ./docker/postgres
+    container_name: ${PISHDAD_DB:-pishdad-db}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cms
+      POSTGRES_USER: cms
+      POSTGRES_PASSWORD: cmssecret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      # Host-side 5433 avoids clashing with a local Windows Postgres on 5432.
+      # Inside the compose network the app still uses db:5432 (see .env DB_PORT).
+      - "${PISHDAD_DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms -d cms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    # U10: 7.4.11 -> 8.10.2. Major, and this one is load-bearing — Redis backs
+    # the cache, the session store and the queue, and the Next.js cacheHandler
+    # sits on top of it. Pinned to an exact version rather than a floating tag
+    # so the running server is recorded in the file instead of being whatever
+    # the registry served on the day of the pull.
+    image: redis:8.10.2-alpine
+    container_name: ${PISHDAD_REDIS:-pishdad-redis}
+    restart: unless-stopped
+    ports:
+      - "${PISHDAD_REDIS_PORT:-6380}:6379"
+    volumes:
+      - redisdata:/data
+
+  minio:
+    # PINNED BY DIGEST (U1). Pinned to the content digest rather than to a tag,
+    # because a tag is a promise the registry can break and this one has: see
+    # docs/MINIO-U1.md for the full audit.
+    #
+    # What this digest is, verified on this host:
+    #   quay.io/minio/minio:latest -> RELEASE.2025-09-07T16-13-09Z
+    #   (docker exec pishdad-minio /usr/bin/minio --version; commit 07c3a429)
+    #
+    # Why not the tag `RELEASE.2025-10-15T17-29-55Z` that the audit calls for:
+    # it cannot be fetched from here, so pinning it would break `docker compose
+    # up` on every host that cannot reach quay either. Upstream is finished:
+    #   - github.com/minio/minio is `archived: true` (API-confirmed), last push
+    #     2026-04-24, so RELEASE.2025-10-15T17-29-55Z is the last release ever.
+    #   - hub.docker.com minio/minio returns 404: the repo is gone, not just
+    #     frozen. (The 2024-10-13 image cached on this machine is a pull from
+    #     before the removal, which is what made it look like Docker Hub had it.)
+    #   - quay.io answers 401 to an anonymous token request from this network.
+    # So there is no tag, anywhere reachable, that is both the newest release and
+    # pullable. Pinning the digest locks the exact bytes that are already
+    # verified working here, and `docker compose pull` still works for anyone
+    # with quay credentials.
+    #
+    # To move to the final upstream release, on a host with quay access:
+    #   docker pull quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z
+    #   docker image inspect quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z \
+    #     --format '{{json .RepoDigests}}'
+    #   # then replace the digest below with the one it prints, and re-run
+    #   # `docker exec pishdad-minio /usr/bin/minio --version` to record the version.
+    #
+    # Known-unpatched: the pinned release predates RELEASE.2025-10-15, so the
+    # CVE it fixes (privilege escalation via session-policy bypass on service
+    # accounts / STS) is still open here and cannot be closed from upstream.
+    # MinIO is a dev-local object store only. Do not expose it, and plan the
+    # migration described in docs/MINIO-U1.md before real data lands in it.
+    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    container_name: ${PISHDAD_MINIO:-pishdad-minio}
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      # Host 9000 is often taken on dev machines → 9100/9101 on the host.
+      - "${PISHDAD_MINIO_PORT:-9100}:9000"
+      - "${PISHDAD_MINIO_CONSOLE_PORT:-9101}:9001"
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+    # NOTE: quay image's /usr/bin/docker-entrypoint.sh arrives zeroed through
+    # this network (exec format error); bypass it and run the server directly.
+    entrypoint: /usr/bin/minio
+    # No healthcheck: this image's helper binaries are unreliable on some
+    # hosts (zeroed layer), and nothing depends on minio health —
+    # minio-init waits with its own retry loop and creates the bucket.
+    # (Manual check: curl http://localhost:9100/minio/health/live → 200.)
+
+  # Auto-creates the `cms` bucket on first boot (idempotent).
+  minio-init:
+    # Pinned (U1). Verified: the `mc` binary in this image really is
+    # RELEASE.2025-08-13T08-35-41Z (commit 7394ce0d), which is the newest `mc`
+    # release that will ever exist — github.com/minio/mc is `archived: true`
+    # like the server. So this pin is final, not provisional, and there is no
+    # upgrade left on the table here. Left as a tag rather than a digest only
+    # because it is idempotent infra: it runs once, creates a bucket, exits.
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: ${PISHDAD_MINIO_INIT:-pishdad-minio-init}
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 minioadmin minioadmin123 >/dev/null 2>&1; do sleep 2; done
+        mc mb -p local/cms >/dev/null 2>&1 || true
+        mc anonymous set download local/cms >/dev/null 2>&1 || true
+        echo "minio bucket ready"
+    restart: "no"
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

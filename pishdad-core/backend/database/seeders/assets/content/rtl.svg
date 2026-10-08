@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" direction="rtl" role="img" aria-label="راست‌به‌چپ بودن رابط پیشداد">
+  <title>راست‌به‌چپ بودن رابط پیشداد</title>
+  <style>
+    text { font-family: Vazirmatn, 'Segoe UI', Tahoma, sans-serif; fill: #e8ecf6; direction: rtl; }
+    .t-lg { font-size: 26px; font-weight: 700; }
+    .t    { font-size: 15px; }
+    .t-sm { font-size: 13px; fill: #9aa4bd; }
+    .t-xs { font-size: 11px; fill: #9aa4bd; }
+    /* کارتِ خودبسنده: پس‌زمینهٔ ماتِ تیره + خطِ میانی.
+       روی تم تیره با صفحه یکی می‌شود، روی تم روشن مثل یک تصویر می‌ماند. */
+    .box  { fill: #101423; stroke: #2b3348; }
+    .accent   { fill: #7c8cff; }
+    .accent-s { fill: #232b45; }
+    .cyan     { fill: #38bdf8; }
+    .good    { fill: #34d399; }
+    .cyan-s   { fill: #1c2b3d; }
+    .rule { fill: none; stroke: #9aa4bd; }
+  </style>
+  <text class="t-lg" x="936" y="52" text-anchor="start">راست‌به‌چپ از روز اول</text>
+  <text class="t-sm" x="936" y="80" text-anchor="start">نه یک قابلیت، نه یک وصلهٔ بعدی</text>
+
+  <rect class="box" x="480" y="120" width="456" height="92" rx="12"/>
+  <circle class="accent" cx="890" cy="166" r="22"/>
+  <text x="890" y="173" text-anchor="middle" font-size="17" font-weight="700" fill="#0b0f19">۱</text>
+  <text class="t" x="852" y="158" text-anchor="start">ویژگی‌های امکانات</text>
+  <text class="t-sm" x="852" y="184" text-anchor="start">آیتم اول سمت راست می‌نشیند</text>
+
+  <rect class="box" x="480" y="228" width="456" height="92" rx="12"/>
+  <circle class="cyan" cx="890" cy="274" r="22"/>
+  <text x="890" y="281" text-anchor="middle" font-size="17" font-weight="700" fill="#0b0f19">۲</text>
+  <text class="t" x="852" y="266" text-anchor="start">قیمت‌گذاری</text>
+  <text class="t-sm" x="852" y="292" text-anchor="start">و همین ترتیب در فوتر تکرار می‌شود</text>
+
+  <rect class="accent-s" x="456" y="120" width="14" height="200" rx="7"/>
+
+  <text class="t-lg" x="440" y="52" text-anchor="start">چه چیزی از روز اول درست بود</text>
+
+  <g font-size="14" fill="#e8ecf6">
+    <text x="440" y="120" text-anchor="start">فونت وزیرمتن، محلی و بدون CDN</text>
+    <text x="440" y="156" text-anchor="start">ویژگی‌های منطقی CSS به‌جای left/right</text>
+    <text x="440" y="192" text-anchor="start">جهت از تنظیمات، نه hardcode</text>
+    <text x="440" y="228" text-anchor="start">اعداد فارسی در متن و تاریخ</text>
+    <text x="440" y="264" text-anchor="start">جست‌وجوی نرمال‌شدهٔ ی و ک</text>
+  </g>
+
+  <rect class="box" x="40" y="300" width="896" height="60" rx="12"/>
+  <text class="t-sm" x="936" y="336" text-anchor="start">تعویض به چپ‌چین یک باگ است، نه یک تنظیم</text>
+</svg>

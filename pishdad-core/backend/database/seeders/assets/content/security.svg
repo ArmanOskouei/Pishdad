@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" direction="rtl" role="img" aria-label="مرزهای امنیتی افزونه‌ها در پیشداد">
+  <title>مرزهای امنیتی افزونه‌ها در پیشداد</title>
+  <style>
+    text { font-family: Vazirmatn, 'Segoe UI', Tahoma, sans-serif; fill: #e8ecf6; direction: rtl; }
+    .t-lg { font-size: 26px; font-weight: 700; }
+    .t    { font-size: 15px; }
+    .t-sm { font-size: 13px; fill: #9aa4bd; }
+    .t-xs { font-size: 11px; fill: #9aa4bd; }
+    /* کارتِ خودبسنده: پس‌زمینهٔ ماتِ تیره + خطِ میانی.
+       روی تم تیره با صفحه یکی می‌شود، روی تم روشن مثل یک تصویر می‌ماند. */
+    .box  { fill: #101423; stroke: #2b3348; }
+    .accent   { fill: #7c8cff; }
+    .accent-s { fill: #232b45; }
+    .cyan     { fill: #38bdf8; }
+    .good    { fill: #34d399; }
+    .cyan-s   { fill: #1c2b3d; }
+    .rule { fill: none; stroke: #9aa4bd; }
+  </style>
+  <text class="t-lg" x="920" y="56" text-anchor="start">مرزهای امنیتی</text>
+  <text class="t-sm" x="920" y="84" text-anchor="start">هر لایه جدا، و هیچ لایه‌ای به لایهٔ قبل اعتماد ندارد</text>
+
+  <g>
+    <rect class="box" x="650" y="130" width="270" height="130" rx="14"/>
+    <rect class="accent" x="650" y="130" width="270" height="5" rx="3"/>
+    <text class="t" x="785" y="176" text-anchor="middle">افزونه</text>
+    <text class="t-xs" x="785" y="206" text-anchor="middle">نقشِ دیتابیسِ جدا</text>
+    <text class="t-xs" x="785" y="230" text-anchor="middle">فقط به جدول‌های اعلام‌شده</text>
+  </g>
+
+  <g>
+    <rect class="box" x="345" y="130" width="270" height="130" rx="14"/>
+    <rect class="cyan" x="345" y="130" width="270" height="5" rx="3"/>
+    <text class="t" x="480" y="176" text-anchor="middle">امضا</text>
+    <text class="t-xs" x="480" y="206" text-anchor="middle">هر بسته با کلید ناشر</text>
+    <text class="t-xs" x="480" y="230" text-anchor="middle">و مهرِ سیاست‌محور</text>
+  </g>
+
+  <g>
+    <rect class="box" x="40" y="130" width="270" height="130" rx="14"/>
+    <rect class="good" x="40" y="130" width="270" height="5" rx="3"/>
+    <text class="t" x="175" y="176" text-anchor="middle">هسته</text>
+    <text class="t-xs" x="175" y="206" text-anchor="middle">جدول‌های هسته قابل لمس نیست</text>
+    <text class="t-xs" x="175" y="230" text-anchor="middle">حتی توسط افزونه</text>
+  </g>
+
+  <path d="M645 195 L620 195" class="rule" stroke-width="2" marker-end="url(#s)"/>
+  <path d="M340 195 L315 195" class="rule" stroke-width="2" marker-end="url(#s)"/>
+
+  <rect class="box" x="40" y="300" width="880" height="64" rx="12"/>
+  <text class="t-sm" x="480" y="340" text-anchor="middle">پیش‌فرض بسته است: هرچه در فهرست نباشد، رد می‌شود</text>
+
+  <defs>
+    <marker id="s" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#9aa4bd"/>
+    </marker>
+  </defs>
+</svg>
