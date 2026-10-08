@@ -1,0 +1,28 @@
+{
+  "name": "pishdad",
+  "version": "1.0.0",
+  "description": "One-command installer for Pishdad (پیشداد) — the Persian, RTL-first CMS. Checks prerequisites, fetches the code, installs backend+frontend, and opens the easy web installer.",
+  "license": "MIT",
+  "author": "ArmanOskouei",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ArmanOskouei/Pishdad.git",
+    "directory": "installer-cli"
+  },
+  "homepage": "https://github.com/ArmanOskouei/Pishdad#readme",
+  "bin": {
+    "pishdad": "./bin/pishdad"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

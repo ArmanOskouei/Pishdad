@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+// pishdad — one-command installer for Pishdad (E83).
+//
+//   npx pishdad install [dir] [--check] [--yes] [--no-frontend] [--no-serve] [--no-open]
+//
+// Zero dependencies: only Node.js builtins, so it runs before anything else
+// exists on the machine. All OS-specific mess lives in lib/steps.js;
+// everything testable without a machine lives in lib/pure.js (unit-tested).
+'use strict';
+
+const { run } = require('../lib/cli.js');
+
+run(process.argv.slice(2)).then(
+  (code) => process.exit(code),
+  (err) => {
+    process.stdout.write(`\nFATAL: ${err && err.message ? err.message : err}\n`);
+    process.exit(1);
+  },
+);
