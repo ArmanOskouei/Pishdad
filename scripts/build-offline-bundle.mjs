@@ -330,6 +330,29 @@ services:
       redis:
         condition: service_started
 
+  # E76 — تیکِ دائمیِ صف (مثل compose اصلی). از همان ایمیجِ app می‌آید و
+  # entrypoint بعدِ آماده‌سازی، schedule:work را به‌جای php-fpm می‌نشاند.
+  scheduler:
+    image: ${tag("backend-app")}
+    container_name: \${PISHDAD_SCHEDULER:-cms-scheduler}
+    restart: unless-stopped
+    pull_policy: never
+    command: ["php", "artisan", "schedule:work"]
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: cms
+      DB_PASSWORD: cmssecret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   web:
     image: ${tag("nginx")}
     container_name: \${PISHDAD_WEB:-cms-web}

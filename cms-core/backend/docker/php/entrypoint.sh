@@ -23,4 +23,11 @@ mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage
 # package is installed. Hardcoding php-fpmNN here made the 8.3 -> 8.4 bump fail
 # with a restart loop on `php-fpm83: not found`, after the image had already
 # built and looked fine.
+#
+# E76 — the scheduler service passes its own command (`schedule:work`); the
+# wait/prepare steps above still run first (it needs DB + code too), then its
+# command replaces php-fpm. No `command:` ⇒ the classic php-fpm server.
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
 exec php-fpm -F -R

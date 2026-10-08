@@ -38,6 +38,37 @@ services:
       redis:
         condition: service_started
 
+  # E76 — تیکِ دائمیِ صفِ تحویل (و زمان‌بندِ لاراول).
+  #
+  # چرا سرویسِ جدا و نه cron هاست: با هر نصب بالا می‌آید، به OS هاست وابسته
+  # نیست و با `restart: unless-stopped` از ری‌استارت برمی‌گردد. `schedule:work`
+  # هر دقیقه `schedule:run` می‌زند، پس `outbox:drain` (صفِ ایمیل/تلگرام/…) و
+  # بقیهٔ کارهای زمان‌بندی واقعاً اجرا می‌شوند — پیش از این هیچ tickای نبود و
+  # سطرهای صف برای همیشه pending می‌ماندند.
+  #
+  # entrypoint بیلد/انتظار/آماده‌سازی را مثل app می‌گذراند و بعد commandِ اینجا
+  # جای php-fpm می‌نشیند. پورتی ندارد؛ نامش مثل بقیه قابلِ بازنویسی است (E37).
+  scheduler:
+    build: .
+    container_name: ${PISHDAD_SCHEDULER:-cms-scheduler}
+    restart: unless-stopped
+    command: ["php", "artisan", "schedule:work"]
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      # ⚠️⛔ اینجا هم `DB_DATABASE` نگذارید. (E63 — مثل سرویس app)
+      DB_USERNAME: cms
+      DB_PASSWORD: cmssecret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   web:
     image: nginx:1.31.6-alpine
     container_name: ${PISHDAD_WEB:-cms-web}
