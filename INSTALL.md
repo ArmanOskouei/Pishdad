@@ -8,6 +8,20 @@ Three ways to get the code, then one installer does the rest.
 | **B. ZIP download** | a browser | no git on the machine |
 | **C. Docker Compose** | Docker only | zero local setup; services included |
 
+**Fastest (one command, needs Node.js 18+):**
+
+```bash
+npx pishdad install [dir] [--yes] [--check]
+```
+
+This checks prerequisites, clones, runs `composer install` + `npm ci`,
+writes `.env`, serves the backend and **opens `/install` in your browser**.
+`--check` only reports what is missing; `--yes` auto-installs missing system
+packages (needs sudo/admin). Details and flags: `npx pishdad install --help`.
+
+> Status: the `pishdad` npm package publishes alongside each release. If
+> `npx` says “404”, use way A/B/C below — same result, a few more commands.
+
 > 🇮🇷 [راهنمای فارسی](INSTALL.fa.md)
 
 ---
