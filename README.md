@@ -272,7 +272,16 @@ npm install
 npm run build
 ```
 
-Point Nginx at the backend `public/` and the frontend `.next/`, and the site is running.
+Then open the web installer — it checks every requirement and finishes the
+setup (superadmin, demo content, storage link):
+
+```bash
+cd ../backend && php artisan serve
+# open http://127.0.0.1:8000/install
+```
+
+Full guide — per-OS commands, what each step installs, updating, shared
+hosting (cPanel), Docker, ZIP download: **[INSTALL.md](INSTALL.md)**.
 
 > 🇮🇷 [راهنمای نصب به زبان فارسی](README.fa.md#نصب)
 
@@ -289,19 +298,18 @@ Point Nginx at the backend `public/` and the frontend `.next/`, and the site is 
 | Domain | 1 domain with DNS pointed at the server | plus 1 subdomain |
 
 <details>
-<summary>What the installer provisions automatically</summary>
+<summary>What you need first (the installer checks these, it does not install them)</summary>
 
 | Service | Version |
 |---|---|
-| PHP | 8.3+ (FPM) |
-| PHP extensions | `pdo_pgsql` · `redis` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
-| Nginx | 1.31+ |
-| PostgreSQL | 18+ with `fa-IR` collation |
-| Redis | 8+ |
-| MinIO | latest, S3-compatible object storage |
+| PHP | 8.2+, 8.3 recommended (FPM) |
+| PHP extensions | `pdo_pgsql` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
+| PostgreSQL | 14+ — MySQL/MariaDB do **not** work (`jsonb` migrations) |
 | Composer | 2.x |
-| Node.js | 22 LTS, 24 recommended |
-| TLS | automatic certificate and renewal |
+| Node.js | 22 LTS (only to build the frontend once) |
+
+Redis, MinIO and Supervisor are **not** required. Full per-OS commands, update
+flow, shared-hosting (cPanel) guide and ZIP download: **[INSTALL.md](INSTALL.md)**.
 
 </details>
 

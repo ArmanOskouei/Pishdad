@@ -77,7 +77,10 @@ const INCLUDE_ROOTS =
     ? ["pishdad-core/backend/", "pishdad-core/installer/", ".github/"]
     : PART === "frontend"
       ? ["pishdad-core/frontend/", "pishdad-core/installer/", ".github/"]
-      : ["pishdad-core/", ".github/"];
+      // E82 — `deploy/` (اسکریپت استقرار VPS + نمونهٔ env تولید) بخشی از
+      // بستهٔ کامل است چون INSTALL.md به `bash deploy/deploy.sh` ارجاع می‌دهد؛
+      // فقط دو فایلِ متنیِ بدونِ secret است.
+      : ["pishdad-core/", ".github/", "deploy/"];
 
 /** فایل‌های قانونی که بدون‌شان بسته ناقص یا بی‌معنی است. */
 const REQUIRED_ALL = [
@@ -215,6 +218,8 @@ process.stdout.write(`\r  copied ${copied}/${included.length}\n`);
 const PUBLIC_ROOT_DOCS = [
   "README.md",
   "README.fa.md",
+  "INSTALL.md",
+  "INSTALL.fa.md",
   "LICENSE",
   "CONTRIBUTING.md",
   "SECURITY.md",

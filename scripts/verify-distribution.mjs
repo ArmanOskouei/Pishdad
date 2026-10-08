@@ -260,6 +260,8 @@ for (const f of all) {
 const PUBLIC_DOCS = [
   "README.md",
   "README.fa.md",
+  "INSTALL.md",
+  "INSTALL.fa.md",
   "LICENSE",
   "CONTRIBUTING.md",
   "SECURITY.md",
