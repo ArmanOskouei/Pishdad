@@ -25,6 +25,7 @@
  */
 
 import { normalizeFa, queryTokens } from "./search-normalize";
+import { searchReady } from "./search-timing.ts";
 
 /* ── تایپ‌ها ── */
 
@@ -275,7 +276,9 @@ export async function runSearch(rawQuery: string, opts: RunSearchOpts = {}): Pro
   }
 
   let dyn: SearchHit[] = [];
-  if (dynamic && rawQuery.trim().length >= 2) {
+  // E78 — گیتِ سطحِ موتور: زیر ۳ حرف هیچ ریکوئستی نمی‌زند، حتی اگر
+  // مصرف‌کننده‌ای گیتِ UI را جا انداخته باشد.
+  if (dynamic && searchReady(rawQuery)) {
     // B5: یک درخواست به سرور، به‌جای یکی به‌ازای هر سورس. سرور providerهای
     // ثبت‌شده (از جمله provider افزونه) را اجرا و ادغام می‌کند.
     dyn = await fetchServerSearch(rawQuery.trim(), limit).catch(() => [] as SearchHit[]);

@@ -8,9 +8,10 @@ import {
   type SearchGroup,
   type SearchHit,
 } from "@/lib/search-registry";
+import { SEARCH_DEBOUNCE_MS, searchReady } from "@/lib/search-timing";
 import { Highlight } from "./Highlight";
 
-/** صفحه نتایج admin/search: گروه‌بندی + هایلایت + حالت خالی فارسی. */
+/** صفحه نتایج admin/search: گروه‌بندی + هایلایت + حالت خالی فارسی. آستانه و دبونس از `search-timing`. */
 export function SearchResults({ initialQ }: { initialQ: string }) {
   const [q, setQ] = useState(initialQ);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -23,14 +24,15 @@ export function SearchResults({ initialQ }: { initialQ: string }) {
     let alive = true;
     setHits(null);
     const query = q.trim();
-    if (!query) {
+    // E78 — زیر ۳ حرف ریکوئست نمی‌زند؛ پیامِ «کم است» پایین رندر می‌شود.
+    if (!searchReady(query)) {
       setHits([]);
       return;
     }
     const t = setTimeout(async () => {
       const res = await runSearch(query, { limit: 100 });
       if (alive) setHits(res);
-    }, 150);
+    }, SEARCH_DEBOUNCE_MS);
     return () => {
       alive = false;
       clearTimeout(t);
@@ -81,7 +83,13 @@ export function SearchResults({ initialQ }: { initialQ: string }) {
         </div>
       ) : null}
 
-      {hits !== null && q.trim() && hits.length === 0 ? (
+      {hits !== null && q.trim() && !searchReady(q) ? (
+        <div className="card card-pad" role="status">
+          <b>برای جستجو حداقل ۳ حرف بنویسید.</b>
+        </div>
+      ) : null}
+
+      {hits !== null && searchReady(q) && hits.length === 0 ? (
         <div className="card card-pad" role="status">
           <b>نتیجه‌ای برای «{q.trim()}» پیدا نشد.</b>
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>

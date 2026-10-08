@@ -2,15 +2,15 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { runSiteSearch, siteSearchTypeFa, type SiteSearchHit } from "@/lib/site-search";
+import { SEARCH_DEBOUNCE_MS, searchReady } from "@/lib/search-timing";
 import { localizeHref, publicT, type PublicLocale } from "@/lib/i18n/public";
 import { Highlight } from "@/components/search/Highlight";
 
-const DEBOUNCE_MS = 200;
 const MAX_DROP = 8;
 
 /**
  * ویجت جستجوی واقعی هدر: لایو دراپ‌داون (دبونس، عنوان + snippet + نوع بخش)
- * + Enter → صفحه نتایج /search?q= .
+ * + Enter → صفحه نتایج /search?q= . آستانه و دبونس از `search-timing`.
  */
 export function SiteSearchBox({ placeholder, locale = "fa" }: { placeholder?: string; locale?: PublicLocale }) {
   const router = useRouter();
@@ -33,7 +33,8 @@ export function SiteSearchBox({ placeholder, locale = "fa" }: { placeholder?: st
 
   useEffect(() => {
     const query = q.trim();
-    if (query.length < 2) {
+    // E78 — زیر ۳ حرف ریکوئست نمی‌زند.
+    if (!searchReady(query)) {
       setHits([]);
       setOpen(false);
       setActive(-1);
@@ -49,13 +50,14 @@ export function SiteSearchBox({ placeholder, locale = "fa" }: { placeholder?: st
       setActive(res.length > 0 ? 0 : -1);
       setOpen(true);
       setBusy(false);
-    }, DEBOUNCE_MS);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [q]);
 
   const goResults = (query: string) => {
     const v = query.trim();
-    if (!v) return;
+    // E78 — سابمیت هم بدون ۳ حرف جایی نمی‌رود.
+    if (!searchReady(v)) return;
     setOpen(false);
     router.push(localizeHref(`/search?q=${encodeURIComponent(v)}`, locale));
   };
@@ -153,7 +155,7 @@ export function SiteSearchBox({ placeholder, locale = "fa" }: { placeholder?: st
           </button>
         </div>
       ) : null}
-      {open && q.trim().length >= 2 && hits.length === 0 && !busy ? (
+      {open && searchReady(q) && hits.length === 0 && !busy ? (
         <div className="search-drop" role="status">
           <button type="button" className="search-more" onClick={() => goResults(q)}>
             {publicT(locale, "search.none", { q: q.trim() })}

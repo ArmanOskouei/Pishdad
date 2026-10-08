@@ -33,7 +33,7 @@ export const publicEn: Record<PublicMessageKey, string> = {
   "search.placeholderLong": "e.g. contact, services, FAQ…",
   "search.loading": "Searching…",
   "search.needQuery": "Type a search term",
-  "search.needQueryHint": "At least 2 characters are required.",
+  "search.needQueryHint": "At least 3 characters are required.",
   "search.noResult": "No results found for “{q}”.",
   "search.noResultHint": "Check the spelling or try simpler words.",
   "search.count": "{n} result(s) for “{q}”",

@@ -2,12 +2,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { runSearch, type SearchHit } from "@/lib/search-registry";
+import { SEARCH_DEBOUNCE_MS, searchReady } from "@/lib/search-timing";
 import { Highlight } from "./Highlight";
 
-const DEBOUNCE_MS = 150;
 const MAX_DROP = 8;
 
-/** لایو‌سرچ Topbar: دراپ‌داون (حداکثر ۸)، کیبورد ↑↓/Enter/Escape، دبونس ۱۵۰ms. */
+/** لایو‌سرچ Topbar: دراپ‌داون (حداکثر ۸)، کیبورد ↑↓/Enter/Escape — آستانه و دبونس از `search-timing`. */
 export function AdminSearch() {
   const router = useRouter();
   const boxId = useId();
@@ -27,10 +27,10 @@ export function AdminSearch() {
     return () => document.removeEventListener("pointerdown", onDown);
   }, []);
 
-  // جستجوی دبونس‌شده
+  // جستجوی دبونس‌شده — فقط از ۳ حرف (E78: کوئریِ کوتاه‌تر ریکوئست نمی‌زند).
   useEffect(() => {
     const query = q.trim();
-    if (query.length < 1) {
+    if (!searchReady(query)) {
       setHits([]);
       setOpen(false);
       setActive(-1);
@@ -43,7 +43,7 @@ export function AdminSearch() {
       setHits(res);
       setActive(res.length > 0 ? 0 : -1);
       setOpen(true);
-    }, DEBOUNCE_MS);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [q]);
 
@@ -65,7 +65,8 @@ export function AdminSearch() {
       if (open && active >= 0 && hits[active]) {
         setOpen(false);
         router.push(hits[active].path);
-      } else if (q.trim()) {
+      } else if (searchReady(q)) {
+        // E78 — Enter هم بدون ۳ حرف جایی نمی‌رود.
         goResults(q);
       }
     } else if (e.key === "Escape") {

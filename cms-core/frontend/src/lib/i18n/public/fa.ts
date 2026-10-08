@@ -32,7 +32,7 @@ export const publicFa = {
   "search.placeholderLong": "مثلاً: تماس، خدمات، سوالات متداول…",
   "search.loading": "در حال جستجو…",
   "search.needQuery": "عبارت جستجو را بنویسید",
-  "search.needQueryHint": "حداقل ۲ نویسه لازم است.",
+  "search.needQueryHint": "حداقل ۳ حرف لازم است.",
   "search.noResult": "نتیجه‌ای برای «{q}» پیدا نشد.",
   "search.noResultHint": "املا را بررسی کنید یا از واژه‌های ساده‌تر استفاده کنید.",
   "search.count": "{n} نتیجه برای «{q}»",

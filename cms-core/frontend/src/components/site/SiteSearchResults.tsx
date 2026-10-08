@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { runSiteSearch, siteSearchTypeFa, type SiteSearchHit } from "@/lib/site-search";
+import { SEARCH_DEBOUNCE_MS, searchReady } from "@/lib/search-timing";
 import { Highlight } from "@/components/search/Highlight";
 import { faNum, jalaliDate } from "@/lib/fa";
 import { localizeHref, publicT, type PublicLocale } from "@/lib/i18n/public";
@@ -24,14 +25,15 @@ export function SiteSearchResults({ initialQ, locale = "fa" }: { initialQ: strin
     let alive = true;
     setHits(null);
     const query = q.trim();
-    if (query.length < 2) {
+    // E78 — زیر ۳ حرف ریکوئست نمی‌زند؛ پیامِ «کم است» پایین رندر می‌شود.
+    if (!searchReady(query)) {
       setHits([]);
       return;
     }
     const t = setTimeout(async () => {
       const res = await runSiteSearch(query, 30);
       if (alive) setHits(res);
-    }, 200);
+    }, SEARCH_DEBOUNCE_MS);
     return () => {
       alive = false;
       clearTimeout(t);
@@ -67,7 +69,7 @@ export function SiteSearchResults({ initialQ, locale = "fa" }: { initialQ: strin
             placeholder={publicT(locale, "search.placeholderLong")}
             defaultValue={q}
             key={initialQ}
-            minLength={2}
+            minLength={3}
           />
         </div>
         <button className="btn btn-primary" type="submit">
@@ -81,14 +83,14 @@ export function SiteSearchResults({ initialQ, locale = "fa" }: { initialQ: strin
         </div>
       ) : null}
 
-      {hits !== null && q.trim().length < 2 ? (
+      {hits !== null && !searchReady(q) ? (
         <div className="card card-pad" role="status">
           <b>{publicT(locale, "search.needQuery")}</b>
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{publicT(locale, "search.needQueryHint")}</p>
         </div>
       ) : null}
 
-      {hits !== null && q.trim().length >= 2 && hits.length === 0 ? (
+      {hits !== null && searchReady(q) && hits.length === 0 ? (
         <div className="card card-pad" role="status">
           <b>{publicT(locale, "search.noResult", { q: q.trim() })}</b>
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>

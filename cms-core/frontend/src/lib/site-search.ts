@@ -28,6 +28,7 @@
  */
 
 import { API_BASE } from "./api";
+import { searchReady } from "./search-timing.ts";
 
 export type SiteSearchHit = {
   title: string;
@@ -98,7 +99,8 @@ export function siteSearchTypeFa(type: string): string {
 /** اجرای همه providerها (موازی، تحمل خطا) — سقف limit روی مجموع. */
 export async function runSiteSearch(q: string, limit = 10): Promise<SiteSearchHit[]> {
   const query = q.trim();
-  if (query.length < 2) return [];
+  // E78 — گیتِ سطحِ موتور: زیر ۳ حرف هیچ ریکوئستی نمی‌زند.
+  if (!searchReady(query)) return [];
   const settled = await Promise.all(
     providers.map((p) => p.search(query, limit).catch(() => [] as SiteSearchHit[])),
   );
