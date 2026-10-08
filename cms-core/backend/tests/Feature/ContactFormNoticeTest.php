@@ -56,7 +56,9 @@ class ContactFormNoticeTest extends TestCase
             $this->assertSame('ticket.created', $notification->data['catalog_key']);
             $this->assertSame('ticket.created', $notification->catalog_key);
             $this->assertContains('زهرا', $notification->data['values']);
-            $this->assertContains('درخواست همکاری', $notification->data['values']);
+            $this->assertContains('zahra@example.com', $notification->data['values']);
+            // E77 — قالبِ جدید خطِ موضوع ندارد (فقط نام/ایمیل/تلفن/متن).
+            $this->assertNotContains('درخواست همکاری', $notification->data['values']);
         }
 
         // مدیر عادی نباید اعلانِ مالیِ مشتری را ببیند.
@@ -82,6 +84,30 @@ class ContactFormNoticeTest extends TestCase
         $row = DB::table('notification_deliveries')->where('channel', 'telegram')->sole();
         $this->assertSame('111', $row->recipient);
         $this->assertSame('pending', $row->status);
+    }
+
+    /**
+     * E77 — متنِ صف‌شده دقیقاً به فرمِ خواستهٔ کاربر است (سربرگ + نام/ایمیل/
+     * تلفن/متن). این فرم فیلدِ تلفن ندارد ⇒ `—`.
+     */
+    public function test_queued_telegram_text_matches_the_requested_format(): void
+    {
+        TelegramSender::setToken('1234567890:'.str_repeat('A', 30));
+        $this->user(['role' => 'admin', 'email' => 'admin1@example.com', 'telegram_chat_id' => '111']);
+
+        $this->postJson('/api/v1/contact/tickets', [
+            'name' => 'زهرا',
+            'email' => 'zahra@example.com',
+            'subject' => 'درخواست همکاری',
+            'body' => 'سلام.',
+        ])->assertCreated();
+
+        $row = DB::table('notification_deliveries')->where('channel', 'telegram')->sole();
+        $payload = json_decode((string) $row->payload, true);
+        $text = (string) ($payload['text'] ?? '');
+        foreach (['از طریق وب سایت فرم تماس ارسال شده است.', 'نام فرستنده: زهرا', 'ایمیل فرستنده: zahra@example.com', 'شماره تماس فرستنده: —', 'متن پیام: سلام.'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "متنِ صف‌شده باید «{$needle}» را داشته باشد.");
+        }
     }
 
     public function test_no_chat_or_no_bot_means_no_telegram_row(): void

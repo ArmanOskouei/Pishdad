@@ -95,11 +95,13 @@ class FormSubmissionService
         if ($admins->isNotEmpty() && $email !== null) {
             // E75 — مثل مسیرِ فرمِ تماس: سطرِ دیتابیس با کلیدِ کاتالوگ +
             // تلگرامِ فوری برای مدیرانی که کانالش را روشن دارند.
+            // E77 — values به ترتیبِ قالب: [نام، ایمیل، تلفن، متن].
             foreach ($admins as $admin) {
                 NotificationDispatcher::send($admin, 'ticket.created', [
                     $name ?? 'بازدیدکننده',
                     $email,
-                    $form->name,
+                    $this->firstString($payload, ['phone', 'mobile', 'tel', 'telephone', 'phone_number']) ?? '—',
+                    $this->firstString($payload, ['message', 'body', 'text', 'description']) ?? '—',
                 ]);
             }
         }

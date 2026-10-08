@@ -98,11 +98,14 @@ class ContactTicketController extends Controller
                 // دیتابیس (حالا با کلید و لینکِ اقدام) + تلگرامِ فوری برای
                 // مدیرانی که کانالش را روشن دارند. ایمیل از مسیرِ پایینِ همین
                 // تابع می‌رود، پس در کلیدِ کاتالوگ نیست تا دو بار نرود.
+                // E77 — values به ترتیبِ قالب: [نام، ایمیل، تلفن، متن].
+                // این فرم فیلدِ تلفن ندارد ⇒ `—`.
                 foreach ($admins as $admin) {
                     NotificationDispatcher::send($admin, 'ticket.created', [
                         $validated['name'],
                         $validated['email'],
-                        $validated['subject'],
+                        '—',
+                        $validated['body'],
                     ]);
                 }
             } else {
