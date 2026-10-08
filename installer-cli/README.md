@@ -16,7 +16,7 @@ Windows, macOS and Linux. Zero dependencies (Node.js builtins only).
    Only then is a download offered â€” and only with your explicit Yes.
 2. **Other prerequisites** — Composer, PostgreSQL client, Node.js, git: offered one by one with the official command, installed on Yes, re-verified afterwards. No to a critical tool stops loudly; No to Node continues with backend only.
 3. **Code** — `git clone --depth 1` (or `git pull --ff-only` if the folder already is a checkout).
-4. **Backend** — `composer install --no-dev`, `.env` from the example (never overwritten), app key. With `--docker-container` (or a picked container) the same commands run via `docker exec -w /var/www/html` — after proving the checkout is mounted there.
+4. **Backend** — `composer install --no-dev`, `.env` from the example (never overwritten), app key. With `--docker-container` (or a picked container) the same commands run via `docker exec -w /var/www/html` — after proving the checkout is mounted there (`php artisan --version` must answer, and you confirm the printed host path is your project).
 5. **Frontend** -- 
 5. **Frontend** — `npm ci` (skip with `--no-frontend`).
 6. **Serve + open** — native mode starts the backend and opens `http://127.0.0.1:8080/install`; Docker mode starts nothing new and opens the same URL. The 6-step web installer finishes the job (database, migrate, superadmin, demo).

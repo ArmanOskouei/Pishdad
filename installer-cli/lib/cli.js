@@ -47,8 +47,9 @@ function describePhp(p) {
 }
 
 /** `docker ps` → [{name, image}]. Empty list when Docker is absent. */
-function listContainers() {
-  const r = execRun('docker', ['ps', '--format', '{{.Names}}\t{{.Image}}'], { silent: true });
+function listContainers(execFn) {
+  const run = execFn || execRun;
+  const r = run('docker', ['ps', '--format', '{{.Names}}\t{{.Image}}'], { silent: true });
   if (!r.ok) return [];
   return r.out
     .split(/[\r\n]+/)
@@ -68,11 +69,12 @@ function listContainers() {
  * (caller falls through to the download offer), or false when the user
  * declined / the forced container is unusable (message already printed).
  */
-async function resolvePhpChoice(opts, deps) {
+async function resolvePhpChoice(opts, deps, dir) {
+  const X = (deps && deps.exec) || execRun;
   const io = {
     exists: fs.existsSync,
-    exec: (cmd, args) => execRun(cmd, args, { silent: true }),
-    ps: listContainers,
+    exec: (cmd, args) => X(cmd, args, { silent: true }),
+    ps: () => listContainers(X),
   };
 
   // Forced container: prove it, or fail loudly — never fall back silently.
@@ -82,7 +84,7 @@ async function resolvePhpChoice(opts, deps) {
       say(`Container '${opts.dockerContainer}' has no working PHP 8.2+. Check the name with: docker ps`);
       return false;
     }
-    const proven = proveContainerCheckout(opts.dockerContainer);
+    const proven = await proveContainerCheckout(opts.dockerContainer, dir, deps);
     if (!proven) return false;
     return { kind: 'docker', ref: opts.dockerContainer, ...r };
   }
@@ -94,7 +96,7 @@ async function resolvePhpChoice(opts, deps) {
   if (!picked) return null;
   if (picked.choice) {
     if (picked.choice.kind !== 'docker') return picked.choice;
-    if (!proveContainerCheckout(picked.choice.ref)) return false;
+    if (!(await proveContainerCheckout(picked.choice.ref, dir, deps))) return false;
     return picked.choice;
   }
 
@@ -105,7 +107,7 @@ async function resolvePhpChoice(opts, deps) {
   const idx = await askNumber(`Use [1-${picked.alternatives.length}]?`, 1, deps.askNumber);
   const sel = picked.alternatives[idx - 1] || picked.alternatives[0];
   say(`Using ${describePhp(sel)}.`);
-  if (sel.kind === 'docker' && !proveContainerCheckout(sel.ref)) return false;
+  if (sel.kind === 'docker' && !(await proveContainerCheckout(sel.ref, dir, deps))) return false;
   return sel;
 }
 
@@ -137,17 +139,46 @@ function askNumber(question, def, asker) {
 }
 
 /**
- * A Docker PHP is only usable when THIS checkout is mounted inside it:
- * `php artisan --version` must answer from the backend workdir.
+ * A Docker PHP is only usable when THIS checkout is mounted inside it.
+ *
+ * Two proofs, in order:
+ *  1. `php artisan --version` answers from the backend workdir (it is a
+ *     Laravel checkout at all).
+ *  2. The human confirms the mount: we print the container's host source
+ *     path for that workdir and ask "is this your project?". Host paths
+ *     (E:\...) and VM paths (/run/desktop/mnt/...) can never be compared
+ *     reliably by code, so this one stays a question — asked once.
  */
-function proveContainerCheckout(container) {
-  const r = execRun('docker', ['exec', '-w', DOCKER_WORKDIR, container, 'php', 'artisan', '--version'], { silent: true });
+function proveContainerCheckout(container, dir, deps) {
+  const X = (deps && deps.exec) || execRun;
+  const r = X('docker', ['exec', '-w', DOCKER_WORKDIR, container, 'php', 'artisan', '--version'], { silent: true });
   if (!r.ok) {
     say(`Container '${container}' has PHP, but this project is not mounted in it (php artisan did not answer from ${DOCKER_WORKDIR}).`);
     say('Mount the checkout into the container (or run natively), then re-run.');
-    return false;
+    return Promise.resolve(false);
   }
-  return true;
+  let source = null;
+  const ins = X('docker', ['container', 'inspect', '--format', '{{json .Mounts}}', container], { silent: true });
+  if (ins.ok) {
+    try {
+      const mounts = JSON.parse(String(ins.out));
+      const hit = (Array.isArray(mounts) ? mounts : []).find(
+        (m) => m && (m.Destination === DOCKER_WORKDIR || String(m.Destination || '').startsWith(DOCKER_WORKDIR + '/')),
+      );
+      if (hit) source = hit.Source;
+    } catch {
+      source = null;
+    }
+  }
+  say(`Container '${container}' serves a checkout mounted from: ${source || '(mount source unreadable)'}.`);
+  say(`This install targets: ${dir}`);
+  return askYesNo('Is that YOUR project (same code)?', true, deps && deps.ask).then((yes) => {
+    if (!yes) {
+      say('Stopped — point --docker-container at the container that mounts THIS project, then re-run.');
+      return false;
+    }
+    return true;
+  });
 }
 
 /**
@@ -155,20 +186,20 @@ function proveContainerCheckout(container) {
  * Docker: same commands prefixed with `docker exec -w <workdir> <container>`.
  */
 function makeBeRunner(opts, deps) {
-  void deps;
+  const X = (deps && deps.exec) || execRun;
   const be = path.resolve(opts.dir || 'Pishdad', 'pishdad-core', 'backend');
   if (opts.phpChoice && opts.phpChoice.kind === 'docker') {
     const c = opts.phpChoice.ref;
     return {
       mode: 'docker',
       describe: (s) => `$ docker exec -w ${DOCKER_WORKDIR} ${c} ${s}`,
-      run: (tool, args) => execRun('docker', ['exec', '-w', DOCKER_WORKDIR, c, tool, ...args]),
+      run: (tool, args) => X('docker', ['exec', '-w', DOCKER_WORKDIR, c, tool, ...args]),
     };
   }
   return {
     mode: 'native',
     describe: (s) => `$ ${s}`,
-    run: (tool, args) => execRun(tool, args, { cwd: be }),
+    run: (tool, args) => X(tool, args, { cwd: be }),
   };
 }
 
@@ -193,12 +224,32 @@ async function cmdInstall(opts, deps) {
   // E84 — exhaustive PHP resolution BEFORE anyone offers a download.
   // PATH is only the first place; a usable PHP in XAMPP/Laragon/winget-dir
   // or inside a Docker container must win over downloading a new one.
-  const php = await resolvePhpChoice(opts, deps);
+  const php = await resolvePhpChoice(opts, deps, dir);
   if (php === false) return 2; // user declined / unusable container, already told why
   const missing = rows.filter((r) => !r.ok && toolFor(r.name) && !(php && r.name.startsWith('PHP')));
   if (php) {
     opts.phpChoice = php;
     say(`\nPHP: using ${describePhp(php)} (verified: version + all extensions).`);
+  }
+
+  // E85 — in Docker mode the container is the machine: its composer counts,
+  // and no host psql client is needed (migrations run via artisan inside,
+  // the DB host itself is chosen later in the web installer).
+  if (php && php.kind === 'docker') {
+    const X = (deps && deps.exec) || execRun;
+    const cr = X('docker', ['exec', '-w', DOCKER_WORKDIR, php.ref, 'composer', '--version'], { silent: true });
+    if (cr.ok) {
+      say(`Composer: using the container's composer (${String(cr.out).trim().split('\n')[0]}).`);
+      const ci = missing.findIndex((r) => toolFor(r.name) === 'composer');
+      if (ci > -1) missing.splice(ci, 1);
+    } else {
+      say(`Container '${php.ref}' has PHP but no composer — the host one will be used if present, else offered.`);
+    }
+    const pi = missing.findIndex((r) => toolFor(r.name) === 'postgres');
+    if (pi > -1) {
+      missing.splice(pi, 1);
+      say('PostgreSQL client: not needed on the host in Docker mode (database host is set in the web installer).');
+    }
   }
   if (opts.check) {
     say(missing.length === 0 ? '\nReady. Nothing to install.' : `\nMissing: ${missing.length} item(s). Re-run with --yes to install them (needs sudo/admin).`);
@@ -360,4 +411,4 @@ async function run(argv, deps = {}) {
   return 2;
 }
 
-module.exports = { run };
+module.exports = { run, resolvePhpChoice, makeBeRunner, proveContainerCheckout };
