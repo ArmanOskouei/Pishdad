@@ -5,7 +5,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { REPO_URL, INSTALL_URL, parseArgs, helpText } = require('./pure.js');
+const readline = require('node:readline');
+const { REPO_URL, INSTALL_URL, parseArgs, helpText, interpretYesNo, planForDeclined } = require('./pure.js');
 const { run: execRun, audit, installCommand, openBrowser, startDetached, waitHttp } = require('./steps.js');
 
 const say = (s) => process.stdout.write(s + '\n');
@@ -17,6 +18,26 @@ function printAudit(rows) {
   return rows.every((r) => r.ok);
 }
 
+/** One Yes/No question. `asker` is injectable so tests never touch stdin. */
+function askYesNo(question, def, asker) {
+  if (asker) return Promise.resolve(asker(question, def));
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    const loop = () => {
+      rl.question(`${question} [${def ? 'Y/n' : 'y/N'}] `, (answer) => {
+        const v = interpretYesNo(answer, def);
+        if (v === null) {
+          say('Please answer y/yes or n/no (بله/نه).');
+          loop();
+        } else {
+          rl.close();
+          resolve(v);
+        }
+      });
+    };
+    loop();
+  });
+}
 /** Map a failed audit row to the tool key installCommand() understands. */
 function toolFor(rowName) {
   if (rowName.startsWith('PHP')) return 'php';
@@ -42,9 +63,10 @@ async function cmdInstall(opts, deps) {
   }
 
   if (missing.length > 0) {
-    if (!opts.yes) {
-      say('\nMissing prerequisites. Re-run with --yes to install them automatically,');
-      say('or install them by hand:');
+    const auto = opts.yes || false;
+    const interactive = !auto && process.stdin.isTTY && !deps.noPrompt;
+    if (!auto && !interactive) {
+      say('\nMissing prerequisites (not a terminal — cannot ask). Install them by hand:');
       for (const m of missing) {
         const c = installCommand(toolFor(m.name));
         say(`  ${m.name}: ${c || '(no automatic installer for this OS — see INSTALL.md)'}`);
@@ -52,10 +74,24 @@ async function cmdInstall(opts, deps) {
       return 2;
     }
     for (const m of missing) {
-      const c = installCommand(toolFor(m.name));
+      const tool = toolFor(m.name);
+      const c = installCommand(tool);
       if (!c) {
         say(`No automatic installer for ${m.name} on this OS — install it by hand, then re-run.`);
         return 2;
+      }
+      let installIt = auto;
+      if (!auto) {
+        say(`\n${m.name} is missing (${m.detail || 'not found'}).`);
+        say(`Official install command:\n  ${c}`);
+        installIt = await askYesNo('Install it now?', true, deps.ask);
+      }
+      if (!installIt) {
+        const plan = planForDeclined(tool);
+        say(`\n${plan.message}`);
+        if (plan.action === 'abort') return 2;
+        opts.frontend = false; // Node declined: backend only, said loudly.
+        continue;
       }
       say(`\n$ ${c}`);
       const r = execSteps(`sh:${c}`, () =>
@@ -65,12 +101,19 @@ async function cmdInstall(opts, deps) {
         say(`Failed to install ${m.name}. Fix it by hand, then re-run.`);
         return 2;
       }
+      // The installer must prove its own work: re-check this exact tool now.
+      const again = audit().find((x) => toolFor(x.name) === tool);
+      if (!again || !again.ok) {
+        say(`${m.name} still not usable after install (${(again && again.detail) || 'unknown'}). Fix it by hand, then re-run.`);
+        return 2;
+      }
+      say(`${m.name}: installed and verified.`);
     }
-    say('\n== re-checking ==');
+    say('\n== re-checking everything ==');
     rows = audit();
     printAudit(rows);
     if (rows.some((r) => !r.ok && toolFor(r.name))) {
-      say('Still missing prerequisites after auto-install. Install the rest by hand, then re-run.');
+      say('Still missing prerequisites. Install the rest by hand, then re-run.');
       return 2;
     }
   }

@@ -28,7 +28,8 @@ Windows, macOS and Linux. Zero dependencies (Node.js builtins only).
 | Flag | Meaning |
 |---|---|
 | `--check` | only report what is missing, install nothing (safe to run anywhere) |
-| `--yes, -y` | auto-install missing prerequisites |
+| (default) | ask **Yes/No per missing item**: shows the official install command, installs on Yes, re-verifies that exact tool; saying No to PHP/Composer/PostgreSQL/git stops with a clear message, saying No to Node continues with backend only |
+| `--yes, -y` | install every missing prerequisite without asking |
 | `--dir <path>` | install into `<path>` (default `./Pishdad`) |
 | `--no-frontend` | backend only |
 | `--no-serve` | stop after installing, don't start servers |

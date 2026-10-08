@@ -69,6 +69,36 @@ describe('parseArgs', () => {
   });
 });
 
+describe('interpretYesNo', () => {
+  it('understands fa/en yes/no and defaults', () => {
+    assert.equal(pure.interpretYesNo('', true), true);
+    assert.equal(pure.interpretYesNo('', false), false);
+    for (const y of ['y', 'Y', 'yes', 'YES', 'بله', 'آره', '1']) assert.equal(pure.interpretYesNo(y), true, y);
+    for (const n of ['n', 'N', 'no', 'NO', 'نه', 'خیر', '0']) assert.equal(pure.interpretYesNo(n), false, n);
+  });
+
+  it('returns null on garbage so the caller asks again', () => {
+    assert.equal(pure.interpretYesNo('maybe'), null);
+    assert.equal(pure.interpretYesNo('شاید'), null);
+  });
+});
+
+describe('planForDeclined', () => {
+  it('aborts on critical tools with a clear message', () => {
+    for (const t of ['php', 'composer', 'postgres', 'git']) {
+      const p = pure.planForDeclined(t);
+      assert.equal(p.action, 'abort', t);
+      assert.match(p.message, /cannot continue/);
+    }
+  });
+
+  it('drops only the frontend when Node is declined', () => {
+    const p = pure.planForDeclined('node');
+    assert.equal(p.action, 'skip-frontend');
+    assert.match(p.message, /BACKEND ONLY/);
+  });
+});
+
 describe('cli wiring', () => {
   it('--help prints usage and exits 0 without touching the machine', async () => {
     let out = '';

@@ -87,6 +87,38 @@ function parseArgs(argv) {
   return opts;
 }
 
+/**
+ * Interprets one Yes/No answer. Empty answer means the default.
+ * Accepts fa/en variants; anything else returns null (ask again).
+ */
+function interpretYesNo(answer, defaultYes = true) {
+  const a = String(answer || '').trim().toLowerCase();
+  if (a === '') return defaultYes;
+  if (['y', 'yes', 'بله', 'بلی', 'آره', '1', 'true'].includes(a)) return true;
+  if (['n', 'no', 'نه', 'خیر', '0', 'false'].includes(a)) return false;
+  return null;
+}
+
+/**
+ * What happens when the user declines a prerequisite.
+ * Critical tools stop the install (the backend cannot be built without
+ * them); Node only drops the frontend, everything else continues.
+ */
+function planForDeclined(tool) {
+  if (tool === 'node') {
+    return {
+      action: 'skip-frontend',
+      message:
+        'Without Node.js the frontend cannot be installed. Continuing with BACKEND ONLY — the site will not run until you install Node and re-run.',
+    };
+  }
+  const names = { php: 'PHP', composer: 'Composer', postgres: 'PostgreSQL', git: 'git' };
+  return {
+    action: 'abort',
+    message: `Without ${names[tool] || tool} the install cannot continue. Install it and re-run (see INSTALL.md).`,
+  };
+}
+
 function helpText() {
   return `pishdad — one-command installer for Pishdad (پیشداد)
 
@@ -95,6 +127,8 @@ Usage:
 
 What it does:
   1. checks prerequisites (PHP, Composer, PostgreSQL client, Node, git)
+     — missing ones are offered one by one: show the official install
+     command, ask Yes/No, install, and re-verify that exact tool.
   2. clones ${REPO_URL} (or updates it)
   3. composer install + .env + app key        (backend)
   4. npm ci                                   (frontend, unless --no-frontend)
@@ -104,7 +138,10 @@ What it does:
 
 Options:
   --check          only report what is missing, install nothing
-  --yes, -y        auto-install missing prerequisites (needs sudo/admin)
+  --yes, -y        install every missing prerequisite without asking
+                   (default without --yes: ask Yes/No per item in a terminal;
+                   declining PHP/Composer/PostgreSQL/git stops the install,
+                   declining Node continues with backend only)
   --dir <path>     install into <path> (default: ./Pishdad)
   --no-frontend    skip the frontend entirely
   --no-serve       do not start servers at the end
@@ -126,4 +163,6 @@ module.exports = {
   missingExtensions,
   parseArgs,
   helpText,
+  interpretYesNo,
+  planForDeclined,
 };
