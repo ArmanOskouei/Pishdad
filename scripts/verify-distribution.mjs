@@ -191,6 +191,15 @@ const SECRET_PATTERNS = [
     // مقدارِ نمونه در فایلِ نمونه مجاز است؛ در هر فایلِ دیگری نه.
     exceptFile: (f) => f.endsWith(".env.example") || f.endsWith(".env.example.txt"),
   },
+  {
+    // E81 — نامِ دامنه/پوشهٔ خصوصیِ مالک نباید در بستهٔ عمومی باشد.
+    //
+    // عمداً فقط شکلِ `armanoskouei.ir` (با نقطه) ممنوع است، نه
+    // `ArmanOskouei/Pishdad`: دومی آدرسِ خودِ مخزنِ عمومی است و در READMEها
+    // لازم است. اگر روزی دامنهٔ عمومیِ محصول عوض شد، همین یک الگو عوض می‌شود.
+    re: /armanoskouei\.ir/i,
+    why: "the owner's private domain/folder name — must never ship in the public package",
+  },
 ];
 
 /** مقادیرِ نمونهٔ شناخته‌شده که فقط در فایل مرجع می‌آیند. */
