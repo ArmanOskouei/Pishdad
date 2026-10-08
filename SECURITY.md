@@ -71,7 +71,7 @@ compromised rather than a package being tampered with in transit.
 
 | Property | Where |
 |---|---|
-| Ed25519 signing and verification | `cms-core/backend/app/Services/Plugins/PluginSignatureVerifier.php` |
+| Ed25519 signing and verification | `pishdad-core/backend/app/Services/Plugins/PluginSignatureVerifier.php` |
 | Manifest canonicalisation before signing | `canonical()`, `sortRecursive()` in the same file |
 | Credential detection in packages | `findSecretKeys()` in `PluginPackageValidator.php` |
 | Extension-point slug binding | `slugBoundChecks()` in `PluginPackageValidator.php` |
@@ -141,7 +141,7 @@ Anyone can audit these. Please do.
 
 | ویژگی | کجا |
 |---|---|
-| امضا و تأیید Ed25519 | `cms-core/backend/app/Services/Plugins/PluginSignatureVerifier.php` |
+| امضا و تأیید Ed25519 | `pishdad-core/backend/app/Services/Plugins/PluginSignatureVerifier.php` |
 | کانونی‌سازی مانیفست پیش از امضا | `canonical()` و `sortRecursive()` در همان فایل |
 | کشف کلید در بسته | `findSecretKeys()` در `PluginPackageValidator.php` |
 | اتصال نقطهٔ افزونه به slug | `slugBoundChecks()` در `PluginPackageValidator.php` |

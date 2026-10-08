@@ -1,6 +1,6 @@
 # ویرایشگر ریچ‌تکست (Jodit)
 
-> کامپوننت مشترک: `cms-core/frontend/src/components/ui/RichText.tsx`
+> کامپوننت مشترک: `pishdad-core/frontend/src/components/ui/RichText.tsx`
 > مصرف فعلی: `SchemaForm` (فیلد `body` بلوک `text` در ویرایشگر صفحات).
 
 ## استفاده مجدد

@@ -15,8 +15,8 @@
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$fe = Join-Path $root 'cms-core\frontend'
-$port = if ($env:CMS_FRONT_PORT) { $env:CMS_FRONT_PORT } else { '3100' }
+$fe = Join-Path $root 'pishdad-core\frontend'
+$port = if ($env:PISHDAD_FRONT_PORT) { $env:PISHDAD_FRONT_PORT } else { '3100' }
 
 $server = Join-Path $fe '.next\standalone\server.js'
 if (-not (Test-Path -LiteralPath $server)) {
@@ -57,13 +57,13 @@ Start-Sleep -Seconds 2
 # the two halves of the app.
 $revalidateSecret = $env:REVALIDATE_SECRET
 if (-not $revalidateSecret) {
-  $backendEnv = Join-Path $root 'cms-core\backend\.env'
+  $backendEnv = Join-Path $root 'pishdad-core\backend\.env'
   if (Test-Path -LiteralPath $backendEnv) {
     $hit = Select-String -LiteralPath $backendEnv -Pattern '^\s*REVALIDATE_SECRET\s*=\s*(\S+)' | Select-Object -First 1
     if ($hit) { $revalidateSecret = $hit.Matches[0].Groups[1].Value }
   }
 }
-if (-not $revalidateSecret) { throw 'REVALIDATE_SECRET not found. Set it in the environment or in cms-core/backend/.env.' }
+if (-not $revalidateSecret) { throw 'REVALIDATE_SECRET not found. Set it in the environment or in pishdad-core/backend/.env.' }
 $env:NEXT_PUBLIC_API_URL = 'http://localhost:8080/api'
 $env:INTERNAL_API_URL = 'http://localhost:8080/api'
 $env:REVALIDATE_SECRET = $revalidateSecret

@@ -6,9 +6,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 
-// StartCMS: one-click launcher for the CMS stack (backend docker + frontend node).
+// StartPishdad: one-click launcher for the Pishdad stack (backend docker + frontend node).
 // C# 5 compatible (built with .NET Framework csc, no downloads needed).
-class StartCms
+class StartPishdad
 {
     static string RunDir;
     static string BackendDir;
@@ -23,12 +23,12 @@ class StartCms
         {
             RunDir = AppDomain.CurrentDomain.BaseDirectory;
             string root = Path.GetFullPath(Path.Combine(RunDir, ".."));
-            BackendDir = Path.Combine(root, "cms-core", "backend");
-            FrontendDir = Path.Combine(root, "cms-core", "frontend");
+            BackendDir = Path.Combine(root, "pishdad-core", "backend");
+            FrontendDir = Path.Combine(root, "pishdad-core", "frontend");
             LogDir = Path.Combine(RunDir, "logs");
             Directory.CreateDirectory(LogDir);
 
-            Log("CMS stack launcher - " + root);
+            Log("Pishdad stack launcher - " + root);
             EnsureDocker();
             StartBackend();
             StartFrontend();
@@ -129,7 +129,7 @@ class StartCms
                     if (m.Success) return m.Groups[1].Value;
                 }
             }
-            throw new Exception("REVALIDATE_SECRET not found. Set it in the environment or in cms-core/backend/.env.");
+            throw new Exception("REVALIDATE_SECRET not found. Set it in the environment or in pishdad-core/backend/.env.");
         }
 
         psi.EnvironmentVariables["NEXT_PUBLIC_API_URL"] = "http://localhost:8080/api";

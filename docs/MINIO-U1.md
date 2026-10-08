@@ -18,7 +18,7 @@ for the next person who reads the compose file, so they are here.
 | quay.io returns `401` | **Confirmed, and it is the auth layer** | `GET https://quay.io/v2/auth?...scope=repository:minio/minio:pull` → `401 Unauthorized`. So does the v2 manifest fetch. This is why `docker manifest inspect` reports `no such manifest` for every tag: it never gets a token, so it cannot distinguish "absent" from "unauthorized". The compose file's old comment read as if the tag were known-missing; it was never actually testable. |
 | Docker Hub has no `minio/minio` | **Confirmed, stronger than stated** | `GET https://hub.docker.com/v2/repositories/minio/minio/tags` → `404 Not Found`. The repository is *gone*, not frozen or rate-limited. |
 | `bitnami/minio` has zero tags | Not re-checked | No longer load-bearing: bitnami never hosted the official server image anyway. |
-| We are on `RELEASE.2025-09-07T16-13-09Z` | **Confirmed** | `docker exec cms-minio /usr/bin/minio --version` → `RELEASE.2025-09-07T16-13-09Z (commit-id=07c3a429bfed433e49018cb0f78a52145d4bedeb)`. |
+| We are on `RELEASE.2025-09-07T16-13-09Z` | **Confirmed** | `docker exec pishdad-minio /usr/bin/minio --version` → `RELEASE.2025-09-07T16-13-09Z (commit-id=07c3a429bfed433e49018cb0f78a52145d4bedeb)`. |
 
 ### The finding that changes the decision
 
@@ -64,7 +64,7 @@ This is a real lock, not a placeholder:
 - anyone with quay credentials can still `docker compose pull`, because the
   digest is a valid registry reference.
 
-Verified after the change: `docker compose config` exits 0; `cms-minio` came
+Verified after the change: `docker compose config` exits 0; `pishdad-minio` came
 back up on the same `RELEASE.2025-09-07T16-13-09Z`, `/minio/health/live` → 200,
 and the `cms` bucket still serves.
 
@@ -75,7 +75,7 @@ docker pull quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z
 docker image inspect quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z \
   --format '{{json .RepoDigests}}'
 # replace the digest in docker-compose.yml with the one it prints
-docker exec cms-minio /usr/bin/minio --version   # record the version
+docker exec pishdad-minio /usr/bin/minio --version   # record the version
 ```
 
 ## 3. CVE status of the pinned release

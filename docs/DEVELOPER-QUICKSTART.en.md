@@ -23,7 +23,7 @@ and class below exists in the repository today. For the full contract see
 Repo layout:
 
 ```
-cms-core/
+pishdad-core/
 ├── backend/    ← Laravel API (PHP)
 └── frontend/   ← Next.js site (React)
 ```
@@ -37,17 +37,17 @@ cms-core/
 The compose stacks bring up Nginx, PHP-FPM, PostgreSQL, Redis and MinIO.
 
 ```bash
-cd cms-core/backend  && docker compose up -d
-cd cms-core/frontend && docker compose up -d
+cd pishdad-core/backend  && docker compose up -d
+cd pishdad-core/frontend && docker compose up -d
 ```
 
-The backend container is `cms-app`.
+The backend container is `pishdad-app`.
 
 ### Option B — run directly
 
 ```bash
 # Backend — http://127.0.0.1:8000
-cd cms-core/backend
+cd pishdad-core/backend
 cp .env.example .env
 composer install
 php artisan key:generate
@@ -63,7 +63,7 @@ npm run dev
 Health check for external dependencies (mail, SMS, MinIO, Redis, DDL role, seal keys, queue):
 
 ```bash
-docker exec cms-app php artisan pishdad:doctor
+docker exec pishdad-app php artisan pishdad:doctor
 # or, when running natively:
 php artisan pishdad:doctor
 ```
@@ -71,7 +71,7 @@ php artisan pishdad:doctor
 Confirm the scaffolder commands are registered:
 
 ```bash
-docker exec cms-app php artisan list | grep pishdad
+docker exec pishdad-app php artisan list | grep pishdad
 ```
 
 You should see `pishdad-plugin:make`, `pishdad-theme:make`, `pishdad:doctor` and
@@ -86,7 +86,7 @@ validator — it is fail-closed: if validation fails, the generated ZIP is delet
 returns `FAILURE`.
 
 ```bash
-docker exec cms-app php artisan pishdad-plugin:make blog \
+docker exec pishdad-app php artisan pishdad-plugin:make blog \
   --name="Blog" --description="Demo plugin" --author="Your Name"
 ```
 
@@ -151,27 +151,27 @@ Themes are **code, not ZIP** (decision Q5). The scaffolder writes a theme source
 Next.js frontend, where the site compiles it.
 
 ```bash
-docker exec cms-app php artisan pishdad-theme:make mytheme \
+docker exec pishdad-app php artisan pishdad-theme:make mytheme \
   --name="My Theme" --description="Demo theme"
 ```
 
-Output (default root `cms-core/frontend/src/themes/mytheme/`):
+Output (default root `pishdad-core/frontend/src/themes/mytheme/`):
 
 ```
-cms-core/frontend/src/themes/mytheme/
+pishdad-core/frontend/src/themes/mytheme/
 ├── theme.json    ← ThemeManifest (slug, name, description, version, modes, slots, tokens)
 └── index.tsx     ← a component typed against ThemeProps + ThemeShell
 ```
 
 `theme.json` required keys are `slug`, `name`, `description`, `version`, `modes`, `slots` and
-`tokens` (contract: `cms-core/frontend/src/themes/theme-manifest.ts`). `modes` = `light`/`dark`/
+`tokens` (contract: `pishdad-core/frontend/src/themes/theme-manifest.ts`). `modes` = `light`/`dark`/
 `system`; `slots` = `header`/`footer`/`main`/`left`/`right`/`banner`.
 
 **Register the theme** so it activates — add it to both files:
 
-- `cms-core/frontend/src/themes/manifests.ts` — the pure slug→manifest registry
+- `pishdad-core/frontend/src/themes/manifests.ts` — the pure slug→manifest registry
   (`THEME_MANIFESTS`, plus the `theme.json` import).
-- `cms-core/frontend/src/themes/registry.tsx` — the render registry (`DEFINITIONS`, mapping the
+- `pishdad-core/frontend/src/themes/registry.tsx` — the render registry (`DEFINITIONS`, mapping the
   slug to the component).
 
 The scaffolder prints this reminder itself. Unknown slugs always fall back to `DEFAULT_THEME_SLUG`
@@ -185,11 +185,11 @@ Options: `--name=`, `--description=`, `--path=`, `--force`, `--dev`.
 
 | Piece | Command |
 |---|---|
-| Backend dev server | `docker exec cms-app php artisan serve` (or `php artisan serve` natively) |
-| Frontend dev server | `cd cms-core/frontend && npm run dev` → http://127.0.0.1:3000 |
-| Backend tests | `docker exec cms-app php artisan test` |
-| Frontend type check | `cd cms-core/frontend && npm run typecheck` |
-| Regenerate API types | `cd cms-core/frontend && npm run gen:types` |
+| Backend dev server | `docker exec pishdad-app php artisan serve` (or `php artisan serve` natively) |
+| Frontend dev server | `cd pishdad-core/frontend && npm run dev` → http://127.0.0.1:3000 |
+| Backend tests | `docker exec pishdad-app php artisan test` |
+| Frontend type check | `cd pishdad-core/frontend && npm run typecheck` |
+| Regenerate API types | `cd pishdad-core/frontend && npm run gen:types` |
 
 To exercise the local-install path, developer mode must be on. The gate is enforced server-side
 by the `devmode.gate` middleware on `plugins/upload` and `plugins/{plugin}/upgrade`; a request

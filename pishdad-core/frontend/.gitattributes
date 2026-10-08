@@ -1,0 +1,33 @@
+# قاعدهٔ خط‌پایان برای فایل‌هایی که مرورگر یا ابزار اجرا می‌خواند.
+#
+# ⚠️ چرا لازم است: `core.autocrlf=true` روی ویندوز LF را در checkout
+# به CRLF تبدیل می‌کند. برای PHP بی‌ضرر بود (Pint خودش LF را
+# الزام می‌کند و `pishdad-core/backend/.gitattributes` این را دارد)، ولی
+# برای سرویس‌ورکر یعنی چیز دیگری:
+#
+#   • یک سرویس‌ورکر که CRLF داشته باشد با `importScripts` و مقایسهٔ
+#     متنی دچار رفتار متفاوت بین ویندوز و لینوکس می‌شود.
+#   • `sw.js` مستقیم توسط مرورگر اجرا می‌شود، نه توسط PHP.
+#
+# پس اینجا هم صریح می‌گوییم eol=lf تا محیط توسعه و بستهٔ توزیع یکی باشند.
+
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.json text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# ⚠️ SVG صریحاً لازم دارد، حتی اگر قاعدهٔ کلی `*.svg` هم باشد.
+#
+# تصاویر محتوا مستقیماً توسط مرورگر پارس می‌شوند. با
+# `core.autocrlf=true` روی ویندوز به CRLF تبدیل می‌شدند و در محیط
+# لینوکس/کانتینر متفاوت رندر می‌شدند — یعنی همان تصویر، دو شکل.
+*.svg  text eol=lf
+
+# اسکریپت‌های PowerShell هم LF بهترند: `deploy-frontend.ps1` و
+# `build-frontend-bounded.ps1` بین ویندوز و کانتینر جابه‌جا می‌شوند.
+*.ps1  text eol=lf

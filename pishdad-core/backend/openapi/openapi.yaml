@@ -1,0 +1,1403 @@
+openapi: 3.0.3
+info:
+  title: Pishdad Core API
+  description: |-
+    قرارداد هسته بک‌اند — این سند فقط مسیرهای همین هسته را توصیف می‌کند.
+    همه پیام‌ها فارسی. احراز هویت با Bearer (Sanctum) + کوکی httpOnly `auth_token`.
+    افزونه‌ها مسیرهای خودشان را از `manifest.json` اعلام می‌کنند و `PluginRouteTable`
+    آن‌ها را در catch-allِ `v1/p/{slug}` ثبت می‌کند؛ سندِ هر افزونه جداست.
+     نسخه ۱.۱۱: داده‌های محتوایی و مدیریتی نصب بین همه مدیران مشترک است؛ user_id فقط سازنده/حسابرسی است. پروفایل، نشست‌ها و داده‌های مالی شخصی از این قاعده مستثنا هستند.
+  version: 1.11.0
+servers:
+  - url: http://localhost:8080
+    description: Docker local (nginx → php-fpm)
+security: []
+paths:
+  /api/v1/auth/login:
+    post:
+      summary: ورود مرحله ۱ (ایمیل + رمز)
+      description: در صورت فعال بودن 2FA، به‌جای توکن یک challenge ده‌دقیقه‌ای برمی‌گردد.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, example: admin@example.com }
+                password: { type: string, example: Admin!123 }
+      responses:
+        '200':
+          description: توکن صادر شد یا challenge دومرحله‌ای
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/TokenResponse'
+                  - $ref: '#/components/schemas/ChallengeResponse'
+        '401': { $ref: '#/components/responses/InvalidCredentials' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/auth/2fa/verify:
+    post:
+      summary: ورود مرحله ۲ (TOTP یا recovery code)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge, code]
+              properties:
+                challenge: { type: string, format: uuid }
+                code: { type: string, description: 'کد TOTP یا recovery code', example: '123456' }
+      responses:
+        '200':
+          description: توکن صادر شد
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/InvalidCredentials' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/auth/logout:
+    post:
+      summary: خروج (ابطال توکن جاری)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: خارج شد
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: 'با موفقیت خارج شدید.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/refresh:
+    post:
+      summary: چرخش توکن (ابطال جاری + صدور جدید)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: توکن جدید
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/forgot-password:
+    post:
+      summary: درخواست لینک بازیابی (بدون افشای وجود حساب)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: همیشه پیام یکسان
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: 'اگر حسابی با این ایمیل وجود داشته باشد، لینک بازیابی ارسال شد.' }
+  /api/v1/auth/reset-password:
+    post:
+      summary: تنظیم رمز جدید با توکن بازیابی
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, email, password, password_confirmation]
+              properties:
+                token: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                password_confirmation: { type: string }
+      responses:
+        '200':
+          description: رمز تغییر کرد
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: 'رمز عبور با موفقیت تغییر کرد.' }
+        '422':
+          description: توکن نامعتبر/منقضی
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/v1/ui-settings:
+    get:
+      summary: خواندن ظاهر سراسری پنل نصب (پیش‌فرض = عملیات دارک)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: تنظیمات ظاهر
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/UiSettings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      summary: ذخیره ظاهر سراسری پنل نصب (مشترک بین همه مدیران)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UiSettings' }
+      responses:
+        '200':
+          description: ذخیره شد
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: 'تنظیمات ظاهر ذخیره شد.' }
+                  data: { $ref: '#/components/schemas/UiSettings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/pages:
+    get:
+      summary: لیست صفحات (فیلتر وضعیت/جستجو + صفحه‌بندی + revisions_count برای ستون نسخه‌ها — دسته ۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [draft, published] } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: per_page, in: query, schema: { type: integer, default: 15 } }
+      responses:
+        '200': { description: لیست صفحات }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: ایجاد صفحه (پیش‌نویس + revision نسخه ۱)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string, example: 'درباره ما' }
+                slug: { type: string, example: about }
+                is_single: { type: boolean, default: false, description: 'آیا صفحه به‌صورت تک‌صفحه‌ای نمایش داده شود' }
+                blocks:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, data]
+                    properties:
+                      type: { type: string, enum: [hero, text, image, cta, gallery, quote, video, contact-form, faq], example: hero }
+                      data: { type: object, description: 'بلوک faq: {items: [{q (الزامی، حداکثر ۲۰۰ نویسه), a (الزامی)}]} — حداکثر ۲۰ آیتم' }
+                meta: { type: object }
+      responses:
+        '201': { description: 'صفحه ساخته شد؛ data.is_single boolean با default false' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: پریست یافت نشد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/pages/{id}:
+    get:
+      summary: جزئیات صفحه + بلوک‌ها + نسخه‌ها + ستون‌های کناری
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: 'جزئیات صفحه شامل data.is_single' }
+
+        '404': { description: صفحه یافت نشد }
+    put:
+      summary: ویرایش صفحه (revision جدید خودکار + فلگ تک‌صفحه‌ای + اتصال ستون‌های کناری با ارجاع زنده)
+
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                slug: { type: string }
+                is_single: { type: boolean, description: 'آیا صفحه به‌صورت تک‌صفحه‌ای نمایش داده شود' }
+                blocks: { type: array, items: { type: object } }
+                meta: { type: object }
+                left_preset_id: { type: integer, nullable: true, description: 'پریست ستون چپ (ارجاع زنده؛ باید وجود داشته باشد و side=left باشد)' }
+                right_preset_id: { type: integer, nullable: true, description: 'پریست ستون راست (ارجاع زنده؛ باید وجود داشته باشد و side=right باشد)' }
+                left_enabled: { type: boolean, description: 'فعال/غیرفعال مستقل ستون چپ' }
+                right_enabled: { type: boolean, description: 'فعال/غیرفعال مستقل ستون راست' }
+      responses:
+        '200': { description: 'ویرایش ذخیره شد؛ data.is_single boolean' }
+
+        '404': { description: پریست یافت نشد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/side-presets:
+    get:
+      summary: لیست مشترک پریست‌های ستون کناری (فیلتر side) — واحد استفاده مجدد با ارجاع زنده
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: side, in: query, schema: { type: string, enum: [left, right] } }
+      responses:
+        '200':
+          description: لیست پریست‌ها
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/SidePreset' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: ساخت پریست ستون کناری (بلوک‌ها against رجیستری config/blocks.php)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, side]
+              properties:
+                name: { type: string, example: 'ستون راست فروشگاه' }
+                side: { type: string, enum: [left, right] }
+                blocks:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, data]
+                    properties:
+                      type: { type: string, example: text }
+                      data: { type: object }
+      responses:
+        '201': { description: پریست ساخته شد }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/side-presets/{id}:
+    get:
+      summary: جزئیات پریست ستون کناری
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: جزئیات پریست }
+        '404': { description: پریست یافت نشد }
+
+
+    put:
+      summary: ویرایش پریست (زنده روی همه صفحات استفاده‌کننده اعمال می‌شود — ارجاع نه کپی)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                side: { type: string, enum: [left, right] }
+                blocks: { type: array, items: { type: object } }
+      responses:
+        '200': { description: پریست به‌روزرسانی شد }
+        '404': { description: پریست یافت نشد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      summary: حذف پریست (در صورت استفاده در صفحات = 422 + شمارش مصرف)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: پریست حذف شد }
+        '404': { description: پریست یافت نشد }
+        '422': { description: پریست در صفحاتی استفاده شده است }
+  /api/v1/admin/pages/{id}/publish:
+    post:
+      summary: انتشار صفحه (revision جدید + published + لاگ revalidate امضاشده HMAC+nonce)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: صفحه منتشر شد }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/pages/{id}/restore/{revision}:
+    post:
+      summary: بازگشت به نسخه قدیمی (کپی در revision جدید — تاریخچه حفظ می‌شود)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: revision, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: بازگشت انجام شد }
+        '422': { description: نسخه متعلق به این صفحه نیست }
+  /api/v1/admin/pages/{id}/revisions:
+    get:
+      summary: لیست نسخه‌های صفحه
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: لیست نسخه‌ها }
+  /api/v1/site/pages:
+    get:
+      summary: فهرست سبک صفحات منتشرشده (slug/title/is_single/تاریخ‌ها — برای sitemap.xml و llms.txt)
+      responses:
+        '200': { description: فهرست صفحات منتشرشده }
+  /api/v1/site/pages/{path}:
+    get:
+      summary: رندر عمومی صفحه منتشرشده (ISR) + فلگ is_single + ستون‌های کناری resolveشده + هدر کش
+      parameters:
+        - { name: path, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: محتوای منتشرشده + sidebars }
+        '404': { description: صفحه منتشرشده‌ای یافت نشد }
+  /api/v1/site/homepage:
+    get:
+      summary: صفحه خانه عمومی — homepage_page_id مشترک ← اسلاگ home ← جدیدترین published (فقط published؛ همراه is_single)
+      parameters:
+        - { name: site_id, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { description: محتوای منتشرشده صفحه خانه + sidebars }
+        '404': { description: صفحه خانه‌ای تنظیم نشده است }
+  /api/v1/site/search:
+    get:
+      summary: جستجوی عمومی سایت — فقط صفحات منتشرشده (عنوان + متن بلوک‌ها + meta) با تطابق فارسی‌دوست (ي/ك و نیم‌فاصله)؛ throttle سفت
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 200 }, description: 'عبارت جستجو (حداقل ۲ نویسه)' }
+        - { name: per_page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200':
+          description: نتایج جستجو (title/slug/snippet/type=page/updated_at + meta.q/total/per_page)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        title: { type: string }
+                        slug: { type: string }
+                        snippet: { type: string, description: 'برش هوشمند ~۱۶۰ نویسه دور اولین تطابق' }
+                        type: { type: string, enum: [page], example: page }
+                        updated_at: { type: string, format: date-time, nullable: true }
+                  meta:
+                    type: object
+                    properties:
+                      q: { type: string }
+                      total: { type: integer }
+                      per_page: { type: integer }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/site/chrome:
+    get:
+      summary: کروم عمومی سایت — عنوان/لوگو (همیشه از تنظیمات سایت)/شبکه‌ها + لی‌آوت header/footer + قالب فعال (بدون احراز هویت، rate-limit ملایم، بدون داده حساس). لینک‌های page با title/url زنده و children تودرتو تا عمق ۲؛ footer.layout.columns مؤثر (۱ تا ۴).
+      parameters:
+        - { name: site_id, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: کروم سایت
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SiteChrome' }
+        '404': { description: سایتی یافت نشد }
+  /api/v1/admin/blocks/schema:
+    get:
+      summary: رجیستری بلوک‌های فعال + JSON Schema (از config/blocks.php)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: فهرست بلوک‌ها }
+  /api/v1/admin/media:
+    get:
+      summary: لیست مشترک فایل‌های نصب (فیلتر mime/جستجو؛ trashed=only برای سطل زباله)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: لیست فایل‌ها }
+  /api/v1/admin/media/presign:
+    post:
+      summary: صدور URL امضاشده آپلود مستقیم (PUT به MinIO/S3، اعتبار ۱۵ دقیقه)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, mime, size]
+              properties:
+                filename: { type: string }
+                mime: { type: string }
+                size: { type: integer, description: بایت، سقف ۵۰MB }
+      responses:
+        '201': { description: آدرس آپلود آماده شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/media/{id}:
+    get:
+      summary: جزئیات فایل
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: جزئیات }
+        '404': { description: یافت نشد }
+    put:
+      summary: ویرایش alt/نام فایل
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: فایل به‌روزرسانی شد }
+    delete:
+      summary: انتقال به سطل زباله (سافت‌دیلیت)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: به سطل زباله منتقل شد }
+  /api/v1/admin/media/{id}/content:
+    post:
+      summary: آپلود بایت‌ها از مسیر پروکسی بک‌اند (multipart؛ جایگزین مطمئن PUT مستقیم مرورگر به S3)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary, description: سقف ۵۰MB }
+      responses:
+        '200': { description: فایل ذخیره شد }
+        '404': { description: یافت نشد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/media/{id}/restore:
+    post:
+      summary: بازگردانی از سطل زباله
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: فایل بازگردانده شد }
+  /api/v1/admin/media/{id}/permanent:
+    delete:
+      summary: حذف دائم
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: فایل برای همیشه حذف شد }
+  /api/v1/admin/media/usage:
+    get:
+      summary: مصرف فضای پلن — used/quota/percent برای کارت progress (دسته ۱)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: مصرف فضا }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/media/restore-all:
+    post:
+      summary: بازگردانی همه فایل‌های سطل زباله نصب مشترک (دسته ۱)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: تعداد بازگردانده‌شده }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # J10 — `/api/webhooks/payment` حذف شد (دورهٔ آزمایشی بدون درگاه؛
+  # مدیر مرکزی تیر/مدت را دستی تنظیم می‌کند).
+
+  /api/v1/admin/dashboard/stats:
+    get:
+      summary: آمار داشبورد مشتری — شمارش صفحات/فایل + تیکت باز + دلتای واقعی ۷ روزه recent + وضعیت اشتراک (تسک ۲.۲ + دسته ۱)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: آمار داشبورد }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/dashboard/alerts:
+    get:
+      summary: هشدارهای داشبورد مشتری — فاکتور سررسیده/تعلیق/مصرف فضا (تسک ۲.۲)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: لیست هشدارها }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/dashboard/widgets:
+    get:
+      summary: رجیستری ویجت‌های داشبورد پلاگین‌ها — فعلاً خالی با ساختار آماده (تسک ۲.۲)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: رجیستری ویجت‌ها }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/settings/site:
+    get:
+      summary: خواندن تنظیمات سراسری سایت (عنوان/توضیحات/لوگو/فاوآیکون/تلفن/ایمیل — کش‌دار) (تسک ۲.۳)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: تنظیمات سایت }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      summary: ذخیره تنظیمات سراسری سایت (اعتبارسنجی فارسی + ابطال کش؛ مشترک بین مدیران)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SiteSettings' }
+      responses:
+        '200': { description: تنظیمات ذخیره شد }
+        '404': { description: رسانه یا صفحه خانه یافت نشد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/settings/socials:
+    get:
+      summary: خواندن شبکه‌های اجتماعی سراسری سایت (آرایه key/url/فعال — کش‌دار) (تسک ۲.۳)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: لیست شبکه‌ها }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      summary: ذخیره شبکه‌های اجتماعی سراسری سایت (اعتبارسنجی key مجاز + URL + ابطال کش)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [socials]
+              properties:
+                socials:
+                  type: array
+                  items: { $ref: '#/components/schemas/SocialLink' }
+      responses:
+        '200': { description: شبکه‌ها ذخیره شد }
+        '404': { description: رسانه آیکون یافت نشد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /api/v1/admin/layouts/header:
+    get:
+      summary: خواندن چیدمان سراسری هدر (آرایه ویجت‌ها + چیدمان — اعتبارسنجی against رجیستری config/widgets.php) (تسک ۴.۱)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: چیدمان هدر }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      summary: ذخیره چیدمان سراسری هدر (مشترک بین مدیران)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LayoutPayload' }
+      responses:
+        '200': { description: هدر ذخیره شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/layouts/footer:
+    get:
+      summary: خواندن چیدمان سراسری فوتر (تسک ۴.۱)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: چیدمان فوتر }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      summary: ذخیره چیدمان سراسری فوتر (مشترک بین مدیران)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LayoutPayload' }
+      responses:
+        '200': { description: فوتر ذخیره شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/layouts/page-types:
+    get:
+      summary: انواع صفحه و بلوک‌های پیش‌فرض مشترک نصب — فقط typeهای enabled؛ blog در هسته نیست و فقط با page_types مانیفست پلاگین فعال ظاهر می‌شود (تسک ۴.۱ + تسک ۷)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: انواع صفحه }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/widgets/schema:
+    get:
+      summary: schema تنظیمات ویجت‌ها (هسته config/widgets.php + widgets مانیفست پلاگین/قالب فعال) برای SchemaForm (تسک ۶)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: فهرست schema ویجت‌ها }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/layouts/page-type/{type}/blocks:
+    get:
+      summary: بلوک‌های پیش‌فرض مشترک یک نوع صفحه (تسک ۴.۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: type, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: بلوک‌های نوع صفحه }
+        '404': { description: نوع صفحه نامعتبر }
+    put:
+      summary: ذخیره بلوک‌های پیش‌فرض مشترک یک نوع صفحه (اعتبارسنجی type بلوک against رجیستری)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: type, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocks]
+              properties:
+                blocks:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, data]
+                    properties:
+                      type: { type: string }
+                      data: { type: object }
+      responses:
+        '200': { description: بلوک‌ها ذخیره شد }
+        '404': { description: نوع صفحه نامعتبر }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/themes:
+    get:
+      summary: لیست مشترک قالب‌های سایت نصب + وضعیت بازبینی و دلیل رد (تسک ۴.۲ + مورد ۶)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: لیست قالب‌ها
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Theme' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/themes/upload:
+    post:
+      summary: آپلود قالب (فقط ZIP سقف ۲۰MB + بررسی manifest.json؛ امضای present با Ed25519 واقعی راستی‌آزمایی می‌شود — نامعتبر = 422؛ آپلود مشتری review_status=pending می‌شود) (تسک ۴.۲/۵.۴ + مورد ۶)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: قالب بارگذاری شد (pending — در انتظار تأیید مرکزی)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Theme' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/themes/{id}/activate:
+    post:
+      summary: فعال‌سازی قالب (pending/rejected بدون تأیید مرکزی = 422) (تسک ۴.۲ + مورد ۶)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: قالب فعال شد }
+        '404': { description: قالب یافت نشد }
+        '422': { description: هنوز تأیید نشده یا رد شده است }
+  /api/v1/admin/themes/{id}/preview:
+    post:
+      summary: پیش‌نمایش قالب (تسک ۴.۲)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: لینک پیش‌نمایش }
+        '404': { description: قالب یافت نشد }
+  /api/v1/admin/themes/{id}:
+    delete:
+      summary: حذف قالب (قالب فعال محافظت می‌شود) (تسک ۴.۲)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: قالب حذف شد }
+        '404': { description: قالب یافت نشد }
+        '422': { description: قالب فعال را نمی‌توان حذف کرد }
+  /api/v1/site/status:
+    get:
+      summary: وضعیت عمومی سایت — سبک (active + پیام برند)، بدون احراز هویت (تسک ۴.۳)
+      parameters:
+        - { name: site_id, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { description: وضعیت سایت }
+        '404': { description: سایتی یافت نشد }
+  /api/v1/admin/managers:
+    get:
+      summary: لیست مدیران — سوپرادمین همیشه مخفی (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: لیست مدیران }
+        '403': { description: نیازمند دسترسی users.view }
+    post:
+      summary: ساخت مدیر + تخصیص نقش spatie (رمز قوی) (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, description: 'حداقل ۱۰ نویسه + بزرگ/کوچک/عدد/ویژه' }
+                role: { type: string, enum: [owner, admin, editor, viewer] }
+      responses:
+        '201': { description: مدیر ساخته شد }
+        '403': { description: نیازمند دسترسی users.edit }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/managers/{id}:
+    get:
+      summary: نمایش مدیر (سوپرادمین = 403) (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: مدیر }
+        '403': { description: دسترسی مجاز نیست }
+    put:
+      summary: ویرایش مدیر + تغییر نقش (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: مدیر به‌روزرسانی شد }
+        '403': { description: دسترسی مجاز نیست }
+    delete:
+      summary: حذف مدیر (خود + سوپرادمین ممنوع) (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: مدیر حذف شد }
+        '403': { description: دسترسی مجاز نیست }
+        '422': { description: حذف حساب خود مجاز نیست }
+  /api/v1/admin/permissions:
+    get:
+      summary: ماتریس دسترسی ماژول × اکشن — داینامیک از رجیستری (هسته + مانیفست پلاگین‌های فعال) با title_fa فارسی (تسک ۴)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: ماتریس }
+        '403': { description: نیازمند دسترسی users.view }
+  /api/v1/admin/roles:
+    get:
+      summary: لیست نقش‌ها (به‌جز super-admin) (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: لیست نقش‌ها }
+    post:
+      summary: ساخت نقش سفارشی + پرمیشن‌ها (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                permissions: { type: array, items: { type: string } }
+      responses:
+        '201': { description: نقش ساخته شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/roles/{id}:
+    get:
+      summary: نمایش نقش (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: نقش }
+        '403': { description: دسترسی مجاز نیست }
+    put:
+      summary: تخصیص پرمیشن‌های نقش (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: نقش به‌روزرسانی شد }
+    delete:
+      summary: حذف نقش سفارشی خالی (تسک ۵.۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: نقش حذف شد }
+        '422': { description: نقش سیستمی/تخصیص‌یافته قابل حذف نیست }
+  /api/v1/admin/profile:
+    get:
+      summary: پروفایل مدیر جاری (نام، موبایل، آواتار، نام/نام‌خانوادگی، درباره من) (تسک ۵.۲ + تسک ۵)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: پروفایل }
+    put:
+      summary: ویرایش پروفایل مدیر جاری (نام/موبایل/آواتار از کتابخانه مشترک/first_name/last_name/bio) (تسک ۵)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                phone: { type: string, nullable: true }
+                avatar_media_id: { type: integer, nullable: true }
+                first_name: { type: string, maxLength: 60, nullable: true }
+                last_name: { type: string, maxLength: 60, nullable: true }
+                bio: { type: string, maxLength: 1000, nullable: true }
+      responses:
+        '200': { description: پروفایل به‌روزرسانی شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+
+  /api/v1/admin/profile/password:
+    post:
+      summary: تغییر رمز (چک رمز فعلی + قوانین قوی؛ ابطال همه نشست‌ها) (تسک ۵.۲)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, password, password_confirmation]
+              properties:
+                current_password: { type: string }
+                password: { type: string }
+                password_confirmation: { type: string }
+      responses:
+        '200': { description: رمز تغییر کرد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/profile/2fa/methods:
+    get:
+      summary: متدهای 2FA (وضعیت TOTP + ریکاوری باقی‌مانده + کلیدهای سخت‌افزاری) (تسک ۵.۲)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: متدها }
+  /api/v1/admin/profile/2fa/enable:
+    post:
+      summary: 'فعال‌سازی TOTP دومرحله‌ای (گام۱ secret، گام۲ تأیید کد + صدور ریکاوری‌کدها) (تسک ۵.۲)'
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: { type: string, description: 'کد ۶ رقمی گام دوم' }
+      responses:
+        '200': { description: secret یا فعال‌سازی نهایی }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/profile/2fa/disable:
+    post:
+      summary: غیرفعال‌سازی TOTP (نیازمند کد TOTP یا رمز عبور) (تسک ۵.۲)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: غیرفعال شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/profile/sections:
+    get:
+      summary: اسلات بخش‌های پروفایل برای اکستنشن پلاگین‌ها (رجیستری خالی آماده) (تسک ۵.۲)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: رجیستری }
+  /api/v1/admin/profile/sessions:
+    get:
+      summary: نشست‌های فعال کاربر — فراداده parseشده هر توکن (os، os_version، browser، browser_version، device، ip، created_at، last_used_at، current) بدون خود توکن (مسئله ۲)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: لیست نشست‌ها }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/profile/sessions/{id}:
+    delete:
+      summary: بستن تکی یک نشست (به‌جز نشست جاری — جاری ۴۲۲، ناموجود ۴۰۴) (مسئله ۲)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: نشست بسته شد }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/profile/sessions/revoke-all:
+    post:
+      summary: خروج از همه دستگاه‌ها به‌جز نشست جاری (دسته UIUX)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: نشست‌های دیگر باطل شد + شمار revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/profile/sms/request:
+    post:
+      summary: تأیید پیامکی گام ۱ — صدور کد ۶ رقمی ۵دقیقه‌ای (درگاه واقعی TODO؛ debug_code فقط غیرپروداکشن) (دسته UIUX)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, example: '09123456789' }
+      responses:
+        '200': { description: کد تأیید ارسال شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/profile/sms/verify:
+    post:
+      summary: تأیید پیامکی گام ۲ — بررسی کد + ثبت شماره روی پروفایل (دسته UIUX)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: '123456' }
+      responses:
+        '200': { description: شماره موبایل تأیید شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/profile/sms:
+    delete:
+      summary: قطع تأیید پیامکی (دسته UIUX)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: تأیید پیامکی قطع شد }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/admin/tickets:
+    get:
+      summary: لیست مشترک تیکت‌های نصب + جستجوی متنی موضوع/متن پیام (تسک ۵.۳ + دسته ۱)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+      responses:
+        '200': { description: لیست تیکت‌ها }
+    post:
+      summary: ثبت تیکت (ضمیمه = هر رسانه موجود در کتابخانه مشترک نصب) (تسک ۵.۳)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject, body]
+              properties:
+                subject: { type: string }
+                body: { type: string }
+                priority: { type: string, enum: [low, normal, high] }
+                attachment_media_id: { type: integer }
+      responses:
+        '201': { description: تیکت ثبت شد }
+        '404': { description: فایل ضمیمه یافت نشد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/tickets/{id}:
+    get:
+      summary: نمایش تیکت + گفتگو (تسک ۵.۳)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: تیکت }
+        '404': { description: تیکت یافت نشد }
+    put:
+      summary: تغییر وضعیت/اولویت تیکت (تسک ۵.۳)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: به‌روزرسانی شد }
+    delete:
+      summary: حذف تیکت (تسک ۵.۳)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: حذف شد }
+  /api/v1/admin/tickets/{id}/messages:
+    post:
+      summary: پاسخ روی تیکت (تیکت بسته = 422؛ اعلان داخلی برای طرف مقابل) (تسک ۵.۳)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '201': { description: پاسخ ثبت شد }
+        '404': { description: فایل ضمیمه یافت نشد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/contact/tickets:
+    post:
+      summary: فرم تماس عمومی → تیکت (rate-limit سفت + honeypot؛ پیامک TODO) (تسک ۵.۳)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, subject, body]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                subject: { type: string }
+                body: { type: string }
+                website: { type: string, description: 'honeypot — باید خالی بماند' }
+      responses:
+        '201': { description: پیام ثبت شد }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/admin/plugins:
+    get:
+      summary: لیست پلاگین‌ها (تسک ۵.۴)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: لیست }
+  /api/v1/admin/plugins/upload:
+    post:
+      summary: آپلود پلاگین (ZIP + manifest.json + امضای Ed25519 اجباری؛ نامعتبر = 422 + لاگ امنیتی؛ آپلود مشتری review_status=pending می‌شود) (تسک ۵.۴ + مورد ۶)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: نصب شد (pending — در انتظار تأیید مرکزی)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plugin' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/plugins/{id}:
+    get:
+      summary: وضعیت پلاگین + checksum + خلاصهٔ اعتماد (trust) + وضعیت بازبینی و دلیل رد (تسک ۵.۴ + مورد ۶)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: پلاگین
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plugin' }
+        '404': { description: پلاگین یافت نشد }
+  /api/v1/admin/plugins/{id}/activate:
+    post:
+      summary: فعال‌سازی + ساخت پرمیشن‌های اعلام‌شده در مانیفست (pending/rejected بدون تأیید مرکزی = 422) (تسک ۵.۴ + مورد ۶)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: فعال شد }
+        '422': { description: هنوز تأیید نشده یا رد شده است }
+  /api/v1/admin/plugins/{id}/deactivate:
+    post:
+      summary: غیرفعال‌سازی (سیستمی = 422) (تسک ۵.۴)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: غیرفعال شد }
+        '422': { description: پلاگین سیستمی محافظت می‌شود }
+  /api/v1/admin/plugins/{id}/upgrade:
+    post:
+      summary: ارتقا به نسخه بالاتر امضاشده (rollback نسخه قبلی ثبت می‌شود) (تسک ۵.۴)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: به‌روزرسانی شد }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/plugins/{id}/uninstall:
+    post:
+      summary: حذف پلاگین (سیستمی = 422) (تسک ۵.۴)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: حذف شد }
+        '422': { description: پلاگین سیستمی محافظت می‌شود }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        google2fa_enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+        created_at_jalali: { type: string, example: '1405/07/01 12:00' }
+    TokenResponse:
+      type: object
+      properties:
+        token: { type: string }
+        token_type: { type: string, example: Bearer }
+        two_factor_required: { type: boolean, example: false }
+        user: { $ref: '#/components/schemas/User' }
+    ChallengeResponse:
+      type: object
+      properties:
+        two_factor_required: { type: boolean, example: true }
+        challenge: { type: string, format: uuid }
+        message: { type: string }
+    UiSettings:
+      type: object
+      properties:
+        dir: { type: string, enum: [rtl, ltr], example: rtl }
+        preset: { type: string, enum: [sahar, amaliyat, arya, narm, divan], example: amaliyat }
+        accent: { type: string, enum: [teal, indigo, violet, blue, amber, rose, clay], example: indigo }
+        mode: { type: string, enum: [light, dark, system], example: dark }
+        radius: { type: string, enum: [sharp, default, rounded], example: sharp }
+        density: { type: string, enum: [compact, comfortable, loose], example: compact }
+        font: { type: string, enum: [sm, md, lg], example: md }
+        bottom_nav:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+            enum: [/admin/dashboard, /admin/pages, /admin/media, /admin/tickets, /admin/header-footer, /admin/settings, /admin/managers, /admin/profile, /admin/blocks, /admin/themes, /admin/appearance, /admin/plugins, /admin/socials]
+          example: [/admin/dashboard, /admin/pages, /admin/media, /admin/tickets, /admin/header-footer, /admin/settings]
+    SiteSettings:
+      type: object
+      properties:
+        title: { type: string, example: 'وب‌سایت من' }
+        description: { type: string, example: 'توضیح کوتاه سایت' }
+        logo_media_id: { type: integer, nullable: true }
+        favicon_media_id: { type: integer, nullable: true }
+        logo_url: { type: string, nullable: true, description: 'نشانی نمایشی لوگو — سرور غنی می‌کند (حل path با AWS_URL، وگرنه null)' }
+        favicon_url: { type: string, nullable: true, description: 'نشانی نمایشی فاوآیکون — سرور غنی می‌کند' }
+        phone: { type: string, nullable: true, example: '09123456789' }
+        email: { type: string, nullable: true, example: 'info@example.com' }
+        site_url: { type: string, nullable: true, example: 'https://example.ir', description: 'نشانی پایه سایت — canonical و OG:url و sitemap/llms از همین ساخته می‌شود' }
+        og_image_media_id: { type: integer, nullable: true, description: 'تصویر پیش‌فرض اشتراک‌گذاری (OG/Twitter)' }
+        og_image_url: { type: string, nullable: true, description: 'نشانی نمایشی تصویر OG — سرور غنی می‌کند' }
+        ai_summary: { type: string, nullable: true, example: 'فروشگاه اینترنتی کالای ایرانی.', description: 'خلاصه ۱-۲ جمله‌ای سایت برای llms.txt و موتورهای هوش مصنوعی (حداکثر ۱۰۰۰ نویسه)' }
+        robots_index: { type: boolean, example: true, description: 'اجازه ایندکس کل سایت (false = noindex سراسری)' }
+        address: { type: string, nullable: true, example: 'تهران، خیابان مثال', description: 'نشانی فیزیکی — JSON-LD سازمان' }
+        locale: { type: string, enum: [fa, en], example: fa, description: 'زبان پیش‌فرض سایت (دسته UIUX)' }
+        timezone: { type: string, enum: [Asia/Tehran, Asia/Dubai, Europe/London, UTC], example: Asia/Tehran, description: 'منطقه زمانی سایت (دسته UIUX)' }
+        homepage_page_id: { type: integer, nullable: true, description: 'شناسه صفحه خانه منتشرشده و مشترک نصب' }
+    SocialLink:
+      type: object
+      required: [key, url]
+      properties:
+        key: { type: string, enum: [instagram, telegram, x, linkedin, aparat, youtube, facebook, whatsapp, website], example: instagram }
+        url: { type: string, example: 'https://instagram.com/mypage' }
+        active: { type: boolean, example: true }
+        label: { type: string, nullable: true, description: 'برچسب نمایشی شبکه سفارشی — اگر نباشد از نام فارسی پیش‌فرض استفاده می‌شود' }
+        icon_media_id: { type: integer, nullable: true, description: 'شناسه لوگوی سفارشی در کتابخانه' }
+        icon_url: { type: string, nullable: true, description: 'نشانی نمایشی لوگو — سرور غنی می‌کند' }
+    Plugin:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        version: { type: string }
+        previous_version: { type: string, nullable: true }
+        active: { type: boolean }
+        system: { type: boolean }
+        signature_valid: { type: boolean }
+        review_status: { type: string, enum: [pending, approved, rejected], description: 'وضعیت بازبینی مرکزی (مورد ۶) — آپلود مشتری pending می‌شود' }
+        review_note: { type: string, nullable: true, description: 'دلیل رد (فقط وقتی rejected)' }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+        checksum: { type: string, description: 'sha256 فایل ZIP' }
+        manifest:
+          type: object
+          nullable: true
+          properties:
+            db: { $ref: '#/components/schemas/PluginManifestDb' }
+    Theme:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        version: { type: string }
+        active: { type: boolean }
+        signature_valid: { type: boolean }
+        review_status: { type: string, enum: [pending, approved, rejected], description: 'وضعیت بازبینی مرکزی (مورد ۶)' }
+        review_note: { type: string, nullable: true, description: 'دلیل رد (فقط وقتی rejected)' }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+        manifest: { type: object, nullable: true }
+    ReviewQueueItem:
+      type: object
+      properties:
+        type: { type: string, enum: [plugin, theme] }
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        version: { type: string }
+        signature_valid: { type: boolean }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        manifest:
+          type: object
+          nullable: true
+          properties:
+            db: { $ref: '#/components/schemas/PluginManifestDb' }
+        owner: { type: object, nullable: true, properties: { id: { type: integer }, name: { type: string }, email: { type: string } } }
+    PluginManifestDb:
+      type: object
+      description: 'بخش اختیاری «db» مانیفست پلاگین (K5.6) — جدول‌هایی که افزونه مالکشان است. هسته پیشوند «{slug}_» را خودش اضافه می‌کند، پس نام خام را اعلام کنید. اگر جدولی ندارید «db» را کلاً حذف کنید. سقف‌ها پیش از اجرای هر DDL سنجیده می‌شوند: ۲۰ جدول در افزونه، ۱۰ ایندکس در هر جدول، ۴۰ نویسه برای نام نهایی، و تداخل با جدول‌های هسته. هر جدولی که یک migration به آن دست بزند باید اینجا اعلام شده باشد؛ ارجاع به جدول اعلام‌نشده کل نصب را رد می‌کند. کلید ناشناخته در این بخش یا در هر آیتمش پذیرفته نمی‌شود.'
+      required: [tables]
+      properties:
+        tables:
+          type: array
+          maxItems: 20
+          description: 'فهرست جدول‌های افزونه — حداکثر ۲۰ جدول.'
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, pattern: '^[a-z][a-z0-9_]{0,29}$', maxLength: 30, example: posts, description: 'نام خام جدول، بدون پیشوند — هسته «{slug}_» را اضافه می‌کند. نوشتن پیشوند خودتان خطای db.table_already_prefixed می‌دهد و نامِ جدول هسته خطای db.table_collides_core. اسلاگی که نقطه یا خط تیره دارد اصلاً نمی‌تواند جدول داشته باشد (db.slug_not_table_safe).' }
+              indexes:
+                type: array
+                maxItems: 10
+                description: 'نام ایندکس‌های آن جدول — حداکثر ۱۰ ایندکس **در هر جدول**، نه در کل افزونه.'
+                items: { type: string, pattern: '^[a-z][a-z0-9_]{0,29}$', maxLength: 30, example: author_id }
+    LayoutPayload:
+      type: object
+      properties:
+        widgets:
+          type: array
+          items:
+            type: object
+            required: [type]
+            properties:
+              type: { type: string, example: nav }
+              settings:
+                type: object
+                description: 'تنظیمات ویجت؛ ویجت logo فقط show_title دارد (لوگو همیشه از تنظیمات سایت). nav هدر و links فوتر: links[] با آیتم {kind: page|custom، page_id?، label?، href?، children?} — شکل قدیمی {label, href} یعنی custom. والد custom دارای فرزند href اختیاری دارد. children همین مدل تا عمق ۲ (هر والد حداکثر ۸ فرزند، سطح اول حداکثر ۱۲). kind=page در خروجی عمومی با title/url زنده غنی می‌شود.'
+        layout:
+          type: object
+          description: 'چیدمان ناحیه؛ فوتر: columns (۱ تا ۴) — خالی/نامعتبر = تعداد واقعی ستون‌ها (۱ تا ۴).'
+          properties:
+            columns: { type: integer, minimum: 1, maximum: 4 }
+    ChromeLinkItem:
+      type: object
+      description: 'آیتم لینک رزولوشده در کروم عمومی: page با title/url زنده از صفحه منتشرشده؛ custom دستی؛ children تودرتو تا عمق ۲. آیتم خراب (صفحه حذف/منتشرنشده) با کل زیرشاخه‌اش حذف می‌شود.'
+      properties:
+        kind: { type: string, enum: [page, custom] }
+        page_id: { type: integer, nullable: true }
+        label: { type: string }
+        href: { type: string }
+        title: { type: string, nullable: true, description: 'فقط kind=page — عنوان زنده صفحه' }
+        url: { type: string, nullable: true, description: 'فقط kind=page — نشانی زنده صفحه (‎/slug)' }
+        children:
+          type: array
+          description: 'زیرمنوی کشویی (همین مدل؛ حداکثر عمق ۲)'
+          items: { $ref: '#/components/schemas/ChromeLinkItem' }
+    SidePreset:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string, example: 'ستون راست فروشگاه' }
+        side: { type: string, enum: [left, right] }
+        blocks: { type: array, items: { type: object } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SiteChrome:
+      type: object
+      properties:
+        title: { type: string, example: 'فروشگاه نمونه' }
+        description: { type: string }
+        logo_url: { type: string, nullable: true }
+        favicon_url: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        site_url: { type: string, nullable: true, description: 'نشانی پایه سایت — canonical و OG:url' }
+        og_image_url: { type: string, nullable: true, description: 'تصویر پیش‌فرض OG/Twitter' }
+        ai_summary: { type: string, description: 'خلاصه سایت برای llms.txt و GEO' }
+        robots_index: { type: boolean, description: 'اجازه ایندکس کل سایت' }
+        address: { type: string, nullable: true }
+        locale: { type: string, example: fa, description: 'زبان پیش‌فرض سایت (دسته UIUX)' }
+        timezone: { type: string, example: Asia/Tehran, description: 'منطقه زمانی سایت (دسته UIUX)' }
+        homepage_page_id: { type: integer, nullable: true, description: 'صفحه خانه تنظیم‌شده (کار دوم)' }
+        homepage_slug: { type: string, nullable: true, description: 'اسلاگ منتشرشده صفحه خانه (کار دوم)' }
+        header: { $ref: '#/components/schemas/LayoutPayload' }
+        footer: { $ref: '#/components/schemas/LayoutPayload' }
+        socials: { type: array, items: { $ref: '#/components/schemas/SocialLink' } }
+        theme:
+          type: object
+          nullable: true
+          properties:
+            name: { type: string }
+            slug: { type: string }
+            version: { type: string }
+            globals: { type: object }
+    Error:
+      type: object
+      properties:
+        message: { type: string }
+  responses:
+    InvalidCredentials:
+      description: اعتبار نامعتبر (یکسان برای ایمیل ناشناس/رمز اشتباه/کد 2FA اشتباه)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { message: 'اعتبار ورود نامعتبر است.' }
+    Unauthorized:
+      description: توکن missing/نامعتبر
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: قفل بروت‌فورس (۱۰ تلاش در ۱۵ دقیقه)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { message: 'تلاش‌های ورود بیش از حد مجاز است. لطفاً دقایقی دیگر تلاش کنید.' }
+    ValidationError:
+      description: خطای اعتبارسنجی ورودی
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+              errors: { type: object }
+    NotFound:
+      description: رکورد یافت نشد
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

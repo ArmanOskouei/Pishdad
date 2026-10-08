@@ -18,7 +18,7 @@
  *
  * ## چرا این اسکریپت لازم است (و pushِ مستقیمِ `master` خطرناک است)
  *
- * `cms-core/backend/plugins/_quarantine/` **۵۷ فایلِ** کدِ صورت‌حساب و
+ * `pishdad-core/backend/plugins/_quarantine/` **۵۷ فایلِ** کدِ صورت‌حساب و
  * اپراتورِ مرکزی دارد (`BillingPurge`/`BillingRemind`/`BillingSuspend`،
  * `CentralDashboardController`، مایگریت‌های `central_*`) که در `master`
  * **track شده** و در `.gitignore` هم نیست — و در دو کامیتِ تاریخچه هم هست.
@@ -72,34 +72,34 @@ const git = (...args) =>
 /**
  * ریشه‌های مجاز. هر چیزی بیرون از این‌ها **حتی اگر track باشد** عمومی نمی‌شود.
  *
- * ⚠️ `cms-core/installer/` یک README است که نصب‌کنندهٔ وب را توصیف می‌کند؛
+ * ⚠️ `pishdad-core/installer/` یک README است که نصب‌کنندهٔ وب را توصیف می‌کند؛
  * `deploy/` استقرارِ بک‌اند/فرانت‌اند است. هر دو به «نصب‌کردنِ» همین دو نیمه
  * مربوط‌اند، پس با درخواستِ «فقط بک‌اند و فرانت‌اند» هم‌راستا هستند.
  */
-const INCLUDE_ROOTS = ["cms-core/backend/", "cms-core/frontend/", "cms-core/installer/", "deploy/"];
+const INCLUDE_ROOTS = ["pishdad-core/backend/", "pishdad-core/frontend/", "pishdad-core/installer/", "deploy/"];
 
 /** استثناهای درونِ ریشه‌های مجاز، هر کدام با دلیلِ صریح. */
 const EXCLUDE = [
   // ── لایهٔ تجاریِ خصوصی (DEPLOY-CENTRAL.md §۵) ──
-  { re: /^cms-core\/backend\/plugins\/_quarantine\//, why: "کدِ صورت‌حساب/اپراتورِ مرکزی — نباید عمومی شود" },
-  { re: /^cms-core\/backend\/plugins\/central\//, why: "افزونهٔ خصوصیِ central" },
-  { re: /^cms-core\/backend\/plugins\/subscription\//, why: "افزونهٔ خصوصیِ subscription" },
-  { re: /^cms-core\/frontend\/src\/app\/\(central\)\//, why: "صفحاتِ پنلِ مرکزی" },
-  { re: /^cms-core\/backend\/tests\/Feature\/Central.*Test\.php$/, why: "تستِ مرکزی" },
-  { re: /^cms-core\/backend\/tests\/Feature\/ServesCentralPlugin\.php$/, why: "تستِ مرکزی" },
-  { re: /^cms-core\/backend\/tests\/Fixtures\/PluginCentral\//, why: "فیکسچرِ مرکزی" },
+  { re: /^pishdad-core\/backend\/plugins\/_quarantine\//, why: "کدِ صورت‌حساب/اپراتورِ مرکزی — نباید عمومی شود" },
+  { re: /^pishdad-core\/backend\/plugins\/central\//, why: "افزونهٔ خصوصیِ central" },
+  { re: /^pishdad-core\/backend\/plugins\/subscription\//, why: "افزونهٔ خصوصیِ subscription" },
+  { re: /^pishdad-core\/frontend\/src\/app\/\(central\)\//, why: "صفحاتِ پنلِ مرکزی" },
+  { re: /^pishdad-core\/backend\/tests\/Feature\/Central.*Test\.php$/, why: "تستِ مرکزی" },
+  { re: /^pishdad-core\/backend\/tests\/Feature\/ServesCentralPlugin\.php$/, why: "تستِ مرکزی" },
+  { re: /^pishdad-core\/backend\/tests\/Fixtures\/PluginCentral\//, why: "فیکسچرِ مرکزی" },
 
   // ── وابستگی و خروجیِ بیلد (باید با composer/npm ساخته شوند) ──
   { re: /(^|\/)vendor\//, why: "با composer نصب می‌شود، نه در مخزن" },
   { re: /(^|\/)node_modules\//, why: "با npm نصب می‌شود، نه در مخزن" },
-  { re: /^cms-core\/frontend\/\.next\//, why: "خروجیِ بیلد" },
-  { re: /^cms-core\/frontend\/out\//, why: "خروجیِ بیلد" },
+  { re: /^pishdad-core\/frontend\/\.next\//, why: "خروجیِ بیلد" },
+  { re: /^pishdad-core\/frontend\/out\//, why: "خروجیِ بیلد" },
 
   // ── رازها و بازمانده‌های محلی ──
   { re: /(^|\/)\.env($|\.)/, keep: (f) => f.endsWith(".env.example"), why: "رازِ واقعی (فقط .env.example می‌ماند)" },
   { re: /(^|\/)\.npmrc$/, why: "ممکن است توکنِ احراز داشته باشد" },
   {
-    re: /^cms-core\/backend\/storage\//,
+    re: /^pishdad-core\/backend\/storage\//,
     keep: (f) => f.endsWith(".gitignore"),
     why: "آپلود/بکاپ/بازماندهٔ تست (فقط .gitignore خالی می‌ماند)",
   },
@@ -131,17 +131,17 @@ const included = tracked.filter((f) => {
  * پیامِ درستِ «tracked نیست» می‌ایستیم، چون تشخیص برای کاربر مفیدتر است.)
  */
 const REQUIRED = [
-  "cms-core/backend/composer.json",
-  "cms-core/backend/.env.example",
-  "cms-core/backend/artisan",
-  "cms-core/backend/routes/api.php",
-  "cms-core/backend/routes/install.php",
-  "cms-core/backend/app/Http/Controllers/Install/InstallController.php",
-  "cms-core/backend/resources/views/install/superadmin.blade.php",
-  "cms-core/frontend/package.json",
-  "cms-core/frontend/next.config.ts",
-  "cms-core/frontend/public/sw.js",
-  "cms-core/frontend/public/fonts/Vazirmatn-Regular.woff2",
+  "pishdad-core/backend/composer.json",
+  "pishdad-core/backend/.env.example",
+  "pishdad-core/backend/artisan",
+  "pishdad-core/backend/routes/api.php",
+  "pishdad-core/backend/routes/install.php",
+  "pishdad-core/backend/app/Http/Controllers/Install/InstallController.php",
+  "pishdad-core/backend/resources/views/install/superadmin.blade.php",
+  "pishdad-core/frontend/package.json",
+  "pishdad-core/frontend/next.config.ts",
+  "pishdad-core/frontend/public/sw.js",
+  "pishdad-core/frontend/public/fonts/Vazirmatn-Regular.woff2",
 ];
 
 const missing = REQUIRED.filter((f) => !included.includes(f));

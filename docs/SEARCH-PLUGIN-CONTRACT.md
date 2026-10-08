@@ -29,8 +29,8 @@
 <details>
 <summary>متن قدیمی (فقط برای مراجعه)</summary>
 
-> مرجع پیاده‌سازی: `cms-core/frontend/src/lib/search-registry.ts`
-> کامپوننت‌ها: `cms-core/frontend/src/components/search/` — صفحه نتایج: `admin/search?q=…`
+> مرجع پیاده‌سازی: `pishdad-core/frontend/src/lib/search-registry.ts`
+> کامپوننت‌ها: `pishdad-core/frontend/src/components/search/` — صفحه نتایج: `admin/search?q=…`
 
 ## ۱. رجیستری سراسری
 

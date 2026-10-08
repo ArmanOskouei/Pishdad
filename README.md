@@ -257,7 +257,7 @@ Read it before you decide anything: **[COMPARISON.md](COMPARISON.md)** ·
 
 ```bash
 git clone https://github.com/ArmanOskouei/Pishdad.git
-cd Pishdad/cms-core
+cd Pishdad/pishdad-core
 
 # --- Backend ---
 cd backend
@@ -313,19 +313,19 @@ Point Nginx at the backend `public/` and the frontend `.next/`, and the site is 
 
 ```bash
 # Backend — http://127.0.0.1:8000
-cd cms-core/backend
+cd pishdad-core/backend
 cp .env.example .env && composer install && php artisan serve
 
 # Frontend — http://127.0.0.1:3000
-cd cms-core/frontend
+cd pishdad-core/frontend
 npm install && npm run dev
 ```
 
 Docker Compose brings up Nginx, PHP-FPM, PostgreSQL, Redis and MinIO:
 
 ```bash
-cd cms-core/backend  && docker compose up -d
-cd cms-core/frontend && docker compose up -d
+cd pishdad-core/backend  && docker compose up -d
+cd pishdad-core/frontend && docker compose up -d
 ```
 
 | Frontend command | |

@@ -62,12 +62,12 @@ const notes = [];
  * نه فقط محتوایشان را.
  */
 const FORBIDDEN_DIRS = [
-  { path: "cms-core/backend/plugins/central", why: "the private central plugin (even empty)" },
-  { path: "cms-core/backend/plugins/subscription", why: "the private subscription plugin (even empty)" },
-  { path: "cms-core/backend/plugins/_quarantine", why: "quarantined plugins/remote subscription layer (even empty)" },
-  { path: "cms-core/backend/vendor", why: "installed by composer" },
-  { path: "cms-core/frontend/node_modules", why: "installed by npm" },
-  { path: "cms-core/frontend/.next", why: "build output" },
+  { path: "pishdad-core/backend/plugins/central", why: "the private central plugin (even empty)" },
+  { path: "pishdad-core/backend/plugins/subscription", why: "the private subscription plugin (even empty)" },
+  { path: "pishdad-core/backend/plugins/_quarantine", why: "quarantined plugins/remote subscription layer (even empty)" },
+  { path: "pishdad-core/backend/vendor", why: "installed by composer" },
+  { path: "pishdad-core/frontend/node_modules", why: "installed by npm" },
+  { path: "pishdad-core/frontend/.next", why: "build output" },
 ];
 
 for (const { path: p, why } of FORBIDDEN_DIRS) {
@@ -90,20 +90,20 @@ for (const { path: p, why } of FORBIDDEN_DIRS) {
  * فایل دیگری** آنجا ممنوع است — یعنی هر آپلود، بکاپ یا بازماندهٔ تست.
  */
 const FORBIDDEN_PATHS = [
-  { re: /^cms-core\/backend\/plugins\/central\//, why: "the private central plugin" },
-  { re: /^cms-core\/backend\/plugins\/subscription\//, why: "the private subscription plugin" },
-  { re: /^cms-core\/backend\/plugins\/_quarantine\//, why: "quarantined plugins/remote subscription layer" },
-  { re: /^cms-core\/backend\/vendor\//, why: "installed by composer" },
-  { re: /^cms-core\/frontend\/node_modules\//, why: "installed by npm" },
-  { re: /^cms-core\/frontend\/\.next\//, why: "build output" },
-  { re: /^cms-core\/frontend\/out\//, why: "build output" },
+  { re: /^pishdad-core\/backend\/plugins\/central\//, why: "the private central plugin" },
+  { re: /^pishdad-core\/backend\/plugins\/subscription\//, why: "the private subscription plugin" },
+  { re: /^pishdad-core\/backend\/plugins\/_quarantine\//, why: "quarantined plugins/remote subscription layer" },
+  { re: /^pishdad-core\/backend\/vendor\//, why: "installed by composer" },
+  { re: /^pishdad-core\/frontend\/node_modules\//, why: "installed by npm" },
+  { re: /^pishdad-core\/frontend\/\.next\//, why: "build output" },
+  { re: /^pishdad-core\/frontend\/out\//, why: "build output" },
   { re: /(^|\/)node_modules\//, why: "installed by npm" },
   { re: /(^|\/)vendor\//, why: "installed by composer" },
   { re: /^dist-/, why: "a previous package" },
   { re: /^graphify-out\//, why: "local tooling output" },
   { re: /^docs\/.*\.(pdf|png|jpe?g|webp)$/i, why: "binary docs, gitignored by design" },
   {
-    re: /^cms-core\/backend\/storage\//,
+    re: /^pishdad-core\/backend\/storage\//,
     except: /(^|\/)\.gitignore$/,
     why: "uploads, backups and test leftovers (only the empty .gitignore placeholders may ship)",
   },
@@ -284,23 +284,23 @@ const inPart = (f) =>
   part === "full"
     ? true
     : part === "backend"
-      ? f.startsWith("cms-core/backend/") || f === "DISTRIBUTION.json"
-      : f.startsWith("cms-core/frontend/") || f === "DISTRIBUTION.json";
+      ? f.startsWith("pishdad-core/backend/") || f === "DISTRIBUTION.json"
+      : f.startsWith("pishdad-core/frontend/") || f === "DISTRIBUTION.json";
 
 const REQUIRED_ALL = [
-  "cms-core/backend/composer.json",
-  "cms-core/backend/.env.example",
-  "cms-core/backend/artisan",
-  "cms-core/backend/routes/api.php",
-  "cms-core/backend/database/seeders/PishdadSiteSeeder.php",
-  "cms-core/backend/database/seeders/data/pishdad-pages.php",
-  "cms-core/backend/app/Services/Push/PushSender.php",
-  "cms-core/backend/app/Services/Push/VapidKeys.php",
-  "cms-core/backend/database/migrations/2026_10_20_000001_create_push_subscriptions_table.php",
-  "cms-core/frontend/package.json",
-  "cms-core/frontend/public/sw.js",
-  "cms-core/frontend/src/lib/push.ts",
-  "cms-core/frontend/public/fonts/Vazirmatn-Regular.woff2",
+  "pishdad-core/backend/composer.json",
+  "pishdad-core/backend/.env.example",
+  "pishdad-core/backend/artisan",
+  "pishdad-core/backend/routes/api.php",
+  "pishdad-core/backend/database/seeders/PishdadSiteSeeder.php",
+  "pishdad-core/backend/database/seeders/data/pishdad-pages.php",
+  "pishdad-core/backend/app/Services/Push/PushSender.php",
+  "pishdad-core/backend/app/Services/Push/VapidKeys.php",
+  "pishdad-core/backend/database/migrations/2026_10_20_000001_create_push_subscriptions_table.php",
+  "pishdad-core/frontend/package.json",
+  "pishdad-core/frontend/public/sw.js",
+  "pishdad-core/frontend/src/lib/push.ts",
+  "pishdad-core/frontend/public/fonts/Vazirmatn-Regular.woff2",
   "DISTRIBUTION.json",
 ];
 
@@ -373,16 +373,16 @@ if (existsSync(manifestPath)) {
  * فیلتر کنار گذاشته می‌شوند چون عمداً هرگز نباید بیایند.
  */
 const SOURCE_DIRS_ALL = [
-  "cms-core/backend/app",
-  "cms-core/backend/config",
-  "cms-core/backend/database",
-  "cms-core/backend/resources",
-  "cms-core/backend/routes",
-  "cms-core/backend/tests",
-  "cms-core/backend/tools",
-  "cms-core/frontend/src",
-  "cms-core/frontend/public",
-  "cms-core/installer",
+  "pishdad-core/backend/app",
+  "pishdad-core/backend/config",
+  "pishdad-core/backend/database",
+  "pishdad-core/backend/resources",
+  "pishdad-core/backend/routes",
+  "pishdad-core/backend/tests",
+  "pishdad-core/backend/tools",
+  "pishdad-core/frontend/src",
+  "pishdad-core/frontend/public",
+  "pishdad-core/installer",
   // E24 — `scripts` و `Run` دیگر منبعِ بسته نیستند (dev-only)، پس اینجا هم نیستند.
 ];
 
@@ -391,8 +391,8 @@ const SOURCE_DIRS = SOURCE_DIRS_ALL.filter((d) =>
   part === "full"
     ? true
     : part === "backend"
-      ? !d.startsWith("cms-core/frontend/")
-      : !d.startsWith("cms-core/backend/"),
+      ? !d.startsWith("pishdad-core/frontend/")
+      : !d.startsWith("pishdad-core/backend/"),
 );
 
 const NOT_SOURCE =

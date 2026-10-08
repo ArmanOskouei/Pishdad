@@ -30,8 +30,8 @@
 <details>
 <summary>Old text (for reference only)</summary>
 
-> Implementation reference: `cms-core/frontend/src/lib/search-registry.ts`
-> Components: `cms-core/frontend/src/components/search/` — results page: `admin/search?q=…`
+> Implementation reference: `pishdad-core/frontend/src/lib/search-registry.ts`
+> Components: `pishdad-core/frontend/src/components/search/` — results page: `admin/search?q=…`
 
 ## 1. Global registry
 

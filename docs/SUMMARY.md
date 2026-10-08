@@ -51,7 +51,7 @@ _این خلاصه جایگزین فایل‌های کامل نیست — فقط
 
 **✅ E64 — تصاویرِ صفحه‌ها در فرانت ۴۰۴ می‌دادند. انجام شد (۲۰۲۶-۱۰-۰۷).**
 عکس‌ها **گم نیستند**: فایل روی بک‌اند هست و `http://localhost:8080/storage/media/shared/…svg` با ۲۰۰ سرو می‌شود؛ ولی صفحه `http://localhost:3100/storage/…` می‌سازد.
-فایلِ هدف: `cms-core/frontend/src/lib/site.ts::assetBaseUrl` (و `domain.ts::assetBase`). پایهٔ رسانهٔ **زمانِ اجرا** (`CMS_PUBLIC_MEDIA_URL`) در مسیرِ ساختِ URL پرسیده نمی‌شود؛ آن دو باید هم‌رأی شوند.
+فایلِ هدف: `pishdad-core/frontend/src/lib/site.ts::assetBaseUrl` (و `domain.ts::assetBase`). پایهٔ رسانهٔ **زمانِ اجرا** (`PISHDAD_PUBLIC_MEDIA_URL`) در مسیرِ ساختِ URL پرسیده نمی‌شود؛ آن دو باید هم‌رأی شوند.
 معیارِ پایان: HTMLِ صفحهٔ اصلی شامل `http://localhost:8080/storage/…` باشد و تصویر ۲۰۰ بدهد.
 
 **✅ E65 — راهنمای توسعهٔ افزونه. انجام شد (۲۰۲۶-۱۰-۰۷).** در `/admin/plugins`: به جامعیِ راهنمای قالب در `/admin/themes?tab=zip`، دوزبانه، با دانلودِ PDF. الگو و ساختار = همان تبِ zip؛ مرجعِ محتوا `docs/PLUGIN-GUIDE*.md` و `PLUGIN-MANIFEST-CONTRACT*.md`.

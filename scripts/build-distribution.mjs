@@ -70,35 +70,35 @@ console.log(`tracked files: ${tracked.length}`);
  * E24 — بستهٔ عمومی فقط کدِ اجرایی است: `docs/` (مستندات توسعه)، `Run/`
  * (ابزارهای محلی اجرا)، `scripts/` (ابزارهای توسعه/بیلد) و `Logo/` (آرشیو
  * گرافیک؛ هیچ‌کدام در کد ارجاع نشده‌اند — فاوآیکون/لوگوی واقعی در
- * `cms-core/frontend/public/` است) منتشر نمی‌شوند.
+ * `pishdad-core/frontend/public/` است) منتشر نمی‌شوند.
  */
 const INCLUDE_ROOTS =
   PART === "backend"
-    ? ["cms-core/backend/", "cms-core/installer/", ".github/"]
+    ? ["pishdad-core/backend/", "pishdad-core/installer/", ".github/"]
     : PART === "frontend"
-      ? ["cms-core/frontend/", "cms-core/installer/", ".github/"]
-      : ["cms-core/", ".github/"];
+      ? ["pishdad-core/frontend/", "pishdad-core/installer/", ".github/"]
+      : ["pishdad-core/", ".github/"];
 
 /** فایل‌های قانونی که بدون‌شان بسته ناقص یا بی‌معنی است. */
 const REQUIRED_ALL = [
-  "cms-core/backend/composer.json",
-  "cms-core/backend/.env.example",
-  "cms-core/backend/artisan",
-  "cms-core/backend/routes/api.php",
-  "cms-core/backend/app/Services/Push/PushSender.php",
-  "cms-core/backend/database/seeders/PishdadSiteSeeder.php",
-  "cms-core/backend/database/seeders/data/pishdad-pages.php",
-  "cms-core/frontend/package.json",
-  "cms-core/frontend/next.config.ts",
+  "pishdad-core/backend/composer.json",
+  "pishdad-core/backend/.env.example",
+  "pishdad-core/backend/artisan",
+  "pishdad-core/backend/routes/api.php",
+  "pishdad-core/backend/app/Services/Push/PushSender.php",
+  "pishdad-core/backend/database/seeders/PishdadSiteSeeder.php",
+  "pishdad-core/backend/database/seeders/data/pishdad-pages.php",
+  "pishdad-core/frontend/package.json",
+  "pishdad-core/frontend/next.config.ts",
   // ‎⚠️ سرویس‌ورکر Web Push. نبودش یعنی PWA ناقص و `/sw.js` چهار-صد.
-  "cms-core/frontend/public/sw.js",
+  "pishdad-core/frontend/public/sw.js",
   // فونت محلی — قانون پروژه: هیچ CDN.
-  "cms-core/frontend/public/fonts/Vazirmatn-Regular.woff2",
+  "pishdad-core/frontend/public/fonts/Vazirmatn-Regular.woff2",
 ];
 
 /** E41 — در بستهٔ تک‌بخش فقط فایل‌های همان بخش لازم‌اند. */
 const REQUIRED = REQUIRED_ALL.filter((f) =>
-  PART === "full" ? true : PART === "backend" ? f.startsWith("cms-core/backend/") : f.startsWith("cms-core/frontend/"),
+  PART === "full" ? true : PART === "backend" ? f.startsWith("pishdad-core/backend/") : f.startsWith("pishdad-core/frontend/"),
 );
 
 const missingRequired = REQUIRED.filter((f) => !tracked.includes(f));
@@ -108,7 +108,7 @@ const included = tracked.filter((f) => {
 
   // J11/J12 — پوشهٔ قرنطینه (افزونه‌های central/subscription و لایهٔ هستهٔ
   // اشتراکِ دور) هرگز نباید در بستهٔ عمومی برود، حتی اگر روزی track شود.
-  if (f.startsWith("cms-core/backend/plugins/_quarantine/")) return false;
+  if (f.startsWith("pishdad-core/backend/plugins/_quarantine/")) return false;
 
   // فایل‌های محلی که ممکن است ناخواسته track شده باشند.
   if (/(^|\/)\.env($|\.)/.test(f) && !f.endsWith(".env.example")) return false;
@@ -131,9 +131,9 @@ if (missingRequired.length) {
 /* ── ۲. مسیر افزونه‌های خصوصی ──────────────────────────────────────────── */
 
 const PRIVATE_PLUGINS = [
-  "cms-core/backend/plugins/central/",
-  "cms-core/backend/plugins/subscription/",
-  "cms-core/backend/plugins/_quarantine/",
+  "pishdad-core/backend/plugins/central/",
+  "pishdad-core/backend/plugins/subscription/",
+  "pishdad-core/backend/plugins/_quarantine/",
 ];
 
 const privateHits = included.filter((f) => PRIVATE_PLUGINS.some((p) => f.startsWith(p)));
@@ -204,7 +204,7 @@ process.stdout.write(`\r  copied ${copied}/${included.length}\n`);
 /* ── ۴. اسنادِ عمومیِ ریشه ────────────────────────────────────────────────── */
 
 /**
- * E25 — اسنادِ عمومی در ریشهٔ مخزن‌اند، نه زیر `cms-core/`، پس فیلترِ
+ * E25 — اسنادِ عمومی در ریشهٔ مخزن‌اند، نه زیر `pishdad-core/`، پس فیلترِ
  * `INCLUDE_ROOTS` آن‌ها را نمی‌بیند و بسته **بدون README و بدون LICENSE**
  * ساخته می‌شد — یعنی بسته‌ای که نه خواندنی است و نه از نظر حقوقی
  * معتبر. `REQUIRED` هم آن را نمی‌دید چون فقط فایل کد را می‌سنجید.
@@ -264,10 +264,10 @@ console.log(`public docs copied: ${PUBLIC_DOCS.length}`);
 
 const keep =
   PART === "backend"
-    ? ["cms-core/backend"]
+    ? ["pishdad-core/backend"]
     : PART === "frontend"
-      ? ["cms-core/frontend"]
-      : ["cms-core/backend", "cms-core/frontend"];
+      ? ["pishdad-core/frontend"]
+      : ["pishdad-core/backend", "pishdad-core/frontend"];
 
 for (const entry of readFileSync(resolve(ROOT, ".gitignore"), "utf8").split(/\r?\n/)) {
   const line = entry.trim();
@@ -337,7 +337,7 @@ for (const rel of [...shippedList].sort()) {
 const contentDigest = digestOf.digest("hex");
 
 const FULL_INSTALL = [
-  "cd cms-core/backend && composer install",
+  "cd pishdad-core/backend && composer install",
   "cp .env.example .env && php artisan key:generate",
   "php artisan storage:link   # required: media/images are served from /storage/",
   "php artisan migrate --force",
@@ -347,7 +347,7 @@ const FULL_INSTALL = [
 
 const BACKEND_INSTALL = FULL_INSTALL.slice(0, 5);
 
-const FRONTEND_INSTALL = ["cd cms-core/frontend && npm ci && npm run build"];
+const FRONTEND_INSTALL = ["cd pishdad-core/frontend && npm ci && npm run build"];
 
 const manifest = {
   name: "pishdad",
@@ -369,13 +369,13 @@ const manifest = {
       ".env (real secrets)",
       "vendor/ and node_modules/ (installed by composer/npm)",
       "storage/ except the empty .gitignore placeholders",
-      "cms-core/backend/plugins/central/ (private plugin)",
-      "cms-core/backend/plugins/subscription/ (private plugin)",
-      "cms-core/backend/plugins/_quarantine/ (quarantined plugins + remote subscription layer)",
+      "pishdad-core/backend/plugins/central/ (private plugin)",
+      "pishdad-core/backend/plugins/subscription/ (private plugin)",
+      "pishdad-core/backend/plugins/_quarantine/ (quarantined plugins + remote subscription layer)",
       "docs/ (dev documentation, not needed at runtime)",
       "Run/ (local run helpers, dev-only)",
       "scripts/ (dev/build tooling, dev-only)",
-      "Logo/ (graphic archive; none referenced by code — runtime logo/favicon live in cms-core/frontend/public/)",
+      "Logo/ (graphic archive; none referenced by code — runtime logo/favicon live in pishdad-core/frontend/public/)",
       "build output (.next/, out/, dist-*)",
     ],
   },

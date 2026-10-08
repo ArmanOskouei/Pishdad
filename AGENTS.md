@@ -38,7 +38,7 @@
 **علت باگ:** فونت Vazirmatn از `cdn.jsdelivr.net` لود می‌شد. در هر محیطی که دسترسی به اینترنت ندارد (یا CDN مسدود است) فونت لود نمی‌شود و مرورگر به فونت جایگزین می‌افتد — نتیجه: **عنوان هدر سایت و کادر جستجو «ناخوانا» می‌شوند**.
 
 **قاعده:** در این پروژه **هرگز** از CDN خارجی برای فونت/آیکون/اسکریپت استفاده نکن.
-- فونت‌ها: محلی در `cms-core/frontend/public/fonts/` + تعریف `@font-face` در `src/app/vazirmatn.css`
+- فونت‌ها: محلی در `pishdad-core/frontend/public/fonts/` + تعریف `@font-face` در `src/app/vazirmatn.css`
 - آیکون‌ها: SVG inline
 - سایر دارایی‌ها: محلی یا بک‌اند
 - اگر لازم شد، اول بپرس کاربر — پیش‌فرض همیشه محلی است.
@@ -92,7 +92,7 @@ useEffect(() => { void load(); }, [load]);
 - **`--watch` ممنوع:** هر save را ری‌بلد می‌کند و توکن را هدر می‌دهد؛ فقط `post-commit` + واگذاری در پایان تسک کافی است.
 - **`graphify label --missing-only` را بعد از هر `update` بزن:** بدون آن، communityهای تازه اسمشان را از hub می‌گیرند (مثلاً `build-flavour.ts` می‌رفت زیر `gen-types.mjs`) و کوئری‌ها بی‌ربط برمی‌گردند.
 - **محدودیت‌های محیط (تجربهٔ تأییدشده):** ساب‌ایجنت `graphify-updater` با `Forbidden: Access denied by security policy` مسدود می‌شود → فاز داک را با CLI/دستی انجام بده. `pip install` هم DNS ندارد، پس فایل‌های `.sql` هرگز وارد گراف نمی‌شوند؛ برای نگه‌داشتنِ «چرا»، دلیلشان را در یک `README.md` کنارشان بنویس تا از مسیر داک وارد گراف شود. `Dockerfile` هم پارسر ندارد و در گراف نیست.
-  - ⚠️ `detect_incremental` روی ویندوز با **`WinError 1920`** می‌افتد: symlinkِ لاراول `cms-core/backend/public/storage` هدفش قابل‌دسترس نیست و detect پیش از هر استخراجی `stat` می‌کند. افزودنش به `.graphifyignore` **کمک نمی‌کند** (کرش داخلِ ارزیابی خودِ الگو رخ می‌دهد). بنابراین فاز داکِ `--update` در این ماشین با خطای مسیر می‌خورد — نه با نبود کلید. رفع واقعی: یا آن symlinkِ شکسته (که gitignore است و لاراول با `storage:link` بازمی‌سازد) حذف شود، یا اسکنِ symlink در graphify اصلاح شود. چون کانتینرها بالا هستند، حذفش نیاز به تأیید کاربر دارد.
+  - ⚠️ `detect_incremental` روی ویندوز با **`WinError 1920`** می‌افتد: symlinkِ لاراول `pishdad-core/backend/public/storage` هدفش قابل‌دسترس نیست و detect پیش از هر استخراجی `stat` می‌کند. افزودنش به `.graphifyignore` **کمک نمی‌کند** (کرش داخلِ ارزیابی خودِ الگو رخ می‌دهد). بنابراین فاز داکِ `--update` در این ماشین با خطای مسیر می‌خورد — نه با نبود کلید. رفع واقعی: یا آن symlinkِ شکسته (که gitignore است و لاراول با `storage:link` بازمی‌سازد) حذف شود، یا اسکنِ symlink در graphify اصلاح شود. چون کانتینرها بالا هستند، حذفش نیاز به تأیید کاربر دارد.
   - ✅ **رفع شد (۲۰۲۶-۱۰-۰۶):** `scripts/session-start.ps1` این junction را با `move` روی همان درایو **موقتاً بیرون می‌برد** و در `finally` **دقیقاً همان reparse point** را برمی‌گرداند ⇒ دیگر نه حذف لازم است و نه `storage:link`. هر فرمانِ graphify که فایل اسکن می‌کند (`update`/`extract`) باید از این مسیر برود؛ `label`/`query` (که فقط `graph.json` را می‌خوانند) نیازی ندارند.
   - ⚠️ ساب‌ایجنتِ `graphify-updater` هنوز `graphify update` را **مستقیم** می‌زند و روی ویندوز کرش می‌کند؛ برای فاز داک از `scripts/session-start.ps1` استفاده کن.
 - **هر سشن جدید:** `graphify-out/GRAPH_REPORT.md` را به عنوان حافظه بخوان، نه کل `PLAN.md` را.
@@ -162,7 +162,7 @@ useEffect(() => { void load(); }, [load]);
 - امنیت/observability = شرط تمام‌شدن هر فاز
 
 ## ساختار (وقتی کد شروع شد)
-`cms-core/` → `backend/` (Laravel API) + `frontend/` (Next.js) + `installer/`
+`pishdad-core/` → `backend/` (Laravel API) + `frontend/` (Next.js) + `installer/`
 
 ## نمونه تعاملی
 `docs/demo/dashboard-demo.html` — ۵ جهت بصری.

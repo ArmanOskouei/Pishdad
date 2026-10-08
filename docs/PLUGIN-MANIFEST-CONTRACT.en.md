@@ -2,7 +2,7 @@
 
 **English** · **[فارسی / Persian](PLUGIN-MANIFEST-CONTRACT.md)**
 
-> Implementation reference: `cms-core/backend/app/Services/Plugins/ManifestRegistry.php`
+> Implementation reference: `pishdad-core/backend/app/Services/Plugins/ManifestRegistry.php`
 > (the single source that merges core + manifest) — controllers:
 > `ManagerController::permissionsMatrix`, `WidgetSchemaController`,
 > `LayoutController::pageTypes` — frontend: `admin/managers?tab=roles` (matrix),

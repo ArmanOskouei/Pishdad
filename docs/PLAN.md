@@ -16,7 +16,7 @@
 
 ```
 E:\Website Design\
-├── cms-core/              ← هسته CMS (اول ساخته می‌شود)
+├── pishdad-core/              ← هستهٔ پیشداد (اول ساخته می‌شود)
 │   ├── backend/           (Laravel 11 — API-only)
 │   ├── frontend/          (Next.js 15 — سایت + پنل ادمین)
 │   └── installer/         (اسکریپت ساخت مشتری جدید)

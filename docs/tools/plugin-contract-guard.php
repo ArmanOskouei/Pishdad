@@ -19,7 +19,7 @@ declare(strict_types=1);
  *
  * ## چرا این یک تستِ PHPUnit نیست
  *
- * `cms-core/backend/docker-compose.yml` فقط همان پوشه را mount می‌کند، پس
+ * `pishdad-core/backend/docker-compose.yml` فقط همان پوشه را mount می‌کند، پس
  * کانتینرِ اپ `docs/` ریشهٔ مخزن را **نمی‌بیند**. یک تستِ بک‌اند که سند را
  * بخواند یا همیشه «پیدا نشد» می‌خورد یا باید mount اضافه کند که کلِ تست‌های
  * هم‌زمان را restart می‌کند. الگوی خودِ مخزن برای guard سطحِ مخزن،
@@ -32,10 +32,10 @@ declare(strict_types=1);
  */
 
 $root = dirname(__DIR__, 2);
-$autoload = $root.'/cms-core/backend/vendor/autoload.php';
+$autoload = $root.'/pishdad-core/backend/vendor/autoload.php';
 
 if (! is_file($autoload)) {
-    fwrite(STDERR, " autoload پیدا نشد: {$autoload}\ncomposer install را در cms-core/backend اجرا کن.\n");
+    fwrite(STDERR, " autoload پیدا نشد: {$autoload}\ncomposer install را در pishdad-core/backend اجرا کن.\n");
 
     exit(2);
 }

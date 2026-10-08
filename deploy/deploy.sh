@@ -7,20 +7,20 @@
 #
 # پیش‌نیازها (خارج از این اسکریپت، باید دستی یک‌بار انجام شود):
 #   1) Docker + Docker Compose روی سرور
-#   2) کپی `deploy/env.production.example` به `cms-core/backend/.env` و پر کردن مقادیر
+#   2) کپی `deploy/env.production.example` به `pishdad-core/backend/.env` و پر کردن مقادیر
 #   3) DNS دامنه به سرور + TLS (reverse proxy یا TLS در لبه)
-#   4) cron:  * * * * * cd <root>/cms-core/backend && php artisan schedule:run
+#   4) cron:  * * * * * cd <root>/pishdad-core/backend && php artisan schedule:run
 #
 # اجرا از ریشهٔ پروژه:  bash deploy/deploy.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BE="$ROOT/cms-core/backend"
-FE="$ROOT/cms-core/frontend"
+BE="$ROOT/pishdad-core/backend"
+FE="$ROOT/pishdad-core/frontend"
 
 echo "==> Pishdad deploy — $ROOT"
 command -v docker >/dev/null || { echo "docker یافت نشد"; exit 1; }
-[ -f "$BE/.env" ] || { echo "cms-core/backend/.env وجود ندارد — از deploy/env.production.example بساز."; exit 1; }
+[ -f "$BE/.env" ] || { echo "pishdad-core/backend/.env وجود ندارد — از deploy/env.production.example بساز."; exit 1; }
 
 echo "==> [1/7] بالا آوردن سرویس‌ها (db/redis/minio/app/web)"
 docker compose -f "$BE/docker-compose.yml" up -d --build

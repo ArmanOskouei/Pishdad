@@ -28,7 +28,7 @@ application code rather than in the database. See `app/Search/PersianText.php`.
 
 ```bash
 git clone https://github.com/ArmanOskouei/Pishdad.git
-cd Pishdad/cms-core
+cd Pishdad/pishdad-core
 
 # Backend — http://127.0.0.1:8000
 cd backend
@@ -52,8 +52,8 @@ npm run dev
 If you would rather not install PostgreSQL and Redis locally:
 
 ```bash
-cd cms-core/backend  && docker compose up -d
-cd cms-core/frontend && docker compose up -d
+cd pishdad-core/backend  && docker compose up -d
+cd pishdad-core/frontend && docker compose up -d
 ```
 
 Never commit a real `.env`. Both `.env` and `.env.local` are git-ignored.
@@ -63,7 +63,7 @@ Never commit a real `.env`. Both `.env` and `.env.local` are git-ignored.
 ## Layout
 
 ```
-cms-core/
+pishdad-core/
   backend/     Laravel 13, API-only
     app/Services/Plugins/    the plugin runtime
     openapi/openapi.yaml     the API contract, source of truth
@@ -202,7 +202,7 @@ user-facing string, leave it in a translation file rather than inline in a compo
 
 ```bash
 git clone https://github.com/ArmanOskouei/Pishdad.git
-cd Pishdad/cms-core
+cd Pishdad/pishdad-core
 
 # بک‌اند — http://127.0.0.1:8000
 cd backend
@@ -226,8 +226,8 @@ npm run dev
 اگر ترجیح می‌دهید PostgreSQL و Redis را نصب نکنید:
 
 ```bash
-cd cms-core/backend  && docker compose up -d
-cd cms-core/frontend && docker compose up -d
+cd pishdad-core/backend  && docker compose up -d
+cd pishdad-core/frontend && docker compose up -d
 ```
 
 `env` واقعی را هیچ‌وقت commit نکنید. هر دو فایل `.env` و `.env.local` در `.gitignore`
@@ -236,7 +236,7 @@ cd cms-core/frontend && docker compose up -d
 ## ساختار
 
 ```
-cms-core/
+pishdad-core/
   backend/     لاراول ۱۳، فقط API
     app/Services/Plugins/    اجراکنندهٔ پلاگین
     openapi/openapi.yaml     قرارداد API، منبع حقیقت

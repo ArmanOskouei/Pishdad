@@ -3,7 +3,7 @@
 
   چرا این اسکریپت وجود دارد
   ────────────────────────
-  روی ویندوز، junctionِ `cms-core/backend/public/storage` را خودِ Laravel
+  روی ویندوز، junctionِ `pishdad-core/backend/public/storage` را خودِ Laravel
   داخل کانتینر ساخته و targetش یک مسیر لینوکسی است (`/var/www/html/...`).
   ویندوز نمی‌تواند آن را بخواند ⇒ `WinError 1920` و کرشِ `detect_incremental`
   در graphify (پیش از هر استخراجی `stat` می‌کند). این اسکریپت junction را
@@ -37,7 +37,7 @@ function Say($msg) { Write-Host $msg }
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
 
-$junction = Join-Path $root "cms-core\backend\public\storage"
+$junction = Join-Path $root "pishdad-core\backend\public\storage"
 $holdDir  = Join-Path (Split-Path -Parent $root) ".armanoskouei-session-tmp"
 $holdItem = Join-Path $holdDir "storage"
 

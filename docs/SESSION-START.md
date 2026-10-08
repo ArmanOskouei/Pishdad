@@ -13,7 +13,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/session-start.ps1
 
 این اسکریپت به‌ترتیب:
 
-1. junctionِ شکستهٔ `cms-core/backend/public/storage` را (اگر باشد) موقتاً
+1. junctionِ شکستهٔ `pishdad-core/backend/public/storage` را (اگر باشد) موقتاً
    بیرون می‌برد و در `finally` **دقیقاً همان reparse point** را برمی‌گرداند —
    بدون `storage:link` و بدون دست‌زدن به کانتینر.
    (علت ریشه‌ای: targetِ آن یک مسیر لینوکسی داخل کانتینر است ⇒ `WinError 1920`

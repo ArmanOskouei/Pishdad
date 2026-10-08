@@ -1,6 +1,6 @@
 # گزارش برابری UI/UX: دمو استاتیک ← پیاده‌سازی Next.js
 
-> روش: سورس‌به‌سورس (`docs/demo/admin/**` در برابر `cms-core/frontend/src/app/**`). بدون اجرا/تغییر کد.
+> روش: سورس‌به‌سورس (`docs/demo/admin/**` در برابر `pishdad-core/frontend/src/app/**`). بدون اجرا/تغییر کد.
 > قانون: فقط **کمبود نسبت به دمو**. امکانات اضافی واقعی (moderation، جستجوی سراسری، Jodit، review-flow قالب/پلاگین، ConfirmStepper، pagination) حفظ می‌شوند.
 > اولویت: حلقه پول اول (pages، subscription، billing، clients، files). اندازه: کوچک (≤ نیم‌روز) / متوسط (۱–۳ روز) / بزرگ (> ۳ روز، معمولاً نیاز بک‌اند).
 

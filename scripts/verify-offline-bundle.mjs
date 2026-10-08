@@ -41,8 +41,8 @@ console.log(`verify-offline-bundle: ${root}\n`);
  * E44 — بستهٔ تک‌بخش فقط همان بخش را دارد. بخش‌ها از محتوای خودِ بسته
  * تشخیص داده می‌شوند، نه از نام پوشه (نام قابل تغییر است با آرگومان).
  */
-const hasBackend = existsSync(join(root, "cms-core/backend/artisan"));
-const hasFrontend = existsSync(join(root, "cms-core/frontend/package.json"));
+const hasBackend = existsSync(join(root, "pishdad-core/backend/artisan"));
+const hasFrontend = existsSync(join(root, "pishdad-core/frontend/package.json"));
 
 if (!hasBackend && !hasFrontend) {
   fail("neither a backend nor a frontend lean package is inside - this bundle cannot install anything");
@@ -127,8 +127,8 @@ if (!existsSync(imagesDir)) {
 /* ── ۴. composeهای آفلاین: هر ارجاع باید tar داشته باشد ───────────────── */
 
 const COMPOSES = [
-  "cms-core/backend/docker-compose.offline.yml",
-  "cms-core/frontend/docker-compose.offline.yml",
+  "pishdad-core/backend/docker-compose.offline.yml",
+  "pishdad-core/frontend/docker-compose.offline.yml",
 ].filter((rel) => existsSync(join(root, rel)));
 
 // E44 — در بستهٔ تک‌بخش فقط compose همان بخش هست؛ نبودِ هیچ‌کدام یعنی بسته خراب.

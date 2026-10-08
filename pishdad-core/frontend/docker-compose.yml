@@ -1,0 +1,63 @@
+name: pishdad-frontend
+
+# API host: the backend compose publishes the API on 8080 of the host.
+#
+# ⚠️ `NEXT_PUBLIC_API_URL` دیگر **لازم نیست**: مقدارهای عمومی در زمانِ اجرا به
+# HTML تزریق می‌شوند (`src/lib/runtime-config.ts`)، پس همان ایمیجِ بیلدشده روی
+# هر سروری با هر نشانیِ API کار می‌کند. نصب‌کنندهٔ وب (`/setup`) تنظیمات را در
+# `config/runtime.json` می‌نویسد و بی‌درنگ اعمال می‌شود.
+#
+# `--build-arg NEXT_PUBLIC_API_URL` فقط به‌عنوان **fallbackِ زمانِ بیلد** مانده —
+# اگر بخواهید نصب از ابتدا پر باشد، بدهید؛ وگرنه خالی بگذارید و از `/setup` نصب کنید.
+services:
+  # Production image: built from ./, served by `node server.js`.
+  web-front:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+        NEXT_PUBLIC_SITE_ID: ${NEXT_PUBLIC_SITE_ID:-}
+    image: pishdad-frontend:latest
+    container_name: pishdad-web-front
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3100}:3000"
+    volumes:
+      # پیکربندیِ نصب. نصب‌کنندهٔ وب اینجا می‌نویسد و میدل‌ور و رندر همان لحظه
+      # می‌خوانند — بدونِ توقفِ کانتینر و بدونِ بازسازی.
+      # ⚠️ روی دیسکِ میزبان می‌ماند تا با هر `up` تازه باقی بماند.
+      - ${PISHDAD_CONFIG_DIR:-./config}:/app/config
+    environment:
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://host.docker.internal:8080/api}
+      PISHDAD_CONFIG_FILE: /app/config/runtime.json
+    extra_hosts:
+      # Without this, `host.docker.internal` does not resolve on Linux and every
+      # server-side fetch fails while the container still looks healthy.
+      - "host.docker.internal:host-gateway"
+
+  # Development server with hot reload. Opt in explicitly:
+  #   docker compose --profile dev up web-front-dev
+  #
+  # It bind-mounts the source and overrides the node_modules/.next paths with
+  # anonymous volumes so the container's own install is not shadowed by the
+  # host's (a missing host node_modules would otherwise blank the app out).
+  web-front-dev:
+    build:
+      context: .
+      target: deps
+    container_name: pishdad-web-front-dev
+    profiles: ["dev"]
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_DEV_PORT:-3100}:3100"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api}
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://host.docker.internal:8080/api}
+      PORT: 3100
+    command: npm run dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

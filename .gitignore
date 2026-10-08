@@ -27,7 +27,7 @@ build/
 **/.npmrc
 
 # پیکربندی تست موقت ایجنت‌های موازی؛ هر کدام دیتابیس محلی خودشان را دارند.
-cms-core/backend/phpunit.agent*.xml
+pishdad-core/backend/phpunit.agent*.xml
 
 # سیستم
 .DS_Store
@@ -49,14 +49,14 @@ dist-pishdad-backend/
 dist-pishdad-frontend/
 dist-public/
 .opencode/
-cms-core/frontend/.local-serve.err
-cms-core/frontend/.local-serve.out
-cms-core/backend/storage/install/
+pishdad-core/frontend/.local-serve.err
+pishdad-core/frontend/.local-serve.out
+pishdad-core/backend/storage/install/
 dist-offline/
 dist-offline-backend/
 dist-offline-frontend/
 
 # E43 — پیکربندیِ نصبِ فرانت. نصب‌کنندهٔ وب این را می‌نویسد و رازِ revalidate
 # داخلش است، پس هرگز نباید commit شود.
-cms-core/frontend/config/runtime.json
-cms-core/frontend/.setup-probe/
+pishdad-core/frontend/config/runtime.json
+pishdad-core/frontend/.setup-probe/

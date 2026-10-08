@@ -47,7 +47,7 @@ if ($LoadOnly) { Write-Host "`n-LoadOnly given, stopping here."; exit 0 }
 # extracting one archive is far quicker than writing tens of thousands of files
 # one at a time.
 $vendorTar = Join-Path $root 'offline\vendor.tar.gz'
-$vendorDir = Join-Path $root 'cms-core\backend\vendor'
+$vendorDir = Join-Path $root 'pishdad-core\backend\vendor'
 if (Test-Path $vendorTar) {
     if (Test-Path $vendorDir) {
         Write-Host "vendor/ already present, leaving it alone." -ForegroundColor DarkGray
@@ -58,7 +58,7 @@ if (Test-Path $vendorTar) {
         tar -xzf $vendorTar -C $vendorDir
         if ($LASTEXITCODE -ne 0) { Fail "failed to unpack offline\vendor.tar.gz" }
     }
-} elseif (Test-Path (Join-Path $root 'cms-core\backend')) {
+} elseif (Test-Path (Join-Path $root 'pishdad-core\backend')) {
     Fail "offline\vendor.tar.gz is missing - the backend would need composer install (network)."
 } else {
     # E44 — frontend-only bundle has no backend and no vendor tar.
@@ -69,7 +69,7 @@ if (Test-Path $vendorTar) {
 # Ports are passed through the same variables the offline compose reads, so the
 # published ports and the URLs printed below cannot drift apart.
 $env:PISHDAD_WEB_PORT = "$ApiPort"
-if (Test-Path (Join-Path $root 'cms-core\frontend\docker-compose.offline.yml')) {
+if (Test-Path (Join-Path $root 'pishdad-core\frontend\docker-compose.offline.yml')) {
     $env:PISHDAD_FRONTEND_PORT = "$FrontendPort"
     # The frontend reaches the backend through the host gateway, so it needs the
     # port the API is actually published on.
@@ -77,8 +77,8 @@ if (Test-Path (Join-Path $root 'cms-core\frontend\docker-compose.offline.yml')) 
 }
 
 Write-Host "`nStarting the backend..." -ForegroundColor Cyan
-if (Test-Path (Join-Path $root 'cms-core\backend\docker-compose.offline.yml')) {
-    docker compose -f (Join-Path $root 'cms-core\backend\docker-compose.offline.yml') up -d
+if (Test-Path (Join-Path $root 'pishdad-core\backend\docker-compose.offline.yml')) {
+    docker compose -f (Join-Path $root 'pishdad-core\backend\docker-compose.offline.yml') up -d
     if ($LASTEXITCODE -ne 0) { Fail "docker compose up failed for the backend." }
 } else {
     # E44 — frontend-only bundle has no backend compose.
@@ -86,9 +86,9 @@ if (Test-Path (Join-Path $root 'cms-core\backend\docker-compose.offline.yml')) {
 }
 
 if (-not $BackendOnly) {
-    if (Test-Path (Join-Path $root 'cms-core\frontend\docker-compose.offline.yml')) {
+    if (Test-Path (Join-Path $root 'pishdad-core\frontend\docker-compose.offline.yml')) {
         Write-Host "Starting the frontend..." -ForegroundColor Cyan
-        docker compose -f (Join-Path $root 'cms-core\frontend\docker-compose.offline.yml') up -d
+        docker compose -f (Join-Path $root 'pishdad-core\frontend\docker-compose.offline.yml') up -d
         if ($LASTEXITCODE -ne 0) { Fail "docker compose up failed for the frontend." }
     } else {
         # E44 — backend-only bundle has no frontend compose; do not fail silently.
@@ -98,11 +98,11 @@ if (-not $BackendOnly) {
 }
 
 Write-Host "`nDone." -ForegroundColor Green
-if (Test-Path (Join-Path $root 'cms-core\backend\docker-compose.offline.yml')) {
+if (Test-Path (Join-Path $root 'pishdad-core\backend\docker-compose.offline.yml')) {
     Write-Host "  Installer : http://localhost:$ApiPort/install"
 }
 if (-not $BackendOnly) { Write-Host "  Site      : http://localhost:$FrontendPort" }
 Write-Host ""
 Write-Host "vendor/ travelled with the bundle, so the entrypoint skips composer install." -ForegroundColor DarkGray
 Write-Host "If the backend does not answer, look at:" -ForegroundColor DarkGray
-Write-Host "  docker logs -f cms-app" -ForegroundColor DarkGray
+Write-Host "  docker logs -f pishdad-app" -ForegroundColor DarkGray

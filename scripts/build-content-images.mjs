@@ -20,7 +20,7 @@
  *
  *     node scripts/build-content-images.mjs
  *
- * خروجی: `cms-core/frontend/public/images/content/*.svg`
+ * خروجی: `pishdad-core/frontend/public/images/content/*.svg`
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -367,6 +367,6 @@ for (const [name, content] of Object.entries(images)) {
 }
 
 console.log(`\n✔ ${Object.keys(images).length} content images`);
-console.log(`  → cms-core/frontend/public/images/content/          (سروِ مستقیم)`);
-console.log(`  → cms-core/backend/database/seeders/assets/content/  (canonical برای seeder)`);
+console.log(`  → pishdad-core/frontend/public/images/content/          (سروِ مستقیم)`);
+console.log(`  → pishdad-core/backend/database/seeders/assets/content/  (canonical برای seeder)`);
 console.log(`  ${(total / 1024).toFixed(1)} KB per copy — local SVG, no CDN`);

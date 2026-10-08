@@ -1,6 +1,6 @@
 # قرارداد مانیفست پلاگین: دسترسی‌ها، ویجت‌ها، انواع صفحه، جدول‌های دیتابیس
 
-> مرجع پیاده‌سازی: `cms-core/backend/app/Services/Plugins/ManifestRegistry.php`
+> مرجع پیاده‌سازی: `pishdad-core/backend/app/Services/Plugins/ManifestRegistry.php`
 > (تک‌منبع ادغام هسته + مانیفست) — کنترلرها: `ManagerController::permissionsMatrix`،
 > `WidgetSchemaController`، `LayoutController::pageTypes` — فرانت: `admin/managers?tab=roles`
 > (ماتریس)، `admin/header-footer` (مودال تنظیمات)، `admin/blocks` (تب‌ها).

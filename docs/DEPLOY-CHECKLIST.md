@@ -29,7 +29,7 @@
 
 ```bash
 composer install
-npm ci                       # در cms-core/frontend
+npm ci                       # در pishdad-core/frontend
 php artisan migrate --force  # ⚠️ مرحلهٔ ۳ و ۵ را فراموش نکن
 ```
 
@@ -38,7 +38,7 @@ php artisan migrate --force  # ⚠️ مرحلهٔ ۳ و ۵ را فراموش ن
 ## ۰. cron / scheduler — ⚠️ این مرحله جدید است
 
 ```cron
-* * * * * cd /var/www/cms-core/backend && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/pishdad-core/backend && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 **بدون این، هیچ‌کدام از این‌ها هرگز اجرا نمی‌شود** (همه در `routes/console.php` زمان‌بندی شده‌اند):

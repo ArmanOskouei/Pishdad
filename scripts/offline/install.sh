@@ -58,7 +58,7 @@ fi
 # over a bind mount is slow enough to time out on large packages, and extracting
 # one archive is far quicker than writing tens of thousands of files.
 VENDOR_TAR="$ROOT/offline/vendor.tar.gz"
-VENDOR_DIR="$ROOT/cms-core/backend/vendor"
+VENDOR_DIR="$ROOT/pishdad-core/backend/vendor"
 if [ -f "$VENDOR_TAR" ]; then
   if [ -d "$VENDOR_DIR" ]; then
     echo "vendor/ already present, leaving it alone."
@@ -67,7 +67,7 @@ if [ -f "$VENDOR_TAR" ]; then
     mkdir -p "$VENDOR_DIR"
     tar -xzf "$VENDOR_TAR" -C "$VENDOR_DIR" || fail "failed to unpack offline/vendor.tar.gz"
   fi
-elif [ -d "$ROOT/cms-core/backend" ]; then
+elif [ -d "$ROOT/pishdad-core/backend" ]; then
   fail "offline/vendor.tar.gz is missing - the backend would need composer install (network)."
 else
   # E44 — frontend-only bundle has no backend and no vendor tar.
@@ -83,9 +83,9 @@ export PISHDAD_FRONTEND_PORT="$FRONTEND_PORT"
 export INTERNAL_API_URL="http://host.docker.internal:$API_PORT/api"
 
 echo ""
-if [ -f "$ROOT/cms-core/backend/docker-compose.offline.yml" ]; then
+if [ -f "$ROOT/pishdad-core/backend/docker-compose.offline.yml" ]; then
   echo "Starting the backend..."
-  docker compose -f "$ROOT/cms-core/backend/docker-compose.offline.yml" up -d \
+  docker compose -f "$ROOT/pishdad-core/backend/docker-compose.offline.yml" up -d \
     || fail "docker compose up failed for the backend."
 else
   # E44 — frontend-only bundle has no backend compose.
@@ -93,9 +93,9 @@ else
 fi
 
 if [ "$BACKEND_ONLY" -eq 0 ]; then
-  if [ -f "$ROOT/cms-core/frontend/docker-compose.offline.yml" ]; then
+  if [ -f "$ROOT/pishdad-core/frontend/docker-compose.offline.yml" ]; then
     echo "Starting the frontend..."
-    docker compose -f "$ROOT/cms-core/frontend/docker-compose.offline.yml" up -d \
+    docker compose -f "$ROOT/pishdad-core/frontend/docker-compose.offline.yml" up -d \
       || fail "docker compose up failed for the frontend."
   else
     # E44 — بستهٔ تک‌بخشِ بک‌اند compose فرانت ندارد؛ بی‌سروصدا رد نشو.
@@ -106,7 +106,7 @@ fi
 
 echo ""
 echo "Done."
-if [ -f "$ROOT/cms-core/backend/docker-compose.offline.yml" ]; then
+if [ -f "$ROOT/pishdad-core/backend/docker-compose.offline.yml" ]; then
   echo "  Installer : http://localhost:$API_PORT/install"
 fi
 if [ "$BACKEND_ONLY" -eq 0 ]; then
@@ -114,4 +114,4 @@ if [ "$BACKEND_ONLY" -eq 0 ]; then
 fi
 echo ""
 echo "vendor/ travelled with the bundle, so the entrypoint skips composer install."
-echo "If the backend does not answer: docker logs -f cms-app"
+echo "If the backend does not answer: docker logs -f pishdad-app"
