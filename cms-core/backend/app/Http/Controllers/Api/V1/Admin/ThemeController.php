@@ -129,8 +129,18 @@ class ThemeController extends Controller
             return response()->json(['message' => $msg], 422);
         }
 
+        /*
+         * ⭐ E79 — این باید **idempotent** باشد، و قبلاً نبود.
+         *
+         * نسخهٔ قبلی `forceFill(['active' => true])->save()` بود. اگر قالب از قبل
+         * فعال بود، `active` dirty نمی‌شد ⇒ لاراول هیچ UPDATE نمی‌فرستاد، در
+         * حالی که خطِ قبل همه را خاموش کرده بود. نتیجه: نصب **بدونِ هیچ قالبِ
+         * فعالی** می‌ماند و `SiteChromeController` دوباره به `defaults()`
+         * می‌افتد یعنی سایت بی‌قالب. با یک UPDATE صریح این اتفاق برای همیشه
+         * حذف شد.
+         */
         Theme::query()->update(['active' => false]);
-        $theme->forceFill(['active' => true])->save();
+        Theme::query()->whereKey($theme->getKey())->update(['active' => true]);
 
         // ⭐ `F0.7` — این خط قبلاً فقط یک NOTE بود و dispatch انجام نمی‌شد.
         //

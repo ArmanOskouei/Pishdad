@@ -15,6 +15,7 @@ use App\Services\Settings\PerformanceSettings;
 use App\Services\Themes\SiteThemeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * کروم عمومی سایت (هدر/فوتر واقعی برای رندر [...path]).
@@ -50,6 +51,21 @@ class SiteChromeController extends Controller
             $theme = Theme::query()->where('active', true)->first();
             if ($siteStored === [] && $headerStored === [] && $footerStored === [] && $theme === null) {
                 return $this->defaults();
+            }
+
+            /*
+             * ⭐ E79 — «قالبِ فعال نداریم» نباید سایت را بی‌پوسته کند.
+             *
+             * resolver اسلاگِ فعال را از `site_theme_settings` می‌دهد و
+             * `site_themes` (که seeder پر می‌کند) منبعِ توکن‌هاست. پس اگر
+             * مسیرِ قدیمیِ `themes.active` خالی بود ولی سیستمِ جدید انتخابی
+             * داشت، باید از همان ادامه داد — وگرنه یک نصبِ کاملاً سالم به
+             * `defaults()` می‌افتد و سایت بی‌رنگ بالا می‌آید.
+             */
+            if ($theme === null) {
+                $theme = DB::table('themes')
+                    ->where('slug', SiteThemeResolver::activeSlug())
+                    ->first();
             }
 
             $site = array_merge(

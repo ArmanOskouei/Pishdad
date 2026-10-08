@@ -157,9 +157,27 @@ class SiteThemeResolverTest extends TestCase
     // ECO1 — اسلاگِ فعالِ قالب (انتخابِ کامپوننتِ فرانت)
     // ------------------------------------------------------------------
 
-    /** بدون هیچ انتخابی باید قالبِ پیش‌فرض برگردد، نه `null` (صفحهٔ سفید). */
+    /**
+     * بدون هیچ انتخابیِ کاربر باید قالبِ فعالِ نصب برگردد، نه `null` (صفحهٔ سفید).
+     *
+     * ⚠️ E79 — این دیگر لزوماً `FALLBACK_THEME` نیست: seeder رکوردِ «انتخابِ
+     * فعال» را می‌سازد و از قبل `commerce` را فعال می‌کند. `FALLBACK_THEME`
+     * فقط وقتی واقعاً هیچ سطرِ فعالی نباشد معنا دارد، که در این تست حالتِ
+     * «جدول خالی» را جداگانه می‌سنجیم.
+     */
     public function test_active_slug_falls_back_when_there_is_no_selection(): void
     {
+        $this->assertSame(
+            SiteThemeSeeder::DEFAULT_ACTIVE,
+            SiteThemeResolver::activeSlug(),
+        );
+
+        // حالتِ واقعیِ fallback: نه «انتخابِ فعال» در سیستمِ جدید، نه سطرِ فعال
+        // در `themes`. توجه: `site_themes` ستونِ `active` ندارد؛ فعال‌بودن در
+        // `site_theme_settings` (کلیدِ `default`) نگهداری می‌شود.
+        DB::table('site_theme_settings')->delete();
+        DB::table('themes')->update(['active' => false]);
+
         $this->assertSame(
             SiteThemeResolver::FALLBACK_THEME,
             SiteThemeResolver::activeSlug(),
@@ -180,6 +198,10 @@ class SiteThemeResolverTest extends TestCase
      */
     public function test_active_slug_ignores_the_default_placeholder(): void
     {
+        // E79 — seeder یک انتخابِ فعالِ واقعی می‌سازد، پس برای سنجیدنِ حالتِ
+        // «بدونِ انتخاب» باید آن را صریح پاک کنیم؛ وگرنه این تست دیگر
+        // چیزی نمی‌سنجد و به‌طور تصادفی یا سبز می‌شود یا قرمز.
+        DB::table('site_theme_settings')->delete();
         DB::table('themes')->update(['active' => false]);
 
         if (DB::table('themes')->where('slug', 'default')->doesntExist()) {
@@ -194,6 +216,8 @@ class SiteThemeResolverTest extends TestCase
     /** مسیرِ قدیمیِ ZIP: وقتی انتخابِ سه‌قالبه‌ای نیست، `themes.active` معتبر است. */
     public function test_active_slug_uses_the_legacy_active_theme_when_no_selection(): void
     {
+        // E79 — مثلِ تستِ بالا: نبودِ انتخابِ سراسری را **صریح** می‌سازیم.
+        DB::table('site_theme_settings')->delete();
         DB::table('themes')->update(['active' => false]);
         DB::table('themes')->insert(['name' => 'قالب من', 'slug' => 'mine-zip', 'active' => true]);
 

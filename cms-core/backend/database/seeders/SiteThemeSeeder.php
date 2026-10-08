@@ -43,6 +43,15 @@ class SiteThemeSeeder extends Seeder
      *  - `editorial`: ستونِ خواندنیِ باریک‌تر، تایپوگرافی درشت‌تر
      *  - `commerce`: چگال‌تر (برای فهرست کالا)، شعاع کمتر
      */
+    /**
+     * ⭐ قالبی که **نصبِ تازه** با آن فعال می‌شود (E79).
+     *
+     * همان قالبی که سایتِ نمایشیِ پیشداد با آن بالا می‌آید، تا نسخهٔ منتشرشده
+     * دقیقاً همان ظاهرِ معرفی‌شده را نشان دهد. انتخابِ خودِ مدیر هرگز دست‌کاری
+     * نمی‌شود — این فقط «حالتِ نبودِ انتخاب» است.
+     */
+    public const DEFAULT_ACTIVE = 'commerce';
+
     private const THEMES = [
         [
             'key' => 'minimal',
@@ -248,6 +257,8 @@ class SiteThemeSeeder extends Seeder
 
         $this->seedLegacyThemes($now);
 
+        $this->seedDefaultSelection($now);
+
         $combos = count(self::THEMES) * count(self::PRESETS);
 
         $this->command?->info("  {$combos} ترکیب قالب×رنگ، هر کدام با دو نیمهٔ روشن/تاریک.");
@@ -364,13 +375,76 @@ class SiteThemeSeeder extends Seeder
      * `default` که `ensureDefault()` با `active = true` می‌سازد، نصبِ تازه
      * می‌توانست قالبِ بی‌رنگ را نشان بدهد یا با هر بارِ seed جابه‌جا شود.
      */
+    /**
+     * ⭐ E79 — «انتخابِ فعال» در سیستمِ جدید هم باید از قبل باشد.
+     *
+     * پیش از این، seeder فقط `themes.active` را می‌نشاند. ولی
+     * `SiteThemeResolver::selection()` از `site_theme_settings` می‌خواند، پس
+     * ویرایشگرِ سه‌قالبه در پنل «قالبِ دیگری» نشان می‌داد در حالی که سایت با
+     * قالبِ فعال رندر می‌شد — یعنی دو مسیر، دو حقیقت.
+     *
+     * اینجا سطرِ پیش‌فرض را می‌سازیم (قالب = `DEFAULT_ACTIVE`، رنگ = `azure`،
+     * حالت = `light`) تا هر دو مسیر یکی باشند. اگر مدیر قبلاً چیزی انتخاب کرده
+     * باشد، همان می‌ماند.
+     */
+    private function seedDefaultSelection(mixed $now): void
+    {
+        if (! Schema::hasTable('site_theme_settings')
+            || ! Schema::hasTable('site_themes')
+            || ! Schema::hasTable('site_theme_presets')) {
+            return;
+        }
+
+        $owner = SiteThemeResolver::GLOBAL_OWNER;
+
+        if (DB::table('site_theme_settings')->where('user_id', $owner)->exists()) {
+            return;
+        }
+
+        $theme = DB::table('site_themes')->where('slug', self::DEFAULT_ACTIVE)->first();
+        $preset = DB::table('site_theme_presets')->where('slug', 'azure')->first();
+
+        if ($theme === null || $preset === null) {
+            return;
+        }
+
+        DB::table('site_theme_settings')->insert([
+            'user_id' => $owner,
+            'key' => SiteThemeResolver::ACTIVE_KEY,
+            'theme_id' => $theme->id,
+            'preset_id' => $preset->id,
+            'mode' => 'light',
+            'overrides' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
     private function settleActiveTheme(array $builtinSlugs, array $previouslyActive): void
     {
         $keep = array_values(array_intersect($previouslyActive, $builtinSlugs));
 
+        /*
+         * ⭐ E79 — قالبِ پیش‌فرضِ نصبِ تازه = `commerce`.
+         *
+         * قبلاً `$builtinSlugs[0]` (یعنی `minimal`) فعال می‌شد، پس نسخهٔ منتشر
+         * با ظاهری بالا می‌آمد که با سایتِ نمایشیِ پیشداد فرق داشت. حالا هر
+         * نصبِ تازه دقیقاً همان قالبی را می‌بیند که در نسخهٔ زنده فعال است.
+         *
+         * اگر قالبِ commerce نبود (نسخه‌ای که آن را ندارد) همان رفتارِ قبلی
+         * حفظ می‌شود — یعنی اولین درون‌ساخت.
+         */
+        $preferred = in_array(self::DEFAULT_ACTIVE, $builtinSlugs, true)
+            ? self::DEFAULT_ACTIVE
+            : ($builtinSlugs[0] ?? null);
+
         // انتخابِ قبلی میان درون‌ساخت‌ها بود ⇒ همان می‌ماند.
-        // نبود (یا placeholder) ⇒ اولین درون‌ساخت.
-        $winner = $keep[0] ?? $builtinSlugs[0];
+        // نبود (یا placeholder) ⇒ قالبِ پیش‌فرضِ محصول.
+        $winner = $keep[0] ?? $preferred;
+
+        if ($winner === null) {
+            return;
+        }
 
         DB::table('themes')->whereIn('slug', $builtinSlugs)->update(['active' => false]);
         DB::table('themes')->where('slug', $winner)->update(['active' => true]);

@@ -66,6 +66,7 @@
             <file>tests/Feature/ExternalDriverContractTest.php</file>
             <file>tests/Feature/FaqBlockTest.php</file>
             <file>tests/Feature/FormBuilderTest.php</file>
+            <file>tests/Feature/FreshInstallMatchesDemoTest.php</file>
             <file>tests/Feature/HomepageTest.php</file>
             <file>tests/Feature/InstallDatabasePrefillTest.php</file>
             <file>tests/Feature/InstallTest.php</file>

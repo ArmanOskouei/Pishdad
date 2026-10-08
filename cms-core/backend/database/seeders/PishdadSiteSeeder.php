@@ -366,15 +366,21 @@ class PishdadSiteSeeder extends Seeder
 
         // ظاهر پنل: راست‌به‌چپ، فونت فارسی، حالت تیره.
         //
+        // ⭐ E79 — این مقادیر **همان چیزی** هستند که سایتِ زندهٔ پیشداد با آن
+        // بالا می‌آید؛ قبلاً `arya`/`md`/`comfortable` بود و نصبِ تازه با ظاهرِ
+        // متفاوتی از نسخهٔ نمایشی باز می‌شد. پس هر تغییری در پنلِ زنده باید
+        // اینجا هم بیاید، وگرنه «همان نسخه» ادعا نمی‌شود.
+        //
         // ‎⚠️ `bottom_nav` فقط مسیرهای *پنل* است و به صفحهٔ عمومی ربطی ندارد،
         // پس ثابت است و قابل تطبیق نیست.
         Setting::set('ui', 'global', [
             'dir' => 'rtl',
-            'font' => 'md',
+            'font' => 'sm',
             'mode' => 'dark',
-            'preset' => 'arya',
+            'accent' => 'teal',
+            'preset' => 'sahar',
             'radius' => 'default',
-            'density' => 'comfortable',
+            'density' => 'compact',
             'bottom_nav' => [
                 '/admin/dashboard',
                 '/admin/pages',
@@ -401,7 +407,9 @@ class PishdadSiteSeeder extends Seeder
         Setting::set('layout', 'global:header', [
             'layout' => ['sticky' => true, 'transparent' => false],
             'widgets' => [
-                ['type' => 'logo', 'settings' => ['show_title' => true]],
+                // عنوان کنارِ لوگو در نسخهٔ زنده خاموش است (E79): خودِ لوگو
+                // هویت را می‌گوید و تکرارش شلوغ بود.
+                ['type' => 'logo', 'settings' => ['show_title' => false]],
                 ['type' => 'nav', 'settings' => ['links' => [
                     // خانه لینکِ متنی `/` است، نه `page_id` — چون صفحهٔ
                     // خانه از مسیر ریشه سرو می‌شود و اسلاگش با URL فرق دارد.
@@ -412,15 +420,24 @@ class PishdadSiteSeeder extends Seeder
                     $page('faq', 'سوالات متداول'),
                     $page('contact', 'تماس'),
                 ]]],
+                // جست‌وجو در سربرگ (E79) — بدونِ آن، نوار بالا با نسخهٔ زنده فرق
+                // می‌کرد و جست‌وجوی سایت عملاً غیرقابل دسترس می‌شد.
+                ['type' => 'search', 'settings' => []],
             ],
         ]);
 
         Setting::set('layout', 'global:footer', [
-            'layout' => ['columns' => 3],
+            // بدون ستونِ ثابت: ویجت‌ها خودشان با `place` بالا/پایینِ ستون‌ها
+            // را تعیین می‌کنند (E66/E79)، پس قالبِ سخت‌کدشده فقط محدودیت بود.
+            'layout' => [],
             'widgets' => [
-                ['type' => 'about', 'settings' => [
-                    'text' => 'پیشداد یک سامانهٔ مدیریت محتوای فارسی، راست‌به‌چپ و افزونه‌پذیر است.',
-                ]],
+                [
+                    'type' => 'about',
+                    // متنِ «درباره» از توضیحاتِ سایت خوانده می‌شود؛ اینجا
+                    // تکرارش نمی‌کنیم که دو منبعِ حقیقت نداشته باشیم.
+                    'place' => 'above',
+                    'settings' => [],
+                ],
                 ['type' => 'links', 'settings' => [
                     'title' => 'صفحه‌ها',
                     'links' => [

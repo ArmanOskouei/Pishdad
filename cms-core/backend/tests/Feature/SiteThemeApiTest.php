@@ -65,7 +65,10 @@ class SiteThemeApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(3, 'data.themes')
             ->assertJsonCount(3, 'data.presets')
-            ->assertJsonPath('data.selection.theme_slug', SiteThemeResolver::FALLBACK_THEME)
+            // E79 — seeder یک «انتخابِ فعال» برای قالبِ پیش‌فرض می‌سازد، پس
+            // اینجا دیگر `FALLBACK_THEME` نیست؛ «بدونِ انتخاب» حالتِ جداگانه‌ای
+            // است که `SiteThemeResolverTest` می‌سنجد.
+            ->assertJsonPath('data.selection.theme_slug', SiteThemeSeeder::DEFAULT_ACTIVE)
             ->assertJsonPath('data.selection.preset_slug', SiteThemeResolver::FALLBACK_PRESET)
             ->assertJsonPath('data.modes', ['light', 'dark', 'system']);
     }
@@ -111,7 +114,14 @@ class SiteThemeApiTest extends TestCase
             'mode' => 'light',
         ], $this->auth($u))->assertStatus(422);
 
-        $this->assertSame(0, DB::table('site_theme_settings')->count());
+        // ⚠️ E79 — عبارتِ «صفر سطر» دیگر درست نیست: seeder یک انتخابِ پیش‌فرض
+        // می‌سازد. قراردادِ واقعی این است که انتخابِ **نامعتبر** جایگزینِ
+        // انتخابِ معتبر نمی‌شود — و همین سنجیده می‌شود.
+        $this->assertSame(
+            SiteThemeSeeder::DEFAULT_ACTIVE,
+            SiteThemeResolver::selection(SiteThemeResolver::GLOBAL_OWNER)['theme_slug'],
+            'انتخابِ نامعتبر نباید انتخابِ معتبر را بچپاند.',
+        );
     }
 
     public function test_select_rejects_an_unknown_mode(): void
@@ -201,8 +211,17 @@ class SiteThemeApiTest extends TestCase
         ], $this->auth($u))->assertStatus(422);
     }
 
+    /**
+     * ⭐ `422` وقتی هنوز هیچ انتخابی وجود ندارد.
+     *
+     * ⚠️ E79 — از وقتی seeder یک انتخابِ پیش‌فرض می‌سازد، این تست بدونِ پاک‌کردنِ
+     * صریح، هرگز `422` نمی‌گرفت و **سبزِ دروغین** می‌شد. اینجا حالتِ واقعیِ
+     * «هیچ انتخابی نیست» ساخته می‌شود، نه با فرضِ خاموشیِ پیش‌فرض.
+     */
     public function test_overrides_requires_a_selection_first(): void
     {
+        DB::table('site_theme_settings')->delete();
+
         $u = $this->admin();
 
         $this->putJson('/api/v1/admin/site-theme/overrides', [
@@ -300,13 +319,42 @@ class SiteThemeApiTest extends TestCase
         );
     }
 
+    /**
+     * ⭐ E79 — فعال‌کردنِ قالبی که **از قبل فعال است** باید بی‌اثر و بی‌خطر باشد.
+     *
+     * نسخهٔ قبلی `forceFill(['active' => true])->save()` بود: چون مقدار از قبل
+     * `true` بود، مدل dirty نمی‌شد و UPDATE نمی‌رفت، در حالی که خطِ قبل همه را
+     * خاموش کرده بود. نتیجه: نصب **بدونِ قالبِ فعال** می‌ماند و سایت به
+     * پیش‌فرضِ بی‌پوسته می‌افتد.
+     *
+     * این باگ تا وقتی پیش‌فرض `minimal` بود پنهان بود، چون فعال‌کردنِ `commerce`
+     * همیشه یک تغییرِ واقعی بود.
+     */
+    public function test_activating_the_already_active_theme_keeps_it_active(): void
+    {
+        $u = $this->admin();
+
+        $commerce = DB::table('themes')->where('slug', 'commerce')->first();
+        $this->assertTrue((bool) DB::table('themes')->where('id', $commerce->id)->value('active'));
+
+        $this->postJson("/api/v1/admin/themes/{$commerce->id}/activate", [], $this->auth($u))
+            ->assertOk();
+
+        $this->assertSame(1, DB::table('themes')->where('active', true)->count());
+        $this->assertTrue((bool) DB::table('themes')->where('id', $commerce->id)->value('active'));
+    }
+
     public function test_activate_a_builtin_theme_also_forgets_the_chrome_cache(): void
     {
         $u = $this->admin();
 
         $this->getJson('/api/v1/site/chrome')->assertOk();
 
+        $editorial = DB::table('themes')->where('slug', 'editorial')->first();
         $commerce = DB::table('themes')->where('slug', 'commerce')->first();
+
+        $this->postJson("/api/v1/admin/themes/{$editorial->id}/activate", [], $this->auth($u))
+            ->assertOk();
 
         $this->postJson("/api/v1/admin/themes/{$commerce->id}/activate", [], $this->auth($u))
             ->assertOk();
@@ -401,8 +449,10 @@ class SiteThemeApiTest extends TestCase
     public function test_exactly_one_theme_is_active(): void
     {
         $this->assertSame(1, DB::table('themes')->where('active', true)->count());
+        // E79 — پیش‌فرضِ نصبِ تازه «commerce» است (همان قالبِ سایتِ نمایشی)،
+        // نه اولین درون‌ساخت. این مقدار عمداً قفل است تا تغییرِ بی‌صدایی نکند.
         $this->assertSame(
-            'minimal',
+            'commerce',
             DB::table('themes')->where('active', true)->value('slug'),
         );
     }
