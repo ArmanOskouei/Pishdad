@@ -32,7 +32,9 @@ final class PageSearchProvider implements SearchableProvider
             if ($combined === '') {
                 continue;
             }
-            if (mb_strpos(PersianText::normalize($combined), $normalizedQuery) === false) {
+            // E85 — اول تطابقِ دقیقِ نرمال، وگرنه فازیِ تحمل‌کنندهٔ غلط
+            // (غوانین → قوانین). هر دو روی همان نرمال‌سازی‌اند.
+            if (! PersianText::fuzzyIncludes(PersianText::normalize($combined), $normalizedQuery)) {
                 continue;
             }
 

@@ -83,7 +83,8 @@ class MediaController extends Controller
             }
         }
         if ($search = $request->query('search')) {
-            $query->where('original_name', 'ilike', "%{$search}%");
+            // E85 — فارسی‌دوست (نام فایل: ارمان↔آرمان + غلط املایی نزدیک).
+            \App\Search\PersianText::whereFa($query, (string) $search, ['original_name']);
         }
 
         return response()->json(

@@ -18,8 +18,8 @@ class RedirectController extends Controller
         $query = Redirect::query()->orderByDesc('id');
 
         if ($search = $request->query('search')) {
-            $query->where(fn ($q) => $q->where('from_path', 'ilike', "%{$search}%")
-                ->orWhere('to_path', 'ilike', "%{$search}%"));
+            // E85 — فارسی‌دوست (مسیرها معمولاً لاتین‌اند؛ الگو بی‌ضرر است).
+            \App\Search\PersianText::whereFa($query, (string) $search, ['from_path', 'to_path']);
         }
 
         if ($request->query('active') !== null && $request->query('active') !== '') {

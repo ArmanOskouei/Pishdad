@@ -33,13 +33,8 @@ class CatalogService
 
         $q = trim((string) ($filters['q'] ?? ''));
         if ($q !== '') {
-            $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q).'%';
-            $query->where(function ($w) use ($like): void {
-                $w->where('name', 'ilike', $like)
-                    ->orWhere('slug', 'ilike', $like)
-                    ->orWhere('description', 'ilike', $like)
-                    ->orWhere('manifest->description', 'ilike', $like);
-            });
+            // E85 — فارسی‌دوست (نام/توضیح فارسی افزونه‌ها: چندفرمی + غلط نزدیک).
+            \App\Search\PersianText::whereFa($query, $q, ['name', 'slug', 'description', "(manifest->>'description')"]);
         }
 
         $category = trim((string) ($filters['category'] ?? ''));
