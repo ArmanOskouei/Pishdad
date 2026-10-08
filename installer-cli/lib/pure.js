@@ -8,16 +8,16 @@ const REPO_URL = 'https://github.com/ArmanOskouei/Pishdad.git';
 const INSTALL_URL = 'http://127.0.0.1:8080/install';
 
 const REQUIRED_PHP_EXTENSIONS = [
+  // E84 — exactly the hard list from Install\Preflight::run(), no more.
+  // sodium is NOT here on purpose: it resolves at runtime, native ext first
+  // and paragonie/sodium_compat (a real composer dependency) otherwise.
+  // zip/bcmath/gd/curl are useful but preflight does not block on them,
+  // so neither do we — the web installer is the final authority anyway.
   'pdo_pgsql',
-  'sodium',
-  'intl',
-  'bcmath',
   'mbstring',
-  'zip',
-  'gd',
-  'fileinfo',
-  'curl',
   'openssl',
+  'intl',
+  'fileinfo',
 ];
 
 /**
@@ -69,6 +69,8 @@ function parseArgs(argv) {
     frontend: true,
     serve: true,
     open: true,
+    dockerContainer: null,
+    native: false,
   };
   const rest = [...argv];
   if (rest[0] && !rest[0].startsWith('-')) opts.command = rest.shift();
@@ -80,6 +82,8 @@ function parseArgs(argv) {
     else if (a === '--no-frontend') opts.frontend = false;
     else if (a === '--no-serve') opts.serve = false;
     else if (a === '--no-open') opts.open = false;
+    else if (a === '--native') opts.native = true;
+    else if (a === '--docker-container' && rest[i + 1]) opts.dockerContainer = rest[++i];
     else if (a === '--dir' && rest[i + 1]) opts.dir = rest[++i];
     else if (!a.startsWith('-') && !opts.dir) opts.dir = a;
     else throw new Error(`unknown option: ${a}\nSee: pishdad install --help`);
@@ -146,6 +150,11 @@ Options:
   --no-frontend    skip the frontend entirely
   --no-serve       do not start servers at the end
   --no-open        do not open the browser (prints the URL instead)
+  --docker-container <name>
+                   run backend commands inside this container instead of a
+                   native PHP (the checkout must be mounted in it — proven,
+                   never assumed; no second server is started)
+  --native         ignore Docker even when it has a working PHP
 
 Examples:
   npx pishdad install

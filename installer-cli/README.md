@@ -1,27 +1,25 @@
-# pishdad — one-command installer
+﻿# pishdad â€” one-command installer
 
 ```bash
 npx pishdad install [dir] [options]
 ```
 
-Installs [Pishdad](https://github.com/ArmanOskouei/Pishdad) (پیشداد) —
-backend + frontend — and opens the easy 6-step web installer in your browser.
+Installs [Pishdad](https://github.com/ArmanOskouei/Pishdad) (Ù¾ÛŒØ´Ø¯Ø§Ø¯) â€”
+backend + frontend â€” and opens the easy 6-step web installer in your browser.
 Windows, macOS and Linux. Zero dependencies (Node.js builtins only).
 
 ## What one command does
 
-1. **Prerequisites** — audits PHP (+10 extensions), Composer, PostgreSQL,
-   Node.js and git. Missing something? Re-run with `--yes` to install it
-   automatically (needs sudo/admin), or install by hand — the exact command
-   is printed, never guessed.
-2. **Code** — `git clone --depth 1` (or `git pull --ff-only` if the folder
-   already is a checkout).
-3. **Backend** — `composer install --no-dev`, `.env` from the example
-   (never overwritten), app key.
-4. **Frontend** — `npm ci` (skip with `--no-frontend`).
-5. **Serve + open** — starts the backend and opens
-   `http://127.0.0.1:8000/install`, where the web installer finishes the job
-   (database, migrate, superadmin, demo content).
+1. **Finds PHP â€” everywhere, not just PATH.** Native `PATH`, well-known
+   install folders (XAMPP/Laragon/winget dirs), then running Docker
+   containers. Several found? You pick (Enter = default). Nothing usable?
+   Only then is a download offered â€” and only with your explicit Yes.
+2. **Other prerequisites** — Composer, PostgreSQL client, Node.js, git: offered one by one with the official command, installed on Yes, re-verified afterwards. No to a critical tool stops loudly; No to Node continues with backend only.
+3. **Code** — `git clone --depth 1` (or `git pull --ff-only` if the folder already is a checkout).
+4. **Backend** — `composer install --no-dev`, `.env` from the example (never overwritten), app key. With `--docker-container` (or a picked container) the same commands run via `docker exec -w /var/www/html` — after proving the checkout is mounted there.
+5. **Frontend** -- 
+5. **Frontend** — `npm ci` (skip with `--no-frontend`).
+6. **Serve + open** — native mode starts the backend and opens `http://127.0.0.1:8080/install`; Docker mode starts nothing new and opens the same URL. The 6-step web installer finishes the job (database, migrate, superadmin, demo).
 
 ## Options
 
@@ -44,7 +42,7 @@ npx pishdad install ./mysite --yes # full auto install into ./mysite
 
 - PostgreSQL reachability is reported, not required up front: the web
   installer accepts any host (local server, Docker, remote).
-- On a headless server there is no browser to open — the URL is printed and
+- On a headless server there is no browser to open â€” the URL is printed and
   the installer is opened from your own machine (`http://<server>:8080/install`).
 - Shared cPanel hosting without root cannot auto-install system packages; use
   the [cPanel guide](https://github.com/ArmanOskouei/Pishdad/blob/main/INSTALL.md)

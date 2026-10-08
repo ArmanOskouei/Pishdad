@@ -52,6 +52,8 @@ describe('parseArgs', () => {
       frontend: true,
       serve: true,
       open: true,
+      dockerContainer: null,
+      native: false,
     });
   });
 

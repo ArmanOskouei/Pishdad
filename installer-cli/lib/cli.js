@@ -38,6 +38,140 @@ function askYesNo(question, def, asker) {
     loop();
   });
 }
+const { DOCKER_WORKDIR, discoverPhp, pickPhp, probeDockerPhp } = require('./detect.js');
+
+function describePhp(p) {
+  if (p.kind === 'path') return `native PHP on PATH (php ${p.version})`;
+  if (p.kind === 'file') return `native PHP at ${p.ref} (php ${p.version})`;
+  return `Docker container '${p.ref}' (php ${p.version}${p.image ? `, image ${p.image}` : ''})`;
+}
+
+/** `docker ps` → [{name, image}]. Empty list when Docker is absent. */
+function listContainers() {
+  const r = execRun('docker', ['ps', '--format', '{{.Names}}\t{{.Image}}'], { silent: true });
+  if (!r.ok) return [];
+  return r.out
+    .split(/[\r\n]+/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [name, ...rest] = l.split('\t');
+      return { name, image: rest.join('\t') };
+    })
+    .filter((c) => c.name);
+}
+
+/**
+ * E84 — resolve which PHP runs the backend, without ever guessing.
+ *
+ * Returns the choice ({kind, ref, version, ...}), null when none exists
+ * (caller falls through to the download offer), or false when the user
+ * declined / the forced container is unusable (message already printed).
+ */
+async function resolvePhpChoice(opts, deps) {
+  const io = {
+    exists: fs.existsSync,
+    exec: (cmd, args) => execRun(cmd, args, { silent: true }),
+    ps: listContainers,
+  };
+
+  // Forced container: prove it, or fail loudly — never fall back silently.
+  if (opts.dockerContainer) {
+    const r = probeDockerPhp(io, opts.dockerContainer);
+    if (!r) {
+      say(`Container '${opts.dockerContainer}' has no working PHP 8.2+. Check the name with: docker ps`);
+      return false;
+    }
+    const proven = proveContainerCheckout(opts.dockerContainer);
+    if (!proven) return false;
+    return { kind: 'docker', ref: opts.dockerContainer, ...r };
+  }
+
+  let found = discoverPhp(io, process.platform, process.env);
+  if (opts.native) found = found.filter((f) => f.kind !== 'docker');
+
+  const picked = pickPhp(found);
+  if (!picked) return null;
+  if (picked.choice) {
+    if (picked.choice.kind !== 'docker') return picked.choice;
+    if (!proveContainerCheckout(picked.choice.ref)) return false;
+    return picked.choice;
+  }
+
+  // Several usable PHPs: the user picks, default = first. Never guess
+  // between native and Docker — they are different machines, really.
+  say('\nSeveral working PHPs found:');
+  picked.alternatives.forEach((f, i) => say(`  [${i + 1}] ${describePhp(f)}`));
+  const idx = await askNumber(`Use [1-${picked.alternatives.length}]?`, 1, deps.askNumber);
+  const sel = picked.alternatives[idx - 1] || picked.alternatives[0];
+  say(`Using ${describePhp(sel)}.`);
+  if (sel.kind === 'docker' && !proveContainerCheckout(sel.ref)) return false;
+  return sel;
+}
+
+/** Pick a number (1-based). Injectable like askYesNo. */
+function askNumber(question, def, asker) {
+  if (asker) return Promise.resolve(asker(question, def));
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    const loop = () => {
+      rl.question(`${question} [${def}] `, (answer) => {
+        const t = String(answer || '').trim();
+        if (t === '') {
+          rl.close();
+          resolve(def);
+          return;
+        }
+        const n = parseInt(t, 10);
+        if (!Number.isInteger(n) || n < 1) {
+          say('Please type a number from the list (or Enter for the default).');
+          loop();
+        } else {
+          rl.close();
+          resolve(n);
+        }
+      });
+    };
+    loop();
+  });
+}
+
+/**
+ * A Docker PHP is only usable when THIS checkout is mounted inside it:
+ * `php artisan --version` must answer from the backend workdir.
+ */
+function proveContainerCheckout(container) {
+  const r = execRun('docker', ['exec', '-w', DOCKER_WORKDIR, container, 'php', 'artisan', '--version'], { silent: true });
+  if (!r.ok) {
+    say(`Container '${container}' has PHP, but this project is not mounted in it (php artisan did not answer from ${DOCKER_WORKDIR}).`);
+    say('Mount the checkout into the container (or run natively), then re-run.');
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Backend command runner. Native: direct binaries in the checkout dir.
+ * Docker: same commands prefixed with `docker exec -w <workdir> <container>`.
+ */
+function makeBeRunner(opts, deps) {
+  void deps;
+  const be = path.resolve(opts.dir || 'Pishdad', 'pishdad-core', 'backend');
+  if (opts.phpChoice && opts.phpChoice.kind === 'docker') {
+    const c = opts.phpChoice.ref;
+    return {
+      mode: 'docker',
+      describe: (s) => `$ docker exec -w ${DOCKER_WORKDIR} ${c} ${s}`,
+      run: (tool, args) => execRun('docker', ['exec', '-w', DOCKER_WORKDIR, c, tool, ...args]),
+    };
+  }
+  return {
+    mode: 'native',
+    describe: (s) => `$ ${s}`,
+    run: (tool, args) => execRun(tool, args, { cwd: be }),
+  };
+}
+
 /** Map a failed audit row to the tool key installCommand() understands. */
 function toolFor(rowName) {
   if (rowName.startsWith('PHP')) return 'php';
@@ -56,7 +190,16 @@ async function cmdInstall(opts, deps) {
   let rows = audit();
   printAudit(rows);
 
-  const missing = rows.filter((r) => !r.ok && toolFor(r.name));
+  // E84 — exhaustive PHP resolution BEFORE anyone offers a download.
+  // PATH is only the first place; a usable PHP in XAMPP/Laragon/winget-dir
+  // or inside a Docker container must win over downloading a new one.
+  const php = await resolvePhpChoice(opts, deps);
+  if (php === false) return 2; // user declined / unusable container, already told why
+  const missing = rows.filter((r) => !r.ok && toolFor(r.name) && !(php && r.name.startsWith('PHP')));
+  if (php) {
+    opts.phpChoice = php;
+    say(`\nPHP: using ${describePhp(php)} (verified: version + all extensions).`);
+  }
   if (opts.check) {
     say(missing.length === 0 ? '\nReady. Nothing to install.' : `\nMissing: ${missing.length} item(s). Re-run with --yes to install them (needs sudo/admin).`);
     return missing.length === 0 ? 0 : 2;
@@ -135,9 +278,13 @@ async function cmdInstall(opts, deps) {
     return 1;
   }
 
+  // E84 — the backend runner: native binaries, or a Docker container that
+  // already has this checkout mounted (proven below, never assumed).
+  // `runBe('composer', [...])` / `runBe('php', [...])` hide the difference.
+  const beRunner = makeBeRunner(opts, deps);
   say('\n== 3/5 backend ==');
-  say('$ composer install --no-dev --optimize-autoloader');
-  if (!execSteps('composer', () => execRun('composer', ['install', '--no-dev', '--optimize-autoloader'], { cwd: be })).ok) return 1;
+  say(beRunner.describe('composer install --no-dev --optimize-autoloader'));
+  if (!execSteps('composer', () => beRunner.run('composer', ['install', '--no-dev', '--optimize-autoloader'])).ok) return 1;
 
   const envFile = path.join(be, '.env');
   if (!fs.existsSync(envFile)) {
@@ -146,8 +293,8 @@ async function cmdInstall(opts, deps) {
   } else {
     say('.env exists — kept as is (never overwritten)');
   }
-  say('$ php artisan key:generate (only if empty)');
-  execSteps('keygen', () => execRun('php', ['artisan', 'key:generate'], { cwd: be }));
+  say('backend key step (only if empty)');
+  execSteps('keygen', () => beRunner.run('php', ['artisan', 'key:generate']));
 
   if (opts.frontend) {
     say('\n== 4/5 frontend ==');
@@ -164,9 +311,16 @@ async function cmdInstall(opts, deps) {
   }
 
   say('\n== 5/5 serve + open ==');
-  const logDir = path.join(dir, '.local', 'logs');
-  say('$ php artisan serve --host=127.0.0.1 --port=8080  (background, log: .local/logs/)');
-  startDetached('php', ['artisan', 'serve', '--host=127.0.0.1', '--port=8080'], be, path.join(logDir, 'backend.log'));
+  const dockerMode = !!(opts.phpChoice && opts.phpChoice.kind === 'docker');
+  if (!dockerMode) {
+    const logDir = path.join(dir, '.local', 'logs');
+    say('$ php artisan serve --host=127.0.0.1 --port=8080  (background, log: .local/logs/)');
+    startDetached('php', ['artisan', 'serve', '--host=127.0.0.1', '--port=8080'], be, path.join(logDir, 'backend.log'));
+  } else {
+    // The container already serves the backend (that is why it exists);
+    // starting a second server would only fight over the port.
+    say(`Docker mode: container '${opts.phpChoice.ref}' already serves the backend — no new server started.`);
+  }
 
   say('waiting for the API (up to 3 min)…');
   if (!(await waitHttp('http://127.0.0.1:8080/api/v1/site/status', 180))) {
