@@ -113,6 +113,7 @@
             <file>tests/Feature/PageUnpublishTest.php</file>
             <file>tests/Feature/PagesTest.php</file>
             <file>tests/Feature/PerformanceSettingsTest.php</file>
+            <file>tests/Feature/PersianSearchTest.php</file>
             <file>tests/Feature/PishdadSiteSeederTest.php</file>
             <file>tests/Feature/PluginAutoloaderTest.php</file>
             <file>tests/Feature/PluginContractExampleIntegrityTest.php</file>

@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { SEARCH_DEBOUNCE_MS, searchReady } from "@/lib/search-timing";
 import { authed } from "@/lib/auth";
 import { asPaginator, validateLinkTree, LINK_LIMITS, type ChromeLinkItem, type PageItem } from "@/lib/domain";
 import { faNum } from "@/lib/fa";
@@ -77,22 +78,59 @@ export function LinkListEditor({
   const tree = useMemo(() => value.map(norm), [value]);
   const errors = useMemo(() => validateLinkTree(tree), [tree]);
 
+  // E85 — مثل بقیهٔ لایو‌سرچ‌ها: زیر ۳ حرف ریکوئست نمی‌زند و بعد از آخرین
+  // حرف ۳۰۰ms صبر می‌کند. قبلاً هر حرف یک ریکوئست به `/v1/admin/pages` می‌زد.
+  // فهرستِ بدون فیلتر یک‌بار کش می‌شود تا تایپِ ۱–۲ حرفی هم ریکوئست نزند.
+  const baseRef = useRef<{ forOpen: Path | null; rows: PageItem[] }>({ forOpen: null, rows: [] });
   useEffect(() => {
-    let alive = true;
+    if (!openFor) return;
+    const query = q.trim();
+    if (!searchReady(query)) {
+      // زیر آستانه: همان ۳۰ تای اولِ بدون فیلتر — ولی فقط وقتی باز شد، نه
+      // با هر حرف. در غیر این صورت «ار» دو ریکوئست می‌زد و کلِ صرفه‌جویی
+      // می‌پرید.
+      if (baseRef.current.forOpen === openFor) {
+        setPages(baseRef.current.rows);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      let alive = true;
+      authed<unknown>(`/v1/admin/pages?status=published&per_page=30`)
+        .then((json) => {
+          if (!alive) return;
+          const rows = asPaginator<PageItem>(json).data;
+          baseRef.current = { forOpen: openFor, rows };
+          setPages(rows);
+        })
+        .catch(() => {
+          if (alive) setPages([]);
+        })
+        .finally(() => {
+          if (alive) setLoading(false);
+        });
+      return () => {
+        alive = false;
+      };
+    }
     setLoading(true);
-    const qs = `/v1/admin/pages?status=published&per_page=30${q.trim() ? `&search=${encodeURIComponent(q.trim())}` : ""}`;
-    authed<unknown>(qs)
-      .then((json) => {
-        if (alive) setPages(asPaginator<PageItem>(json).data);
-      })
-      .catch(() => {
-        if (alive) setPages([]);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
+    let alive = true;
+    const t = setTimeout(() => {
+      const qs = `/v1/admin/pages?status=published&per_page=30&search=${encodeURIComponent(query)}`;
+      authed<unknown>(qs)
+        .then((json) => {
+          if (alive) setPages(asPaginator<PageItem>(json).data);
+        })
+        .catch(() => {
+          if (alive) setPages([]);
+        })
+        .finally(() => {
+          if (alive) setLoading(false);
+        });
+    }, SEARCH_DEBOUNCE_MS);
     return () => {
       alive = false;
+      clearTimeout(t);
     };
   }, [q, openFor]);
 

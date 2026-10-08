@@ -76,7 +76,8 @@ class PageController extends Controller
             $query->where('status', $status);
         }
         if ($search = $request->query('search')) {
-            $query->where(fn ($q) => $q->where('title', 'ilike', "%{$search}%")->orWhere('slug', 'ilike', "%{$search}%"));
+            // E85 — فارسی‌دوست: چندفرمی‌ها (ارمان↔آرمان) + تحمل غلط املایی.
+            \App\Search\PersianText::whereFa($query, (string) $search, ['title', 'slug']);
         }
         if ($request->query('seo') === 'unhealthy') {
             $query->whereRaw($this->seoUnhealthySql());
@@ -474,7 +475,8 @@ class PageController extends Controller
         $query = Page::query()->onlyTrashed()->withCount('revisions');
 
         if ($search = $request->query('search')) {
-            $query->where(fn ($q) => $q->where('title', 'ilike', "%{$search}%")->orWhere('slug', 'ilike', "%{$search}%"));
+            // E85 — فارسی‌دوست: چندفرمی‌ها (ارمان↔آرمان) + تحمل غلط املایی.
+            \App\Search\PersianText::whereFa($query, (string) $search, ['title', 'slug']);
         }
 
         $pages = $query->latest('deleted_at')->paginate((int) $request->query('per_page', 15));

@@ -48,13 +48,15 @@ test("هر دو موتور از گیتِ مشترک می‌خوانند", () => 
   );
 });
 
-/** هر چهار نقطهٔ مصرف باید ثابتِ مشترک را بخوانند، نه عددِ دستی. */
-test("هر چهار مصرف‌کننده ثابتِ مشترک را می‌خوانند", () => {
+/** هر پنج نقطهٔ مصرف باید ثابتِ مشترک را بخوانند، نه عددِ دستی. */
+test("هر پنج مصرف‌کننده ثابتِ مشترک را می‌خوانند", () => {
   const users = [
     "components/search/AdminSearch.tsx",
     "components/search/SearchResults.tsx",
     "components/site/SiteSearchBox.tsx",
     "components/site/SiteSearchResults.tsx",
+    // E85 — انتخاب‌گر صفحه در هدر/فوتر هم هر حرف یک ریکوئست می‌زد.
+    "components/admin/LinkListEditor.tsx",
   ];
   for (const f of users) {
     const src = read(`../${f}`);

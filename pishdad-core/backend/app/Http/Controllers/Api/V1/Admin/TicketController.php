@@ -85,11 +85,15 @@ class TicketController extends Controller
             $query->whereJsonContains('labels', $label);
         }
 
-        // دسته ۱ (برابری UI/UX): جستجوی متنی موضوع + متن پیام‌ها.
+        // دسته ۱ (برابری UI/UX): جستجوی متنی موضوع + متن پیام‌ها (E85: فارسی‌دوست).
         if ($search = trim((string) $request->query('search', ''))) {
             $query->where(fn ($q) => $q
-                ->where('subject', 'ilike', "%{$search}%")
-                ->orWhereHas('messages', fn ($m) => $m->where('body', 'ilike', "%{$search}%")));
+                ->where(function ($x) use ($search): void {
+                    \App\Search\PersianText::whereFa($x, $search, ['subject']);
+                })
+                ->orWhereHas('messages', fn ($m) => $m->where(function ($x) use ($search): void {
+                    \App\Search\PersianText::whereFa($x, $search, ['body']);
+                })));
         }
 
         return $query;

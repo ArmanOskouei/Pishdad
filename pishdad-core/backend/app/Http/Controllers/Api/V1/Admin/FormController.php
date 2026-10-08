@@ -22,7 +22,8 @@ class FormController extends Controller
         $query = Form::query()->withCount('submissions');
 
         if ($search = $request->query('search')) {
-            $query->where(fn ($q) => $q->where('name', 'ilike', "%{$search}%")->orWhere('slug', 'ilike', "%{$search}%"));
+            // E85 — فارسی‌دوست.
+            \App\Search\PersianText::whereFa($query, (string) $search, ['name', 'slug']);
         }
 
         return response()->json($query->latest()->paginate((int) $request->query('per_page', 15)));
