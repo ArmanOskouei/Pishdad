@@ -34,17 +34,22 @@ class SiteThemeApiTest extends TestCase
     {
         parent::setUp();
 
+        // S-05 — مسیرهای نوشتنِ قالب/قالبِ سایت perm می‌خواهند؛ مدیرِ این
+        // تست باید نقشِ واقعیِ spatie بگیرد و assignRole بدونِ سیدر خطا می‌دهد.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
         $this->seed(SiteThemeSeeder::class);
     }
 
     private function admin(): User
     {
+        // S-05 — مسیرهای نوشتنِ قالب/قالبِ سایت perm می‌خواهند؛ مدیرِ این
+        // تست باید نقشِ spatie هم بگیرد، نه فقط ستونِ قدیمی.
         return User::query()->create([
             'name' => 'مدیر',
             'email' => uniqid().'@example.com',
             'password' => Hash::make('Pass!1234'),
             'role' => 'admin',
-        ])->fresh();
+        ])->fresh()->assignRole('admin');
     }
 
     /** @return array<string, string> */

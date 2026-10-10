@@ -11,6 +11,13 @@ use Tests\TestCase;
 class RobotsSettingsTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // S-05 -- panel write routes need perms; the user helper assigns a real
+        // spatie role, and assignRole fails without the seeded roles.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
+    }
 
     private function user(): User
     {
@@ -19,7 +26,7 @@ class RobotsSettingsTest extends TestCase
             'email' => 'robots'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     public function test_robots_and_gsc_fields_roundtrip(): void

@@ -14,6 +14,13 @@ use Tests\TestCase;
 class LayoutsTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // S-05 -- panel write routes need perms; the user helper assigns a real
+        // spatie role, and assignRole fails without the seeded roles.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
+    }
 
     private function user(): User
     {
@@ -22,7 +29,7 @@ class LayoutsTest extends TestCase
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     public function test_header_returns_defaults_then_roundtrips(): void

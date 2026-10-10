@@ -35,7 +35,7 @@ class SidePresetsTest extends TestCase
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
         $user->givePermissionTo('pages.view', 'pages.edit');
 
         return $user;

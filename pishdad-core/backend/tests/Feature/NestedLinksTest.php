@@ -18,6 +18,13 @@ use Tests\TestCase;
 class NestedLinksTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // S-05 -- panel write routes need perms; the user helper assigns a real
+        // spatie role, and assignRole fails without the seeded roles.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
+    }
 
     private function user(): User
     {
@@ -26,7 +33,7 @@ class NestedLinksTest extends TestCase
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     private function page(User $owner, string $slug, string $title): Page

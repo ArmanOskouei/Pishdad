@@ -25,6 +25,13 @@ use Tests\TestCase;
 class MediaQuotaTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // S-05 -- panel write routes need perms; the user helper assigns a real
+        // spatie role, and assignRole fails without the seeded roles.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
+    }
 
     private const GIB = 1024 * 1024 * 1024;
 
@@ -151,7 +158,7 @@ class MediaQuotaTest extends TestCase
             'email' => 'm'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     /**

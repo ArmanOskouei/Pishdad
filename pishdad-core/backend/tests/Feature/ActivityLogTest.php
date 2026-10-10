@@ -31,7 +31,9 @@ class ActivityLogTest extends TestCase
             'role' => 'admin',
         ], $overrides));
 
-        $user->givePermissionTo('pages.view', 'pages.edit', 'pages.delete', 'users.view');
+        // S-05 — حذفِ رسانه حالا perm:media.delete می‌خواهد؛ بدونش تستِ
+        // «media delete records activity» ۴۰۳ می‌گرفت.
+        $user->givePermissionTo('pages.view', 'pages.edit', 'pages.delete', 'users.view', 'media.edit', 'media.delete');
 
         return $user->fresh();
     }

@@ -18,6 +18,13 @@ use Tests\TestCase;
 class LogoWidgetTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // S-05 -- panel write routes need perms; the user helper assigns a real
+        // spatie role, and assignRole fails without the seeded roles.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
+    }
 
     private function user(): User
     {
@@ -26,7 +33,7 @@ class LogoWidgetTest extends TestCase
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     public function test_schema_has_no_media_id_or_size(): void

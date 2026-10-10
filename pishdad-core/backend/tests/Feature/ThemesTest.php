@@ -35,7 +35,7 @@ class ThemesTest extends TestCase
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     private function zipWithManifest(?array $manifest): string

@@ -19,6 +19,13 @@ use Tests\TestCase;
 class AccessibilityStatementTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // S-05 -- panel write routes need perms; the user helper assigns a real
+        // spatie role, and assignRole fails without the seeded roles.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
+    }
 
     private function user(): User
     {
@@ -27,7 +34,7 @@ class AccessibilityStatementTest extends TestCase
             'email' => 'a'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     public function test_accessibility_statement_roundtrips_and_is_publicly_exposed(): void

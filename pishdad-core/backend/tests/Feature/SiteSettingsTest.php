@@ -14,6 +14,13 @@ use Tests\TestCase;
 class SiteSettingsTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // S-05 -- panel write routes need perms; the user helper assigns a real
+        // spatie role, and assignRole fails without the seeded roles.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
+    }
 
     private function user(): User
     {
@@ -22,7 +29,7 @@ class SiteSettingsTest extends TestCase
             'email' => 'u'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     public function test_site_returns_defaults(): void
@@ -272,7 +279,7 @@ class SiteSettingsTest extends TestCase
             'email' => 'super'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'),
             'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
 
         $this->actingAs($admin, 'sanctum')->putJson('/api/v1/admin/settings/site', [
             'title' => 'سایت مدیر',
@@ -457,7 +464,7 @@ class SiteSettingsTest extends TestCase
         $user = User::query()->create([
             'name' => 'ت', 'email' => 'rev'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'), 'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
         $this->actingAs($user, 'sanctum')->putJson('/api/v1/admin/settings/site', [
             'title' => 'سایت تست',
         ])->assertOk();
@@ -471,7 +478,7 @@ class SiteSettingsTest extends TestCase
         $user = User::query()->create([
             'name' => 'ت', 'email' => 'chrome'.uniqid().'@example.com',
             'password' => Hash::make('Secret!123'), 'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
         $auth = $this->actingAs($user, 'sanctum');
 
         // پرایم کش کروم با مقدار قدیمی (کلید settings:site_chrome:chrome-default-{id}).

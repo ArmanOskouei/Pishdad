@@ -12,13 +12,20 @@ use Tests\TestCase;
 class MediaExtrasTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // S-05 -- panel write routes need perms; the user helper assigns a real
+        // spatie role, and assignRole fails without the seeded roles.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
+    }
 
     private function user(): User
     {
         return User::query()->create([
             'name' => 'مشتری', 'email' => uniqid().'@example.com',
             'password' => Hash::make('Secret!123'), 'role' => 'admin',
-        ]);
+        ])->assignRole('admin');
     }
 
     private function file(User $user, int $size, bool $trashed = false): Media
