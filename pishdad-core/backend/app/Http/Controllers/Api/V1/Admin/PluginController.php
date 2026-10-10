@@ -166,7 +166,14 @@ class PluginController extends Controller
     {
         // مشترک: وجود رکورد (404 بایندینگ) + احراز هویت کافی است.
 
-        return response()->json(['data' => $this->present($plugin)]);
+        $data = $this->present($plugin);
+
+        // S-12 فاز ۱ — پnل باید بگوید کدام routeها **بدونِ احراز هویت** سرو
+        // می‌شوند. بدون این، فاز ۱ چیزی جز لاگ نیست.
+        $data['public_routes'] = app(\App\Services\Plugins\PluginRouteTable::class)
+            ->publicRoutesFor($plugin->slug);
+
+        return response()->json(['data' => $data]);
     }
 
     public function upload(Request $request): JsonResponse

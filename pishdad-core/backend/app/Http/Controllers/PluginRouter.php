@@ -199,6 +199,25 @@ class PluginRouter extends Controller
             ], 409);
         }
 
+        // S-12 فاز ۱ — گاردِ دفاعی.
+        //
+        // `compileRoute` از این پس `public` را در خروجی می‌گذارد. این گارد
+        // فقط برای موردِ **صریحاً** نادرست است: routeی که خودش گفته
+        // `public: false` ولی هیچ `auth:*` هم ندارد — یعنی بدونِ احراز هویت و
+        // بدونِ اعلامِ عمومی. `public` غایب (= ورودیِ قدیمی پیش از v2) مثل
+        // قبل public ضمنی است و فقط هشدار می‌گیرد (تصمیمِ فاز ۱).
+        $declaredPublic = array_key_exists('public', $route) ? $route['public'] : null;
+        $hasAuth = collect($route['middleware'])->contains(fn ($m) => is_string($m) && str_starts_with($m, 'auth:'));
+        if ($declaredPublic === false && ! $hasAuth) {
+            Log::warning('plugin.route_guard_rejected', [
+                'slug' => $slug,
+                'path' => $route['path'] ?? null,
+                'reason' => 'public:false without auth middleware',
+            ]);
+
+            return response()->json(['message' => 'یافت نشد.'], 404);
+        }
+
         // K5.4 — میان‌افزارهای route **اجرا** می‌شوند.
         //
         // ⚠️ این اجرا **نمی‌شدند**. `PluginRouteTable::compileMiddleware()`

@@ -84,7 +84,10 @@ use Illuminate\Support\Str;
 final class PluginRouteTable
 {
     /** کلید کش جدول. `v1` در کلید است تا تغییر شکل بدون باطل‌کردن کش ممکن باشد. */
-    public const CACHE_KEY = 'plugin:routes:table:v1';
+    public const CACHE_KEY = 'plugin:routes:table:v2';
+
+    /** S-12 — mirror of Plugin::REVIEW_APPROVED without coupling this table to the model. */
+    public const REVIEW_APPROVED = 'approved';
 
     /** @see self::flush() چرا این عدد کوچک است. */
     public const CACHE_TTL = 30;
@@ -218,6 +221,29 @@ final class PluginRouteTable
     }
 
     /**
+     * S-12 فاز ۱ — routeهای همان slug، برای نمایشِ «کدام مسیرها عمومی‌اند»
+     * در پnل. از همان جدولِ کش‌شده می‌خواند تا یک منبعِ حقیقت باشد.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function forSlug(string $slug): array
+    {
+        $declared = $this->all()[$slug] ?? [];
+
+        return is_array($declared) ? $declared : [];
+    }
+
+    /** routeهای عمومیِ یک slug، به شکلِ `METHOD /path`. */
+    public function publicRoutesFor(string $slug): array
+    {
+        return collect($this->forSlug($slug))
+            ->filter(fn ($route) => is_array($route) && ($route['public'] ?? false) === true)
+            ->map(fn ($route) => $route['method'].' '.$route['path'])
+            ->values()
+            ->all();
+    }
+
+    /**
      * باطل‌کردن جدول. باید کنار `ManifestRegistry::flushCache()` صدا زده شود.
      *
      * static است چون تنها کارش `Cache::forget` روی یک ثابت کلاسی است و
@@ -341,7 +367,7 @@ final class PluginRouteTable
                 continue;
             }
 
-            $routes = $this->compileRoutes($slug, $plugin->manifest);
+            $routes = $this->compileRoutes($slug, $plugin->manifest, (string) $plugin->review_status);
 
             if ($routes !== []) {
                 $table[$slug] = ['slug' => $slug, 'routes' => $routes];
@@ -360,7 +386,7 @@ final class PluginRouteTable
      *
      * @return list<array<string, mixed>>
      */
-    private function compileRoutes(string $slug, mixed $manifest): array
+    private function compileRoutes(string $slug, mixed $manifest, string $reviewStatus = 'pending'): array
     {
         $api = is_array($manifest) ? ($manifest['api'] ?? null) : null;
 
@@ -395,7 +421,7 @@ final class PluginRouteTable
                 continue;
             }
 
-            $entry = $this->compileRoute($slug, $namespace, $route);
+            $entry = $this->compileRoute($slug, $namespace, $route, $reviewStatus);
 
             if ($entry === null) {
                 continue;
@@ -423,7 +449,7 @@ final class PluginRouteTable
      * @param  array<string, mixed>  $route
      * @return array<string, mixed>|null
      */
-    private function compileRoute(string $slug, string $namespace, array $route): ?array
+    private function compileRoute(string $slug, string $namespace, array $route, string $reviewStatus = 'pending'): ?array
     {
         $method = is_string($route['method'] ?? null) ? strtoupper($route['method']) : '';
 
@@ -457,6 +483,58 @@ final class PluginRouteTable
             return null;
         }
 
+        // ── S-12 فاز ۱: حداقلِ احراز هویت برای مسیرهای نوشتنِ عمومی ──────────
+        //
+        // پیش از این هیچ شرطی روی `auth:*` نبود: یک بستهٔ امضاشده می‌توانست
+        // `POST` عمومی اعلام کند و در پروسس وب اجرا شود. قاعده:
+        //
+        //   - `auth:*` دارد ⇒ احراز هویت دارد (خوب).
+        //   - `public: true` صریح دارد ⇒ بدونِ احراز هویت، ولی اگر متد
+        //     نوشتن است و بستهٔ approved نیست ⇒ مسیر دور ریخته می‌شود
+        //     (بستهٔ pending نمی‌تواند endpoint عمومیِ نوشتن بسازد).
+        //   - `public` غایب ⇒ legacy: ضمنیِ public (سازگاری عقب‌رو) با
+        //     هشدارِ صریح در لاگ.
+        //   - `public: "true"` (رشته) عمداً رد می‌شود — فقط `=== true`.
+        $declaredPublic = array_key_exists('public', $route) ? $route['public'] : null;
+        $isPublic = $declaredPublic === true;
+        $hasAuth = collect($middleware)->contains(fn ($m) => is_string($m) && str_starts_with($m, 'auth:'));
+
+        if ($declaredPublic !== null && ! $isPublic) {
+            $this->reject($slug, 'public_not_boolean_true', ['value' => is_scalar($declaredPublic) ? $declaredPublic : gettype($declaredPublic)]);
+
+            return null;
+        }
+
+        if ($declaredPublic === null) {
+            Log::warning('plugin.route_public_implicit', [
+                'slug' => $slug,
+                'method' => $method,
+                'path' => $compiled['path'],
+                'review_status' => $reviewStatus,
+                'note' => 'public was not declared; treated as public for backwards compatibility',
+            ]);
+        }
+
+        $isWrite = in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true);
+        if ($isPublic && $isWrite && $reviewStatus !== self::REVIEW_APPROVED) {
+            $this->reject($slug, 'public_write_not_approved', [
+                'method' => $method,
+                'path' => $compiled['path'],
+                'review_status' => $reviewStatus,
+            ]);
+
+            return null;
+        }
+
+        // فاز ۲ (config/plugins.php::require_declared_public): مسیر بدونِ
+        // `auth:*` و بدونِ `public: true` صریح دور ریخته می‌شود. تا وقتی کلید
+        // خاموش است، رفتارِ legacy حفظ می‌شود.
+        if (config('plugins.require_declared_public') === true && ! $hasAuth && ! $isPublic) {
+            $this->reject($slug, 'auth_not_declared', ['method' => $method, 'path' => $compiled['path']]);
+
+            return null;
+        }
+
         return [
             'method' => $method,
             'path' => $compiled['path'],
@@ -464,6 +542,7 @@ final class PluginRouteTable
             'params' => $compiled['params'],
             'handler' => $target['class'].'@'.$target['method'],
             'middleware' => $middleware,
+            'public' => $isPublic,
         ];
     }
 

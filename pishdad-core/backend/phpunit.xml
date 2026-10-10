@@ -139,6 +139,7 @@
             <file>tests/Feature/PluginPrefixGuardTest.php</file>
             <file>tests/Feature/PluginReactivationCycleTest.php</file>
             <file>tests/Feature/PluginRouteCacheInvalidationTest.php</file>
+            <file>tests/Feature/PluginPublicRouteTest.php</file>
             <file>tests/Feature/PluginRouteMethodTest.php</file>
             <file>tests/Feature/PluginRouteRegistrationTest.php</file>
             <file>tests/Feature/PluginRouterTest.php</file>
