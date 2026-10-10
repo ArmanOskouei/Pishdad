@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverApiBase } from "@/lib/server-api-base";
 
-/** ست‌کردن دستی کوکی سشن (بعد از login موفق سمت کلاینت) + logout. */
-export async function POST(req: NextRequest) {
-  const { token } = await req.json().catch(() => ({}));
-  if (!token) return NextResponse.json({ message: "توکن الزامی است." }, { status: 400 });
-  // SEC-4 — `secure` روی HTTPS فعال می‌شود؛ روی HTTPِ خالصِ محلی لازم نیست.
-  const cookieOpts = { httpOnly: true, sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 24 * 7, secure: process.env.NODE_ENV === "production" };
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set("auth_token", token, cookieOpts);
-  return res;
+/**
+ * SEC-3 — نشست.
+ *
+ * `POST` **حذف شد**: قبلاً توکن را از **بدنهٔ کلاینت** می‌گرفت و کوکی
+ * می‌ساخت. یعنی هر کسی که یک توکنِ لو رفته داشته باشد (لاگ، HAR، تاریخچهٔ
+ * DevTools) می‌توانست آن را در مرورگرِ قربانی تزریق کند. کوکی حالا فقط
+ * توسط خودِ Route Handlerهای `login`/`verify-2fa` ست می‌شود.
+ *
+ * `410 Gone` برمی‌گرداند، نه `405`: باندلِ کهنهٔ کش‌شده پیامِ قابل‌فهم
+ * می‌گیرد و کاربر را به ورودِ دوباره می‌فرستد، به‌جای خطای خامِ متد.
+ */
+
+const GONE = { message: "ست‌کردن کوکی از سمت کلاینت دیگر پشتیبانی نمی‌شود — دوباره وارد شوید." };
+
+export async function POST() {
+  return NextResponse.json(GONE, { status: 410 });
 }
 
 export async function DELETE(req: NextRequest) {

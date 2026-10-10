@@ -26,6 +26,7 @@ class User extends Authenticatable
         'role',
         'google2fa_secret',
         'google2fa_enabled',
+        'two_factor_exempt',
         'recovery_codes',
     ];
 
@@ -42,6 +43,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'google2fa_enabled' => 'boolean',
+        'two_factor_exempt' => 'boolean',
             'notification_daily_digest' => 'boolean',
             'recovery_codes' => 'array',
             'avatar_media_id' => 'integer',

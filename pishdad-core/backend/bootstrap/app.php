@@ -1,9 +1,9 @@
 <?php
 
-use App\Http\Controllers\Install\EnsureTwoFactorSetup;
 use App\Http\Controllers\Install\InstallGuard;
 use App\Http\Middleware\EnsureAdminIpAllowed;
 use App\Http\Middleware\EnsurePermission;
+use App\Http\Middleware\EnsureTwoFactorSetup;
 use App\Http\Middleware\GateDevModeUpload;
 use App\Http\Middleware\RequireUserRole;
 use Illuminate\Auth\AuthenticationException;

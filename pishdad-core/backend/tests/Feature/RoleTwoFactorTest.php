@@ -109,4 +109,86 @@ class RoleTwoFactorTest extends TestCase
             ->assertJsonPath('requires_2fa_setup', false)
             ->assertJsonPath('two_factor_required', false);
     }
+
+    // ── S-11: میدل‌ور سخت ───────────────────────────────────────────────────
+
+    private function securedUser(string $email, bool $twoFa = false): User
+    {
+        $role = Role::create(['name' => 'secure-'.$email, 'guard_name' => 'web', 'requires_2fa' => true]);
+        $user = $this->user($email, [
+            'google2fa_secret' => $twoFa ? 'JBSWY3DPEHPK3PXP' : null,
+            'google2fa_enabled' => $twoFa,
+        ]);
+        $user->assignRole($role);
+
+        return $user->fresh();
+    }
+
+    public function test_required_role_without_2fa_is_blocked_from_the_panel(): void
+    {
+        $user = $this->securedUser('blocked@example.com');
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/admin/dashboard/stats')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'two_factor_setup_required');
+
+        // مسیرهای درمان باز می‌مانند — وگرنه کاربر هیچ‌وقت راهِ درمان را نمی‌بیند.
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/profile')->assertOk();
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/profile/2fa/methods')->assertOk();
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/auth/logout')->assertOk();
+
+        // و مسیرهایی که امنیت را پایین می‌آورند مسدود می‌مانند.
+        $this->actingAs($user, 'sanctum')->putJson('/api/v1/admin/profile', ['name' => 'x'])->assertForbidden();
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/admin/profile/2fa/disable')->assertForbidden();
+    }
+
+    public function test_guest_is_never_blocked_by_the_middleware(): void
+    {
+        config(['security.two_factor_enforcement' => true]);
+        $this->getJson('/api/v1/site/pages')->assertOk();
+    }
+
+    public function test_enabling_2fa_unblocks_the_panel_without_restart(): void
+    {
+        $user = $this->securedUser('recover@example.com');
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')->assertForbidden();
+
+        $user->forceFill(['google2fa_secret' => 'JBSWY3DPEHPK3PXP', 'google2fa_enabled' => true])->save();
+
+        $this->actingAs($user->fresh(), 'sanctum')->getJson('/api/v1/admin/dashboard/stats')->assertOk();
+    }
+
+    public function test_role_without_the_flag_is_not_blocked(): void
+    {
+        $role = Role::create(['name' => 'plain-back-compat', 'guard_name' => 'web']);
+        $user = $this->user('plainbc@example.com');
+        $user->assignRole($role);
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')->assertOk();
+    }
+
+    public function test_the_kill_switch_restores_access(): void
+    {
+        $user = $this->securedUser('killswitch@example.com');
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')->assertForbidden();
+
+        config(['security.two_factor_enforcement' => false]);
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')->assertOk();
+    }
+
+    public function test_exempt_user_bypasses_the_enforcement(): void
+    {
+        $user = $this->securedUser('exempt@example.com');
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')->assertForbidden();
+
+        $user->forceFill(['two_factor_exempt' => true])->save();
+        $this->actingAs($user->fresh(), 'sanctum')->getJson('/api/v1/admin/dashboard/stats')->assertOk();
+    }
+
+    public function test_blocked_access_is_logged(): void
+    {
+        $user = $this->securedUser('logged@example.com');
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/admin/dashboard/stats')->assertForbidden();
+    }
 }

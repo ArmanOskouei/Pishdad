@@ -73,8 +73,8 @@ type Ctx = {
    * تایمر معلق را لغو می‌کند؛ ذخیره واقعی فقط با تأیید (PUT مستقیم). */
   set: (p: Partial<ThemeState>, opts?: { persist?: boolean }) => void;
   toggleMode: () => void;
-  syncToServer: (token: string) => Promise<void>;
-  pullFromServer: (token: string) => Promise<void>;
+  /** SEC-3 — توکن حذف شد: تم از پروکسیِ هم‌مبدأ (کوکی httpOnly) رد می‌شود. */
+  pullFromServer: () => Promise<boolean>;
   markLoggedOut: () => void;
 };
 
@@ -160,19 +160,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     apply({ ...prev, mode });
   }, [apply]);
 
-  const syncToServer = useCallback(async (token: string) => {
-    const t = load();
-    await api("/v1/ui-settings", {
-      method: "PUT", token,
-      body: { dir: t.dir, preset: t.preset, accent: t.accent, mode: t.mode, radius: t.radius, density: t.density, font: t.font },
-    }).catch(() => undefined);
-  }, []);
-
-  const pullFromServer = useCallback(async (token: string) => {
-    const s = await api<UiSettings>("/v1/ui-settings", { token }).catch(() => null);
-    if (s) {
-      loggedInRef.current = true;
-      set({ ...s, accent: s.accent ?? PRESET_ACCENT[s.preset] ?? "indigo" }, { persist: false });
+  const pullFromServer = useCallback(async (): Promise<boolean> => {
+    // SEC-3 — بدون Bearer: کوکی httpOnly را Route Handlerِ پروکسی می‌خواند و
+    // خودش Authorization را می‌سازد. false یعنی کوکی نیست/ست نشده.
+    try {
+      const res = await fetch("/api/proxy/v1/ui-settings", { cache: "no-store", headers: { Accept: "application/json" } });
+      if (!res.ok) return false;
+      const json = await res.json().catch(() => null);
+      const s = (json?.data ?? json) as UiSettings | null;
+      if (s) {
+        loggedInRef.current = true;
+        set({ ...s, accent: s.accent ?? PRESET_ACCENT[s.preset] ?? "indigo" }, { persist: false });
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
   }, [set]);
 
@@ -182,7 +185,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     clearPending();
   }, [clearPending]);
 
-  return <ThemeCtx.Provider value={{ theme, set, toggleMode, syncToServer, pullFromServer, markLoggedOut }}>{children}</ThemeCtx.Provider>;
+  return <ThemeCtx.Provider value={{ theme, set, toggleMode, pullFromServer, markLoggedOut }}>{children}</ThemeCtx.Provider>;
 }
 
 export function useTheme(): Ctx {

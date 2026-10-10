@@ -7,7 +7,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, isChallenge, type LoginResult, type User } from "@/lib/api";
+import { isChallenge, type LoginResult, type User } from "@/lib/api";
 import { LOGIN_PATH } from "@/lib/login-path";
 import { useTheme } from "@/lib/theme";
 
@@ -24,10 +24,6 @@ type Ctx = {
 };
 
 const AuthCtx = createContext<Ctx | null>(null);
-
-async function setCookie(token: string) {
-  await fetch("/api/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -51,14 +47,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setChallenge(null);
     const needsSetup = r.requires_2fa_setup === true;
-    await setCookie(r.token);
+    // SEC-3 — کوکی را Route Handler در همان پاسخِ ورود ست کرده؛ اینجا هیچ
+    // توکنی در دسترس نیست. `pullFromServer()` هم دیگر توکن نمی‌گیرد: از
+    // پروکسیِ هم‌مبدأ (کوکی httpOnly) رد می‌شود.
+    const themePulled = await pullFromServer();
+    // ⭐ اگر تم از سرور نیامید، یعنی کوکی واقعاً ست نشده (کوکی‌های بستهٔ
+    // مرورگر، مسیرِ نامعتبر). سکوتِ اینجا یعنی کاربر داشبورد می‌بیند و
+    // همه‌چیز ۴۰1 می‌دهد — بی‌صدا. به ورود برمی‌گردانیم.
+    if (!themePulled) {
+      setUser(null);
+      setSetupRequired(false);
+      window.location.href = LOGIN_PATH;
+      return;
+    }
     // دو setState پیاپی در یک بلوک، پس React هر دو را با هم flush می‌کند و
     // دروازهٔ لاگین هیچ‌گاه با وضعیتِ ناهم‌زمان به داشبورد نمی‌پرد.
     setUser(r.user);
     setSetupRequired(needsSetup);
     // قلب ۰.۲: DB مرجع نهایی است — فقط تم سرور را بکش.
-    // عمداً sync (push) نمی‌کنیم تا پیش‌فرض‌های localStorage مرورگر تازه روی DB بازنویسی نشود.
-    await pullFromServer(r.token);
   }, [pullFromServer]);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -114,10 +120,18 @@ export class ApiError extends Error {
   }
 }
 
+/** SEC-3/S-11 — ۴۰۳ِ «۲FA اجباری» را به صفحهٔ پروفایل هدایت می‌کند. */
+function redirectIfTwoFactorRequired(res: { status: number }, json: any): void {
+  if (res.status === 403 && json?.code === "two_factor_setup_required") {
+    window.location.replace("/admin/profile?setup=2fa");
+  }
+}
+
 /** فراخوانی multipart احرازهویت‌شده (آپلود ZIP قالب/پلاگین) — boundary دست‌نخورده می‌ماند. */
 export async function authedForm<T>(path: string, form: FormData, method = "POST"): Promise<T> {
   const res = await fetch(`/api/proxy${path}`, { method, body: form, cache: "no-store" });
   const json = await res.json().catch(() => ({}));
+  redirectIfTwoFactorRequired(res, json);
   if (res.status === 401) { window.location.href = LOGIN_PATH; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
   // بدنهٔ کامل نگه داشته می‌شود: اعتبارسنجی پلاگین جزئیات ساختاریافته در
   // بدنهٔ خطا برمی‌گرداند و UI باید بتواند آن را رندر کند، نه فقط پیام را.
@@ -146,6 +160,7 @@ export async function authedEnvelope<T>(path: string, init?: { method?: string; 
     cache: "no-store",
   });
   const json = await res.json().catch(() => ({}));
+  redirectIfTwoFactorRequired(res, json);
   if (res.status === 401) { window.location.href = LOGIN_PATH; throw new ApiError("نشست منقضی شد — دوباره وارد شوید.", 401, json); }
   if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
   return {
@@ -165,6 +180,7 @@ export async function authed<T>(path: string, init?: { method?: string; body?: u
     cache: "no-store",
   });
   const json = await res.json().catch(() => ({}));
+  redirectIfTwoFactorRequired(res, json);
   // B7: هر دو مسیر `ApiError` می‌دهند و هر دو ۴۰۱ را `ApiError` با status 401.
   // پیام و `instanceof Error` تغییر نمی‌کند ⇒ هیچ مصرف‌کننده‌ای نمی‌شکند،
   // ولی UI می‌تواند «نشست منقضی» را از «خطای اعتبارسنجی» جدا کند.
@@ -172,3 +188,4 @@ export async function authed<T>(path: string, init?: { method?: string; body?: u
   if (!res.ok) throw new ApiError(json?.message ?? "خطایی رخ داد.", res.status, json);
   return (json?.data ?? json) as T;
 }
+

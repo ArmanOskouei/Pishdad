@@ -31,17 +31,23 @@ function faMessage(status: number, backendMsg?: string): string {
 type ApiOpts = {
   method?: string;
   body?: unknown;
-  token?: string;
   /** برای revalidate بعدی ISR — فعلاً no-store در پنل (داده زنده ادمین). */
   cache?: RequestCache;
 };
 
+/**
+ * SEC-3 — گزینهٔ `token` از این لایه **حذف شد**.
+ *
+ * پیش از این مرورگر می‌توانست `Authorization: Bearer` بسازد و همان‌جا هر
+ * XSS توکن را می‌دزدید. حالا Bearer فقط در Route Handlerهای سمتِ سرور ساخته
+ * می‌شود (کوکی httpOnly → پروکسی). حذفِ گزینه از تایپ یعنی نشت دوباره روی
+ * سطحِ کامپایل ناممکن است، نه فقط قراردادی.
+ */
 export async function api<T>(
   path: string,
-  { method = "GET", body, token, cache = "no-store" }: ApiOpts = {},
+  { method = "GET", body, cache = "no-store" }: ApiOpts = {},
 ): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
@@ -65,9 +71,14 @@ export type User = {
   created_at_jalali?: string | null;
 };
 
-export type TokenResponse = {
-  token: string;
-  token_type: "Bearer";
+/**
+ * SEC-3 — پاسخِ موفقِ ورود، **بدون `token`**.
+ *
+ * `token` هرگز به مرورگر نمی‌رود: Route Handler آن را در کوکی httpOnly
+ * می‌نشاند. `token_type` هم رفت چون راهنمای ساخت Bearer بود و دیگر مرورگر
+ * Bearer نمی‌سازد.
+ */
+export type LoginOkResponse = {
   two_factor_required: false;
   /** WF-M8 — نقش کاربر «۲FA اجباری» است ولی هنوز فعال نشده؛ به پروفایل هدایت شود. */
   requires_2fa_setup?: boolean;
@@ -80,7 +91,7 @@ export type ChallengeResponse = {
   message: string;
 };
 
-export type LoginResult = TokenResponse | ChallengeResponse;
+export type LoginResult = LoginOkResponse | ChallengeResponse;
 
 export function isChallenge(r: LoginResult): r is ChallengeResponse {
   return r.two_factor_required === true;

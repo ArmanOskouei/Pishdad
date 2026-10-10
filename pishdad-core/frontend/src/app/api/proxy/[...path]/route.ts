@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkPath } from "@/lib/proxy-allowlist";
 import { serverApiBase } from "@/lib/server-api-base";
+import { clientIpHeaders } from "@/lib/client-ip";
 
 /** پروکسی احرازهویت‌شده: /api/proxy/v1/admin/... → بک‌اند با Bearer از کوکی httpOnly. */
 
@@ -20,6 +21,23 @@ async function proxy(req: NextRequest, path: string[]) {
   const target = `${serverApiBase()}/${decision.path}${req.nextUrl.search}`;
   const contentType = req.headers.get("content-type") ?? "";
 
+  // SEC-3/CSRF — لایهٔ دفاع برای متدهای نوشتن: `Origin` (یا `Sec-Fetch-Site`)
+  // باید با origin خودِ سرور یکی باشد. کوکی `SameSite=Lax` است و مرورگر آن
+  // را به POST بین‌سایتی نمی‌چسباند، ولی وابستگی به رفتار مرورگر به‌تنهایی
+  // کافی نیست (اشیای آینده، `SameSite=None`ِ اشتباهی). این چک مستقل از
+  // مرورگر است و درخواستِ تغییردهندهٔ بین‌سایتی را ۴۰۳ می‌کند.
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    const origin = req.headers.get("origin");
+    const fetchSite = req.headers.get("sec-fetch-site");
+    const sameOrigin =
+      fetchSite === "same-origin" ||
+      fetchSite === "none" ||
+      (origin !== null && origin === req.nextUrl.origin);
+    if (!sameOrigin) {
+      return NextResponse.json({ message: "درخواست از مبدأ نامعتبر." }, { status: 403 });
+    }
+  }
+
   // SEC-5 — سقفِ اندازهٔ بدنه. پیش از این هر دو مسیر (`arrayBuffer` برای
   // multipart و `text` برای JSON) بدنه را بی‌سقف در حافظه می‌خواندند؛ یک
   // کاربرِ احراز‌هویت‌شده می‌توانست پروسهٔ standalone را OOM کند. سقف‌ها
@@ -30,15 +48,11 @@ async function proxy(req: NextRequest, path: string[]) {
     return NextResponse.json({ message: "بدنهٔ درخواست بیش از حد بزرگ است." }, { status: 413 });
   }
 
-  // WF-M7 — انتقالِ نشانیِ واقعیِ کاربر (مثل روتِ login) تا فهرستِ IP مجاز و
-  // سقفِ تلاش per-IP روی IP پروکسی اعمال نشود. بدون این، بک‌اند فقط IP نودِ
-  // فرانت را می‌بیند و allowlist عملاً بی‌اثر می‌شود.
-  const forwardedFor = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip");
-  const proxyHeaders: Record<string, string> = {};
-  if (forwardedFor) {
-    proxyHeaders["X-Forwarded-For"] = forwardedFor;
-    proxyHeaders["X-Real-IP"] = forwardedFor.split(",")[0].trim();
-  }
+  // SEC-3/S-04 — انتقالِ نشانیِ واقعیِ کاربر: دیگر هدرِ مرورگر عیناً کپی
+  // نمی‌شود. `clientIpHeaders` در نبودِ پروکزیِ معتبر هیچ هدر IP نفرستد و
+  // بک‌اند آدرسِ همتای اتصال (غیرقابلِ جعل) را می‌بیند. تا TODAY، جعلِ
+  // `X-Forwarded-For` هم `admin.ip` را دور می‌زد و هم `throttle` ورود را.
+  const proxyHeaders: Record<string, string> = { ...clientIpHeaders(req) };
   const userAgent = req.headers.get("user-agent");
   if (userAgent) proxyHeaders["User-Agent"] = userAgent;
 

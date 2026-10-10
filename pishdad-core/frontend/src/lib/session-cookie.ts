@@ -70,3 +70,41 @@ export function inspectSessionToken(raw: unknown): SessionTokenDecision {
   }
   return { ok: true, token: raw };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEC-3 — نوشتنِ کوکیِ نشست، یک‌جا.
+//
+// چرا هِلپر: تا هر Route Handler دقیقاً همان پرچم‌ها را ست کند. پیش از این
+// `verify-2fa` بدون `secure` کوکی می‌ساخت و `login` جداگانه — یعنی دوبار
+// می‌شد پرچمی را فراموش کرد و همان‌جا یک شکافِ امنیتیِ بی‌صدا ساخت.
+export const SESSION_COOKIE = "auth_token";
+
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // ۷ روز، مطابقِ طولانی‌مدتِ PAT بک‌اند.
+
+/**
+ * `secure` فقط روی HTTPS. مرورگر روی HTTPِ خالصِ محلی کوکیِ Secure را
+ * دور می‌ریزد و کاربر بی‌صدا از پنل خارج می‌شود — پس شرط‌دار است، نه همیشه.
+ */
+export function sessionCookieOptions(): {
+  httpOnly: true;
+  sameSite: "lax";
+  path: string;
+  maxAge: number;
+  secure: boolean;
+} {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_MAX_AGE,
+    secure: process.env.NODE_ENV === "production",
+  };
+}
+
+/** ست‌کردنِ کوکیِ نشست روی یک پاسخ — تنها جایی که Route Handlerها باید استفاده کنند. */
+export function setSessionCookie(
+  res: { cookies: { set: (name: string, value: string, opts: ReturnType<typeof sessionCookieOptions>) => void } },
+  token: string,
+): void {
+  res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+}

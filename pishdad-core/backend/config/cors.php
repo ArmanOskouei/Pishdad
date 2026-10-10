@@ -32,7 +32,9 @@ return [
 
     'max_age' => 3600,
 
-    // فقط وقتی یک originِ صریح مجاز است معنا دارد (با `*` بی‌اثر است).
-    'supports_credentials' => true,
+    // SEC-3 — هیچ فراخوانیِ مرورگر→بک‌اند `credentials: 'include'` ندارد (پنل
+    // از پروکسیِ هم‌مبدأِ Next رد می‌شود و سایت عمومی `push.ts` صریحاً حذفش
+    // کرده). false یعنی هر مسیرِ احرازهویت‌شدهٔ cross-origin بسته است.
+    'supports_credentials' => false,
 
 ];

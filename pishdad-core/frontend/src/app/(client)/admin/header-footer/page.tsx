@@ -1,23 +1,24 @@
 import { cookies } from "next/headers";
 import { serverOne, serverApi } from "@/lib/server-api";
+import { serverApiBase } from "@/lib/server-api-base";
 import type { SiteChrome } from "@/lib/site";
 import type { LayoutData, WidgetSchema } from "@/lib/domain";
 import { Alert } from "@/components/ui/primitives";
 import { LayoutsClient } from "./LayoutsClient";
 
-const UPSTREAM =
-  process.env.INTERNAL_API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:8080/api";
-
 /**
  * کروم resolve‌شده (لینک‌های page با title/url زنده) برای پیش‌نمایش زنده.
  * با token کوکی و no-store خوانده می‌شود تا پس از ذخیره، پیش‌نمایش تازه باشد.
+ *
+ * SEC-6 — پایهٔ API در زمانِ درخواست از `serverApiBase()` خوانده می‌شود
+ * (config/runtime.json را می‌بیند)؛ نسخهٔ ماژول‌اسکوپِ قبلی نصب‌کنندهٔ وب را
+ * نادیده می‌گرفت. این هم Server Component است، پس ساختنِ Bearer از کوکیِ
+ * httpOnly اینجا **درست** است — همان الگوی پروکسی.
  */
 async function fetchChromeForAdmin(): Promise<SiteChrome | null> {
   try {
     const token = (await cookies()).get("auth_token")?.value;
-    const res = await fetch(`${UPSTREAM}/v1/site/chrome`, {
+    const res = await fetch(`${serverApiBase()}/v1/site/chrome`, {
       headers: {
         Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
