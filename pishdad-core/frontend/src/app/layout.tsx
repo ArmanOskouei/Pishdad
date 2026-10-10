@@ -42,15 +42,7 @@ export const metadata: Metadata = {
   },
 };
 
-/**
- * اسکریپت ضد FOUC: خواندن تم از localStorage و اعمال data-attributes قبل از رنگ.
- *
- * ⭐ ECO2 — روی سایتِ عمومی (`data-cms-surface="site"`) جهت/زبان را **دست نمی‌زند**:
- * آن‌ها سمت سرور از لوکالِ مسیر می‌آیند. اسکریپت تمِ پنل (localStorage) فقط برای
- * پوستهٔ پنل است؛ اجرای آن روی `/en` باعث می‌شد صفحهٔ انگلیسی پس از hydration
- * راست‌به‌چپ شود.
- */
-const ANTI_FOUC = `(function(){try{var h=document.documentElement;var s=h.getAttribute("data-cms-surface");var t=JSON.parse(localStorage.getItem("cms-ui-f1")||"{}");var mode=t.mode||"dark";if(mode==="system")mode=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";h.dataset.direction=t.preset||"amaliyat";h.dataset.theme=mode;h.dataset.accent=t.accent||"indigo";h.dataset.radius=t.radius||"sharp";h.dataset.density=t.density||"compact";h.dataset.fontSize=t.font||"md";if(s!=="site"){h.dir=t.dir||"rtl";/* F4.4: زبان از همان جهت می‌آید — دو کانالِ جدا یعنی صفحه‌ای که راست‌به‌چپ است ولی انگلیسی خوانده می‌شود (یا برعکس). */h.lang=h.dir==="ltr"?"en":"fa";}}catch(e){}})();`;
+
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // ECO2 — زبانِ سرور-رندر از هدرِ میدل‌ور می‌آید، نه از پارامترِ مسیر (layout

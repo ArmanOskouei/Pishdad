@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Services\Backup\BackupRunner;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -41,27 +42,22 @@ class BackupSettingsController extends Controller
         ]);
     }
 
-    /** اجرای بکاپ دستی. */
-    public function store(): JsonResponse
+    /**
+     * اجرای بکاپ دستی — P-04: حالا **صفی**.
+     *
+     * پیش از این `pg_dump` تا ۶۰۰ ثانیه داخلِ درخواست اجرا می‌شد و یک ورکرِ
+     * FPM را قفل می‌کرد. حالا Job صف می‌شود و پاسخ ۲۰۲ است؛ فایل وقتی آماده
+     * شد خودبه‌خود در فهرستِ همین صفحه می‌آید (لیست از روی دیسک خوانده
+     * می‌شود) و وضعیت از `BackupRunStore` در `schedule` می‌آید.
+     */
+    public function store(Request $request): JsonResponse
     {
-        try {
-            $result = $this->runner->run();
-        } catch (Throwable $e) {
-            // fail-closed: استثنای پیش‌بینی‌نشده هم پیام فارسی می‌دهد، نه ۵۰۰ خام.
-            return response()->json(['message' => 'پشتیبان‌گیری انجام نشد: '.$e->getMessage()], 422);
-        }
-
-        if (! $result['ok']) {
-            return response()->json(['message' => $result['message']], 422);
-        }
+        \App\Jobs\RunDatabaseBackup::dispatch(null, null, $request->user()?->id);
 
         return response()->json([
-            'message' => $result['message'],
-            'data' => [
-                'file' => $result['file'] !== null ? basename((string) $result['file']) : null,
-                'removed' => $result['removed'],
-            ],
-        ], 201);
+            'message' => 'پشتیبان‌گیری در پس‌زمینه آغاز شد؛ وقتی تمام شد در همین فهرست می‌آید.',
+            'code' => 'backup.queued',
+        ], 202);
     }
 
     /**
@@ -106,13 +102,18 @@ class BackupSettingsController extends Controller
         $url = config('backup.database_url');
         $enabled = is_string($url) && trim($url) !== '';
         $latest = $backups[0] ?? null;
+        $lastRun = \App\Services\Backup\BackupRunStore::read();
 
         return [
             'enabled' => $enabled,
             'at' => '03:15',
             'keep' => (int) config('backup.keep', 7),
-            'last_run' => $latest['created_at'] ?? null,
-            'last_file' => $latest['file'] ?? null,
+            'last_run' => $latest['created_at'] ?? ($lastRun['finished_at'] ?? null),
+            'last_file' => $latest['file'] ?? ($lastRun['file'] ?? null),
+            // P-04 — وضعیتِ اجرای صف‌شده: queued|running|done|failed.
+            'status' => $lastRun['status'] ?? null,
+            'last_message' => $lastRun['message'] ?? null,
+            'started_at' => $lastRun['started_at'] ?? null,
         ];
     }
 }

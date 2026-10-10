@@ -50,6 +50,34 @@ services:
       redis:
         condition: service_healthy
 
+  # P-04/P-05 — ورکرِ صف. چرا سرویسِ جدا و نه داخلِ `scheduler`: موتورِ
+  # تصویر (GD/Imagick) روی فایلِ بزرگ می‌تواند از سقفِ حافظهٔ scheduler بزند
+  # و OOM شدنش یعنی از کار افتادنِ **زمان‌بند**، نه فقط یک تصویر. جدایی ⇒
+  # سقفِ مستقل و تایم‌اوتِ واقعی. راننده `database` است (جدول jobs موجود)
+  # نه Redis: Redis اینجا کش/سشن/ISR است و payloadِ Job در آن رقابتِ بدی است.
+  worker:
+    build: .
+    container_name: ${PISHDAD_WORKER:-pishdad-worker}
+    restart: unless-stopped
+    mem_limit: ${PISHDAD_WORKER_MEM:-1g}
+    logging: *default-logging
+    command: ["php", "artisan", "queue:work", "--sleep=1", "--timeout=900", "--max-time=3600"]
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      # ⚠️⛔ اینجا هم `DB_DATABASE` نگذارید. (E63 — مثل سرویس app)
+      DB_USERNAME: cms
+      DB_PASSWORD: cmssecret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   # E76 — تیکِ دائمیِ صفِ تحویل (و زمان‌بندِ لاراول).
   #
   # چرا سرویسِ جدا و نه cron هاست: با هر نصب بالا می‌آید، به OS هاست وابسته

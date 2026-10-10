@@ -63,6 +63,24 @@ class MediaTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_content_upload_queues_the_optimizer_instead_of_running_inline(): void
+    {
+        // P-05: the image engine no longer runs inside the upload request.
+        \Illuminate\Support\Facades\Bus::fake();
+        Storage::fake('s3');
+
+        $user = $this->user();
+        $media = Media::query()->create([
+            'user_id' => $user->id, 'disk' => 's3', 'path' => 'media/1/t.png',
+            'original_name' => 't.png', 'mime' => 'image/png', 'size' => 70,
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->post("/api/v1/admin/media/{$media->id}/content", ['file' => $this->pngFile()])
+            ->assertOk();
+
+        \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\OptimizeMediaVariants::class);
+    }
     public function test_update_alt_and_trash_restore_permanent_cycle(): void
     {
         $user = $this->user();

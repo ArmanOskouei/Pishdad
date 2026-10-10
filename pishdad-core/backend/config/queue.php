@@ -39,7 +39,13 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            /*
+             * P-04 -- retry_after must exceed the longest job timeout. The old
+             * 90s default with RunDatabaseBackup (up to 900s) meant any second
+             * worker -- or queue:restart after a deploy -- released the job and
+             * ran TWO pg_dump processes on the same database.
+             */
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 1000),
             'after_commit' => false,
         ],
 
