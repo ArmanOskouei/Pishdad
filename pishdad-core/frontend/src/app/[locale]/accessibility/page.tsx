@@ -37,9 +37,12 @@ type Props = { params: Promise<{ locale: string }> };
 
 /** فقط زبانی سرو می‌شود که میدل‌ور اعلام کرده؛ نبودِ هدر = میدل‌ور خاموش. */
 async function localeAvailable(locale: PublicLocale): Promise<boolean> {
-  const h = await headers();
-  const list = parseLocalesHeader(h.get(SITE_LOCALES_HEADER));
-  return list.length === 0 || list.includes(locale);
+  // PERF-1 -- headers() made these content pages fully dynamic (no ISR at
+  // all). The locale list comes from the chrome we already fetch below, and
+  // stays fail-open like before.
+  const chrome = await fetchSiteChrome().catch(() => null);
+  const { locales } = effectiveLocale(chrome, locale);
+  return locales.length === 0 || locales.includes(locale);
 }
 
 function resolveLocale(raw: string): PublicLocale {

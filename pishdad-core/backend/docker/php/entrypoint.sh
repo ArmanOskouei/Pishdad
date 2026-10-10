@@ -39,4 +39,11 @@ mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage
 if [ "$#" -gt 0 ]; then
   exec "$@"
 fi
+# CP-6: when this container runs as a healthchecked service, verify FPM
+# is listening and Laravel answers /up. Inert in a normal run.
+if [ "${PISHDAD_HEALTHCHECK:-0}" = "1" ]; then
+  php -r 'exit((int)!@fsockopen("127.0.0.1", 9000));' || exit 1
+  php artisan up >/dev/null 2>&1 || exit 1
+fi
+
 exec php-fpm -F -R

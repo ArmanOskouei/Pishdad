@@ -46,7 +46,11 @@ export function isPublicSitePath(pathname: string): boolean {
   if (!seg) return true;
   if (NON_SITE_SEGMENTS.has(seg)) return false;
   // فایل ثابت (دارای پسوند) سایت نیست.
-  return !/\.[a-z0-9]+$/i.test(seg);
+  // PERF-1 -- a static asset such as /js/anti-fouc.js or /fonts/x.woff2 is
+  // not a site page and must never be rewritten to /fa/... . Testing only
+  // the FIRST segment meant /js/anti-fouc.js (no dot in "js") was rewritten
+  // and 404'd even though the file was on disk.
+  return !/\.[a-z0-9]+$/i.test(pathname);
 }
 
 /**

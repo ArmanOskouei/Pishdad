@@ -36,10 +36,8 @@ export default async function LocaleLayout({
 }) {
   const { locale: raw } = await params;
   const fromParams: PublicLocale = isPublicLocale(raw) ? raw : "fa";
-  const h = await headers();
-  const header = h.get("x-site-locale");
-  const locale: PublicLocale = isPublicLocale(header) ? header : fromParams;
-
+  // PERF-1 -- headers() here made every public page dynamic (ISR would die).
+  const locale: PublicLocale = fromParams;
   return (
     <div lang={publicHtmlLang(locale)} dir={publicDir(locale)} data-locale={locale}>
       <PageViewBeacon />

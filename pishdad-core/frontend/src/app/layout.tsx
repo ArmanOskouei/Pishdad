@@ -1,25 +1,10 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import "./vazirmatn.css";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
 import { LanguageProvider } from "@/lib/i18n";
 import { AuthProvider } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/Toast";
-import { isPublicLocale, publicDir, publicHtmlLang } from "@/lib/i18n/public";
-import { SITE_LOCALE_HEADER } from "@/lib/public-routing";
-import { publicConfigScript } from "@/lib/runtime-config";
-import { effectivePublicConfig } from "@/lib/site-config";
-import { fetchSiteChrome, siteFontPreloadEnabled } from "@/lib/site";
-
-/**
- * فونت وزیرمتن — فقط و فقط محلی: `vazirmatn.css` روی `public/fonts/*.woff2`.
- *
- * PERF-2: تا امروز اینجا `next/font/google` هم بود که در زمانِ بیلد از
- * fonts.googleapis.com فایل می‌گرفت. دو مشکل: (۱) روی میزبانِ بیلدِ
- * آفلاین/ایران `next build` fail می‌شد، (۲) خانواده تکراری با نسخهٔ محلی و
- * رقابتِ preload. حالا تک‌منبعِ محلی.
- */
 
 export const metadata: Metadata = {
   title: "پنل مدیریت CMS",
@@ -34,57 +19,46 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/icons/icon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icons/icon-128.png", sizes: "128x128", type: "image/png" },
-      { url: "/icons/icon-256.png", sizes: "256x256", type: "image/png" },
+      { url: "/icons/icon-32.png", sizes: "32", type: "image/png" },
+      { url: "/icons/icon-128.png", sizes: "128", type: "image/png" },
+      { url: "/icons/icon-256.png", sizes: "256", type: "image/png" },
     ],
-    apple: [{ url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }],
+    apple: [{ url: "/icons/icon-512.png", sizes: "180" }],
   },
 };
 
-
-
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // ECO2 — زبانِ سرور-رندر از هدرِ میدل‌ور می‌آید، نه از پارامترِ مسیر (layout
-  // به `params` دسترسی ندارد). میدل‌ور برای سایتِ عمومی `x-site-locale` را ست
-  // می‌کند؛ پنل/API آن را ندارند و در نتیجه به پیش‌فرضِ fa/rtl می‌مانند.
-  const h = await headers();
-  const raw = h.get(SITE_LOCALE_HEADER);
-  const siteLocale = isPublicLocale(raw) ? raw : null;
-  // SEC-2 — nonce پروکسی برای دو اسکریپتِ inline (بدون 'unsafe-inline' در CSP).
-  const nonce = h.get("x-nonce") ?? undefined;
-
-  // WF-M13 — preload فونت فقط برای سایتِ عمومی و فقط اگر در تنظیمات کارایی
-  // روشن باشد. فونت همیشه محلی است (هرگز CDN خارجی) و `font-display: swap`
-  // تضمین می‌کند خاموش‌کردن preload تجربه را نمی‌شکند.
-  const siteChrome = siteLocale ? await fetchSiteChrome().catch(() => null) : null;
-  const preloadFont = siteFontPreloadEnabled(siteChrome);
-
+/**
+ * PERF-1 — لایوت دیگر `headers()` نمی‌خواند.
+ *
+ * ECO2 قدیمی زبانِ سایت را از هدرِ میدل‌ور می‌گرفت. ولی `headers()` هر صفحهٔ
+ * عمومی را **داینامیک** می‌کرد و `export const revalidate = 300` را می‌کشت —
+ * کل سایت عملاً SSR در هر درخواست بود. حالا:
+ *
+ *   - زبان/جهتِ سایتِ عمومی در `[locale]/layout.tsx` از پارامترِ مسیر
+ *     می‌آید (و همان `<div lang dir>` در HTML است — گوگل از هر عنصری
+ *     می‌خواند).
+ *   - پیکربندیِ زمانِ اجرا به مسیرِ `/runtime-config.js` رفت (کششدنی،
+ *     بدون نیاز به nonce ⇒ بدون مجبورکردنِ صفحه به داینامیک).
+ *   - تم ضدِ FOUC هم فایلِ استاتیک شد.
+ *
+ * `data-cms-surface` حذف شد چون فقط سمتِ کلاینت خوانده می‌شد و دو اسکریپتِ
+ * `<head>` الآن سطح را از `__CMS_CONFIG__.panelRoots` می‌شناسند.
+ *
+ * فونت همیشه محلی است (هرگز CDN خارجی) و `font-display: swap` تضمین می‌کند
+ * خاموش‌کردن preload تجربه را نمی‌شکند.
+ */
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang={siteLocale ? publicHtmlLang(siteLocale) : "fa"}
-      dir={siteLocale ? publicDir(siteLocale) : "rtl"}
-      data-cms-surface={siteLocale ? "site" : "panel"}
-      suppressHydrationWarning
-    >
+    <html lang="fa" dir="rtl" suppressHydrationWarning>
       <head>
-        {/* مقدارهای عمومی در **زمانِ درخواست** اینجا نوشته می‌شوند، نه در
-            زمانِ بیلد. دلیلش: یک باندلِ بیلدشده باید روی هر سروری، با هر
-            نشانیِ API، «نصب» شود — نه اینکه برای هر نصب دوباره ساخته شود.
-            مصرف‌کننده‌اش `lib/runtime-config.ts` است.
-            SEC-2: nonce از پروکسی می‌آید تا CSP بتواند بدون 'unsafe-inline'
-            همین دو اسکریپتِ inline را مجاز کند. */}
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: publicConfigScript(effectivePublicConfig()) }} />
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: ANTI_FOUC }} />
-        {preloadFont ? (
-          <link
-            rel="preload"
-            href="/fonts/Vazirmatn-Regular.woff2"
-            as="font"
-            type="font/woff2"
-            crossOrigin="anonymous"
-          />
-        ) : null}
+        {/* PERF-1: پیکربندیِ زمانِ درخواست + تم ضدِ FOUC — اسکریپتِ کلاسیکِ
+            بلاک‌کننده و به‌ترتیب، پس قبل از اولین رنگ اجرا می‌شوند (همان
+            تضمینِ ضد-FOUC) اما بدون nonce و بدون inline. */}
+        <script src="/runtime-config.js" />
+        <script src="/js/anti-fouc.js" />
+        {/* WF-M13 — فونت محلی، preload بی‌قید و شرط (پنل هم همان فونت را
+            دارد). */}
+        <link rel="preload" href="/fonts/Vazirmatn-Regular.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         {/* F5.2 — لینکِ صریحِ iOS. `metadata.icons.apple` هم همین را می‌سازد،
             ولی این‌جا دستی هم هست تا اگر بعداً metadata عوض شد، نصب روی iOS
             ناگهان بی‌آیکون نشود. */}

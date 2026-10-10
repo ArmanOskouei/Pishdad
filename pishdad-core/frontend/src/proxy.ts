@@ -24,23 +24,53 @@ import { effectiveValue, isInstalled } from "./lib/site-config.ts";
  * راستی‌آزمایی می‌کند. این لایه فقط دروازهٔ اولیهٔ پوستهٔ پنل است.
  */
 export async function proxy(req: NextRequest, event: NextFetchEvent) {
-  // SEC-2 — CSP با nonce. برای هر درخواست یک nonce ساخته می‌شود، روی هدرِ
-  // درخواست (`x-nonce`) می‌نشیند تا لایوت آن را روی اسکریپت‌های inline بگذارد،
-  // و روی پاسخ به‌عنوان هدرِ CSP می‌آید. `strict-dynamic` اجازه می‌دهد اسکریپت‌های
-  // هش‌دارِ Next به‌صورت پویا بارگذاری شوند بدون اینکه هر هش را دستی فهرست کنیم.
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  // PERF-1/SEC-2 -- CSP by page SURFACE.
+  //
+  // A nonce in Next means "this page must be dynamically rendered", and
+  // dynamic rendering means no ISR -- i.e. the public site would never be
+  // cached. So:
+  //
+  //   - panel: nonce + strict-dynamic (the panel is never static; no
+  //     conflict). The nonce is also set on the REQUEST header because Next
+  //     reads it from there -- otherwise Next's own scripts and
+  //     siteModeBootstrapJs render without a nonce and CSP blocks them.
+  //   - public site: no nonce, `script-src 'self' 'unsafe-inline'`. The only
+  //     inline content there is what we render and sanitize server-side
+  //     (`safeHtml`) -- a conscious trade-off, recorded in docs/TASKS.md.
+  const isPanel = panelRoots().has(firstSegment(req.nextUrl.pathname));
+  const nonce = isPanel ? Buffer.from(crypto.randomUUID()).toString("base64") : "";
+  const surface = isPanel ? "panel" : "site";
 
   const requestHeaders = new Headers(req.headers);
-  requestHeaders.set("x-nonce", nonce);
+  if (isPanel) {
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy", cspFor("panel", nonce));
+  }
   const request = new NextRequest(req, { headers: requestHeaders });
 
   const response = await handleProxy(request, event);
 
-  // img/connect عمداً بازاند (http:/https:) چون پایهٔ رسانه و API در
-  // `config/runtime.json` قابلِ تنظیم است و در زمانِ بیلد ثابت نیست.
-  const csp = [
+  // img/connect stay open (http:/https:) because the media/API base is
+  // configurable at runtime via config/runtime.json, not at build time.
+  response.headers.set("Content-Security-Policy", cspFor(surface, nonce));
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Permissions-Policy", "geolocation=(), camera=(), microphone=()");
+
+  return response;
+}
+
+/** CSP policy, extracted so it is read (and tested) in one place. */
+function cspFor(surface: "panel" | "site", nonce: string): string {
+  const scriptSrc =
+    surface === "panel"
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
+      : "script-src 'self' 'unsafe-inline'";
+
+  return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    scriptSrc,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: http: https:",
     "font-src 'self' data:",
@@ -51,14 +81,6 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
     "form-action 'self'",
     "frame-ancestors 'none'",
   ].join("; ");
-
-  response.headers.set("Content-Security-Policy", csp);
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("Permissions-Policy", "geolocation=(), camera=(), microphone=()");
-
-  return response;
 }
 
 async function handleProxy(req: NextRequest, event: NextFetchEvent) {

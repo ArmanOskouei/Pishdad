@@ -52,9 +52,7 @@ function trunc(s: string | undefined, n = 160): string | undefined {
  * خاموش ⇒ دروازه را باز می‌گذاریم تا رندرِ مستقیم هم نشکند.
  */
 async function localeAvailable(locale: PublicLocale): Promise<boolean> {
-  const h = await headers();
-  const list = parseLocalesHeader(h.get(SITE_LOCALES_HEADER));
-  return list.length === 0 || list.includes(locale);
+  return true;
 }
 
 /**
@@ -71,9 +69,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const slug = path.join("/");
   const chrome = await fetchSiteChrome().catch(() => null);
   const { locales, primary } = effectiveLocale(chrome, locale);
-  const h = await headers();
-  const browserPreferred = pickBrowserLocale(h.get("accept-language"), locales, primary);
-  const chain = localeFallbackChain(locale, locales, primary, browserPreferred);
+  const chain = localeFallbackChain(locale, locales, primary);
   const found = await fetchSitePageFallback(slug, chain);
   if (!found) return { title: "Not found" };
   const page = found.page;
@@ -211,9 +207,7 @@ export default async function LocaleSitePageRoute({ params }: Props) {
 
   const chrome = await fetchSiteChrome().catch(() => null);
   const { locales, primary } = effectiveLocale(chrome, locale);
-  const h = await headers();
-  const browserPreferred = pickBrowserLocale(h.get("accept-language"), locales, primary);
-  const chain = localeFallbackChain(locale, locales, primary, browserPreferred);
+  const chain = localeFallbackChain(locale, locales, primary);
   const found = await fetchSitePageFallback(slug, chain);
   if (!found) notFound();
 

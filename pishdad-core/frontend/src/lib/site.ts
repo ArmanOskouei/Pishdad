@@ -55,8 +55,11 @@ const FLAG_TTL_MS = 60_000;
 async function probeSiteCache(): Promise<boolean> {
   try {
     const res = await fetch(`${serverApiBase()}/v1/site/cache`, {
+      // PERF-3/RES-1 — قبلاً `cache: "no-store"` بود و کل کشِ صفحه را در هر
+      // رندر دور می‌ریخت. حالا ۶۰ ثانیه + تگ: حداکثر یک پروب در دقیقه per
+      // worker (memoize بالا هم هست).
+      next: { revalidate: 60, tags: ["site-cache"] },
       headers: { Accept: "application/json" },
-      cache: "no-store",
     });
     if (!res.ok) return true;
     const j = (await res.json().catch(() => ({}))) as { data?: { enabled?: boolean } };

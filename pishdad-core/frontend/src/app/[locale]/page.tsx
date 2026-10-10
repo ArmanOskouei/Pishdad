@@ -38,9 +38,12 @@ type Props = { params: Promise<{ locale: string }> };
  * خاموش ⇒ دروازه را باز می‌گذاریم تا رندرِ مستقیم هم نشکند.
  */
 async function localeAvailable(locale: PublicLocale): Promise<boolean> {
-  const h = await headers();
-  const list = parseLocalesHeader(h.get(SITE_LOCALES_HEADER));
-  return list.length === 0 || list.includes(locale);
+  // PERF-1 — قبلاً `headers()` می‌خواند و کل صفحه را داینامیک می‌کرد. حالا
+  // فهرستِ زبان‌ها از خودِ کروم (که همین حالا برای متادیتا خوانده شده) می‌آید
+  // و like before fail-open است.
+  const chrome = await fetchSiteChrome().catch(() => null);
+  const { locales } = effectiveLocale(chrome, locale);
+  return locales.length === 0 || locales.includes(locale);
 }
 
 /**
@@ -55,9 +58,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const locale: PublicLocale = isPublicLocale(raw) ? raw : "fa";
   const chrome = await fetchSiteChrome().catch(() => null);
   const { locales, primary } = effectiveLocale(chrome, locale);
-  const h = await headers();
-  const browserPreferred = pickBrowserLocale(h.get("accept-language"), locales, primary);
-  const chain = localeFallbackChain(locale, locales, primary, browserPreferred);
+  const chain = localeFallbackChain(locale, locales, primary);
   const found = await fetchHomepageFallback(chain);
   if (!found) return { ...preparingMetadata(locale) };
   const resolved: PublicLocale = isPublicLocale(found.locale) ? found.locale : locale;
@@ -85,9 +86,7 @@ export default async function LocaleHome({ params }: Props) {
 
   const chrome = await fetchSiteChrome().catch(() => null);
   const { locales, primary } = effectiveLocale(chrome, locale);
-  const h = await headers();
-  const browserPreferred = pickBrowserLocale(h.get("accept-language"), locales, primary);
-  const chain = localeFallbackChain(locale, locales, primary, browserPreferred);
+  const chain = localeFallbackChain(locale, locales, primary);
   const found = await fetchHomepageFallback(chain);
 
   if (!found) {
