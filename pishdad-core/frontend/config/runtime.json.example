@@ -1,0 +1,15 @@
+{
+  "apiUrl": "http://localhost:8080/api",
+  "internalApiUrl": "http://localhost:8080/api",
+  "mediaUrl": "http://localhost:8080",
+  "vapidPublicKey": "",
+  "siteId": "",
+  "siteUrl": "http://localhost:3100",
+  "assetUrl": "",
+  "locales": "fa,en",
+  "primaryLocale": "fa",
+  "panelRoots": "admin",
+  "browserPluginSlugs": "",
+  "revalidateSecret": "REPLACE-WITH-STRONG-RANDOM-64-CHARS",
+  "installedAt": "REPLACE-WITH-ISO-TIMESTAMP"
+}

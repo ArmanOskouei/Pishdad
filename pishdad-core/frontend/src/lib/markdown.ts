@@ -11,14 +11,29 @@
  */
 
 function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // SEC-8 — `"` و `'` هم escape می‌شوند: بدون این، لینکِ مارک‌داون می‌توانست
+  // از صفتِ href بیرون بزند و رویدادِ inline تزریق کند.
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** SEC-8 — فقط http/https/نسبی؛ `javascript:` و `data:` در href رد می‌شوند. */
+function safeHref(raw: string): string {
+  const value = raw.trim();
+  if (/^(?:javascript|data|vbscript|file):/i.test(value)) return "#";
+  return value;
 }
 
 function inline(s: string): string {
   let t = esc(s);
   t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
   t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, url: string) =>
+    `<a href="${safeHref(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`);
   return t;
 }
 

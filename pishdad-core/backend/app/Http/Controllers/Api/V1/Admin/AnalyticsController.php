@@ -82,53 +82,35 @@ class AnalyticsController extends Controller
     /**
      * WF-M14 — صدک ۷۵ هر معیارِ Web Vitals در بازه.
      *
-     * صدک با روش «نزدیک‌ترین رتبه» حساب می‌شود: برای n نمونه با مرتب‌سازی
-     * صعودی، اندیس `ceil(0.75n) - 1`. این روش قطعی و مستقل از دیتابیس است و
-     * برخلاف میانیابی، همیشه یکی از مقادیر واقعی را برمی‌گرداند. معیارِ بدون
-     * نمونه `p75: null` و `samples: 0` می‌گیرد (صفر به‌جای «نامعلوم» جا نمی‌زند).
+     * P-03 — پیش از این هر سه معیار **همهٔ ردیف‌های بازه** را pluck و در PHP
+     * مرتب می‌کردند: با بازهٔ ۳۶۶ روز یعنی سه اسکنِ کامل و آرایه‌ای به اندازهٔ
+     * کل ترافیک. حالا یک کوئریِ group-by با `percentile_disc` — همان روشِ
+     * «نزدیک‌ترین رتبه» که قبلاً در PHP پیاده شده بود، این بار داخلِ PostgreSQL
+     * (بدون بزرگراه‌کردن داده به لایهٔ PHP).
      *
      * @return array<int, array{metric: string, p75: float|null, samples: int}>
      */
     private function vitals(Carbon $start, Carbon $end): array
     {
+        $rows = PageVital::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->whereIn('metric', self::VITAL_METRICS)
+            ->groupBy('metric')
+            ->selectRaw('metric, count(*) as samples, percentile_disc(0.75) WITHIN GROUP (ORDER BY value) as p75')
+            ->get()
+            ->keyBy('metric');
+
         $out = [];
-
         foreach (self::VITAL_METRICS as $metric) {
-            $values = PageVital::query()
-                ->whereBetween('created_at', [$start, $end])
-                ->where('metric', $metric)
-                ->orderBy('value')
-                ->pluck('value')
-                ->map(static fn ($value): float => (float) $value)
-                ->all();
-
+            $row = $rows->get($metric);
             $out[] = [
                 'metric' => $metric,
-                'p75' => $this->percentile75($values),
-                'samples' => count($values),
+                'p75' => $row && $row->p75 !== null ? round((float) $row->p75, 3) : null,
+                'samples' => $row ? (int) $row->samples : 0,
             ];
         }
 
         return $out;
-    }
-
-    /**
-     * صدک ۷۵ به روش نزدیک‌ترین رتبه روی فهرستِ **مرتب‌صعودی**. فهرست خالی
-     * یعنی `null` — نه صفر.
-     *
-     * @param  list<float>  $sorted
-     */
-    private function percentile75(array $sorted): ?float
-    {
-        $count = count($sorted);
-        if ($count === 0) {
-            return null;
-        }
-
-        $index = max(0, (int) ceil($count * 0.75) - 1);
-        $index = min($index, $count - 1);
-
-        return round($sorted[$index], 3);
     }
 
     /**

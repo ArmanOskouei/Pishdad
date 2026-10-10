@@ -3,3 +3,5 @@ node_modules
 out
 *.log
 .env*.local
+# فایلِ نصبِ زمانِ اجرا — حاوی revalidateSecret. هرگز وارد گیت/ایمیج نشود.
+config/runtime.json

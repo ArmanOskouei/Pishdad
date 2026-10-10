@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serverApiBase } from "@/lib/server-api-base";
 
 /**
  * WF-M10 — دانلود CSV تیکت‌های فیلترشده از راه پروکسی احرازهویت‌شده.
@@ -6,15 +7,13 @@ import { NextRequest, NextResponse } from "next/server";
  * route مستقل تا بدنهٔ CSV دست‌نخورده stream شود (پروکسی عمومی `[...path]`
  * همیشه بدنه را JSON می‌خواند و CSV را خراب می‌کند).
  */
-const UPSTREAM =
-  process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get("auth_token")?.value;
   if (!token) return NextResponse.json({ message: "نشست منقضی شد — دوباره وارد شوید." }, { status: 401 });
 
   const qs = req.nextUrl.searchParams.toString();
-  const up = await fetch(`${UPSTREAM}/v1/admin/tickets/export${qs ? `?${qs}` : ""}`, {
+  const up = await fetch(`${serverApiBase()}/v1/admin/tickets/export${qs ? `?${qs}` : ""}`, {
     headers: { Accept: "text/csv, */*;q=0.8", Authorization: `Bearer ${token}` },
     cache: "no-store",
   });

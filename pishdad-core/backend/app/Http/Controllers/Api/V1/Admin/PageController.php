@@ -83,7 +83,7 @@ class PageController extends Controller
             $query->whereRaw($this->seoUnhealthySql());
         }
 
-        $pages = $query->latest()->paginate((int) $request->query('per_page', 15));
+        $pages = $query->latest()->paginate(\App\Support\Pagination::perPage($request, 15));
 
         // WF-M2 — وضعیت سئو از همان `meta` و در حافظه محاسبه می‌شود (بدون کوئری اضافه).
         $pages->getCollection()->transform(function (Page $page): Page {
@@ -479,7 +479,7 @@ class PageController extends Controller
             \App\Search\PersianText::whereFa($query, (string) $search, ['title', 'slug']);
         }
 
-        $pages = $query->latest('deleted_at')->paginate((int) $request->query('per_page', 15));
+        $pages = $query->latest('deleted_at')->paginate(\App\Support\Pagination::perPage($request, 15));
 
         return response()->json($pages);
     }
@@ -892,7 +892,7 @@ class PageController extends Controller
         // مشترک: بدون چک مالکیت.
 
         return response()->json([
-            'data' => $page->revisions()->latest('version')->paginate((int) $request->query('per_page', 20)),
+            'data' => $page->revisions()->latest('version')->paginate(\App\Support\Pagination::perPage($request, 20)),
         ]);
     }
 

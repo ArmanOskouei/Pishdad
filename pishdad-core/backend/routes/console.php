@@ -11,7 +11,11 @@ Artisan::command('inspire', function () {
 // E5 — پشتیبان شبانه. ساعت ۰۳:۱۵ و بیرون از پیک کاربر؛ اگر `schedule:run` در cron
 // نباشد هیچ اتفاقی نمی‌افتد و این عمدی است — بکاپ دستیِ خاموش بهتر از بکاپ
 // خودکارِ شکسته‌ای است که کسی خبردار نشود.
-Schedule::command('backup:run')->dailyAt('03:15');
+//
+// CP-7 — `withoutOverlapping` اضافه شد: اگر روزی host-cron و کانتینرِ scheduler
+// (هر دو `schedule:run`) هم‌زمان فعال شوند، دو pg_dumpِ کامل از یک دیتابیس
+// اجرا می‌شود. سرویس scheduler کانتینری منبعِ یگانه است (E76).
+Schedule::command('backup:run')->dailyAt('03:15')->withoutOverlapping();
 
 // WF-C3 — انتشار زمان‌بندی‌شده. هر دقیقه؛ `withoutOverlapping` تا دو tickِ
 // هم‌زمان یک صفحه را دو بار منتشر نکنند.
@@ -26,3 +30,6 @@ Schedule::command('notifications:digest')->dailyAt('08:00')->withoutOverlapping(
 // `ticket.created`) هیچ‌وقت ارسال نمی‌شوند: روی نصبِ زنده هیچ tick بیرونی
 // نبود و ایمیل‌های صف‌شده هم می‌ماندند. `withoutOverlapping` مثل بقیه.
 Schedule::command('outbox:drain')->everyMinute()->withoutOverlapping();
+
+// P-06 — نگه‌داشتِ جدول‌های تحلیلی (append-heavy). ماهانه کافی است.
+Schedule::command('analytics:prune')->monthly()->withoutOverlapping();

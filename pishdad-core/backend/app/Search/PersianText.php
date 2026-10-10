@@ -88,7 +88,10 @@ final class PersianText
             'و' => '[وؤ]',
         ];
         $out = '';
-        $len = mb_strlen($normalizedQuery);
+        // P-07 — ورودیِ بی‌سقف یعنی الگوی regex به اندازهٔ کل درخواست روی کل
+        // جدول با `~*` اجرا می‌شود (seq-scan کامل، بدون استفاده از هیچ ایندکسی).
+        // ۶۴ نویسه برای جستجوی فارسی بسیار فراتر از کاربردی است.
+        $len = min(mb_strlen($normalizedQuery), 64);
         for ($i = 0; $i < $len; $i++) {
             $ch = mb_substr($normalizedQuery, $i, 1);
             $out .= $classes[$ch] ?? preg_quote($ch, '/');

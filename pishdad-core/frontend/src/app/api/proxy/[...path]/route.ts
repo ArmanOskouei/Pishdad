@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkPath } from "@/lib/proxy-allowlist";
+import { serverApiBase } from "@/lib/server-api-base";
 
 /** پروکسی احرازهویت‌شده: /api/proxy/v1/admin/... → بک‌اند با Bearer از کوکی httpOnly. */
-const UPSTREAM = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+
+/** SEC-5 — سقفِ بدنه: multipart/zip ۲۵MB، JSON ۲MB (هم‌راستا با سقف‌های nginx). */
+const MAX_MULTIPART_BYTES = 25 * 1024 * 1024;
+const MAX_JSON_BYTES = 2 * 1024 * 1024;
 
 async function proxy(req: NextRequest, path: string[]) {
   const token = req.cookies.get("auth_token")?.value;
@@ -13,8 +17,18 @@ async function proxy(req: NextRequest, path: string[]) {
   const decision = checkPath(path);
   if (!decision.ok) return NextResponse.json({ message: decision.reason }, { status: 403 });
 
-  const target = `${UPSTREAM}/${decision.path}${req.nextUrl.search}`;
+  const target = `${serverApiBase()}/${decision.path}${req.nextUrl.search}`;
   const contentType = req.headers.get("content-type") ?? "";
+
+  // SEC-5 — سقفِ اندازهٔ بدنه. پیش از این هر دو مسیر (`arrayBuffer` برای
+  // multipart و `text` برای JSON) بدنه را بی‌سقف در حافظه می‌خواندند؛ یک
+  // کاربرِ احراز‌هویت‌شده می‌توانست پروسهٔ standalone را OOM کند. سقف‌ها
+  // عیناً با بک‌اندِnginx هم‌راستااند (۲۰M برای رسانه/zip، ۲M برای JSON).
+  const declaredLength = Number(req.headers.get("content-length") ?? "0");
+  const limit = contentType.includes("multipart/form-data") ? MAX_MULTIPART_BYTES : MAX_JSON_BYTES;
+  if (Number.isFinite(declaredLength) && declaredLength > limit) {
+    return NextResponse.json({ message: "بدنهٔ درخواست بیش از حد بزرگ است." }, { status: 413 });
+  }
 
   // WF-M7 — انتقالِ نشانیِ واقعیِ کاربر (مثل روتِ login) تا فهرستِ IP مجاز و
   // سقفِ تلاش per-IP روی IP پروکسی اعمال نشود. بدون این، بک‌اند فقط IP نودِ

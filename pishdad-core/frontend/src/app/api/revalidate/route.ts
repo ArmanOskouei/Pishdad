@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { REVALIDATE_LEEWAY, isAllowedLocalTag } from "@/lib/revalidate";
 import { effectiveValue } from "@/lib/site-config";
+import { serverApiBase } from "@/lib/server-api-base";
 
 /**
  * Next 16 changed the signature: `revalidateTag(tag)` is gone and the second
@@ -56,7 +57,7 @@ async function hasValidSession(req: NextRequest): Promise<boolean> {
   const upstream =
     process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
   try {
-    const res = await fetch(`${upstream}/v1/admin/profile`, {
+    const res = await fetch(`${serverApiBase()}/v1/admin/profile`, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
       cache: "no-store",
     });

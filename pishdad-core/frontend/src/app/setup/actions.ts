@@ -15,6 +15,13 @@
 import { PUBLIC_LOCALES, isPublicLocale } from "@/lib/i18n/public";
 import { configWritable, isInstalled, writeSiteConfig, type SiteConfig } from "@/lib/site-config";
 
+/**
+ * SEC-1 — همان مقدارِ پیش‌فرضِ `.env.example` بک‌اند. اگر نصب‌کننده آن را
+ * بپذیرد، نصب با یک رازِ *انتشارشده* انجام شده و هر کسی می‌تواند
+ * `/api/revalidate` را با امضای جعلی صدا بزند.
+ */
+const DEFAULT_SECRET = "change-me-in-production";
+
 export type SetupInput = {
   apiUrl: string;
   internalApiUrl: string;
@@ -136,6 +143,11 @@ function validate(input: SetupInput): string[] {
 
   if (!input.revalidateSecret.trim()) {
     errors.push("رازِ revalidate لازم است (همان REVALIDATE_SECRET بک‌اند).");
+  } else if (input.revalidateSecret.trim() === DEFAULT_SECRET) {
+    // SEC-1 — مقدارِ پیش‌فرضِ `.env.example` اگر عیناً کپی شود، یک رازِ
+    // *انتشارشده* نصب می‌شود و هر کسی می‌تواند کش ISR را با امضای جعلی پاک
+    // کند. نصب‌کننده آن را رد می‌کند تا اپراتور مجبور به مقدارِ تصادفی شود.
+    errors.push("رازِ پیش‌فرضِ نمونه قابلِ قبول نیست؛ یک مقدارِ تصادفیِ ۶۴ نویسه‌ای بسازید.");
   }
 
   return errors;

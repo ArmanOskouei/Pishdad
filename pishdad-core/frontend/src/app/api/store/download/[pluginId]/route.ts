@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serverApiBase } from "@/lib/server-api-base";
 
 /**
  * ECO6 — دانلود ZIP فروشگاه از راه پروکسی احرازهویت‌شده.
@@ -11,8 +12,6 @@ import { NextRequest, NextResponse } from "next/server";
  * نامِ فایل) را از upstream عبور می‌دهد. مسیر **صریح** است، نه catch-all، چون
  * هر چیز دیگری زیر `v1/market/catalog/*` باید از allowlist رد شود.
  */
-const UPSTREAM =
-  process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ pluginId: string }> }) {
   const token = req.cookies.get("auth_token")?.value;
@@ -24,7 +23,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ pluginId: s
     return NextResponse.json({ message: "شناسهٔ افزونه نامعتبر است." }, { status: 400 });
   }
 
-  const up = await fetch(`${UPSTREAM}/v1/market/catalog/${pluginId}/download`, {
+  const up = await fetch(`${serverApiBase()}/v1/market/catalog/${pluginId}/download`, {
     headers: { Accept: "application/zip, application/json", Authorization: `Bearer ${token}` },
     cache: "no-store",
   });

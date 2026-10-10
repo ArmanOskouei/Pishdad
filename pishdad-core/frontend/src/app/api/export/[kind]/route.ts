@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serverApiBase } from "@/lib/server-api-base";
 
 /**
  * WF-C6 — دانلود برون‌بری محتوا از راه پروکسی احرازهویت‌شده.
@@ -7,8 +8,6 @@ import { NextRequest, NextResponse } from "next/server";
  * `up.json()` می‌خواند؛ بدنهٔ XML (WXR) خراب می‌شد. این route بایت‌ها را
  * دست‌نخورده stream می‌کند و هدرهای نام/نوع فایل را از upstream عبور می‌دهد.
  */
-const UPSTREAM =
-  process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
 
 const KINDS: Record<string, string> = {
   json: "application/json; charset=utf-8",
@@ -24,7 +23,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ kind: strin
     return NextResponse.json({ message: "نوع خروجی نامعتبر است." }, { status: 400 });
   }
 
-  const up = await fetch(`${UPSTREAM}/v1/admin/content/export/${kind}`, {
+  const up = await fetch(`${serverApiBase()}/v1/admin/content/export/${kind}`, {
     headers: { Accept: `${KINDS[kind]}, */*;q=0.8`, Authorization: `Bearer ${token}` },
     cache: "no-store",
   });

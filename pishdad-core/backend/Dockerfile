@@ -13,15 +13,21 @@ FROM alpine:3.24
 
 # php-fpm + every extension Laravel 13 / Sanctum / packages need, all prebuilt.
 #
-# No opcache: Alpine 3.24 ships php83-opcache and php84-opcache but has no
-# php85-opcache yet, so `apk add php85-opcache` fails the whole layer. The
-# Dockerfiles for 8.3/8.4 listed it, so dropping it here is a deliberate
-# difference rather than an oversight.
+# opcache: there is deliberately NO `php85-opcache` package here — Alpine 3.24
+# has no such package (`apk add php85-opcache` fails the whole layer). Zend
+# OPcache is nevertheless active in the runtime (`php -m` lists it; it ships
+# inside the `php85` package on 3.24), so this comment exists to stop the next
+# reader from "fixing" the omission the way this file's author did once already.
+# Tuning (validate_timestamps=0, JIT) belongs to the production image, not
+# here: this one runs on a bind-mount where code changes must be visible
+# without a rebuild.
 #
-# It costs nothing in dev: this image runs on a bind-mount over virtiofs, where
-# every stat is slow, and opcache mainly saves re-parsing PHP — not I/O. For
-# production, opcache belongs in a separate image anyway, where revalidate_freq
-# and memory limits should differ from dev rather than be inherited.
+# postgresql18-client: BackupRunner shells out to `pg_dump` from PATH
+# (config('backup.binary')). The PHP `pgsql` extension is NOT that binary, so
+# without this package the daily `backup:run` at 03:15 fails silently on
+# every install — the highest-severity gap this file had. Verified available
+# in alpine:3.24 (`docker run --rm alpine:3.24 apk add postgresql18-client`).
+# Version must track docker/postgres/Dockerfile's server major (currently 18).
 #
 # Two naming traps in 8.5, both of which cost a failed build here:
 #   - the CLI package is `php85`, not `php85-cli`, and it already ships
@@ -37,6 +43,7 @@ RUN apk add --no-cache \
     php85-session php85-tokenizer php85-xml php85-simplexml php85-xmlwriter php85-xmlreader \
     php85-intl php85-bcmath php85-sockets php85-pcntl php85-zip \
     php85-pecl-redis php85-iconv \
+    postgresql18-client \
     && ln -s /usr/sbin/php-fpm85 /usr/sbin/php-fpm
 
 # Composer binary (image already pulled; no network cost at build)

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Vazirmatn } from "next/font/google";
 import "./vazirmatn.css";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
@@ -14,12 +13,13 @@ import { effectivePublicConfig } from "@/lib/site-config";
 import { fetchSiteChrome, siteFontPreloadEnabled } from "@/lib/site";
 
 /**
- * فونت وزیرمتن: اول next/font/google؛ اگر آفلاین بود بیلد فونت فیل می‌شود.
- * fallback = فونت محلی از `vazirmatn.css` (public/fonts).
- * قانون: هرگز CDN خارجی برای فونت استفاده نشود — در نبود دسترسی به اینترنت
- * لود نمی‌شود و مرورگر به فونت جایگزین می‌افتد (عنوان هدر و جستجو ناخوانا می‌شد).
+ * فونت وزیرمتن — فقط و فقط محلی: `vazirmatn.css` روی `public/fonts/*.woff2`.
+ *
+ * PERF-2: تا امروز اینجا `next/font/google` هم بود که در زمانِ بیلد از
+ * fonts.googleapis.com فایل می‌گرفت. دو مشکل: (۱) روی میزبانِ بیلدِ
+ * آفلاین/ایران `next build` fail می‌شد، (۲) خانواده تکراری با نسخهٔ محلی و
+ * رقابتِ preload. حالا تک‌منبعِ محلی.
  */
-const vazir = Vazirmatn({ subsets: ["arabic", "latin"], weight: ["300", "400", "500", "700"], display: "swap", variable: "--font-vazir" });
 
 export const metadata: Metadata = {
   title: "پنل مدیریت CMS",
@@ -59,6 +59,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const h = await headers();
   const raw = h.get(SITE_LOCALE_HEADER);
   const siteLocale = isPublicLocale(raw) ? raw : null;
+  // SEC-2 — nonce پروکسی برای دو اسکریپتِ inline (بدون 'unsafe-inline' در CSP).
+  const nonce = h.get("x-nonce") ?? undefined;
 
   // WF-M13 — preload فونت فقط برای سایتِ عمومی و فقط اگر در تنظیمات کارایی
   // روشن باشد. فونت همیشه محلی است (هرگز CDN خارجی) و `font-display: swap`
@@ -77,9 +79,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* مقدارهای عمومی در **زمانِ درخواست** اینجا نوشته می‌شوند، نه در
             زمانِ بیلد. دلیلش: یک باندلِ بیلدشده باید روی هر سروری، با هر
             نشانیِ API، «نصب» شود — نه اینکه برای هر نصب دوباره ساخته شود.
-            مصرف‌کننده‌اش `lib/runtime-config.ts` است. */}
-        <script dangerouslySetInnerHTML={{ __html: publicConfigScript(effectivePublicConfig()) }} />
-        <script dangerouslySetInnerHTML={{ __html: ANTI_FOUC }} />
+            مصرف‌کننده‌اش `lib/runtime-config.ts` است.
+            SEC-2: nonce از پروکسی می‌آید تا CSP بتواند بدون 'unsafe-inline'
+            همین دو اسکریپتِ inline را مجاز کند. */}
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: publicConfigScript(effectivePublicConfig()) }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: ANTI_FOUC }} />
         {preloadFont ? (
           <link
             rel="preload"
@@ -94,7 +98,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             ناگهان بی‌آیکون نشود. */}
         <link rel="apple-touch-icon" href="/icons/icon-512.png" />
       </head>
-      <body className={vazir.className}>
+      <body>
         <ThemeProvider>
           <LanguageProvider>
             <AuthProvider>

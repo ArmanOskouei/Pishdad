@@ -50,6 +50,9 @@ final class WebhookSender
         try {
             $response = Http::timeout((int) config('webhook.timeout', 10))
                 ->connectTimeout((int) config('webhook.connect_timeout', 5))
+                // S-07 — بدون این، ریدایرکت به 169.254.169.254 یا سرویس داخلی
+                // داکر دنبال می‌شود و allowlist ابتدای مسیر دور زده می‌شود.
+                ->withOptions(['allow_redirects' => false])
                 ->acceptJson()
                 ->withHeaders($sealed['headers'])
                 ->withBody($sealed['body'], 'application/json')
@@ -62,7 +65,7 @@ final class WebhookSender
 
         if (! $response->successful()) {
             throw new RuntimeException(
-                'وب‌هوک خطا داد (HTTP '.$response->status().'): '.mb_substr((string) $response->body(), 0, 300)
+                'وب‌هوک خطا داد (HTTP '.$response->status().')'
             );
         }
     }

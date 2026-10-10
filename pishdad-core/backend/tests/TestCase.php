@@ -6,6 +6,7 @@ use App\Models\Plugin;
 use App\Services\Plugins\ManifestRegistry;
 use App\Services\Plugins\PluginRouteTable;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Cache;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -25,6 +26,13 @@ abstract class TestCase extends BaseTestCase
         // `RefreshDatabase` برای جدول‌ها حل می‌کند و اینجا برای کش.
         PluginRouteTable::flush();
         ManifestRegistry::flushCache();
+
+        // S-08 — نشتِ بین‌تستیِ نرخ‌گیر: کشِ `array` در کلِ پروسهٔ phpunit زنده
+        // می‌ماند، پس شمارندهٔ throttle بین تست‌ها جمع می‌شود و تست‌های بعدیِ
+        // یک مسیرِ محدودشده ۵۰۳ می‌گیرند (بدون اینکه درخواستی بیش از سقف زده
+        // باشند). رفتارِ production دست‌نخورده می‌ماند: آنجا کشِ واقعی است و
+        // `RateLimiter` عمداً فقط با کلیدِ صریح پاک می‌شود.
+        Cache::flush();
     }
 
     /**

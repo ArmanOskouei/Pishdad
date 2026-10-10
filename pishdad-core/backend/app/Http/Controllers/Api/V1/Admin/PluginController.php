@@ -154,7 +154,7 @@ class PluginController extends Controller
         // مشترک: همه مدیران همه پلاگین‌های نصب را می‌بینند.
         $plugins = Plugin::query()
             ->latest()
-            ->paginate((int) $request->query('per_page', 20));
+            ->paginate(\App\Support\Pagination::perPage($request, 20));
 
         return response()->json([
             // map روی خود paginator نه collection آن، تا meta/links دست‌نخورده بماند.

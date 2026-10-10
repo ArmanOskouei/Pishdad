@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fetchHomepage, fetchSiteChrome } from "@/lib/site";
 import { BlockRenderer } from "@/components/site/BlockRenderer";
 import { SiteFooter, SiteHeader, themeVars } from "@/components/site/Chrome";
+import { inspectSessionToken } from "@/lib/session-cookie";
 
 /**
  * F4.1.F — پیش‌نمایشِ سراسریِ سایت، **بیرون از پوستهٔ پنل**.
@@ -37,6 +40,14 @@ export const metadata: Metadata = {
 };
 
 export default async function PreviewPage() {
+  // SEC-9 — پیش‌نمایش پیش‌تر کاملاً عمومی بود (فقط `setup` مسیرِ سیستمی بود).
+  // حالا خودِ صفحه هم نشست را می‌سنجد: شکلِ توکن کافی نیست برای دیدنِ محتوا
+  // (اعتبارش را بک‌اند در واکشیِ داده تعیین می‌کند — fail-closed).
+  const token = (await cookies()).get("auth_token")?.value;
+  if (!token || !inspectSessionToken(token).ok) {
+    redirect("/admin/login");
+  }
+
   const [page, chrome] = await Promise.all([
     fetchHomepage().catch(() => null),
     fetchSiteChrome().catch(() => null),

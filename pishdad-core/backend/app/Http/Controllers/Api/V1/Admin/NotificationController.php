@@ -53,7 +53,7 @@ class NotificationController extends Controller
     {
         $user = $request->user();
 
-        $perPage = (int) $request->integer('per_page', 20);
+        $perPage = \App\Support\Pagination::perPage($request, 20);
         $perPage = max(1, min(self::PER_PAGE_MAX, $perPage));
 
         $this->prune($user);

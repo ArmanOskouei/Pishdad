@@ -1,5 +1,13 @@
 name: ${PISHDAD_PROJECT:-pishdad-backend}
 
+# CP-4: بدون سقف، درایور json-file لاگ را تا پر شدنِ دیسک می‌نویسد — و پر
+# شدنِ دیسک با خودش Postgres را می‌کُشد. همهٔ سرویس‌ها این را ارث می‌برند.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 # Single-command boot:  docker compose up -d --build
 # API: http://localhost:8080/api/v1/...   MinIO console: http://localhost:9101
 services:
@@ -7,6 +15,10 @@ services:
     build: .
     container_name: ${PISHDAD_APP:-pishdad-app}
     restart: unless-stopped
+    # CP-5: سقفِ حافظه — پیش‌تر بی‌سقف بود و یک خروجی/آپلودِ سنگین می‌توانست
+    # کل میزبان را ببرد. 1g برای php-fpm با memory_limit=512M کافی است.
+    mem_limit: ${PISHDAD_APP_MEM:-1g}
+    logging: *default-logging
     # NOTE: no `env_file` on purpose. The bind-mounted `.env` FILE is the single
     # source Laravel reads (via Dotenv). Injecting it into the process env too
     # would shadow phpunit.xml `<env force>` in tests (PHP $_SERVER wins over
@@ -36,7 +48,7 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   # E76 — تیکِ دائمیِ صفِ تحویل (و زمان‌بندِ لاراول).
   #
@@ -52,6 +64,8 @@ services:
     build: .
     container_name: ${PISHDAD_SCHEDULER:-pishdad-scheduler}
     restart: unless-stopped
+    mem_limit: ${PISHDAD_SCHEDULER_MEM:-768m}
+    logging: *default-logging
     command: ["php", "artisan", "schedule:work"]
     environment:
       DB_HOST: db
@@ -67,12 +81,14 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   web:
     image: nginx:1.31.6-alpine
     container_name: ${PISHDAD_WEB:-pishdad-web}
     restart: unless-stopped
+    mem_limit: ${PISHDAD_WEB_MEM:-128m}
+    logging: *default-logging
     ports:
       - "${PISHDAD_WEB_PORT:-8080}:80"
     volumes:
@@ -97,20 +113,45 @@ services:
     build: ./docker/postgres
     container_name: ${PISHDAD_DB:-pishdad-db}
     restart: unless-stopped
+    # PG-2: با shared_buffers=256MB و shared Memory، 1.5g سقفِ معقول است.
+    mem_limit: ${PISHDAD_DB_MEM:-1536m}
+    logging: *default-logging
     environment:
       POSTGRES_DB: cms
-      POSTGRES_USER: cms
-      POSTGRES_PASSWORD: cmssecret
+      # S-03/CP-8: پیش‌فرض‌های توسعه درجا دارند ولی روی سرور حتماً با
+      # `PISHDAD_DB_PASSWORD` (و کاربر) بازنویسی شوند — مقدار ثابتِ ضعیف
+      # دیگر تنها گزینه نیست.
+      POSTGRES_USER: ${PISHDAD_DB_USER:-cms}
+      POSTGRES_PASSWORD: ${PISHDAD_DB_PASSWORD:-cmssecret}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      # Host-side 5433 avoids clashing with a local Windows Postgres on 5432.
+      # S-03: پیش‌تر `0.0.0.0:5433` بود ⇒ کل دیتابیس از شبکه قابلِ خواندن/نوشتن.
+      # حالا فقط لوپ‌بک. اگر واقعاً به دسترسیِ از بیرون نیاز است (مثلاً ابزار
+      # مدیریت روی میزبانِ دیگر) آگاهانه `${PISHDAD_DB_PORT} ` را عوض کنید.
       # Inside the compose network the app still uses db:5432 (see .env DB_PORT).
-      - "${PISHDAD_DB_PORT:-5433}:5432"
+      - "127.0.0.1:${PISHDAD_DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    # PG-2: ایمیج پایه shared_buffers=128MB و work_mem=4MB است و روی کانتینرِ
+    # بدون سقف، کوئری‌های تحلیلی دیسک sort می‌خورند. این مقادیر برای VPS
+    # ۲–۴GB محافظه‌کارانه‌اند؛ log_min_duration_statement کوئریِ کند را می‌بینید.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=60
+      - -c
+      - log_min_duration_statement=500
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cms -d cms"]
+      test: ["CMD-SHELL", "pg_isready -U ${PISHDAD_DB_USER:-cms} -d cms"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -124,10 +165,35 @@ services:
     image: redis:8.10.2-alpine
     container_name: ${PISHDAD_REDIS:-pishdad-redis}
     restart: unless-stopped
+    mem_limit: ${PISHDAD_REDIS_MEM:-768m}
+    logging: *default-logging
+    # RD-1/RD-2: پیش‌تر هیچ maxmemory و هیچ پایداری نداشت ⇒ رشد بی‌مرز تا
+    # OOM-kill (با خودش صف و سشن‌ها را می‌برد). سقف + AOF هر ثانیه:
+    #   - noeviction عمدی است: وقتی پر شد، نوشتنِ کش با **خطای واضح** شکست
+    #     می‌خورد، در عوضِ حذفِ خاموشِ سشن/صف که allkeys-lru انجام می‌دهد.
+    command:
+      - redis-server
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
     ports:
-      - "${PISHDAD_REDIS_PORT:-6380}:6379"
+      # S-02: پیش‌تر `0.0.0.0:6380` بدون هیچ رمزی بود ⇒ هر کسی در شبکه
+      # می‌توانست سشن بخواند/سازد و Job تزریق کند. حالا فقط لوپ‌بک.
+      - "127.0.0.1:${PISHDAD_REDIS_PORT:-6380}:6379"
     volumes:
       - redisdata:/data
+    # RD-3: بدون healthcheck، app/scheduler پیش از آماده‌شدنِ Redis بالا
+      # می‌آمدند و اولین درخواست‌ها ۵۰۰ می‌گرفتند.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   minio:
     # PINNED BY DIGEST (U1). Pinned to the content digest rather than to a tag,
@@ -167,13 +233,17 @@ services:
     image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     container_name: ${PISHDAD_MINIO:-pishdad-minio}
     restart: unless-stopped
+    mem_limit: ${PISHDAD_MINIO_MEM:-512m}
+    logging: *default-logging
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      # CP-3/CP-8: همان درسِ db/redis — پیش‌فرض برای توسعه، بازنویسی روی سرور.
+      MINIO_ROOT_USER: ${PISHDAD_MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${PISHDAD_MINIO_PASSWORD:-minioadmin123}
     ports:
-      # Host 9000 is often taken on dev machines → 9100/9101 on the host.
-      - "${PISHDAD_MINIO_PORT:-9100}:9000"
-      - "${PISHDAD_MINIO_CONSOLE_PORT:-9101}:9001"
+      # S-02 هم‌خانواده: کنسول و API فقط روی لوپ‌بک. MinIO «فروشگاهِ آبجکتِ
+      # محلی» است (کامنتِ U1) و هرگز نباید روی اینترنت باز باشد.
+      - "127.0.0.1:${PISHDAD_MINIO_PORT:-9100}:9000"
+      - "127.0.0.1:${PISHDAD_MINIO_CONSOLE_PORT:-9101}:9001"
     volumes:
       - miniodata:/data
     command: server /data --console-address ":9001"
@@ -202,10 +272,30 @@ services:
       - /bin/sh
       - -c
       - |
-        until mc alias set local http://minio:9000 minioadmin minioadmin123 >/dev/null 2>&1; do sleep 2; done
+        # توجه: `$$` در compose یعنی «یک $ واقعی برای شل» — وگرنه compose
+        # خودش این متغیرها را خالی جایگزین می‌کند.
+        MINIO_USER="${PISHDAD_MINIO_USER:-minioadmin}"
+        MINIO_PASS="${PISHDAD_MINIO_PASSWORD:-minioadmin123}"
+        # CP-10: حلقهٔ بی‌پایان جای خود را به ۳۰ تلاشِ محدود داد. قبلاً اگر
+        # MinIO بالا نمی‌آمد این کانتینر تا ابد سکوت می‌کرد و کسی متوجه
+        # نبودنِ سطل نمی‌شد.
+        i=0
+        until [ "$$i" -ge 30 ]; do
+          mc alias set local http://minio:9000 "$$MINIO_USER" "$$MINIO_PASS" >/dev/null 2>&1 && break
+          i=$$((i+1)); sleep 2
+        done
+        if [ "$$i" -ge 30 ]; then echo "ERROR: minio unreachable after 60s"; exit 1; fi
         mc mb -p local/cms >/dev/null 2>&1 || true
-        mc anonymous set download local/cms >/dev/null 2>&1 || true
-        echo "minio bucket ready"
+        # CP-3: `mc anonymous set download` سطل را برای هر کسی روی اینترنت
+        # قابلِ دانلود می‌کرد — در حالی که env.production.example می‌گوید رسانه
+        # خصوصی است. حالا فقط با درخواستِ صریح (توسعهٔ محلی) باز می‌شود.
+        if [ "${PISHDAD_MINIO_PUBLIC:-0}" = "1" ]; then
+          mc anonymous set download local/cms >/dev/null 2>&1 || true
+          echo "minio bucket ready (PUBLIC download - dev only)"
+        else
+          mc anonymous set none local/cms >/dev/null 2>&1 || true
+          echo "minio bucket ready (private)"
+        fi
     restart: "no"
 
 volumes:

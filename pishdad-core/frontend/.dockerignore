@@ -11,6 +11,8 @@ npm-debug.log*
 .env
 .env.local
 .env.*.local
+# فایلِ نصب (نصب‌کنندهٔ وب آن را می‌نویسد) — حاوی revalidateSecret. نباید در ایمیج برود.
+config/runtime.json
 Dockerfile
 docker-compose.yml
 .git

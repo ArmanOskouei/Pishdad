@@ -1,16 +1,12 @@
 import { cookies } from "next/headers";
 import { effectiveValue } from "./site-config.ts";
+import { serverApiBase } from "./server-api-base.ts";
 
 /**
  * فراخوانی سمت سرور به بک‌اند (برای Server Components لیست‌ها).
  * توکن از کوکی httpOnly خوانده می‌شود؛ داده همیشه زنده (no-store).
  * خروجی خام برمی‌گردد تا هر صفحه با asPaginator/asList نرمال کند.
  */
-const UPSTREAM =
-  effectiveValue("INTERNAL_API_URL", "") ||
-  effectiveValue("PISHDAD_PUBLIC_API_URL", "") ||
-  (process.env.NEXT_PUBLIC_API_URL ?? "").trim() ||
-  "http://localhost:8080/api";
 
 export class ServerApiError extends Error {
   status: number;
@@ -22,7 +18,7 @@ export class ServerApiError extends Error {
 
 export async function serverApi<T = unknown>(path: string): Promise<T> {
   const token = (await cookies()).get("auth_token")?.value;
-  const res = await fetch(`${UPSTREAM}${path}`, {
+  const res = await fetch(`${serverApiBase()}${path}`, {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",

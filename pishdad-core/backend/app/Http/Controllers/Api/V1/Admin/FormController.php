@@ -26,7 +26,7 @@ class FormController extends Controller
             \App\Search\PersianText::whereFa($query, (string) $search, ['name', 'slug']);
         }
 
-        return response()->json($query->latest()->paginate((int) $request->query('per_page', 15)));
+        return response()->json($query->latest()->paginate(\App\Support\Pagination::perPage($request, 15)));
     }
 
     public function store(Request $request): JsonResponse
@@ -109,7 +109,7 @@ class FormController extends Controller
     public function submissions(Request $request, Form $form): JsonResponse
     {
         return response()->json(
-            $form->submissions()->paginate((int) $request->query('per_page', 20)),
+            $form->submissions()->paginate(\App\Support\Pagination::perPage($request, 20)),
         );
     }
 

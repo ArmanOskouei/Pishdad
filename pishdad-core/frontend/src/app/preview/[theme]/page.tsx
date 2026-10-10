@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { fetchHomepage, fetchSiteChrome, fetchSiteTheme } from "@/lib/site";
 import { resolveTheme } from "@/themes/registry";
 import type { SitePage } from "@/lib/domain";
 import { PreviewControls } from "./PreviewControls";
+import { inspectSessionToken } from "@/lib/session-cookie";
 
 /**
  * F4.1.F — پیش‌نمایشِ یک قالبِ مشخص روی **سایتِ اصلی**، در صفحه‌ای که آدرسش
@@ -28,6 +30,12 @@ type Props = { params: Promise<{ theme: string }> };
 
 export default async function PreviewThemePage({ params }: Props) {
   const { theme: slug } = await params;
+
+  // SEC-9 — مانند `/preview`: نشست لازم است (پیش‌تر عمومی بود).
+  const token = (await cookies()).get("auth_token")?.value;
+  if (!token || !inspectSessionToken(token).ok) {
+    redirect("/admin/login");
+  }
 
   const [tokens, page, chrome] = await Promise.all([
     fetchSiteTheme(slug).catch(() => null),

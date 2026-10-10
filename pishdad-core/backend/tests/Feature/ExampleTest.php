@@ -2,18 +2,29 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Http\Controllers\Install\InstallJournal;
 use Tests\TestCase;
 
+/**
+ * رفتارِ ریشه — همان چیزی که `routes/web.php` مستند می‌کند:
+ *
+ *   1) نصب‌نشده ⇒ ۳۰۲ به `/install` (دروازهٔ نصب‌کننده، عمدی).
+ *   2) نصب‌شده  ⇒ ۲۰۰ با صفحهٔ «installed».
+ *
+ * پیش از این، تستِ اسکلتِ خامِ لاراول (`assertStatus(200)`) روی رفتارِ
+ * درستِ اپ قرمز می‌شد — نه اپ خراب بود، انتظار کهنه بود.
+ */
 class ExampleTest extends TestCase
 {
-    /**
-     * A basic test example.
-     */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_root_redirects_to_the_installer_when_not_installed(): void
     {
-        $response = $this->get('/');
+        $this->get('/')->assertRedirect('/install');
+    }
 
-        $response->assertStatus(200);
+    public function test_the_root_serves_the_installed_page_once_installed(): void
+    {
+        InstallJournal::writeLock();
+
+        $this->get('/')->assertOk();
     }
 }

@@ -19,7 +19,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "jalaali-js": "^1.2.7",
     "jodit-react": "^5.5.19",
-    "next": "^16.3.6",
+    "next": "^16.4.0",
     "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"

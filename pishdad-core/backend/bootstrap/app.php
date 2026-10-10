@@ -47,6 +47,24 @@ return Application::configure(basePath: dirname(__DIR__))
         // handler below turns into a 401 for API routes.
         $middleware->redirectGuestsTo(fn () => null);
 
+        // S-04 — بدون این، `TrustProxies` پیش‌فرضِ فریمورک با
+        // `setTrustedProxies([])` اجرا می‌شود و X-Forwarded-Forِ nginx
+        // نادیده گرفته می‌شود. پیامدها سه تا بودند: هر limiterِ مبتنی بر IP
+        // **یک کلید مشترک** داشت (یک مهاجم ۱۰ تلاش = قفلِ کل نصب)،
+        // `admin.ip` یا همه را رد می‌کرد یا بی‌اثر بود، و login_events
+        // IPِ کانتینرِ nginx را لاگ می‌کرد.
+        //
+        // چرا `*` اینجا بی‌خطر است (و روی هاستِ عمومی نیست): اپ هیچ‌وقت
+        // مستقیم به اینترنت exposed نیست — تنها nginx در همان شبکهٔ compose
+        // به app:9000 وصل می‌شود، و 9000 روی میزبان منتشر نشده. اگر روزی
+        // پورت app منتشر شد، این را به subnetِ شبکهٔ compose محدود کن.
+        $middleware->trustProxies(at: '*', headers:
+            Request::HEADER_X_FORWARDED_FOR |
+            Request::HEADER_X_FORWARDED_HOST |
+            Request::HEADER_X_FORWARDED_PORT |
+            Request::HEADER_X_FORWARDED_PROTO
+        );
+
         // F1.1.B/F — نگهبان نصب (سراسری، بدون وابستگی به web) + اجبار راه‌اندازی
         // 2FA سوپرادمین در اولین ورود (فقط گروه api). هر دو در محیط تست
         // پیش‌فرض خاموش‌اند تا تست‌های موجود نشکنند (config/installer.*).

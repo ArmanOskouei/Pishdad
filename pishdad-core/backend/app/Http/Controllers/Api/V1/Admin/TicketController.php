@@ -26,7 +26,7 @@ class TicketController extends Controller
     public function index(Request $request): JsonResponse
     {
         $paginator = $this->filteredQuery($request)->latest()->paginate(
-            (int) $request->query('per_page', 20)
+            \App\Support\Pagination::perPage($request, 20)
         )->toArray();
         foreach ($paginator['data'] as $index => $ticket) {
             $paginator[$index] = $ticket;

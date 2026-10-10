@@ -176,10 +176,21 @@ export function configWritable(): boolean {
   }
 }
 
+/** رازِ پیش‌فرضِ عمومیِ ایمیج/نمونه — نبودِ تنظیم یعنی «نصب‌نشده». */
+const DEFAULT_SECRET = "change-me-in-production";
+
 /** نصب کامل شده است؟ (فایل نوشته شده و رازِ revalidate دارد) */
 export function isInstalled(): boolean {
   const c = readSiteConfig();
-  return Boolean(c.installedAt && c.apiUrl && c.revalidateSecret);
+  return Boolean(
+    c.installedAt &&
+      c.apiUrl &&
+      c.revalidateSecret &&
+      // رازِ پیش‌فرض = نصب‌نشده: وگرنه هر کسی با رشتهٔ عمومیِ
+      // `change-me-in-production` می‌تواند /api/revalidate را امضا کند و
+      // کش ISR کل سایت را پاک کند.
+      c.revalidateSecret !== DEFAULT_SECRET,
+  );
 }
 
 /**

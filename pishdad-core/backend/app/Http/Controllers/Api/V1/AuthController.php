@@ -111,6 +111,20 @@ class AuthController extends Controller
         }
 
         // TOTP path (±1 step window for clock skew).
+        //
+        // S-10 — `new Google2FA` در هر درخواست ساخته می‌شد، پس محافظت
+        // replay خودِ کتابخانه (جلوگیری از استفادهٔ دوبارهٔ همان کد در همان
+        // پنجره) بین درخواست‌ها از بین می‌رفت: یک کد معتبر تا ~۹۰ ثانیه
+        // دوباره پذیرفته می‌شد. حالا کدِ استفاده‌شده تا پایان پنجره در کش
+        // می‌ماند و بلافاصله پس از مصرف همه چالش هم پاک می‌شود.
+        $usedKey = "2fa:used:{$user->id}:{$code}";
+        if (Cache::has($usedKey)) {
+            $this->recordLoginEvent($request, $user, false);
+            Cache::forget("2fa:{$request->string('challenge')}");
+
+            return response()->json(['message' => self::INVALID_CREDENTIALS], 401);
+        }
+
         $google2fa = new Google2FA;
         $valid = $user->google2fa_secret
             && $google2fa->verifyKey($user->google2fa_secret, $code, 1);
@@ -122,6 +136,8 @@ class AuthController extends Controller
         }
 
         Cache::forget("2fa:{$request->string('challenge')}");
+        // S-10: همان کد تا پایانِ پنجرهٔ ±۱ قابلِ استفادهٔ دوباره نیست.
+        Cache::put($usedKey, true, now()->addSeconds(90));
         $this->markFreshTwoFactor($user);
         $this->recordLoginEvent($request, $user, true);
 

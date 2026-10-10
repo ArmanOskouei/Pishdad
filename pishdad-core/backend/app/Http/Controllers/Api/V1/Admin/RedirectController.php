@@ -26,7 +26,7 @@ class RedirectController extends Controller
             $query->where('active', filter_var($request->query('active'), FILTER_VALIDATE_BOOLEAN));
         }
 
-        return response()->json($query->paginate((int) $request->query('per_page', 30)));
+        return response()->json($query->paginate(\App\Support\Pagination::perPage($request, 30)));
     }
 
     public function store(Request $request): JsonResponse

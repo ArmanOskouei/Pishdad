@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serverApiBase } from "@/lib/server-api-base";
 
 /**
  * WF-H20 — دانلود فایل پشتیبان از راه پروکسی احرازهویت‌شده.
@@ -7,8 +8,6 @@ import { NextRequest, NextResponse } from "next/server";
  * `up.json()` می‌خواند، پس بایت‌های dump دور ریخته می‌شد. اینجا بایت‌ها
  * دست‌نخورده stream می‌شوند و هدرهای نوع/نام فایل از upstream عبور می‌کنند.
  */
-const UPSTREAM =
-  process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const token = req.cookies.get("auth_token")?.value;
@@ -20,7 +19,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ message: "شناسهٔ پشتیبان نامعتبر است." }, { status: 400 });
   }
 
-  const up = await fetch(`${UPSTREAM}/v1/admin/settings/backups/${encodeURIComponent(id)}/download`, {
+  const up = await fetch(`${serverApiBase()}/v1/admin/settings/backups/${encodeURIComponent(id)}/download`, {
     headers: { Accept: "application/octet-stream, application/json", Authorization: `Bearer ${token}` },
     cache: "no-store",
   });

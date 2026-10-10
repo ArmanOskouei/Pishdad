@@ -1,6 +1,9 @@
 vendor/
 node_modules/
-.env
+# همهٔ .env* بسته می‌شوند (نه فقط .env): .env.production و .env.backup هم امضا/کلید دارند.
+# فقط .env.example آزاد می‌ماند تا مستندسازی داخل ایمیج باشد.
+.env*
+!.env.example
 storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*

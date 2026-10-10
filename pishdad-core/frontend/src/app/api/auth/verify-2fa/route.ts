@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const UPSTREAM = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+import { serverApiBase } from "@/lib/server-api-base";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -12,7 +11,7 @@ export async function POST(req: NextRequest) {
     headers["X-Forwarded-For"] = forwardedFor;
     headers["X-Real-IP"] = forwardedFor.split(",")[0].trim();
   }
-  const up = await fetch(`${UPSTREAM}/v1/auth/2fa/verify`, {
+  const up = await fetch(`${serverApiBase()}/v1/auth/2fa/verify`, {
     method: "POST", headers, body: JSON.stringify(body),
   });
   const json = await up.json().catch(() => ({}));

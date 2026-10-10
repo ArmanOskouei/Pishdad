@@ -224,7 +224,7 @@ class TicketsTest extends TestCase
 
         $nobody = User::query()->create([
             'name' => 'بدون نقش', 'email' => uniqid().'@example.com',
-            'password' => Hash::make('None!1234'), 'role' => 'admin',
+            'password' => Hash::make('None!1234'), 'role' => 'viewer',
         ]);
         $none = $this->actingAs($nobody, 'sanctum');
         $none->getJson('/api/v1/admin/tickets')->assertForbidden();
@@ -233,7 +233,7 @@ class TicketsTest extends TestCase
 
         $viewer = User::query()->create([
             'name' => 'بیننده', 'email' => uniqid().'@example.com',
-            'password' => Hash::make('View!1234'), 'role' => 'admin',
+            'password' => Hash::make('View!1234'), 'role' => 'viewer',
         ]);
         $viewer->assignRole('viewer');
 

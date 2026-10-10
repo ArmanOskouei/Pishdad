@@ -24,7 +24,7 @@ class ManagerController extends Controller
     public function index(Request $request): JsonResponse
     {
         $managers = User::query()->with('roles')->latest()->paginate(
-            (int) $request->query('per_page', 20)
+            \App\Support\Pagination::perPage($request, 20)
         );
 
         $managers->getCollection()->transform(fn (User $u) => $this->payload($u));
@@ -59,6 +59,7 @@ class ManagerController extends Controller
             'password' => Hash::make($validated['password']),
             'role' => 'admin',
         ]);
+        $this->denyUnlessOwner($request, new User(), $validated['role'] ?? 'viewer');
         $user->assignRole($validated['role'] ?? 'viewer');
 
         return response()->json([
@@ -84,6 +85,8 @@ class ManagerController extends Controller
             'role.in' => 'نقش معتبر نیست.',
         ]);
 
+        $this->denyUnlessOwner($request, $manager, $validated['role'] ?? null);
+
         if (array_key_exists('role', $validated)) {
             $manager->syncRoles([$validated['role']]);
             unset($validated['role']);
@@ -102,9 +105,25 @@ class ManagerController extends Controller
             return response()->json(['message' => 'نمی‌توانید حساب خودتان را حذف کنید.'], 422);
         }
 
+        $this->denyUnlessOwner($request, $manager, null);
+
         $manager->delete();
 
         return response()->json(['message' => 'مدیر حذف شد.']);
+    }
+
+    /**
+     * S-13 — پیش از این، `perm:users.edit` برای ساخت/ویرایش/حذفِ یک *دیگر*
+     * owner کافی بود؛ یعنی یک مدیرِ سفارشی می‌توانست خودش را (یا هر کسی را)
+     * به owner ارتقا بدهد و از قیدِ سطح بیرون بیاید. حالا هر تغییری که هدفش
+     * owner است (یا هدف از قبل owner است) فقط از سوی خودِ owner ممکن است.
+     */
+    private function denyUnlessOwner(Request $request, User $target, ?string $newRole): void
+    {
+        $touchesOwner = $target->hasRole('owner') || $newRole === 'owner';
+        if ($touchesOwner && ! $request->user()->hasRole('owner')) {
+            abort(403, 'تغییر نقش‌های owner فقط توسط خود owner امکان‌پذیر است.');
+        }
     }
 
     /**

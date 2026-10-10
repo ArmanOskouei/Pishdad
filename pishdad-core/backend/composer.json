@@ -77,7 +77,7 @@
             "php-http/discovery": true
         },
         "audit": {
-            "block-insecure": false
+            "block-insecure": true
         }
     },
     "minimum-stability": "stable",

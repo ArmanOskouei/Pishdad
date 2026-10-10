@@ -5,10 +5,19 @@ set -e
 DB_HOST="${DB_HOST:-db}"
 
 echo "Waiting for Postgres at ${DB_HOST}:${DB_PORT:-5432}..."
+# PF-8: قبلاً `until ... do sleep 2; done` بی‌پایان بود ⇒ رمزِ اشتباه یا
+# دیتابیسِ خوابیده = حلقهٔ بی‌صدای تا ابد با ری‌استارتِ مداوم. حالا ۳۰ تلاش
+# (۶۰ ثانیه) و بعد شکستِ *پیدا*.
+i=0
 until php -r '$h=getenv("DB_HOST");$p=getenv("DB_PORT");$u=getenv("DB_USERNAME");$w=getenv("DB_PASSWORD");try{new PDO("pgsql:host=$h;port=$p;connect_timeout=2",$u,$w);exit(0);}catch(Throwable $e){exit(1);}' >/dev/null 2>&1; do
+  i=$((i+1))
+  if [ "$i" -ge 30 ]; then
+    echo "FATAL: Postgres at ${DB_HOST}:${DB_PORT:-5432} unreachable after 60s (check DB_* values in .env)." >&2
+    exit 1
+  fi
   sleep 2
 done
-echo "Postgres is up."
+echo "Postgres is up (after ~$((i*2))s)."
 
 # Fresh clone (no vendor/ on host): install inside the container.
 if [ ! -f vendor/autoload.php ]; then

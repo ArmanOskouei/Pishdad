@@ -42,6 +42,12 @@ class AnalyticsController extends Controller
             return response()->json(['ok' => true]);
         }
 
+        // P-06 — ربات‌ها در `vitals` فیلتر می‌شدند ولی در بازدیدها نه: یک
+        // شبکهٔ NAT/پروکسی می‌توانست ۸۶۴۰۰ ردیف در روز برای هر IP بسازد.
+        if ($this->device($request) === 'bot') {
+            return response()->json(['ok' => true]);
+        }
+
         [$locale, $slug] = $this->deriveLocaleAndSlug($path);
 
         PageView::query()->create([

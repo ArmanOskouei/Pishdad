@@ -207,6 +207,52 @@ final class WebhookSettings
 
         $trimmed = trim($raw);
 
-        return $trimmed === '' ? null : $trimmed;
+        return $trimmed === '' ? null : self::safeUrl($trimmed);
+    }
+
+    /**
+     * S-07 — SSRF. قبلاً هر `http/https` قبول می‌شد. حالا:
+     *   - فقط https (وبهوک روی اینترنت، نه شبکهٔ داخلی)،
+     *   - حلِ DNS و ردِ IPهای خصوصی/لوپ‌بک/لینک‌لوکال (از جمله 169.254.169.254
+     *     که متادیتای کلاود است و سرویس‌های داخلیِ داکر مثل db/redis/minio).
+     * DNS-rebinding (پاسخِ دومِ DNS به IP خصوصی) با این تنها لایه بسته
+     * نمی‌شود؛ برای آن، send خودش هم باید IP را بسنجد.
+     */
+    private static function safeUrl(string $url): ?string
+    {
+        $parts = parse_url($url);
+        if (! is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+            return null;
+        }
+
+        if (strtolower($parts['scheme']) !== 'https') {
+            return null;
+        }
+
+        $host = $parts['host'];
+        $ips = [];
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            $ips[] = $host;
+        } else {
+            $records = @gethostbynamel($host);
+            if (is_array($records)) {
+                $ips = $records;
+            }
+        }
+
+        if ($ips === []) {
+            // حل نشد → در زمان ارسال هم شکست می‌خورد؛ نادیده گرفتنش امن‌تر
+            // از رد کردن یک نشانیِ موقتِ درست است.
+            return $url;
+        }
+
+        foreach ($ips as $ip) {
+            if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return null;
+            }
+        }
+
+        return $url;
     }
 }

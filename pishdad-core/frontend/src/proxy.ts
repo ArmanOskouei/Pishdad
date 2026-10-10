@@ -24,6 +24,44 @@ import { effectiveValue, isInstalled } from "./lib/site-config.ts";
  * راستی‌آزمایی می‌کند. این لایه فقط دروازهٔ اولیهٔ پوستهٔ پنل است.
  */
 export async function proxy(req: NextRequest, event: NextFetchEvent) {
+  // SEC-2 — CSP با nonce. برای هر درخواست یک nonce ساخته می‌شود، روی هدرِ
+  // درخواست (`x-nonce`) می‌نشیند تا لایوت آن را روی اسکریپت‌های inline بگذارد،
+  // و روی پاسخ به‌عنوان هدرِ CSP می‌آید. `strict-dynamic` اجازه می‌دهد اسکریپت‌های
+  // هش‌دارِ Next به‌صورت پویا بارگذاری شوند بدون اینکه هر هش را دستی فهرست کنیم.
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  const request = new NextRequest(req, { headers: requestHeaders });
+
+  const response = await handleProxy(request, event);
+
+  // img/connect عمداً بازاند (http:/https:) چون پایهٔ رسانه و API در
+  // `config/runtime.json` قابلِ تنظیم است و در زمانِ بیلد ثابت نیست.
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: http: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' http: https:",
+    "frame-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+
+  response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Permissions-Policy", "geolocation=(), camera=(), microphone=()");
+
+  return response;
+}
+
+async function handleProxy(req: NextRequest, event: NextFetchEvent) {
   // ⚠️ مسیرهای سیستمی **پیش از هر چیز** کنار می‌روند.
   //
   // `/setup` نباید به زبان بازنویسی شود: اگر بشود، به `/{locale}/setup` می‌رود و
@@ -106,7 +144,12 @@ function firstSegment(pathname: string): string {
  * `setup` تنها عضوش است: نصب‌کنندهٔ وبِ فرانت. بقیهٔ مسیرهای غیرِسایتی
  * (`/api`, `/_next`, `/robots.txt`, …) را خودِ `isPublicSitePath` کنار می‌گذارد.
  */
-const SYSTEM_PATHS = new Set(["setup"]);
+// SEC-9 — `preview` هم مسیرِ سیستمی شد. پیش‌تر تنها `setup` اینجا بود، پس
+// `/preview` و `/preview/[theme]` از دروازهٔ پنل رد می‌شدند و **کاملاً عمومی**
+// بودند: کرومِ پنل برای هر بازدیدندهٔ بی‌احراز لو می‌رفت و `force-dynamic` روی
+// یک مسیرِ داغِ عمومی هزینه داشت. حالا مثل `/setup` کنار می‌رود و صفحهٔ
+// خودش تصمیم می‌گیرد (نشست را چک می‌کند).
+const SYSTEM_PATHS = new Set(["setup", "preview"]);
 
 /** مسیرِ نصب‌کننده. */
 const SETUP_PATH = "/setup";

@@ -574,7 +574,7 @@ class ProfileController extends Controller
         }
 
         $payload = [
-            'message' => 'سرویس پیامک هنوز فعال نشده است؛ کدی ارسال نشد. (کد فقط در محیط غیرپروداکشن برای تست برمی‌گردد)',
+            'message' => 'سرویس پیامک هنوز فعال نشده است؛ کدی ارسال نشد.',
             'code' => 'sms.not_configured',
         ];
 
@@ -582,8 +582,11 @@ class ProfileController extends Controller
             $payload['data'] = ['driver' => $sender->driverName(), 'reason' => $sender->lastError()];
         }
 
-        if (! app()->isProduction()) {
-            // محیط غیرپروداکشن: کد را می‌دهیم تا مسیر قابلِ تست باشد.
+        // S-09 — قبلاً `! app()->isProduction()` بود. این کافی نیست: این پروژه
+        // `.env` را نصب‌کننده می‌نویسد و اگر APP_ENV روی production نباشد
+        // (مثلاً مقدار پیش‌فرض local بماند)، کد تأیید در پاسخ API برمی‌گشت و
+        // تأیید شماره کاملاً دور زده می‌شد. حالا فقط محیط تست.
+        if (app()->environment('testing')) {
             $payload['data'] = array_merge($payload['data'] ?? [], ['debug_code' => $code]);
             Cache::put("sms_pending:{$user->id}", [
                 'phone' => $phone, 'code' => $code,
@@ -607,10 +610,21 @@ class ProfileController extends Controller
         if (! is_array($pending) || ! isset($pending['code'], $pending['phone'])) {
             return response()->json(['message' => 'ابتدا درخواست کد تأیید را ثبت کنید.'], 422);
         }
-        if (trim($validated['code']) !== (string) $pending['code']) {
+
+        // S-08 — کد ۶ رقمی بود و مقایسهٔ غیرِ امن. حالا دو لایه:
+        // ۱) مقایسهٔ زمان‌ثابت، ۲) شمارندهٔ تلاش ناموفق در کش (۵ تلاش در ۵ دقیقه).
+        $attemptsKey = "sms_attempts:{$user->id}";
+        if ((int) Cache::get($attemptsKey, 0) >= 5) {
+            return response()->json(['message' => 'تلاش بیش از حد؛ کد جدید درخواست کنید.'], 429);
+        }
+
+        if (! hash_equals((string) $pending['code'], trim($validated['code']))) {
+            Cache::put($attemptsKey, ((int) Cache::get($attemptsKey, 0)) + 1, now()->addMinutes(5));
+
             return response()->json(['message' => 'کد تأیید صحیح نیست.'], 422);
         }
 
+        Cache::forget($attemptsKey);
         $user->forceFill(['phone' => $pending['phone']])->save();
         Cache::forget("sms_pending:{$user->id}");
         Cache::put("sms_verified:{$user->id}", true, now()->addDays(90));

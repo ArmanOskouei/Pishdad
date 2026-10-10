@@ -134,10 +134,10 @@ Route::prefix('v1')->group(function () {
             // WF-M21 — محتوای نمونهٔ یک‌کلیکی برای حالت خالیِ لیست‌ها. idempotent.
             Route::post('sample-content', [SampleContentController::class, 'store'])->middleware('perm:pages.edit');
             Route::get('media', [MediaController::class, 'index']);
-            Route::post('media/presign', [MediaController::class, 'presign']);
+            Route::post('media/presign', [MediaController::class, 'presign'])->middleware('perm:media.edit');
             // NOTE: مسیرهای ثابت قبل از media/{id} تا id آن‌ها را نبلعد (دسته ۱).
             Route::get('media/usage', [MediaController::class, 'usage']);
-            Route::post('media/restore-all', [MediaController::class, 'restoreAll']);
+            Route::post('media/restore-all', [MediaController::class, 'restoreAll'])->middleware('perm:media.edit');
             // WF-H6 — پوشه/برچسب/انتقال گروهی. مسیرهای ثابت قبل از media/{id}.
             Route::get('media/folders', [MediaController::class, 'folders']);
             Route::post('media/folders', [MediaController::class, 'storeFolder'])->middleware('perm:media.edit');
@@ -152,14 +152,14 @@ Route::prefix('v1')->group(function () {
             // WF-H7 — گزارش تصاویر بدون alt + ویرایش گروهی alt. مسیر ثابت قبل از media/{id}.
             Route::get('media/alt-report', [MediaController::class, 'altReport']);
             Route::post('media/bulk/alt', [MediaController::class, 'bulkAlt'])->middleware('perm:media.edit');
-            Route::post('media/{id}/content', [MediaController::class, 'content']);
+            Route::post('media/{id}/content', [MediaController::class, 'content'])->middleware('perm:media.edit');
             // WF-M6 — جایگزینی بایت‌های فایل با حفظ مسیر/URL + باطل‌سازی کش.
             Route::post('media/{id}/replace', [MediaController::class, 'replace'])->middleware('perm:media.edit');
             Route::get('media/{id}', [MediaController::class, 'show']);
-            Route::put('media/{id}', [MediaController::class, 'update']);
-            Route::delete('media/{id}', [MediaController::class, 'destroy']);
-            Route::post('media/{id}/restore', [MediaController::class, 'restore']);
-            Route::delete('media/{id}/permanent', [MediaController::class, 'permanent']);
+            Route::put('media/{id}', [MediaController::class, 'update'])->middleware('perm:media.edit');
+            Route::delete('media/{id}', [MediaController::class, 'destroy'])->middleware('perm:media.delete');
+            Route::post('media/{id}/restore', [MediaController::class, 'restore'])->middleware('perm:media.edit');
+            Route::delete('media/{id}/permanent', [MediaController::class, 'permanent'])->middleware('perm:media.delete');
             // تسک ۲.۲ — داشبورد مشتری.
             Route::get('dashboard/stats', [DashboardController::class, 'stats']);
             Route::get('dashboard/alerts', [DashboardController::class, 'alerts']);
@@ -172,9 +172,9 @@ Route::prefix('v1')->group(function () {
                 ->middleware('perm:analytics.view');
             // تسک ۲.۳ — تنظیمات سایت + شبکه‌ها.
             Route::get('settings/site', [SiteSettingsController::class, 'showSite']);
-            Route::put('settings/site', [SiteSettingsController::class, 'updateSite']);
+            Route::put('settings/site', [SiteSettingsController::class, 'updateSite'])->middleware('perm:settings.edit');
             Route::get('settings/socials', [SiteSettingsController::class, 'showSocials']);
-            Route::put('settings/socials', [SiteSettingsController::class, 'updateSocials']);
+            Route::put('settings/socials', [SiteSettingsController::class, 'updateSocials'])->middleware('perm:settings.edit');
             // WF-M13 — تبِ «کارایی»: دامنهٔ دارایی/CDN + توکن پاک‌سازی + lazy/preload.
             Route::get('settings/performance', [PerformanceSettingsController::class, 'show'])
                 ->middleware('perm:settings.view');
@@ -242,23 +242,23 @@ Route::prefix('v1')->group(function () {
             // NOTE: مسیرهای خاص قبل از layouts/{area} ثبت می‌شوند تا area آن‌ها را نبلعد.
             Route::get('layouts/page-types', [LayoutController::class, 'pageTypes']);
             Route::get('layouts/page-type/{type}/blocks', [LayoutController::class, 'showBlocks']);
-            Route::put('layouts/page-type/{type}/blocks', [LayoutController::class, 'updateBlocks']);
+            Route::put('layouts/page-type/{type}/blocks', [LayoutController::class, 'updateBlocks'])->middleware('perm:layouts.edit');
             Route::get('layouts/{area}', [LayoutController::class, 'show']);
-            Route::put('layouts/{area}', [LayoutController::class, 'update']);
+            Route::put('layouts/{area}', [LayoutController::class, 'update'])->middleware('perm:layouts.edit');
             // تسک ۶ — schema تنظیمات ویجت‌ها (هسته + مانیفست پلاگین/قالب فعال).
             Route::get('widgets/schema', [WidgetSchemaController::class, 'index']);
             // ستون‌های کناری — پریست‌های مشترک با ارجاع زنده.
             Route::get('side-presets', [SidePresetController::class, 'index']);
-            Route::post('side-presets', [SidePresetController::class, 'store']);
+            Route::post('side-presets', [SidePresetController::class, 'store'])->middleware('perm:layouts.edit');
             Route::get('side-presets/{preset}', [SidePresetController::class, 'show']);
-            Route::put('side-presets/{preset}', [SidePresetController::class, 'update']);
-            Route::delete('side-presets/{preset}', [SidePresetController::class, 'destroy']);
+            Route::put('side-presets/{preset}', [SidePresetController::class, 'update'])->middleware('perm:layouts.edit');
+            Route::delete('side-presets/{preset}', [SidePresetController::class, 'destroy'])->middleware('perm:layouts.edit');
             // تسک ۴.۲ — قالب‌های سایت.
             Route::get('themes', [ThemeController::class, 'index']);
-            Route::post('themes/upload', [ThemeController::class, 'upload']);
-            Route::post('themes/{theme}/activate', [ThemeController::class, 'activate']);
-            Route::post('themes/{theme}/preview', [ThemeController::class, 'preview']);
-            Route::delete('themes/{theme}', [ThemeController::class, 'destroy']);
+            Route::post('themes/upload', [ThemeController::class, 'upload'])->middleware('perm:themes.edit');
+            Route::post('themes/{theme}/activate', [ThemeController::class, 'activate'])->middleware('perm:themes.edit');
+            Route::post('themes/{theme}/preview', [ThemeController::class, 'preview'])->middleware('perm:themes.edit');
+            Route::delete('themes/{theme}', [ThemeController::class, 'destroy'])->middleware('perm:themes.delete');
             // F4.1.B — سه‌قالبه: پوسته × رنگ‌بندی (جدول‌های `site_themes` /
             // `site_theme_presets` / `site_theme_settings`).
             //
@@ -267,10 +267,10 @@ Route::prefix('v1')->group(function () {
             // استخراجِ ZIP) و قاطی‌کردنشان یعنی بستهٔ بیرونی بتواند رنگِ قالبِ
             // درون‌ساخت را عوض کند.
             Route::get('site-theme', [SiteThemeController::class, 'index']);
-            Route::post('site-theme/select', [SiteThemeController::class, 'select']);
-            Route::put('site-theme/preset', [SiteThemeController::class, 'preset']);
-            Route::put('site-theme/overrides', [SiteThemeController::class, 'overrides']);
-            Route::post('site-theme/reset', [SiteThemeController::class, 'reset']);
+            Route::post('site-theme/select', [SiteThemeController::class, 'select'])->middleware('perm:themes.edit');
+            Route::put('site-theme/preset', [SiteThemeController::class, 'preset'])->middleware('perm:themes.edit');
+            Route::put('site-theme/overrides', [SiteThemeController::class, 'overrides'])->middleware('perm:themes.edit');
+            Route::post('site-theme/reset', [SiteThemeController::class, 'reset'])->middleware('perm:themes.edit');
             // تسک ۵.۱ — مدیران + نقش‌ها (سوپرادمین همیشه مخفی).
             Route::get('managers', [ManagerController::class, 'index'])->middleware('perm:users.view');
             Route::post('managers', [ManagerController::class, 'store'])->middleware('perm:users.edit');
@@ -304,8 +304,8 @@ Route::prefix('v1')->group(function () {
             Route::get('profile/sessions', [ProfileController::class, 'sessions']);
             Route::delete('profile/sessions/{id}', [ProfileController::class, 'destroySession']);
             Route::post('profile/sessions/revoke-all', [ProfileController::class, 'revokeOtherSessions']);
-            Route::post('profile/sms/request', [ProfileController::class, 'smsRequest']);
-            Route::post('profile/sms/verify', [ProfileController::class, 'smsVerify']);
+            Route::post('profile/sms/request', [ProfileController::class, 'smsRequest'])->middleware('throttle:6,1');
+            Route::post('profile/sms/verify', [ProfileController::class, 'smsVerify'])->middleware('throttle:10,1');
             Route::delete('profile/sms', [ProfileController::class, 'smsDisconnect']);
             // تسک ۵.۳ — تیکت‌ها.
             Route::get('tickets', [TicketController::class, 'index'])->middleware('perm:tickets.view');

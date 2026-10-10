@@ -10,7 +10,11 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RolesPermissionsSeeder::class,
-            DemoAdminSeeder::class,
+            // S-01: `DemoAdminSeeder` از مسیرِ پیش‌فرض خارج شد — یک اکانت
+            // admin@example.com / Admin!123 با نقش admin و 2FA خاموش می‌ساخت
+            // و چون `updateOrCreate` بود رمزِ حسابِ موجود را هم ریست می‌کرد.
+            // نصب‌کنندهٔ وب هیچ‌وقت آن را صدا نمی‌زند؛ فقط برای توسعهٔ محلی
+            // دستی: `php artisan db:seed --class=DemoAdminSeeder`
             DefaultPagesSeeder::class,
             FormSeeder::class,
             // `F4.1.B` — قالب‌های درون‌ساخت **از کد** (`Q5`). باید بعد از

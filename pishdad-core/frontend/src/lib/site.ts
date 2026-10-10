@@ -25,14 +25,10 @@ import { buildRssFeed, type FeedItem } from "@/lib/public/rss-feed";
 import { blogFeedHref } from "@/lib/blog";
 import { DEFAULT_PUBLIC_LOCALE, isPublicLocale, type PublicLocale } from "@/lib/i18n/public";
 import { effectiveValue } from "./site-config.ts";
+import { serverApiBase } from "./server-api-base.ts";
 
 export { applyAssetBase, applyMediaBase, normalizeAssetBase, resolveAssetBase } from "@/lib/asset-base";
 
-const UPSTREAM =
-  effectiveValue("INTERNAL_API_URL", "") ||
-  effectiveValue("PISHDAD_PUBLIC_API_URL", "") ||
-  (process.env.NEXT_PUBLIC_API_URL ?? "").trim() ||
-  "http://localhost:8080/api";
 
 export const SITE_REVALIDATE = 300; // ثانیه — ISR معقول برای صفحات عمومی
 export const SITE_TAG = "pages";
@@ -43,9 +39,22 @@ export const SITE_TAG = "pages";
  * خاموش ⇒ همهٔ دادهٔ سایت با `no-store` می‌آید (تنظیمات بی‌درنگ روی سایت دیده
  * می‌شود با یک رفرش ساده). روشن ⇒ ISR + باطل‌سازیِ تگی (سریع‌تر، کم‌مصرف‌تر).
  */
-export const siteCacheEnabled = cache(async (): Promise<boolean> => {
+/**
+ * PERF-3/RES-1 — پرچمِ «کشِ سایت روشن است؟».
+ *
+ * پیش از این، `get()` **اول** منتظرِ همین پرچم می‌ماند و بعد محتوا را
+ * می‌گرفت: یک رفت‌وبرگشتِ اضافی پیش از شروعِ هر واکشیِ محتوا (waterfall).
+ * حالا دو لایه: `cache()` ری‌اکت درونِ یک رندر دوبارنویسی می‌کند، و
+ * memoizeِ زیر با TTLِ ۶۰ ثانیه آن را به **حداکثر یک پروب در دقیقه** per
+ * worker محدود می‌کند (قابلِ تحجیم: یک تغییر در پنل حداکثر یک دقیقه بعد
+ * اثر می‌کند).
+ */
+let flagMemo: { at: number; value: boolean } | null = null;
+const FLAG_TTL_MS = 60_000;
+
+async function probeSiteCache(): Promise<boolean> {
   try {
-    const res = await fetch(`${UPSTREAM}/v1/site/cache`, {
+    const res = await fetch(`${serverApiBase()}/v1/site/cache`, {
       headers: { Accept: "application/json" },
       cache: "no-store",
     });
@@ -55,12 +64,21 @@ export const siteCacheEnabled = cache(async (): Promise<boolean> => {
   } catch {
     return true;
   }
+}
+
+export const siteCacheEnabled = cache(async (): Promise<boolean> => {
+  const now = Date.now();
+  if (flagMemo && now - flagMemo.at < FLAG_TTL_MS) return flagMemo.value;
+  const value = await probeSiteCache();
+  flagMemo = { at: now, value };
+
+  return value;
 });
 
 async function get<T>(path: string, tags: string[], fresh = false): Promise<T | null> {
   const cached = await siteCacheEnabled();
   try {
-    const res = await fetch(`${UPSTREAM}${path}`, {
+    const res = await fetch(`${serverApiBase()}${path}`, {
       headers: { Accept: "application/json" },
       ...(fresh || !cached ? { cache: "no-store" as const } : { next: { tags, revalidate: SITE_REVALIDATE } }),
     });
@@ -92,10 +110,20 @@ export async function fetchSitePageFallback(
   slug: string,
   chain: readonly string[],
 ): Promise<{ page: SitePage; locale: string } | null> {
-  for (const loc of chain) {
-    const page = await fetchSitePage(slug, loc).catch(() => null);
-    if (page) return { page, locale: loc };
+  // RES-2 — پیش از این زنجیرهٔ زبان **ترتیبی** لوپ می‌شد: نصبِ دوزبانه‌ای که
+  // صفحهٔ ترجمه ندارد دو رفت‌وبرگشتِ ترتیبی روی مسیرِ داغ می‌داد. حالا همه
+  // هم‌زمان شلیک می‌شوند و برنده، اولین **موفق** به ترتیبِ زنجیره است (نه
+  // اولین پاسخ‌دهنده) تا رفتارِ fallback عیناً حفظ شود.
+  if (chain.length === 0) return null;
+
+  const settled = await Promise.all(
+    chain.map(async (loc) => ({ loc, page: await fetchSitePage(slug, loc).catch(() => null) })),
+  );
+
+  for (const entry of settled) {
+    if (entry.page) return { page: entry.page, locale: entry.loc };
   }
+
   return null;
 }
 
@@ -246,7 +274,7 @@ export async function fetchBlogFeedXml(locale?: string): Promise<string | null> 
   const cached = await siteCacheEnabled();
   const qs = locale ? `?locale=${encodeURIComponent(locale)}` : "";
   try {
-    const res = await fetch(`${UPSTREAM}/v1/site/blog/feed${qs}`, {
+    const res = await fetch(`${serverApiBase()}/v1/site/blog/feed${qs}`, {
       headers: { Accept: "application/rss+xml, application/xml, text/xml" },
       ...(cached
         ? { next: { tags: [SITE_TAG, BLOG_TAG], revalidate: SITE_REVALIDATE } }
@@ -336,10 +364,17 @@ export function fetchHomepage(locale?: string): Promise<SitePage | null> {
 export async function fetchHomepageFallback(
   chain: readonly string[],
 ): Promise<{ page: SitePage; locale: string } | null> {
-  for (const loc of chain) {
-    const page = await fetchHomepage(loc).catch(() => null);
-    if (page) return { page, locale: loc };
+  // RES-2 — موازی، مثل `fetchSitePageFallback`.
+  if (chain.length === 0) return null;
+
+  const settled = await Promise.all(
+    chain.map(async (loc) => ({ loc, page: await fetchHomepage(loc).catch(() => null) })),
+  );
+
+  for (const entry of settled) {
+    if (entry.page) return { page: entry.page, locale: entry.loc };
   }
+
   return null;
 }
 
@@ -484,7 +519,7 @@ export async function fetchSiteChrome(): Promise<SiteChrome> {
  */
 export async function fetchSharedPreview(token: string): Promise<SitePage | null> {
   try {
-    const res = await fetch(`${UPSTREAM}/v1/site/share/${encodeURIComponent(token)}`, {
+    const res = await fetch(`${serverApiBase()}/v1/site/share/${encodeURIComponent(token)}`, {
       headers: { Accept: "application/json" },
       cache: "no-store",
     });

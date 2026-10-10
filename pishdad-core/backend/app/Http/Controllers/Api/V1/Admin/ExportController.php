@@ -12,6 +12,7 @@ use DOMDocument;
 use DOMElement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * WF-C6 — برون‌بری محتوا (JSON + WXR سازگار وردپرس).
@@ -49,21 +50,49 @@ class ExportController extends Controller
 
     private const DC_NS = 'http://purl.org/dc/elements/1.1/';
 
-    /** بستهٔ JSON کامل: صفحات + بلوک‌ها + متا + تاریخچه + رسانه + تنظیمات. */
-    public function exportJson(): JsonResponse
+    /**
+     * بستهٔ JSON کامل — **استریمی** (P-02).
+     *
+     * پیش از این، `pages()`/`media()` هر دو کل جدول را در یک آرایهٔ PHP جمع
+     * می‌کردند و بعد `response()->json` از همان آرایه یک کپیِ دوم می‌ساخت.
+     * با چند صد صفحهٔ چندزبانه × revisionها = دو نسخهٔ کاملِ محتوا در حافظه ⇒
+     * OOM و ۵۰۰ روی worker. حالا سرِ صفحه به صفحه json_encode و echo می‌شود:
+     * حافظه ثابت می‌ماند، کلاینت هم زودتر اولین بایت را می‌گیرد.
+     */
+    public function exportJson(): StreamedResponse
     {
-        $bundle = [
-            'format' => self::FORMAT,
-            'version' => self::VERSION,
-            'generated_at' => now()->toIso8601String(),
-            'site' => $this->siteMeta(),
-            'settings' => $this->settings(),
-            'pages' => $this->pages(),
-            'media' => $this->media(),
-        ];
+        $filename = 'content-export-'.now()->format('Ymd-His').'.json';
+        $flags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT;
 
-        return response()->json($bundle)
-            ->header('Content-Disposition', 'attachment; filename="content-export-'.now()->format('Ymd-His').'.json"');
+        return response()->streamDownload(function () use ($flags): void {
+            $head = [
+                'format' => self::FORMAT,
+                'version' => self::VERSION,
+                'generated_at' => now()->toIso8601String(),
+                'site' => $this->siteMeta(),
+                'settings' => $this->settings(),
+            ];
+            $encoded = json_encode($head, $flags) ?: '{}';
+
+            // آخرین `}` را باز می‌کنیم تا بخش‌های استریمی را وصل کنیم.
+            echo rtrim($encoded, '}').',"pages":[';
+
+            $first = true;
+            foreach (Page::query()->with('revisions')->orderBy('id')->lazyById(200) as $page) {
+                echo ($first ? '' : ',').json_encode($this->pageRow($page), $flags);
+                $first = false;
+            }
+            echo '],"media":[';
+            $first = true;
+            foreach (Media::query()->orderBy('id')->lazyById(200) as $m) {
+                echo ($first ? '' : ',').json_encode($this->mediaRow($m), $flags);
+                $first = false;
+            }
+            echo ']}';
+        }, 200, [
+            'Content-Type' => 'application/json; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
     }
 
     /** سند WXR 1.2 سازگار وردپرس از صفحاتِ منتشرشده و پیش‌نویس‌ها. */
@@ -111,51 +140,42 @@ class ExportController extends Controller
         return $out;
     }
 
-    /** @return list<array<string, mixed>> */
-    private function pages(): array
+    /** @return array<string, mixed> یک صفحه + تاریخچه — برای خروجیِ استریمی. */
+    private function pageRow(Page $page): array
     {
-        return Page::query()
-            ->with('revisions')
-            ->orderBy('id')
-            ->get()
-            ->map(fn (Page $page): array => [
-                'slug' => $page->slug,
-                'title' => $page->title,
-                'locale' => $page->locale,
-                'status' => $page->status,
-                'is_single' => (bool) $page->is_single,
-                'blocks' => $page->blocks ?? [],
-                'meta' => $page->meta,
-                'published_at' => $page->published_at?->toIso8601String(),
-                'created_at' => $page->created_at?->toIso8601String(),
-                'revisions' => $page->revisions->map(fn ($revision): array => [
-                    'version' => $revision->version,
-                    'blocks' => $revision->blocks ?? [],
-                    'meta' => $revision->meta,
-                    'note' => $revision->note,
-                    'created_at' => $revision->created_at?->toIso8601String(),
-                ])->all(),
-            ])
-            ->all();
+        return [
+            'slug' => $page->slug,
+            'title' => $page->title,
+            'locale' => $page->locale,
+            'status' => $page->status,
+            'is_single' => (bool) $page->is_single,
+            'blocks' => $page->blocks ?? [],
+            'meta' => $page->meta,
+            'published_at' => $page->published_at?->toIso8601String(),
+            'created_at' => $page->created_at?->toIso8601String(),
+            'revisions' => $page->revisions->map(fn ($revision): array => [
+                'version' => $revision->version,
+                'blocks' => $revision->blocks ?? [],
+                'meta' => $revision->meta,
+                'note' => $revision->note,
+                'created_at' => $revision->created_at?->toIso8601String(),
+            ])->all(),
+        ];
     }
 
-    /** @return list<array<string, mixed>> */
-    private function media(): array
+    /** @return array<string, mixed> یک رسانه — برای خروجیِ استریمی. */
+    private function mediaRow(Media $m): array
     {
-        return Media::query()
-            ->orderBy('id')
-            ->get()
-            ->map(fn (Media $m): array => [
-                'id' => $m->id,
-                'disk' => $m->disk,
-                'path' => $m->path,
-                'original_name' => $m->original_name,
-                'mime' => $m->mime,
-                'size' => $m->size,
-                'alt' => $m->alt,
-                'variants' => $m->variants,
-            ])
-            ->all();
+        return [
+            'id' => $m->id,
+            'disk' => $m->disk,
+            'path' => $m->path,
+            'original_name' => $m->original_name,
+            'mime' => $m->mime,
+            'size' => $m->size,
+            'alt' => $m->alt,
+            'variants' => $m->variants,
+        ];
     }
 
     // ------------------------------------------------------------------

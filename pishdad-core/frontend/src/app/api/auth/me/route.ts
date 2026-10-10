@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const UPSTREAM = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+import { serverApiBase } from "@/lib/server-api-base";
 
 /** GET /api/auth/me — سشن از کوکی httpOnly + پروفایل واقعی از بک‌اند (ProfileController@show). */
 export async function GET(req: NextRequest) {
   const token = req.cookies.get("auth_token")?.value;
   if (!token) return NextResponse.json({ user: null }, { status: 401 });
-  const up = await fetch(`${UPSTREAM}/v1/admin/profile`, {
+  const up = await fetch(`${serverApiBase()}/v1/admin/profile`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, cache: "no-store",
   }).catch(() => null);
   // E73 — توکنِ مرده = نشست نیست (fail-closed).

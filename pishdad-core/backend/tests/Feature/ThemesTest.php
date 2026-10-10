@@ -22,6 +22,9 @@ class ThemesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // S-05 — مسیرهای نوشتنِ قالب perm می‌خواهند؛ بدون این سیدر
+        // givePermissionTo در uploadAsOperator پرمیشنِ ناموجود پیدا می‌کند.
+        $this->seed(\Database\Seeders\RolesPermissionsSeeder::class);
         Storage::fake('local'); // آپلودها به دیسک واقعی نرسند.
     }
 
@@ -212,6 +215,10 @@ class ThemesTest extends TestCase
             'name' => 'اپراتور', 'email' => 'op'.uniqid().'@example.com',
             'password' => Hash::make('Operator!1234'), 'role' => 'operator',
         ]);
+        // S-05 — مسیرهای نوشتنِ قالب حالا perm می‌خواهند (پیش از این هر
+        // کاربرِ احرازهویت‌شده می‌توانست قالب آپلود/فعال/حذف کند). اپراتورِ
+        // این تست باید همان perm را داشته باشد که در عمل می‌گیرد.
+        $operator->givePermissionTo('themes.edit');
 
         $theme = $this->actingAs($operator, 'sanctum')
             ->withHeader('Accept', 'application/json')
