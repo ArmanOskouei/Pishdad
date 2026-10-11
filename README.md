@@ -255,6 +255,101 @@ Read it before you decide anything: **[COMPARISON.md](COMPARISON.md)** ·
 
 ## Installation
 
+Three routes — pick the one that matches your machine:
+
+| Route | You need | Result |
+|---|---|---|
+| **A. One command** | only **Node.js 18+** | prerequisites checked *and offered*, code + dependencies installed, web installer opened |
+| **B. Manual, per OS** | PHP 8.3, Composer, Node 22, PostgreSQL | full control, command by command |
+| **C. Docker** | only Docker | the whole stack in containers |
+
+### A. One command — `npx pishdad install` (fastest, no prerequisites needed)
+
+Nothing has to be on the machine first except Node.js:
+
+```bash
+npx pishdad install                  # installs into ./Pishdad
+npx pishdad install ./mysite        # installs into ./mysite
+```
+
+It does five things, in order:
+
+1. **Checks prerequisites** — PHP, Composer, PostgreSQL client, Node, git — printing each as `ok` / `MISS`.
+2. **Offers what is missing** — for each one it prints the official command for *your* OS and asks `Install it now? [Y/n]`. Yes installs it and **re-verifies that exact tool**; saying no to Node continues with backend only (said loudly), saying no to PHP/Composer/PostgreSQL/git stops.
+3. **Gets the code** — `git clone --depth 1`, or `git pull --ff-only` when the folder is already a checkout.
+4. **Installs** — `composer install --no-dev --optimize-autoloader`, `.env` from `.env.example` (never overwritten), an app key, then `npm ci` for the frontend.
+5. **Serves and opens** — starts the backend on `127.0.0.1:8080`, waits for it to answer, and opens `http://127.0.0.1:8080/install`, where the 6-step web installer finishes the job (database, superadmin, demo content).
+
+Flags for the cases you will actually hit:
+
+| Flag | When |
+|---|---|
+| `--check` | “just tell me what is missing” — installs nothing |
+| `--yes` | unattended: installs every missing prerequisite (needs sudo/admin) |
+| `--no-frontend` | backend only — no Node/npm involved |
+| `--no-serve` / `--no-open` | servers and headless machines |
+| `--docker-container <name>` | use the PHP inside a container (proven mounted, never assumed) |
+| `--native` | ignore Docker even if a container has a working PHP |
+
+If several working PHPs exist (a native one *and* a container) it asks you to
+pick one; when you pick a container it also asks you to confirm the project is
+mounted inside it. Every question, and what to answer on Windows / Docker /
+VPS / shared hosting / managed cloud databases:
+**[INSTALL.md §3](INSTALL.md#3a-npx-pishdad-install--every-question-and-the-right-answer)**.
+
+### B. Or install the prerequisites yourself, per OS
+
+**Ubuntu / Debian 22.04+**
+
+```bash
+sudo apt update && sudo apt install -y \
+  php8.3-fpm php8.3-cli php8.3-mbstring php8.3-openssl php8.3-pgsql \
+  php8.3-intl php8.3-fileinfo php8.3-sodium php8.3-curl php8.3-xml \
+  php8.3-zip php8.3-gd php8.3-bcmath \
+  postgresql-16 git unzip curl
+# Composer: php -r "copy('https://getcomposer.org/installer','composer-setup.php');"
+#           php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+# Node 22:   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - \
+#               && sudo apt install -y nodejs
+```
+
+**RHEL / AlmaLinux / Rocky / Fedora** (remi + EPEL, then the packages)
+
+```bash
+sudo dnf install -y epel-release
+sudo dnf install -y https://rpms.remirepo.net/enterprise/remi-release-$(rpm -E %rhel).rpm
+sudo dnf module reset php && sudo dnf module enable php:remi-8.3
+sudo dnf install -y php-fpm php-cli php-mbstring php-openssl php-pgsql \
+  php-intl php-sodium php-curl php-xml php-zip postgresql-server git
+# SELinux blocks writes to storage/ even when permissions look right:
+sudo setsebool -P httpd_can_network_connect_db on
+cd pishdad-core/backend && sudo chcon -R -t httpd_sys_rw_content_t storage bootstrap/cache
+```
+
+**Windows 10/11**
+
+```powershell
+winget install PHP.PHP.8.3 Composer.Composer OpenJS.NodeJS.LTS PostgreSQL.PostgreSQL.16 Git.Git
+```
+
+Then open `php.ini` and uncomment these two lines — without them the installer
+stops at the database step:
+
+```ini
+extension=pdo_pgsql
+extension=intl
+```
+
+**macOS**
+
+```bash
+brew install php@8.3 composer node@22 postgresql@16 git
+brew link --overwrite --force php@8.3
+brew services start postgresql@16
+```
+
+Then build it manually:
+
 ```bash
 git clone https://github.com/ArmanOskouei/Pishdad.git
 cd Pishdad/pishdad-core
@@ -268,20 +363,36 @@ php artisan migrate
 
 # --- Frontend ---
 cd ../frontend
-npm install
+npm ci
 npm run build
 ```
 
 Then open the web installer — it checks every requirement and finishes the
-setup (superadmin, demo content, storage link):
+setup (storage link, superadmin, demo content):
 
 ```bash
 cd ../backend && php artisan serve
 # open http://127.0.0.1:8000/install
 ```
 
-Full guide — per-OS commands, what each step installs, updating, shared
-hosting (cPanel), Docker, ZIP download: **[INSTALL.md](INSTALL.md)**.
+### C. Docker (only Docker required)
+
+```bash
+git clone https://github.com/ArmanOskouei/Pishdad.git
+cd Pishdad/pishdad-core/backend
+cp .env.example .env
+docker compose up -d --build
+# open http://localhost:8080/install
+```
+
+This brings PHP-FPM, Nginx, PostgreSQL, Redis and MinIO; the installer detects
+Docker and pre-fills the database defaults (`db` / `cms`).
+
+---
+
+Full guide — every question at every step and the right answer for your setup,
+per-OS prerequisites, updating, shared hosting (cPanel), ZIP download:
+**[INSTALL.md](INSTALL.md)**.
 
 > 🇮🇷 [راهنمای نصب به زبان فارسی](README.fa.md#نصب)
 
@@ -302,7 +413,7 @@ hosting (cPanel), Docker, ZIP download: **[INSTALL.md](INSTALL.md)**.
 
 | Service | Version |
 |---|---|
-| PHP | 8.2+, 8.3 recommended (FPM) |
+| PHP | 8.3+ (FPM) — the installer requires 8.3 |
 | PHP extensions | `pdo_pgsql` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
 | PostgreSQL | 14+ — MySQL/MariaDB do **not** work (`jsonb` migrations) |
 | Composer | 2.x |

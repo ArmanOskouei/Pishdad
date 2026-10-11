@@ -248,6 +248,100 @@
 
 ## نصب
 
+سه راه — بسته به دستگاهتان یکی را انتخاب کنید:
+
+| راه | چه لازم دارید | نتیجه |
+|---|---|---|
+| **الف. یک دستور** | فقط **Node.js نسخه ۱۸ به بالا** | پیش‌نیازها بررسی **و پیشنهاد** می‌شوند، کد و وابستگی‌ها نصب می‌شوند، نصب‌کنندهٔ وب باز می‌شود |
+| **ب. دستی، در هر سیستم‌عامل** | PHP 8.3، Composer، Node 22، PostgreSQL | کنترل کامل، دستور به دستور |
+| **پ. Docker** | فقط Docker | کل پشته در کانتینر |
+
+### الف. یک دستور — `npx pishdad install` (سریع‌ترین، بدون هیچ پیش‌نیازی)
+
+روی دستگاه جز Node.js هیچ‌چیز لازم نیست:
+
+```bash
+npx pishdad install                  # داخل ./Pishdad نصب می‌کند
+npx pishdad install ./mysite        # داخل ./mysite نصب می‌کند
+```
+
+پنج کار، به ترتیب:
+
+1. **پیش‌نیازها را بررسی می‌کند** — PHP، Composer، کلاینت PostgreSQL، Node، git — و هر کدام را `ok` / `MISS` چاپ می‌کند.
+2. **کمبودها را پیشنهاد می‌دهد** — برای هر کدام دستورِ رسمیِ **سیستم‌عامل شما** را چاپ و می‌پرسد `Install it now? [Y/n]`. بله = نصبش می‌کند و **همان یک ابزار را دوباره می‌سنجد**؛ نه به Node یعنی ادامه با فقط بک‌اند (با هشدارِ بلند)، نه به PHP/Composer/PostgreSQL/git یعنی توقف.
+3. **کد را می‌گیرد** — `git clone --depth 1`، یا `git pull --ff-only` اگر پوشه از قبل checkout باشد.
+4. **نصب می‌کند** — `composer install --no-dev --optimize-autoloader`، ساخت `.env` از `.env.example` (هرگز بازنویسی نمی‌شود)، کلید برنامه، بعد `npm ci` برای فرانت‌اند.
+5. **سرویس می‌کند و باز می‌کند** — بک‌اند را روی `127.0.0.1:8080` بالا می‌آورد، منتظر پاسخش می‌ماند و `http://127.0.0.1:8080/install` را باز می‌کند؛ نصب‌کنندهٔ وبِ ۶ قدمی بقیه را تمام می‌کند (دیتابیس، سوپرادمین، محتوای دمو).
+
+پرچم‌هایی که واقعاً به کارتان می‌آید:
+
+| پرچم | کِی |
+|---|---|
+| `--check` | «فقط بگو چه کم است» — هیچ‌چیز نصب نمی‌کند |
+| `--yes` | بدون سؤال: همهٔ پیش‌نیازهای کمبود نصب می‌شوند (sudo/admin لازم است) |
+| `--no-frontend` | فقط بک‌اند — هیچ Node/npmی در میان نیست |
+| `--no-serve` / `--no-open` | سرور و ماشین‌های بدون نمایشگر |
+| `--docker-container <name>` | استفاده از PHP داخل یک کانتینر (mount بودنش اثبات می‌شود، فرض نمی‌شود) |
+| `--native` | Docker نادیده گرفته می‌شود، حتی اگر کانتینری PHP سالم داشته باشد |
+
+اگر چند PHP سالم پیدا شود (یکی بومی و یکی کانتینر) از شما می‌خواهد یکی را
+انتخاب کنید؛ وقتی کانتینر را برمی‌گزینید، می‌پرسد که پروژه واقعاً داخلش mount
+است یا نه. هر سؤال و پاسخِ درستش برای ویندوز / Docker / VPS / هاست اشتراکی /
+دیتابیس ابری: **[INSTALL.fa.md §۳](INSTALL.fa.md)**.
+
+### ب. یا خودتان پیش‌نیازها را در سیستم‌عاملتان نصب کنید
+
+**اوبونتو / دبیان 22.04 به بالا**
+
+```bash
+sudo apt update && sudo apt install -y \
+  php8.3-fpm php8.3-cli php8.3-mbstring php8.3-openssl php8.3-pgsql \
+  php8.3-intl php8.3-fileinfo php8.3-sodium php8.3-curl php8.3-xml \
+  php8.3-zip php8.3-gd php8.3-bcmath \
+  postgresql-16 git unzip curl
+# کامپوزر: php -r "copy('https://getcomposer.org/installer','composer-setup.php');"
+#           php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+# Node 22:   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - \
+#               && sudo apt install -y nodejs
+```
+
+**RHEL / AlmaLinux / Rocky / Fedora** (مخازن remi + EPEL، بعد بسته‌ها)
+
+```bash
+sudo dnf install -y epel-release
+sudo dnf install -y https://rpms.remirepo.net/enterprise/remi-release-$(rpm -E %rhel).rpm
+sudo dnf module reset php && sudo dnf module enable php:remi-8.3
+sudo dnf install -y php-fpm php-cli php-mbstring php-openssl php-pgsql \
+  php-intl php-sodium php-curl php-xml php-zip postgresql-server git
+# SELinux حتی با اجازهٔ درستِ فایل‌ها هم نوشتن در storage/ را می‌بندد:
+sudo setsebool -P httpd_can_network_connect_db on
+cd pishdad-core/backend && sudo chcon -R -t httpd_sys_rw_content_t storage bootstrap/cache
+```
+
+**ویندوز ۱۰/۱۱**
+
+```powershell
+winget install PHP.PHP.8.3 Composer.Composer OpenJS.NodeJS.LTS PostgreSQL.PostgreSQL.16 Git.Git
+```
+
+بعد فایل `php.ini` را باز کنید و این دو خط را از حالت کامنت دربیاورید — بدون
+آن‌ها نصب‌کننده سرِ قدمِ دیتابیس می‌ایستد:
+
+```ini
+extension=pdo_pgsql
+extension=intl
+```
+
+**macOS**
+
+```bash
+brew install php@8.3 composer node@22 postgresql@16 git
+brew link --overwrite --force php@8.3
+brew services start postgresql@16
+```
+
+بعد دستی بسازید:
+
 ```bash
 git clone https://github.com/ArmanOskouei/Pishdad.git
 cd Pishdad/pishdad-core
@@ -261,20 +355,36 @@ php artisan migrate
 
 # --- فرانت‌اند ---
 cd ../frontend
-npm install
+npm ci
 npm run build
 ```
 
 بعد نصب‌کنندهٔ وب را باز کنید — همهٔ پیش‌نیازها را بررسی می‌کند و نصب را تمام
-می‌کند (سوپرادمین، محتوای دمو، لینک storage):
+می‌کند (لینک storage، سوپرادمین، محتوای دمو):
 
 ```bash
 cd ../backend && php artisan serve
 # باز کنید: http://127.0.0.1:8000/install
 ```
 
-راهنمای کامل — دستورهای هر سیستم‌عامل، هر قدم چه نصب می‌کند، به‌روزرسانی،
-هاست اشتراکی (cPanel)، Docker، دانلود ZIP: **[INSTALL.fa.md](INSTALL.fa.md)**.
+### پ. Docker (فقط Docker لازم است)
+
+```bash
+git clone https://github.com/ArmanOskouei/Pishdad.git
+cd Pishdad/pishdad-core/backend
+cp .env.example .env
+docker compose up -d --build
+# باز کنید: http://localhost:8080/install
+```
+
+PHP-FPM و Nginx و PostgreSQL و Redis و MinIO را بالا می‌آورد؛ نصب‌کننده Docker را
+تشخیص می‌دهد و پیش‌فرض‌های دیتابیس (`db` / `cms`) را خودش پر می‌کند.
+
+---
+
+راهنمای کامل — هر سؤال در هر قدم و پاسخِ درستش برای وضعیت شما، پیش‌نیازهای هر
+سیستم‌عامل، به‌روزرسانی، هاست اشتراکی (cPanel)، دانلود ZIP:
+**[INSTALL.fa.md](INSTALL.fa.md)**.
 
 > 🇬🇧 [This section in English](README.md#installation)
 ---
@@ -294,7 +404,7 @@ cd ../backend && php artisan serve
 
 | سرویس | نسخه |
 |---|---|
-| PHP | 8.2 به بالا، 8.3 پیشنهادی (FPM) |
+| PHP | 8.3 به بالا (FPM) — نصب‌کننده 8.3 را الزامی می‌کند |
 | افزونه‌های PHP | `pdo_pgsql` · `sodium` · `intl` · `bcmath` · `mbstring` · `zip` · `gd` · `fileinfo` · `curl` · `openssl` |
 | PostgreSQL | 14 به بالا — MySQL/MariaDB **کار نمی‌کند** (مهاجرت‌های `jsonb`) |
 | Composer | نسخه ۲ |
