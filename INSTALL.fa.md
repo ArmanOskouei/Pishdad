@@ -411,7 +411,7 @@ bash deploy/deploy.sh        # build ← migrate ← seal ← outbox ← doctor 
 
 | # | نیاز در cPanel | کجا بررسی کنید |
 |---|---|---|
-| ۱ | PHP نسخه **8.2 به بالا** در «Select PHP Version» با افزونه‌های `pdo_pgsql` و `intl` و `mbstring` و `zip` و `gd` و `sodium` و `bcmath` و `curl` و `fileinfo` و `openssl` | Select PHP Version ← همهٔ تیک‌ها |
+| ۱ | PHP نسخه **8.3 به بالا** در «Select PHP Version» با افزونه‌های `pdo_pgsql` و `intl` و `mbstring` و `zip` و `gd` و `sodium` و `bcmath` و `curl` و `fileinfo` و `openssl` | Select PHP Version ← همهٔ تیک‌ها |
 | ۲ | دیتابیس **PostgreSQL** + کاربر (نه MySQL) | بخش «PostgreSQL Databases» باید وجود داشته باشد |
 | ۳ | Node.js نسخه **22** («Setup Node.js App») **یا** اجازهٔ آپلود فرانتِ ازپیش‌بیلدشده | اگر هیچ‌کدام: روی PC خودتان `npm run build` بگیرید و `.next/standalone` + `public/` را آپلود کنید |
 | ۴ | Cron job (یک خط، هر دقیقه) | بخش «Cron Jobs» |

@@ -419,7 +419,7 @@ a VPS instead; there is no workaround (see “why not” below).
 
 | # | Requirement in cPanel | Where to check |
 |---|---|---|
-| 1 | PHP **8.2+** in “Select PHP Version”, with extensions `pdo_pgsql`, `intl`, `mbstring`, `zip`, `gd`, `sodium`, `bcmath`, `curl`, `fileinfo`, `openssl` | Select PHP Version → check every box |
+| 1 | PHP **8.3+** in “Select PHP Version”, with extensions `pdo_pgsql`, `intl`, `mbstring`, `zip`, `gd`, `sodium`, `bcmath`, `curl`, `fileinfo`, `openssl` | Select PHP Version → check every box |
 | 2 | A **PostgreSQL** database + user (not MySQL) | “PostgreSQL Databases” section must exist |
 | 3 | Node.js **22** (“Setup Node.js App”) **or** permission to upload a prebuilt frontend | if neither: build on your own PC (`npm run build`) and upload `.next/standalone` + `public/` |
 | 4 | Cron jobs (one line, every minute) | “Cron Jobs” |
