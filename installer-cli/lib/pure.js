@@ -139,6 +139,9 @@ What it does:
   5. serves the backend and opens ${INSTALL_URL}
      where the 6-step web installer finishes the job
      (database, migrate, superadmin, demo content).
+     Every question — here and in the web installer — and the right answer
+     for your setup is in section 3 of:
+        INSTALL.md (English) | INSTALL.fa.md (Persian)
 
 Options:
   --check          only report what is missing, install nothing

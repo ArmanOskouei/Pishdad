@@ -48,6 +48,12 @@ npx pishdad install ./mysite --yes # full auto install into ./mysite
   the [cPanel guide](https://github.com/ArmanOskouei/Pishdad/blob/main/INSTALL.md)
   instead.
 - Tests: `npm test` (pure logic, no network, no sudo).
+- Every question this installer (and the 6-step web installer) asks, with the
+  right answer for each setup: section 3 of
+  [INSTALL.md](https://github.com/ArmanOskouei/Pishdad/blob/main/INSTALL.md)
+  (English) and
+  [INSTALL.fa.md](https://github.com/ArmanOskouei/Pishdad/blob/main/INSTALL.fa.md)
+  (Persian).
 
 ## Publish a new version (maintainers)
 
