@@ -20,35 +20,23 @@ import { effectiveValue, isInstalled } from "./lib/site-config.ts";
  * راستی‌آزمایی می‌کند. این لایه فقط دروازهٔ اولیهٔ پوستهٔ پنل است.
  */
 export async function proxy(req: NextRequest, event: NextFetchEvent) {
-  // PERF-1/SEC-2 -- CSP by page SURFACE.
+  // SEC-2/E89 -- single CSP, no nonce.
   //
-  // A nonce in Next means "this page must be dynamically rendered", and
-  // dynamic rendering means no ISR -- i.e. the public site would never be
-  // cached. So:
+  // History: the panel once used `nonce-xxx + strict-dynamic`, assuming Next
+  // forwards the `x-nonce` request header to its own <script> tags. It does
+  // NOT (proven in a real browser console: every Next chunk was blocked and
+  // the panel rendered blank). Per-request nonces only work for scripts WE
+  // render, not the framework's.
   //
-  //   - panel: nonce + strict-dynamic (the panel is never static; no
-  //     conflict). The nonce is also set on the REQUEST header because Next
-  //     reads it from there -- otherwise Next's own scripts and
-  //     siteModeBootstrapJs render without a nonce and CSP blocks them.
-  //   - public site: no nonce, `script-src 'self' 'unsafe-inline'`. The only
-  //     inline content there is what we render and sanitize server-side
-  //     (`safeHtml`) -- a conscious trade-off, recorded in docs/TASKS.md.
-  const isPanel = panelRoots().has(firstSegment(req.nextUrl.pathname));
-  const nonce = isPanel ? Buffer.from(crypto.randomUUID()).toString("base64") : "";
-  const surface = isPanel ? "panel" : "site";
-
-  const requestHeaders = new Headers(req.headers);
-  if (isPanel) {
-    requestHeaders.set("x-nonce", nonce);
-    requestHeaders.set("Content-Security-Policy", cspFor("panel", nonce));
-  }
-  const request = new NextRequest(req, { headers: requestHeaders });
-
-  const response = await handleProxy(request, event);
+  // So both surfaces share `script-src 'self' 'unsafe-inline'`. This is still
+  // strictly better than the pre-SEC-2 state (no CSP at all): object-src is
+  // none, frames can't embed us, base/form are locked to self, and every
+  // inline script in the tree is ours (user content goes through safeHtml).
+  const response = await handleProxy(req, event);
 
   // img/connect stay open (http:/https:) because the media/API base is
   // configurable at runtime via config/runtime.json, not at build time.
-  response.headers.set("Content-Security-Policy", cspFor(surface, nonce));
+  response.headers.set("Content-Security-Policy", cspFor());
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("X-Frame-Options", "DENY");
@@ -58,15 +46,10 @@ export async function proxy(req: NextRequest, event: NextFetchEvent) {
 }
 
 /** CSP policy, extracted so it is read (and tested) in one place. */
-function cspFor(surface: "panel" | "site", nonce: string): string {
-  const scriptSrc =
-    surface === "panel"
-      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
-      : "script-src 'self' 'unsafe-inline'";
-
+function cspFor(): string {
   return [
     "default-src 'self'",
-    scriptSrc,
+    "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: http: https:",
     "font-src 'self' data:",
