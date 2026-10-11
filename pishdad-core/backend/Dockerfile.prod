@@ -1,0 +1,67 @@
+# Production image for the Pishdad backend.
+#
+# PF-1 — the dev image runs php-fpm as root (see docker/php/zz-docker.conf and
+# its comment about Windows bind-mounts). That is a development convenience:
+# running FPM as root means any RCE in the app is root in the container.
+#
+# This Dockerfile is the production path. It differs from the dev one in
+# exactly three ways:
+#
+#   1. `USER www-data` — FPM runs unprivileged.
+#   2. production ini + pool (opcache validate_timestamps=0, ondemand…).
+#   3. `postgresql18-client` is already in the base image (see Dockerfile).
+#
+# Usage (compose.prod.yml):
+#   build: { context: ., dockerfile: Dockerfile.prod }
+#
+# ⚠️ The bind-mounted `./:/var/www/html` of the dev setup is NOT used here:
+# the code is baked into the image, which is what makes validate_timestamps=0
+# safe. Deploy = build a new image, not edit files in place.
+#
+# Ownership: the app user must own the writable directories the app touches
+# at runtime (logs, cache, sessions, views). Copying the code as root and
+# then chown'ing only those directories keeps the image layers small.
+
+FROM alpine:3.24
+
+# Same package set as the dev image, plus opcache (the package exists on 3.24;
+# the dev Dockerfile's comment about it not existing is outdated) and
+# postgresql18-client, without which the nightly backup:run fails silently
+# (BackupRunner shells out to pg_dump from PATH).
+RUN apk add --no-cache \
+    php85 php85-fpm \
+    php85-ctype php85-curl php85-dom php85-fileinfo php85-mbstring \
+    php85-openssl php85-pdo php85-pdo_pgsql php85-pgsql php85-phar \
+    php85-session php85-tokenizer php85-xml php85-simplexml php85-xmlwriter php85-xmlreader \
+    php85-intl php85-bcmath php85-sockets php85-pcntl php85-zip \
+    php85-pecl-redis php85-iconv php85-opcache \
+    postgresql18-client \
+    && ln -s /usr/sbin/php-fpm85 /usr/sbin/php-fpm \
+    && addgroup -g 82 -S www-data \
+    && adduser -u 82 -S www-data -G www-data
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+COPY composer.json composer.lock ./
+# --no-dev: no phpunit/collision in a production image. --classmap-authoritative
+# makes the autoloader a lookup table instead of stat'ing the filesystem, which
+# is the single cheapest per-request win on a container filesystem.
+RUN composer install --no-interaction --prefer-dist --no-scripts --no-dev --classmap-authoritative
+
+COPY . .
+
+COPY docker/php/php-prod.ini /etc/php85/conf.d/99-local.ini
+COPY docker/php/zz-docker-prod.conf /etc/php85/php-fpm.d/zz-docker.conf
+
+COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh \
+    && chmod +x /usr/local/bin/entrypoint.sh \
+    && mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache
+
+USER www-data
+
+EXPOSE 9000
+ENTRYPOINT ["entrypoint.sh"]

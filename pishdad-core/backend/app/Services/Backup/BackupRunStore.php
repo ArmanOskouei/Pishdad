@@ -18,7 +18,12 @@ class BackupRunStore
 
     public static function path(?string $directory = null): string
     {
-        $dir = $directory ?? config('backup.path', storage_path('app/backups'));
+        // `config('backup.path')` وقتی کلید هست ولی مقدار null است (حالتِ
+        // عادیِ نصب: `BACKUP_PATH` در .env نیست)، خودِ null را برمی‌گرداند —
+        // نه مقدارِ پیش‌فرضِ دومِ config(). با `??` همان null می‌ماند و
+        // `rtrim('', '/').'/last-run.json'` می‌شود `/last-run.json` در ریشهٔ
+        // فایل‌سیستم (زودگذر، و بینِ app و worker جدا). پس زنجیرهٔ `?:`.
+        $dir = $directory ?: config('backup.path') ?: storage_path('app/backups');
 
         return rtrim((string) $dir, '/').'/'.self::FILE;
     }

@@ -42,9 +42,11 @@ class RunDatabaseBackup implements ShouldQueue, ShouldBeUnique
 
     public function handle(BackupRunner $runner): void
     {
+        $startedAt = now()->toIso8601String();
+
         BackupRunStore::record([
             'status' => 'running',
-            'started_at' => now()->toIso8601String(),
+            'started_at' => $startedAt,
             'requested_by' => $this->requestedBy,
         ], $this->directory);
 
@@ -57,6 +59,7 @@ class RunDatabaseBackup implements ShouldQueue, ShouldBeUnique
                 'message' => $result['message'],
                 'file' => $result['file'] !== null ? basename((string) $result['file']) : null,
                 'removed' => $result['removed'],
+                'started_at' => $startedAt,
                 'finished_at' => now()->toIso8601String(),
                 'requested_by' => $this->requestedBy,
             ], $this->directory);
@@ -65,6 +68,7 @@ class RunDatabaseBackup implements ShouldQueue, ShouldBeUnique
                 'status' => 'failed',
                 'ok' => false,
                 'message' => $e->getMessage(),
+                'started_at' => $startedAt,
                 'finished_at' => now()->toIso8601String(),
                 'requested_by' => $this->requestedBy,
             ], $this->directory);

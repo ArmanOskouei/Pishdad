@@ -4,12 +4,8 @@ import { inspectSessionToken } from "@/lib/session-cookie";
 import {
   DEFAULT_PUBLIC_LOCALE,
   isPublicSitePath,
-  localesForHeader,
   parseLocalesHeader,
   resolveLocaleRoute,
-  SITE_LOCALE_HEADER,
-  SITE_LOCALES_HEADER,
-  SITE_PRIMARY_LOCALE_HEADER,
 } from "@/lib/public-routing";
 import { effectiveValue, isInstalled } from "./lib/site-config.ts";
 
@@ -312,25 +308,36 @@ async function matchRedirect(req: NextRequest, event: NextFetchEvent): Promise<N
  * عمومی باشد.
  */
 /**
- * ⚠️ رفعِ باگِ حلقهٔ ریدایرکت — صفحهٔ اصلی هرگز باز نمی‌شد.
+ * E45 + PERF-1 - loop guard without mutating the request.
  *
- * Next مسیرِ بازنویسی‌شده را **دوباره** از پروکسی می‌گذراند. بدونِ این نشانه:
- * `/about` → بازنویسی به `/fa/about` → پاسِ دوم قاعدهٔ «پیشوندِ زبانِ پایه
- * باید برهنه باشد» را می‌بیند → ۳۰۸ به `/about` → بازنویسی → … یعنی حلقهٔ
- * بی‌پایان. با آزمایشِ واقعیِ HTTP بازتولید شد: `/`، `/about` و `/search` همگی
- * ۳۰۸ به خودشان می‌دادند و فقط `/{زبانِ غیرِپایه}` جواب می‌داد.
- *
- * در پاسِ دوم ریدایرکت نمی‌کنیم و همان مسیرِ دارای پیشوند را رندر می‌کنیم.
- *
- * جعلِ این هدر بی‌خطر است: نهایتش این است که کاربر `/fa/about` را بدونِ
- * ریدایرکتِ زیبایی‌شناختی به `/about` ببیند. تصمیمِ پنل **پیش از** این تابع
- * گرفته می‌شود، پس این نشانه هیچ راهی برای دورزدنِ گیتِ پنل باز نمی‌کند.
+ * Next re-invokes the proxy on an internally rewritten path. The old marker
+ * (x-pishdad-locale-rewrite) was set on the request, and that mutation made
+ * every public route dynamic in Next 16 (no-store answers). Now the guard
+ * reads the internal x-middleware-rewrite request header that Next itself
+ * sets on the second pass: there we serve as-is instead of redirecting back
+ * (which would loop with the primary-prefix strip rule). Spoofing it is
+ * harmless: at most a cosmetic redirect is skipped; the panel gate runs
+ * before this function.
  */
-const LOCALE_REWRITE_HEADER = "x-pishdad-locale-rewrite";
+/** PERF-1 — مسیرهای مستقل از زبان؛ هرگز بازنویسیِ locale نمی‌خورند. */
+const STATIC_SITE_PATHS = new Set([
+  "/robots.txt",
+  "/sitemap.xml",
+  "/llms.txt",
+  "/manifest.webmanifest",
+  "/favicon.ico",
+]);
 
 function siteLocale(req: NextRequest): NextResponse {
   const pathname = req.nextUrl.pathname;
   if (!isPublicSitePath(pathname)) return NextResponse.next();
+  if (STATIC_SITE_PATHS.has(pathname)) return NextResponse.next();
+
+  // Second pass of an internal rewrite: serve as-is. Redirecting back here
+  // would loop with the primary-prefix strip rule (the E45 loop).
+  if (req.headers.get("x-middleware-rewrite") !== null) {
+    return NextResponse.next();
+  }
 
   const locales = parseLocalesHeader(effectiveValue("PISHDAD_SITE_LOCALES", process.env.NEXT_PUBLIC_SITE_LOCALES));
   const primary =
@@ -339,17 +346,7 @@ function siteLocale(req: NextRequest): NextResponse {
   const effective = locales.length > 0 ? locales : [primary];
   const decision = resolveLocaleRoute(pathname, effective, primary);
 
-  const headers = new Headers(req.headers);
-  headers.set(SITE_LOCALE_HEADER, decision.locale);
-  headers.set(SITE_LOCALES_HEADER, localesForHeader(effective));
-  headers.set(SITE_PRIMARY_LOCALE_HEADER, primary);
-
   if (decision.action === "redirect") {
-    // پاسِ دومِ یک بازنویسیِ داخلی ⇒ ریدایرکت نکن، همان مسیر را رندر کن.
-    if (req.headers.get(LOCALE_REWRITE_HEADER) === "1") {
-      return NextResponse.next({ request: { headers } });
-    }
-
     const url = req.nextUrl.clone();
     url.pathname = decision.path ?? "/";
     return NextResponse.redirect(url, 308);
@@ -358,11 +355,10 @@ function siteLocale(req: NextRequest): NextResponse {
   if (decision.action === "rewrite") {
     const url = req.nextUrl.clone();
     url.pathname = decision.path ?? pathname;
-    headers.set(LOCALE_REWRITE_HEADER, "1");
-    return NextResponse.rewrite(url, { request: { headers } });
+    return NextResponse.rewrite(url);
   }
 
-  return NextResponse.next({ request: { headers } });
+  return NextResponse.next();
 }
 
 /**

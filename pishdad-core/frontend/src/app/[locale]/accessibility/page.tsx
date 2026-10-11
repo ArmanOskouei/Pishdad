@@ -13,7 +13,6 @@ import {
   buildAlternatesLanguages,
   localePublicPath,
   parseLocalesHeader,
-  SITE_LOCALES_HEADER,
 } from "@/lib/public-routing";
 import { fetchSiteChrome, siteBaseUrl } from "@/lib/site";
 import { resolveTheme } from "@/themes/registry";
@@ -32,6 +31,11 @@ import { resolveTheme } from "@/themes/registry";
  * هیچ چیزی اعلام نکرده).
  */
 export const revalidate = 300;
+// PERF-1 - middleware rewrite alone opts the route into dynamic rendering
+// in Next 16 (proven: no-store without it, HIT with dynamic=error and zero
+// DynamicServerErrors, i.e. the tree uses no dynamic APIs). force-static keeps
+// the URL design (bare primary URLs) AND the 300s cache.
+export const dynamic = "force-static";
 
 type Props = { params: Promise<{ locale: string }> };
 

@@ -1,0 +1,48 @@
+# PF-1 — production overrides for the Pishdad backend.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Why a separate file and not an edit of the base file: the dev image runs FPM
+# as root ON PURPOSE (docker/php/zz-docker.conf explains: Windows bind-mount
+# permissions). Flipping `user` in the base file breaks every bind-mounted
+# development setup, so the production identity lives here instead.
+#
+# What this file changes vs. docker-compose.yml:
+#   1. app + scheduler build from Dockerfile.prod (USER www-data, production
+#      ini/pool, no dev deps, no host bind-mount of the source).
+#   2. The host ports of db/redis/minio are DROPPED — only the edge should be
+#      reachable from outside the compose network. `cms/cmssecret`,
+#      `minioadmin/minioadmin123` and a passwordless Redis on a public VPS are
+#      the exposure this closes.
+#   3. No `./:/var/www/html` mount: the code is in the image (which is what
+#      makes opcache validate_timestamps=0 safe).
+#
+# ⚠️ Deploy flow changes with this file: new code = new image =
+# `docker compose build && up -d`. Editing files in place no longer has any
+# effect (see docs/DEPLOY-CHECKLIST.md).
+#
+# ⚠️ PostgreSQL/Redis/Mongo ports stay on 127.0.0.1 in the base file, so a
+# local `psql`/`redis-cli` from the host still works; they are removed HERE so
+# a VPS does not expose them to the internet.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    volumes: !override []
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    volumes: !override []
+
+  db:
+    ports: !override []
+
+  redis:
+    ports: !override []
+
+  minio:
+    ports: !override []

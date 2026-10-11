@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   localizeHref,
   publicDir,
@@ -30,7 +31,13 @@ export function LanguageSwitcher({
   current: PublicLocale;
 }) {
   const pathname = usePathname() ?? "/";
-  const searchParams = useSearchParams();
+  // PERF-1 — قبلاً useSearchParams بود که بدون Suspense کل روت را داینامیک
+  // می‌کرد (پاسخ no-store). حالا query فقط بعد از mount از window خوانده
+  // می‌شود؛ خروجیِ SSR/پررندر یکسان و استاتیک می‌ماند.
+  const [qs, setQs] = useState("");
+  useEffect(() => {
+    setQs(window.location.search.replace(/^\?/, ""));
+  }, []);
 
   const rest = pathname.replace(/^\/+|\/+$/g, "");
   const parts = rest ? rest.split("/") : [];
@@ -38,8 +45,6 @@ export function LanguageSwitcher({
   const hasPrefix = parts.length > 0 && (locales as readonly string[]).includes(parts[0]!);
   const bare = hasPrefix ? parts.slice(1) : parts;
   const barePath = bare.length ? `/${bare.join("/")}` : "";
-
-  const qs = searchParams.toString();
 
   const hrefFor = (loc: PublicLocale): string => {
     const path = localizeHref(barePath || "/", loc, primary);

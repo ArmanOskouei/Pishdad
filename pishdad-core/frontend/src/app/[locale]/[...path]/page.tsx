@@ -11,7 +11,6 @@ import {
   localePublicPath,
   parseLocalesHeader,
   pickBrowserLocale,
-  SITE_LOCALES_HEADER,
 } from "@/lib/public-routing";
 import { effectiveLocale } from "@/components/site/PublicPage";
 import { buildBreadcrumbList } from "@/lib/public-json-ld";
@@ -25,6 +24,11 @@ import { buildBreadcrumbList } from "@/lib/public-json-ld";
  */
 
 export const revalidate = 300;
+// PERF-1 - middleware rewrite alone opts the route into dynamic rendering
+// in Next 16 (proven: no-store without it, HIT with dynamic=error and zero
+// DynamicServerErrors, i.e. the tree uses no dynamic APIs). force-static keeps
+// the URL design (bare primary URLs) AND the 300s cache.
+export const dynamic = "force-static";
 
 type Props = { params: Promise<{ locale: string; path: string[] }> };
 
@@ -212,8 +216,9 @@ export default async function LocaleSitePageRoute({ params }: Props) {
   if (!found) notFound();
 
   const resolved: PublicLocale = isPublicLocale(found.locale) ? found.locale : locale;
-  if (resolved !== locale) redirect(localePublicPath(resolved, slug, primary));
-
+  // PERF-1: a redirect here used to force the whole route dynamic (revalidate
+  // 300 was dead). The found locale is rendered in place; canonical/hreflang
+  // in the metadata already points at it.
   const page = found.page;
   const base = siteBaseUrl(chrome);
   const ld = buildJsonLd(chrome, page as SitePage, slug, base, resolved, primary);

@@ -3,7 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Services\Backup\BackupRunner;
+use App\Services\Backup\BackupRunStore;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -41,6 +43,8 @@ class BackupRun extends Command
             return self::FAILURE;
         }
 
+        $startedAt = now()->toIso8601String();
+
         try {
             $result = $runner->run($keep, $path);
         } catch (Throwable $e) {
@@ -51,7 +55,22 @@ class BackupRun extends Command
             return self::FAILURE;
         }
 
+        // P-04 — نتیجهٔ اجرای زمان‌بندی‌شده هم در همان فروشی ثبت می‌شود که
+        // پنل می‌خواند؛ وگرنه شکستِ شبانهٔ ۰۳:۱۵ برای همیشه بی‌صدا می‌ماند
+        // (schedule:work فقط «DONE» گزارش می‌کند، نه موفقیت را).
+        BackupRunStore::record([
+            'status' => $result['ok'] ? 'done' : 'failed',
+            'ok' => $result['ok'],
+            'message' => $result['message'],
+            'file' => isset($result['file']) && $result['file'] !== null ? basename((string) $result['file']) : null,
+            'removed' => $result['removed'] ?? [],
+            'started_at' => $startedAt,
+            'finished_at' => now()->toIso8601String(),
+            'via' => 'schedule',
+        ], $path);
+
         if (! $result['ok']) {
+            Log::error('backup.run_failed', ['message' => $result['message']]);
             $this->error($result['message']);
 
             return self::FAILURE;
