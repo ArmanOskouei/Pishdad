@@ -18,7 +18,15 @@ use Illuminate\Support\Facades\Storage;
 final class MediaUrl
 {
     /** @return string|null نشانیِ عمومی، یا null اگر دیسک ناشناخته/مسیر خالی باشد. */
-    public static function for(string $disk, string $path): ?string
+    /**
+     * @return string|null نشانی عمومی فایل، یا null اگر قابل‌سرو نیست/نامعتبر.
+     *
+     * @param int|null $id شناسهٔ ردیفِ media. برای دیسکِ s3 لازم است: نشانی
+     * به روتِ عمومیِ بک‌اند (`/api/v1/site/media/{id}`) اشاره می‌کند تا سطل
+     * خصوصی بماند (E90). بدونِ id به نشانیِ مستقیمِ قدیمیِ MinIO برمی‌گردد
+     * (سازگاری عقب‌رو؛ همهٔ فراخوان‌های هسته id می‌دهند).
+     */
+    public static function for(string $disk, string $path, ?int $id = null): ?string
     {
         $path = ltrim($path, '/');
 
@@ -27,6 +35,12 @@ final class MediaUrl
         }
 
         if ($disk === 's3') {
+            if ($id !== null && $id > 0) {
+                $base = rtrim((string) config('app.url', ''), '/');
+
+                return $base === '' ? null : $base.'/api/v1/site/media/'.$id;
+            }
+
             $base = rtrim((string) config('filesystems.disks.s3.url', ''), '/');
 
             return $base === '' ? null : $base.'/'.$path;

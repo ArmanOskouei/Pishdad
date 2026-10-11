@@ -66,7 +66,7 @@ class PageSeoMetaTest extends TestCase
 
         $data = $this->getJson('/api/v1/site/pages/seo-og')->assertOk()->json('data');
 
-        $this->assertSame('http://cdn.test/cms/media/1/og.png', $data['meta']['og_image_url']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$img->id, $data['meta']['og_image_url']);
         $this->assertSame('https://ex.com/c', $data['meta']['canonical']);
         $this->assertTrue($data['meta']['noindex']);
     }
@@ -91,7 +91,7 @@ class PageSeoMetaTest extends TestCase
 
         $data = $this->getJson('/api/v1/site/pages/seo-legacy')->assertOk()->json('data');
 
-        $this->assertSame('http://cdn.test/cms/media/1/legacy.png', $data['meta']['og_image_url']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$img->id, $data['meta']['og_image_url']);
     }
 
     public function test_admin_persists_seo_meta_and_rejects_markup_in_canonical(): void

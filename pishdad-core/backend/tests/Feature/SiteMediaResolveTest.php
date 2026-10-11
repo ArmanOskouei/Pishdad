@@ -51,7 +51,7 @@ class SiteMediaResolveTest extends TestCase
 
     public function test_public_page_resolves_image_hero_gallery_urls(): void
     {
-        config(['filesystems.disks.s3.url' => 'http://cdn.test/cms']);
+        // E90: نشانی s3 از روتِ بک‌اند می‌آید، نه MinIO مستقیم.
         $user = $this->user();
         $a = $this->media($user, 'media/1/a.png');
         $b = $this->media($user, 'media/1/b.png');
@@ -67,17 +67,17 @@ class SiteMediaResolveTest extends TestCase
         $data = $this->getJson('/api/v1/site/pages/res1')->assertOk()->json('data');
         $blocks = $data['blocks'];
 
-        $this->assertSame('http://cdn.test/cms/media/1/a.png', $blocks[0]['data']['url']);
-        $this->assertSame('http://cdn.test/cms/media/1/b.png', $blocks[1]['data']['url']);
-        $this->assertSame('http://cdn.test/cms/media/1/b.png', $blocks[2]['data']['url_0']);
-        $this->assertSame('http://cdn.test/cms/media/1/c.png', $blocks[2]['data']['url_1']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$a->id, $blocks[0]['data']['url']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$b->id, $blocks[1]['data']['url']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$b->id, $blocks[2]['data']['url_0']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$c->id, $blocks[2]['data']['url_1']);
         $this->assertArrayNotHasKey('url_2', $blocks[2]['data']);
         $this->assertArrayNotHasKey('url', $blocks[3]['data']);
     }
 
     public function test_public_page_enriches_sidebar_preset_blocks(): void
     {
-        config(['filesystems.disks.s3.url' => 'http://cdn.test/cms']);
+        // E90: نشانی s3 از روتِ بک‌اند می‌آید، نه MinIO مستقیم.
         $user = $this->user();
         $m = $this->media($user, 'media/1/s.png');
         $preset = SidePreset::query()->create([
@@ -92,6 +92,6 @@ class SiteMediaResolveTest extends TestCase
 
         $data = $this->getJson('/api/v1/site/pages/res2')->assertOk()->json('data');
 
-        $this->assertSame('http://cdn.test/cms/media/1/s.png', $data['sidebars']['right']['blocks'][0]['data']['url']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$m->id, $data['sidebars']['right']['blocks'][0]['data']['url']);
     }
 }

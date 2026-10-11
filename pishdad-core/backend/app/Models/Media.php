@@ -41,7 +41,9 @@ class Media extends Model
 
     public function getUrlAttribute(): ?string
     {
-        return MediaUrl::for((string) $this->disk, (string) $this->path);
+        $id = $this->getKey();
+
+        return MediaUrl::for((string) $this->disk, (string) $this->path, is_numeric($id) ? (int) $id : null);
     }
 
     public function owner(): BelongsTo

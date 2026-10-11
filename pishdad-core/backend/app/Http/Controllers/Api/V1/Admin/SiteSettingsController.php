@@ -369,7 +369,7 @@ class SiteSettingsController extends Controller
         foreach ($wanted as $k => $id) {
             $row = $rows[$id] ?? null;
             if ($row) {
-                $out[$k] = \App\Support\MediaUrl::for((string) $row->disk, (string) $row->path);
+                $out[$k] = \App\Support\MediaUrl::for((string) $row->disk, (string) $row->path, (int) $row->id);
             }
         }
 

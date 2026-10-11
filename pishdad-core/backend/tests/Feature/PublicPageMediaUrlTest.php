@@ -76,7 +76,7 @@ class PublicPageMediaUrlTest extends TestCase
         $data = $response->json('data.blocks.0.data');
 
         $this->assertArrayHasKey('url', $data);
-        $this->assertStringEndsWith('/shared/abc.jpg', $data['url']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$media->id, $data['url']);
         $this->assertSame('توضیح', $data['alt']);
     }
 
@@ -106,8 +106,8 @@ class PublicPageMediaUrlTest extends TestCase
 
         $data = $this->getJson('/api/v1/site/pages/test-media')->assertOk()->json('data.blocks.0.data');
 
-        $this->assertStringEndsWith('/shared/abc.jpg', $data['url_0']);
-        $this->assertStringEndsWith('/shared/def.png', $data['url_1']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$first->id, $data['url_0']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$second->id, $data['url_1']);
         $this->assertSame(2, $data['columns']);
     }
 
@@ -124,7 +124,7 @@ class PublicPageMediaUrlTest extends TestCase
 
         $data = $this->getJson('/api/v1/site/pages/test-media')->assertOk()->json('data.blocks.0.data');
 
-        $this->assertStringEndsWith('/shared/abc.jpg', $data['poster_url']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$media->id, $data['poster_url']);
     }
 
     /**
@@ -218,7 +218,7 @@ public function test_media_on_a_local_disk_still_gets_a_url(): void
         $data = $this->getJson('/api/v1/site/pages/test-media')->assertOk()->json('data.blocks.0.data');
 
         $this->assertStringEndsWith('/media/shared/on-public.svg', $data['url_0']);
-        $this->assertStringEndsWith('/shared/on-s3.svg', $data['url_1']);
+        $this->assertStringEndsWith('/api/v1/site/media/'.$s3->id, $data['url_1']);
     }
 
     /**

@@ -179,14 +179,14 @@ class SiteSettingsTest extends TestCase
             ],
         ])->assertOk()->assertJsonPath(
             'data.socials.0.icon_url',
-            rtrim((string) config('filesystems.disks.s3.url'), '/').'/media/1/logo.png'
+            config('app.url').'/api/v1/site/media/'.$media->id
         );
 
         $auth->getJson('/api/v1/admin/settings/socials')
             ->assertOk()
             ->assertJsonPath(
                 'data.socials.0.icon_url',
-                rtrim((string) config('filesystems.disks.s3.url'), '/').'/media/1/logo.png'
+                config('app.url').'/api/v1/site/media/'.$media->id
             );
     }
 
@@ -221,10 +221,10 @@ class SiteSettingsTest extends TestCase
             'logo_media_id' => $media->id,
         ])->assertOk();
 
-        $base = rtrim((string) config('filesystems.disks.s3.url'), '/');
+        $base = rtrim((string) config('app.url'), '/');
         $auth->getJson('/api/v1/admin/settings/site')
             ->assertOk()
-            ->assertJsonPath('data.logo_url', $base.'/media/1/site-logo.png')
+            ->assertJsonPath('data.logo_url', $base.'/api/v1/site/media/'.$media->id)
             // برندِ پیش‌فرضِ نصب وقتی رسانه‌ای انتخاب نشده (کلون از گیت‌هاب).
             ->assertJsonPath('data.favicon_url', '/favicon.ico');
     }
@@ -444,10 +444,10 @@ class SiteSettingsTest extends TestCase
             'og_image_media_id' => $own->id,
         ])->assertOk();
 
-        $base = rtrim((string) config('filesystems.disks.s3.url'), '/');
+        $base = rtrim((string) config('app.url'), '/');
         $auth->getJson('/api/v1/admin/settings/site')
             ->assertOk()
-            ->assertJsonPath('data.og_image_url', $base.'/media/1/og.png');
+            ->assertJsonPath('data.og_image_url', $base.'/api/v1/site/media/'.$own->id);
 
         // مشترک نصب: رسانه مدیر دیگر هم پذیرفته است.
         $auth->putJson('/api/v1/admin/settings/site', [

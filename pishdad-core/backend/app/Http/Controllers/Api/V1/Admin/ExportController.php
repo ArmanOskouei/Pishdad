@@ -190,7 +190,7 @@ class ExportController extends Controller
 
         $mediaUrl = [];
         foreach (Media::query()->get(['id', 'disk', 'path']) as $m) {
-            $mediaUrl[(int) $m->id] = MediaUrl::for((string) $m->disk, (string) $m->path);
+            $mediaUrl[(int) $m->id] = MediaUrl::for((string) $m->disk, (string) $m->path, (int) $m->id);
         }
 
         $doc = new DOMDocument('1.0', 'UTF-8');

@@ -635,7 +635,8 @@ class PageController extends Controller
         if ($id !== null && $id > 0) {
             $row = Media::query()->find($id, ['id', 'disk', 'path']);
             if ($row !== null && is_string($row->path) && $row->path !== '') {
-                $url = $this->publicUrlFor((string) ($row->disk ?: config('filesystems.default')), $row->path);
+                // E90 — مثل withMediaUrls: s3 از روتِ بک‌اند سرو می‌شود.
+                $url = \App\Support\MediaUrl::for((string) ($row->disk ?: config('filesystems.default')), $row->path, $id);
                 if ($url !== null) {
                     $meta['og_image_url'] = $url;
                 }
@@ -753,7 +754,9 @@ class PageController extends Controller
                 }
 
                 $disk = (string) ($row->disk ?: config('filesystems.default'));
-                $url = $this->publicUrlFor($disk, $row->path);
+                // E90 — نشانی از MediaUrl می‌آید تا s3 هم به روتِ عمومیِ
+                // بک‌اند اشاره کند (سطل خصوصی می‌ماند)، نه MinIO مستقیم.
+                $url = \App\Support\MediaUrl::for($disk, $row->path, $id);
 
                 if ($url !== null) {
                     $map[$id] = $url;
@@ -768,7 +771,7 @@ class PageController extends Controller
                 // WF-C4 — فرادادهٔ نسخه‌های واکنش‌گرا (اگر آپلود/command ساخته
                 // باشد). نبودش یعنی `variantMap[$id]` خالی می‌ماند و رفتار
                 // دقیقاً مثل قبل است.
-                $variants = $this->variantInfoFor($disk, $row->mime, $row->variants);
+                $variants = $this->variantInfoFor($disk, $row->mime, $row->variants, $id);
 
                 if ($variants !== []) {
                     $variantMap[$id] = $variants;
@@ -815,9 +818,39 @@ class PageController extends Controller
      * `sources` (AVIF/WebP) می‌سازد. خالی یعنی «نسخه‌ای نیست» ⇒ فرانت به
      * `url` اصلی fallback می‌کند.
      *
+     * E90 — نسخه‌های s3 هم از روتِ بک‌اند سرو می‌شوند
+     * (`/api/v1/site/media/{id}?file=…`، اعتبارسنجی‌شده در برابر همین رکورد)،
+     * پس شناسهٔ مدیا لازم است.
+     *
      * @return array{srcset?: string, sources?: list<array{type: string, srcset: string}>}
      */
-    private function variantInfoFor(string $disk, mixed $mime, mixed $variants): array
+    /**
+     * نشانیِ یک فایلِ نسخه (variant) — مثل publicUrlFor ولی با شناسهٔ مدیا،
+     * تا نسخه‌های s3 هم از روتِ بک‌اند بیایند (E90).
+     */
+    private function variantBackendUrl(string $disk, string $variantPath, int $mediaId): ?string
+    {
+        if ($disk === 's3') {
+            $base = rtrim((string) config('app.url', ''), '/');
+
+            return $base === '' ? null : $base.'/api/v1/site/media/'.$mediaId.'?file='.rawurlencode(ltrim($variantPath, '/'));
+        }
+
+        return $this->publicUrlFor($disk, $variantPath);
+    }
+
+    /**
+     * WF-C4 — از فرادادهٔ `media.variants`، `srcset` قالبِ اصلی و فهرستِ
+     * `sources` (AVIF/WebP) می‌سازد. خالی یعنی «نسخه‌ای نیست» ⇒ فرانت به
+     * `url` اصلی fallback می‌کند.
+     *
+     * E90 — نسخه‌های s3 هم از روتِ بک‌اند سرو می‌شوند
+     * (`/api/v1/site/media/{id}?file=…`، اعتبارسنجی‌شده در برابر همین رکورد)،
+     * پس شناسهٔ مدیا لازم است.
+     *
+     * @return array{srcset?: string, sources?: list<array{type: string, srcset: string}>}
+     */
+    private function variantInfoFor(string $disk, mixed $mime, mixed $variants, int $mediaId): array
     {
         if (! is_array($variants) || ! is_array($variants['items'] ?? null)) {
             return [];
@@ -839,7 +872,7 @@ class PageController extends Controller
                     continue;
                 }
 
-                $url = $this->publicUrlFor($disk, $variantPath);
+                $url = $this->variantBackendUrl($disk, $variantPath, $mediaId);
 
                 if ($url !== null) {
                     $byMime[$variantMime][$width] = $url;

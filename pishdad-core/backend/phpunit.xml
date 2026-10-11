@@ -166,6 +166,7 @@
             <file>tests/Feature/SiteChromeTest.php</file>
             <file>tests/Feature/SiteFeedTest.php</file>
             <file>tests/Feature/SiteMediaResolveTest.php</file>
+            <file>tests/Feature/SiteMediaRouteTest.php</file>
             <file>tests/Feature/SiteSearchTest.php</file>
             <file>tests/Feature/SiteSettingsTest.php</file>
             <file>tests/Feature/SiteStatusTest.php</file>

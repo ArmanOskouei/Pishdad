@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\Site\RedirectController as SiteRedirectControlle
 use App\Http\Controllers\Api\V1\Site\SearchController as SiteSearchController;
 use App\Http\Controllers\Api\V1\Site\SiteChromeController;
 use App\Http\Controllers\Api\V1\Site\SiteCacheController;
+use App\Http\Controllers\Api\V1\Site\SiteMediaController;
 use App\Http\Controllers\Api\V1\Site\SiteThemeController as SiteThemePublicController;
 use App\Http\Controllers\Api\V1\Site\SiteStatusController;
 use App\Http\Controllers\Api\V1\PushSubscriptionController;
@@ -428,6 +429,11 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:60,1');
     // کروم عمومی سایت (هدر/فوتر واقعی + برند) — سبک، rate-limit ملایم، بدون داده حساس.
     Route::get('site/chrome', [SiteChromeController::class, 'show'])->middleware('throttle:60,1');
+    // E90 — بایتِ رسانهٔ s3 از خودِ بک‌اند (سطل خصوصی می‌ماند؛ نشانیِ مستقیمِ
+    // MinIO دیگر در HTML/JSON عمومی نیست). شناسه عددی ⇒ بدون traversal.
+    Route::get('site/media/{id}', [SiteMediaController::class, 'show'])
+        ->where('id', '[0-9]+')
+        ->middleware('throttle:120,1');
     // کلید سراسری «کش سایت» — بدون کش، تا فرانت بداند کش بکند یا نه.
     Route::get('site/cache', [SiteCacheController::class, 'show']);
     // F4.1.F — توکن‌های یک قالبِ مشخص برای صفحهٔ پیش‌نمایش (`/preview/{slug}`).

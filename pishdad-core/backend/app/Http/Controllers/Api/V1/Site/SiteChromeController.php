@@ -282,12 +282,13 @@ class SiteChromeController extends Controller
         }
         $row = Media::query()
             ->where('id', (int) $mediaId)
-            ->first(['disk', 'path']);
+            ->first(['id', 'disk', 'path']);
         if (! $row) {
             return null;
         }
 
-        // نشانی بر پایهٔ دیسکِ خودِ فایل (public ⇒ /storage، s3 ⇒ MinIO).
-        return \App\Support\MediaUrl::for((string) $row->disk, (string) $row->path);
+        // نشانی بر پایهٔ دیسکِ خودِ فایل (public ⇒ /storage، s3 ⇒ روتِ عمومیِ
+        // بک‌اند با شناسه، تا سطل خصوصی بماند — E90).
+        return \App\Support\MediaUrl::for((string) $row->disk, (string) $row->path, (int) $row->id);
     }
 }

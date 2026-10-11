@@ -96,14 +96,17 @@ class MediaImageVariantsTest extends TestCase
 
         $data = $this->getJson('/api/v1/site/pages/variants-media')->assertOk()->json('data.blocks.0.data');
 
-        $this->assertSame('http://cdn.test/cms/media/1/photo.jpg', $data['url']);
+        // E90 — نشانیِ اصلی و همهٔ نسخه‌ها از روتِ بک‌اند می‌آیند (سطل خصوصی).
+        $base = rtrim((string) config('app.url'), '/').'/api/v1/site/media/'.$media->id;
+        $file = fn (string $p): string => $base.'?file='.rawurlencode($p);
+        $this->assertSame($base, $data['url']);
         $this->assertSame(
-            'http://cdn.test/cms/media/1/photo-320.jpg 320w, http://cdn.test/cms/media/1/photo-640.jpg 640w',
+            $file('media/1/photo-320.jpg').' 320w, '.$file('media/1/photo-640.jpg').' 640w',
             $data['srcset'],
         );
         $this->assertSame([
-            ['type' => 'image/avif', 'srcset' => 'http://cdn.test/cms/media/1/photo-320.avif 320w, http://cdn.test/cms/media/1/photo-640.avif 640w'],
-            ['type' => 'image/webp', 'srcset' => 'http://cdn.test/cms/media/1/photo-320.webp 320w, http://cdn.test/cms/media/1/photo-640.webp 640w'],
+            ['type' => 'image/avif', 'srcset' => $file('media/1/photo-320.avif').' 320w, '.$file('media/1/photo-640.avif').' 640w'],
+            ['type' => 'image/webp', 'srcset' => $file('media/1/photo-320.webp').' 320w, '.$file('media/1/photo-640.webp').' 640w'],
         ], $data['sources']);
     }
 
@@ -145,7 +148,8 @@ class MediaImageVariantsTest extends TestCase
 
         $data = $this->getJson('/api/v1/site/pages/variants-media')->assertOk()->json('data.blocks.0.data');
 
-        $this->assertSame('http://cdn.test/cms/media/1/photo.jpg', $data['url']);
+        $base = rtrim((string) config('app.url'), '/').'/api/v1/site/media/'.$media->id;
+        $this->assertSame($base, $data['url']);
         $this->assertArrayNotHasKey('srcset', $data);
         $this->assertArrayNotHasKey('sources', $data);
     }

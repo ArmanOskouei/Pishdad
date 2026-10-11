@@ -96,6 +96,7 @@ class LogoWidgetTest extends TestCase
         CachedSettings::forget('site_chrome', 'chrome-default-global');
         $chrome = $this->getJson('/api/v1/site/chrome')->assertOk()->json('data');
         $this->assertNotNull($chrome['logo_url']);
-        $this->assertStringContainsString('u/logo.png', $chrome['logo_url']);
+        // E90 — لوگوی s3 از روتِ بک‌اند می‌آید، نه MinIO مستقیم.
+        $this->assertStringEndsWith('/api/v1/site/media/'.$media->id, $chrome['logo_url']);
     }
 }
